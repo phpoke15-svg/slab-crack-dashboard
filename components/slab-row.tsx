@@ -1,0 +1,115 @@
+"use client"
+
+import Image from "next/image"
+import { Sparkles, ExternalLink } from "lucide-react"
+import { cn } from "@/lib/utils"
+import {
+  getBestGradeQuote,
+  getGradeQuotes,
+  type MockCardEntry,
+} from "@/lib/slab-data"
+import { GradePriceGrid } from "@/components/grade-price-grid"
+import { DeficitBadge } from "@/components/deficit-badge"
+
+interface SlabRowProps {
+  card: MockCardEntry
+  onClick: () => void
+  watched: boolean
+}
+
+export function SlabRow({ card, onClick, watched }: SlabRowProps) {
+  const priced = card.hasPricing !== false
+  const gradeQuotes = getGradeQuotes(card)
+  const best = getBestGradeQuote(gradeQuotes)
+  const ebayGrade = best?.grade ?? 9
+  const ebayUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`${card.cardName} ${card.cardNumber} PSA ${ebayGrade}`)}`
+
+  return (
+    <div
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onClick()
+        }
+      }}
+      className={cn(
+        "group flex w-full cursor-pointer flex-col gap-3 rounded-2xl border border-border bg-card p-3 text-left transition-all sm:p-4",
+        "hover:border-primary/40 hover:bg-card/80 focus-within:outline-none focus-within:ring-2 focus-within:ring-primary/60",
+      )}
+    >
+      <div className="flex items-start gap-3 sm:gap-4">
+        <div className="relative aspect-[3/4] w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 sm:w-16">
+          <Image
+            src={card.imageUrl || "/placeholder.svg"}
+            alt={`${card.cardName} card artwork`}
+            fill
+            sizes="(max-width: 640px) 64px, 80px"
+            quality={90}
+            className="object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+          {watched && (
+            <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <Sparkles className="size-2.5" />
+            </span>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="truncate font-semibold text-foreground">{card.cardName}</h3>
+                <span className="shrink-0 font-mono text-xs text-muted-foreground">{card.cardNumber}</span>
+              </div>
+              <p className="truncate text-sm text-muted-foreground">{card.setName}</p>
+            </div>
+
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              {priced && best ? (
+                <DeficitBadge diff={-best.deficit} pct={-best.percentageSavings} />
+              ) : (
+                <div className="rounded-xl border border-border bg-secondary/40 px-3 py-1.5 text-right">
+                  <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    {priced ? "No arbitrage" : "Awaiting sync"}
+                  </span>
+                </div>
+              )}
+              <a
+                href={ebayUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className={cn(
+                  "flex items-center gap-1 rounded-md border border-border bg-secondary/60 px-2 py-1 font-mono text-[10px] font-semibold text-muted-foreground transition-colors",
+                  "hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+                )}
+              >
+                <ExternalLink className="size-3" />
+                eBay
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-2 flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
+          <span
+            className={cn(
+              "font-mono text-sm font-medium tabular-nums",
+              card.rawPrice > 0
+                ? "text-foreground/90 line-through decoration-destructive/60"
+                : "text-muted-foreground",
+            )}
+          >
+            {card.rawPrice > 0 ? `$${card.rawPrice.toFixed(0)}` : "—"}
+          </span>
+          <span className="text-[10px] text-muted-foreground">·</span>
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Slab comps</span>
+        </div>
+        </div>
+      </div>
+
+      <GradePriceGrid quotes={gradeQuotes} priced={priced || gradeQuotes.some((q) => q.slabPrice > 0)} compact />
+    </div>
+  )
+}

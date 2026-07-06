@@ -1,0 +1,39 @@
+[
+  {
+    "id": "1",
+    "priceChartingId": "",
+    "searchQuery": "charizard ex 199 pokemon 151",
+    "ebayQueries": {
+      "raw": "charizard ex 199 151 pokemon NM",
+      "psa8": "charizard ex 199 151 PSA 8",
+      "psa9": "charizard ex 199 151 PSA 9"
+    },
+    "cardName": "Charizard ex (Special Illustration Rare)",
+    "setName": "Scarlet & Violet: 151",
+    "cardNumber": "199/165",
+    "imageUrl": "https://placehold.co/150x210",
+    "marketInsight": "Massive initial submission volumes created an extreme oversupply of PSA 8s and 9s. Buyers looking for raw copies to gamble on a 10 keep raw prices artificially inflated."
+  },
+  {
+    "id": "2",
+    "pokemonTcgId": "swsh8-271",
+    "priceChartingId": "",
+    "searchQuery": "gengar vmax 271 fusion strike",
+    "cardName": "Gengar VMAX (Alternative Art Secret)",
+    "setName": "Sword & Shield: Fusion Strike",
+    "cardNumber": "271/264",
+    "imageUrl": "https://placehold.co/150x210",
+    "marketInsight": "Due to centering strictness on this specific print run, collectors heavily dump 8s to recoup grading fees, making the slab a massive discount for binder collectors."
+  },
+  {
+    "id": "3",
+    "pokemonTcgId": "swsh11-186",
+    "priceChartingId": "",
+    "searchQuery": "giratina v 186 lost origin alt art",
+    "cardName": "Giratina V (Alternative Art Secret)",
+    "setName": "Sword & Shield: Lost Origin",
+    "cardNumber": "186/196",
+    "imageUrl": "https://placehold.co/150x210",
+    "marketInsight": "A PSA 9 of this card guarantees structural authenticity and zero micro-scratches, yet trades at a discount compared to risky unverified raw copies on secondary marketplaces."
+  }
+]

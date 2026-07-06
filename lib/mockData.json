@@ -1,0 +1,75 @@
+[
+  {
+    "id": "1",
+    "cardName": "Charizard ex (Special Illustration Rare)",
+    "setName": "Scarlet & Violet: 151",
+    "cardNumber": "199/165",
+    "imageUrl": "https://placehold.co/150x210",
+    "rawPrice": 125,
+    "slabGrade": 8,
+    "slabPrice": 90,
+    "deficit": 35,
+    "percentageSavings": 28,
+    "marketInsight": "Massive initial submission volumes created an extreme oversupply of PSA 8s and 9s. Buyers looking for raw copies to gamble on a 10 keep raw prices artificially inflated.",
+    "gradeQuotes": [
+      { "grade": 7, "slabPrice": 62, "deficit": 63, "percentageSavings": 50, "isArbitrage": true },
+      { "grade": 8, "slabPrice": 90, "deficit": 35, "percentageSavings": 28, "isArbitrage": true },
+      { "grade": 9, "slabPrice": 118, "deficit": 0, "percentageSavings": 0, "isArbitrage": false }
+    ],
+    "recentSlabSales": [
+      {
+        "title": "Charizard ex 199/165 SIR PSA 8 Scarlet Violet 151",
+        "price": 88,
+        "shipping": 4.5,
+        "total": 92.5,
+        "soldDate": "2026-06-28T14:22:00.000Z",
+        "url": "https://www.ebay.com/itm/example"
+      }
+    ],
+    "recentRawSales": [
+      {
+        "title": "Charizard ex 199/165 SIR NM Scarlet & Violet 151",
+        "price": 122,
+        "shipping": 4.99,
+        "total": 126.99,
+        "soldDate": "2026-06-27T20:15:00.000Z"
+      }
+    ]
+  },
+  {
+    "id": "2",
+    "cardName": "Gengar VMAX (Alternative Art Secret)",
+    "setName": "Sword & Shield: Fusion Strike",
+    "cardNumber": "271/264",
+    "imageUrl": "https://placehold.co/150x210",
+    "rawPrice": 310,
+    "slabGrade": 8,
+    "slabPrice": 255,
+    "deficit": 55,
+    "percentageSavings": 18,
+    "marketInsight": "Due to centering strictness on this specific print run, collectors heavily dump 8s to recoup grading fees, making the slab a massive discount for binder collectors.",
+    "gradeQuotes": [
+      { "grade": 7, "slabPrice": 195, "deficit": 115, "percentageSavings": 37, "isArbitrage": true },
+      { "grade": 8, "slabPrice": 255, "deficit": 55, "percentageSavings": 18, "isArbitrage": true },
+      { "grade": 9, "slabPrice": 295, "deficit": 15, "percentageSavings": 5, "isArbitrage": true }
+    ]
+  },
+  {
+    "id": "3",
+    "cardName": "Giratina V (Alternative Art Secret)",
+    "setName": "Sword & Shield: Lost Origin",
+    "cardNumber": "186/196",
+    "imageUrl": "https://placehold.co/150x210",
+    "rawPrice": 420,
+    "slabGrade": 9,
+    "slabPrice": 375,
+    "deficit": 45,
+    "percentageSavings": 11,
+    "marketInsight": "A PSA 9 of this card guarantees structural authenticity and zero micro-scratches, yet trades at a discount compared to risky unverified raw copies on secondary marketplaces.",
+    "gradeQuotes": [
+      { "grade": 7, "slabPrice": 280, "deficit": 140, "percentageSavings": 33, "isArbitrage": true },
+      { "grade": 8, "slabPrice": 340, "deficit": 80, "percentageSavings": 19, "isArbitrage": true },
+      { "grade": 9, "slabPrice": 375, "deficit": 45, "percentageSavings": 11, "isArbitrage": true }
+    ]
+  }
+]

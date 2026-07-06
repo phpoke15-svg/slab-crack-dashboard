@@ -1,0 +1,41 @@
+[
+  {
+    "id": "1",
+    "cardName": "Charizard ex (Special Illustration Rare)",
+    "setName": "Scarlet & Violet: 151",
+    "cardNumber": "199/165",
+    "imageUrl": "https://placehold.co/150x210",
+    "rawPrice": 125.00,
+    "slabGrade": 8,
+    "slabPrice": 90.00,
+    "deficit": 35.00,
+    "percentageSavings": 28,
+    "marketInsight": "Massive initial submission volumes created an extreme oversupply of PSA 8s and 9s. Buyers looking for raw copies to gamble on a 10 keep raw prices artificially inflated."
+  },
+  {
+    "id": "2",
+    "cardName": "Gengar VMAX (Alternative Art Secret)",
+    "setName": "Sword & Shield: Fusion Strike",
+    "cardNumber": "271/264",
+    "imageUrl": "https://placehold.co/150x210",
+    "rawPrice": 310.00,
+    "slabGrade": 8,
+    "slabPrice": 255.00,
+    "deficit": 55.00,
+    "percentageSavings": 18,
+    "marketInsight": "Due to centering strictness on this specific print run, collectors heavily dump 8s to recoup grading fees, making the slab a massive discount for binder collectors."
+  },
+  {
+    "id": "3",
+    "cardName": "Giratina V (Alternative Art Secret)",
+    "setName": "Sword & Shield: Lost Origin",
+    "cardNumber": "186/196",
+    "imageUrl": "https://placehold.co/150x210",
+    "rawPrice": 420.00,
+    "slabGrade": 9,
+    "slabPrice": 375.00,
+    "deficit": 45.00,
+    "percentageSavings": 11,
+    "marketInsight": "A PSA 9 of this card guarantees structural authenticity and zero micro-scratches, yet trades at a discount compared to risky unverified raw copies on secondary marketplaces."
+  }
+]
