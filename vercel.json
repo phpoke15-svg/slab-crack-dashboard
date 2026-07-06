@@ -1,4 +1,10 @@
 {
   "installCommand": "npm ci",
-  "buildCommand": "npm run build"
+  "buildCommand": "npm run build",
+  "crons": [
+    {
+      "path": "/api/cron/discover-arbitrage",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }
