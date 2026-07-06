@@ -19,6 +19,16 @@ export const metadata: Metadata = {
   description:
     'Find graded PSA slabs selling for less than a raw Near-Mint copy. Buy, crack, and binder your cards at a discount.',
   generator: 'v0.app',
+  other: {
+    'google-adsense-account': 'ca-pub-8023063687308230',
+  },
+  ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+    ? {
+        verification: {
+          google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+        },
+      }
+    : {}),
 }
 
 export const viewport: Viewport = {
@@ -33,8 +43,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
-      <body className="font-sans antialiased bg-background text-foreground">
+      <head>
         <AdSenseScript />
+      </head>
+      <body className="font-sans antialiased bg-background text-foreground">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
