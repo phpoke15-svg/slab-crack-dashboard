@@ -218,7 +218,7 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
                 {priced && selectedCard.rawPrice > 0 ? `$${selectedCard.rawPrice.toFixed(2)}` : "—"}
               </span>
             </div>
-            <GradePriceGrid quotes={gradeQuotes} priced={priced} />
+            <GradePriceGrid quotes={gradeQuotes} priced={priced && !pricingLoading} />
           </div>
 
           {/* Recent eBay sold comps */}

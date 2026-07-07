@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'SlabCrack — Graded Slab Arbitrage for TCG Collectors',
+  title: 'CollecTools — TCG Collector Toolkit',
   description:
-    'Find graded PSA slabs selling for less than a raw Near-Mint copy. Buy, crack, and binder your cards at a discount.',
+    'SlabCrack arbitrage, Grade Check pre-submission estimator, and Trade Binder for Pokémon TCG collectors.',
   generator: 'v0.app',
   other: {
     'google-adsense-account': 'ca-pub-8023063687308230',

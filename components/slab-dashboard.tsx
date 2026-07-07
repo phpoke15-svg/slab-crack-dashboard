@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { Search, Layers, Zap, TrendingDown, DollarSign, Percent, ShieldCheck } from "lucide-react"
+import { Search, Zap, TrendingDown, DollarSign, Percent, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CollecToolsBrand } from "@/components/collectools-brand"
 import mockData from "@/lib/mockData.json"
 import {
   FEEDS,
@@ -212,17 +213,7 @@ export function SlabDashboard() {
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="px-4 pt-5 pb-3 sm:px-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-[0_0_20px_-4px] shadow-primary/60">
-                <Layers className="size-5" strokeWidth={2.5} />
-              </span>
-              <div className="leading-tight">
-                <h1 className="text-lg font-bold tracking-tight text-foreground">
-                  Slab<span className="text-primary">Crack</span>
-                </h1>
-                <p className="text-[11px] text-muted-foreground">Graded slab arbitrage</p>
-              </div>
-            </div>
+            <CollecToolsBrand href="/" subtitle="SlabCrack · graded slab arbitrage" size="sm" />
             <div className="flex items-center gap-2">
               <Link
                 href="/grade-check"

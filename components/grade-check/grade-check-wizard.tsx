@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, ArrowRight, Check, Layers, Loader2, Search, ShieldCheck } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Loader2, Search, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CollecToolsBrand } from "@/components/collectools-brand"
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
 import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
@@ -125,7 +126,7 @@ export function GradeCheckWizard() {
               className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
             >
               <ArrowLeft className="size-4" />
-              Feed
+              Tools
             </Link>
             <div className="flex items-center gap-2">
               <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -136,9 +137,7 @@ export function GradeCheckWizard() {
                 <p className="text-[10px] text-muted-foreground">Pre-submission estimator</p>
               </div>
             </div>
-            <span className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground">
-              <Layers className="size-4" />
-            </span>
+            <CollecToolsBrand href="/" size="sm" className="opacity-80" />
           </div>
 
           <div className="mt-4 flex gap-1">
@@ -291,7 +290,7 @@ export function GradeCheckWizard() {
               href="/"
               className="flex h-11 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
             >
-              Back to feed
+              Back to tools
             </Link>
           )}
         </div>

@@ -24,6 +24,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-trade: var(--trade);
+  --color-trade-foreground: var(--trade-foreground);
+  --color-wishlist: var(--wishlist);
+  --color-wishlist-foreground: var(--wishlist-foreground);
 
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
@@ -69,6 +73,11 @@
   --border: oklch(1 0 0 / 8%);
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.78 0.17 155);
+
+  --trade: oklch(0.72 0.12 145);
+  --trade-foreground: oklch(0.18 0.03 145);
+  --wishlist: oklch(0.78 0.14 75);
+  --wishlist-foreground: oklch(0.18 0.03 75);
 
   --radius: 0.85rem;
 }
@@ -133,4 +142,20 @@
 }
 ::-webkit-scrollbar-thumb:hover {
   background: oklch(0.4 0.015 260);
+}
+
+@utility hazard-stripes {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    var(--primary) 0 8px,
+    transparent 8px 16px
+  );
+}
+
+@utility metal-grain {
+  background-image: repeating-linear-gradient(
+    0deg,
+    color-mix(in oklch, var(--foreground) 4%, transparent) 0 1px,
+    transparent 1px 3px
+  );
 }
