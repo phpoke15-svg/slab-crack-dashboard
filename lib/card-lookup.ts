@@ -161,7 +161,27 @@ export function parseSearchInput(input: string): ParsedSearch {
   const slashNumber = trimmed.match(/^#?(\d{1,4})\/(\d{1,4})$/)
   if (slashNumber) return { mode: "number", number: slashNumber[1] }
 
-  const tokens = trimmed.split(/\s+/).filter(Boolean)
+  const rawTokens = trimmed.split(/\s+/).filter(Boolean)
+  const tokens: string[] = []
+
+  for (let i = 0; i < rawTokens.length; i++) {
+    const token = rawTokens[i]
+    const lower = token.toLowerCase()
+    const next = rawTokens[i + 1]
+
+    if (
+      next &&
+      /^(vol|volume|series)$/i.test(lower) &&
+      /^\d{1,2}$/.test(next)
+    ) {
+      tokens.push(`${lower} ${next}`)
+      i++
+      continue
+    }
+
+    tokens.push(token)
+  }
+
   const setTokens: string[] = []
   const numberTokens: string[] = []
   const textTokens: string[] = []
@@ -170,6 +190,8 @@ export function parseSearchInput(input: string): ParsedSearch {
     const bare = token.replace(/^#/, "")
     if (resolveSetIdForHint(bare)) {
       setTokens.push(bare)
+    } else if (/^(vol|series)\s+\d{1,2}$/i.test(bare)) {
+      textTokens.push(bare)
     } else if (/^\d{1,4}$/.test(bare)) {
       numberTokens.push(bare)
     } else {
@@ -479,9 +501,23 @@ function buildPriceChartingCatalogQueries(query: string, parsed: ParsedSearch): 
 
   if (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name") {
     out.add(`pokemon ${trimmed}`)
+    const comboTokens =
+      parsed.mode === "name-set-combo" ? parsed.tokens : [parsed.name, ...parsed.hints]
+    for (const { name, setHint } of buildNameSetCandidates(comboTokens)) {
+      out.add(`${name} ${setHint}`)
+      out.add(`pokemon ${name} ${setHint}`)
+    }
+    if (trimmed.includes("first partner")) {
+      const name = comboTokens[0]?.toLowerCase()
+      if (name) {
+        out.add(`${name} first partner illustration`)
+        out.add(`${name} black star promo`)
+        out.add(`pokemon ${name} first partner`)
+      }
+    }
   }
 
-  return [...out].slice(0, 6)
+  return [...out].slice(0, 8)
 }
 
 function scorePcCatalogHit(hit: PriceChartingSearchHit, query: string): number {
@@ -492,6 +528,14 @@ function scorePcCatalogHit(hit: PriceChartingSearchHit, query: string): number {
 
   if (consoleName.includes("pokemon")) score += 4
   if (consoleName.includes("japanese")) score += 3
+
+  const firstToken = q.split(/\s+/).find((token) => token.length >= 2) ?? ""
+  if (firstToken && productName.startsWith(firstToken)) score += 15
+
+  const looksLikeSealed =
+    /\b(pack|collection|box|tin|bundle|deck|pin collection)\b/i.test(productName) &&
+    !/#\d+/.test(productName)
+  if (looksLikeSealed) score -= 25
 
   for (const token of q.split(/\s+/).filter(Boolean)) {
     if (token.length < 2) continue
@@ -613,7 +657,25 @@ export async function searchCatalogCards(query: string, limit = 12): Promise<Car
   const pokemonHits = cards.slice(0, limit).map(catalogToSearchHit)
   if (pokemonHits.length > 0) return pokemonHits
 
-  return searchPriceChartingCards(query, parsed, limit)
+  const priceChartingHits = await searchPriceChartingCards(query, parsed, limit)
+  if (priceChartingHits.length > 0) return priceChartingHits
+
+  if (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name") {
+    const name = parsed.mode === "name-set-combo" ? parsed.tokens[0] : parsed.name
+    const setHint =
+      parsed.mode === "name-set-combo" ? parsed.tokens.slice(1).join(" ") : parsed.hints.join(" ")
+
+    if (name && setHint) {
+      const narrowed = await searchPriceChartingCards(`${name} ${setHint}`, parsed, limit)
+      if (narrowed.length > 0) return narrowed
+    }
+
+    if (name) {
+      return searchPriceChartingCards(name, { mode: "name", name }, limit)
+    }
+  }
+
+  return []
 }
 
 function formatCardName(name: string, rarity: string | null): string {

@@ -123,7 +123,7 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
                   ref={searchRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search priced EN/JP cards…"
+                  placeholder="Search any EN/JP card…"
                   aria-label="Search cards"
                   className="h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/50 focus:bg-secondary"
                 />
@@ -138,10 +138,10 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 {error ? (
                   <PickerEmpty message={error} />
-                ) : isLoading && availableResults.length === 0 && query.trim().length >= 1 ? (
-                  <PickerEmpty message="Loading priced cards…" />
-                ) : query.trim().length < 1 ? (
-                  <PickerEmpty message="Type to search the priced catalog." />
+                ) : isLoading && availableResults.length === 0 && query.trim().length >= 2 ? (
+                  <PickerEmpty message="Loading cards…" />
+                ) : query.trim().length < 2 ? (
+                  <PickerEmpty message="Type at least 2 characters to search the catalog." />
                 ) : availableResults.length > 0 ? (
                   <ul className="flex flex-col gap-1.5">
                     {availableResults.map((card) => (

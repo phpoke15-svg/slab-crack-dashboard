@@ -1,13 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Download, Loader2, SearchX, Users } from "lucide-react"
+import { Loader2, SearchX, Trash2, Users } from "lucide-react"
 import { type CardStatus, type CatalogCard, type TcgCard } from "@/lib/trade-binder/cards"
-import { addCardToBinder, bulkAddCardsToBinder, fetchUserBinder, loadBinderCards, updateBinderStatus } from "@/lib/trade-binder/binder"
+import { addCardToBinder, clearUserBinder, loadBinderCards, updateBinderStatus } from "@/lib/trade-binder/binder"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
 import { cn } from "@/lib/utils"
 import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
-import { streamBinderCatalogPages } from "@/hooks/trade-binder/use-priced-catalog-search"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SearchBar } from "./search-bar"
@@ -34,11 +33,10 @@ export function MyBinder() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
-  const [importing, setImporting] = useState(false)
-  const [importMessage, setImportMessage] = useState<string | null>(null)
+  const [clearing, setClearing] = useState(false)
   const loadIdRef = useRef(0)
 
-  const isSearching = query.trim().length >= 1
+  const isSearching = query.trim().length >= 2
   const { results: searchResults, isLoading: searchLoading, error: searchError, total: searchTotal } =
     usePokemonSearch(query, isSearching)
 
@@ -103,7 +101,7 @@ export function MyBinder() {
       } catch (err) {
         if (loadId === loadIdRef.current) {
           setCards((prev) => prev.filter((c) => c.id !== card.id))
-          setSaveError(err instanceof Error ? err.message : "Could not save card to your binder")
+          setSaveError(binderErrorMessage(err, "Could not save card to your binder"))
         }
       }
     })
@@ -120,62 +118,36 @@ export function MyBinder() {
   const tradeCount = cards.filter((c) => c.status === "trade").length
   const wishlistCount = cards.filter((c) => c.status === "wishlist").length
 
-  const importAllPriced = () => {
+  const clearBinder = () => {
+    if (!user || cards.length === 0) return
+
+    const confirmed = window.confirm(
+      `Remove all ${cards.length.toLocaleString()} cards from your binder? This cannot be undone.`,
+    )
+    if (!confirmed) return
+
     runWithAuth(async () => {
       const {
         data: { user: currentUser },
       } = await getSupabase().auth.getUser()
       if (!currentUser) return
 
-      setImporting(true)
-      setImportMessage(null)
+      const loadId = ++loadIdRef.current
+      setClearing(true)
       setSaveError(null)
 
       try {
-        const existingRows = await fetchUserBinder(getSupabase(), currentUser.id)
-        const skipIds = new Set(existingRows.map((row) => row.card_id))
-
-        let addedTotal = 0
-        let skippedTotal = 0
-        let totalCount: number | undefined
-
-        for await (const batch of streamBinderCatalogPages()) {
-          totalCount = batch.totalCount ?? totalCount
-          if (batch.cards.length === 0) break
-
-          const { added, skipped } = await bulkAddCardsToBinder(
-            getSupabase(),
-            currentUser.id,
-            batch.cards,
-            "trade",
-            { skipIds },
-          )
-
-          for (const card of batch.cards) skipIds.add(card.id)
-          addedTotal += added
-          skippedTotal += skipped
-
-          const totalLabel = totalCount ? ` of ~${totalCount.toLocaleString()}` : ""
-          setImportMessage(
-            `Importing page ${batch.page}… ${skipIds.size.toLocaleString()} cards in binder${totalLabel}`,
-          )
-
-          if (!batch.hasMore) break
-        }
-
-        if (addedTotal === 0 && skippedTotal === 0) {
-          setSaveError("No English or Japanese cards were found to import.")
-          return
-        }
-
-        setImportMessage(
-          `Added ${addedTotal.toLocaleString()} cards${skippedTotal > 0 ? ` (${skippedTotal.toLocaleString()} already in binder)` : ""}.`,
-        )
-        await loadBinder()
+        await clearUserBinder(getSupabase(), currentUser.id)
+        if (loadId !== loadIdRef.current) return
+        setCards([])
+        setFilter("all")
+        setQuery("")
       } catch (err) {
-        setSaveError(binderErrorMessage(err, "Could not import catalog"))
+        if (loadId === loadIdRef.current) {
+          setSaveError(binderErrorMessage(err, "Could not clear your binder"))
+        }
       } finally {
-        setImporting(false)
+        if (loadId === loadIdRef.current) setClearing(false)
       }
     })
   }
@@ -211,32 +183,29 @@ export function MyBinder() {
             </div>
           </div>
 
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            <span className="text-foreground">{cards.length}</span> cards ·{" "}
-            <span className="text-trade">{tradeCount}</span> for trade ·{" "}
-            <span className="text-wishlist">{wishlistCount}</span> on wishlist
-            <span className="text-muted-foreground/80"> · EN/JP catalog</span>
-          </p>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={importAllPriced}
-              disabled={importing || authLoading}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-secondary/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
-            >
-              {importing ? (
-                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Download className="size-3.5" aria-hidden="true" />
-              )}
-              Import all cards
-            </button>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <p className="text-[11px] text-muted-foreground">
+              <span className="text-foreground">{cards.length}</span> cards ·{" "}
+              <span className="text-trade">{tradeCount}</span> for trade ·{" "}
+              <span className="text-wishlist">{wishlistCount}</span> on wishlist
+              <span className="text-muted-foreground/80"> · search any EN/JP card</span>
+            </p>
+            {user && cards.length > 0 && !isSearching && (
+              <button
+                type="button"
+                onClick={clearBinder}
+                disabled={clearing || binderLoading}
+                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive disabled:opacity-50"
+              >
+                {clearing ? (
+                  <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Trash2 className="size-3" aria-hidden="true" />
+                )}
+                Clear binder
+              </button>
+            )}
           </div>
-
-          {importMessage && (
-            <p className="mt-2 text-xs text-primary">{importMessage}</p>
-          )}
 
           <div className="mt-4">
             <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
@@ -286,7 +255,7 @@ export function MyBinder() {
             ) : searchResults.length > 0 ? (
               <>
                 <p className="mb-3 text-xs text-muted-foreground">
-                  {searchTotal.toLocaleString()} card{searchTotal === 1 ? "" : "s"} in catalog
+                  {searchTotal.toLocaleString()} result{searchTotal === 1 ? "" : "s"}
                   {searchResults.length < searchTotal ? ` · showing ${searchResults.length}` : ""}
                 </p>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -324,8 +293,8 @@ export function MyBinder() {
             title="Your binder is empty"
             message={
               user
-                ? "Search English & Japanese cards above, or import the full catalog."
-                : "Sign in to search cards or import the catalog."
+                ? "Search any English or Japanese card above, then add it to your binder."
+                : "Sign in to search the catalog and build your binder."
             }
           />
         )}

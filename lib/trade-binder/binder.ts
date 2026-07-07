@@ -161,6 +161,11 @@ export async function updateBinderStatus(
   if (error) throwBinderError(error)
 }
 
+export async function clearUserBinder(supabase: SupabaseClient, userId: string): Promise<void> {
+  const { error } = await supabase.from("user_binders").delete().eq("user_id", userId)
+  if (error) throwBinderError(error)
+}
+
 const BULK_INSERT_BATCH = 40
 
 function dedupeCards(cards: CatalogCard[], skipIds: Set<string>): CatalogCard[] {
