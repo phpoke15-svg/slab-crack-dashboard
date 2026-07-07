@@ -1,6 +1,6 @@
 import mockData from "@/lib/mockData.json"
 
-export type Grade = "PSA 7" | "PSA 8" | "PSA 9"
+export type Grade = "PSA 7" | "PSA 8" | "PSA 9" | "PSA 10"
 
 export type Feed = "top" | "modern" | "watchlist"
 
@@ -26,7 +26,7 @@ export interface MockCardEntry {
   deficit: number
   percentageSavings: number
   marketInsight: string
-  /** PSA 7 / 8 / 9 slab comps for this card. */
+  /** PSA 7 / 8 / 9 / 10 slab comps for this card. */
   gradeQuotes?: GradeQuote[]
   recentRawSales?: RecentSale[]
   recentSlabSales?: RecentSale[]
@@ -36,8 +36,12 @@ export interface MockCardEntry {
   releaseDate?: string
 }
 
-export const PSA_GRADE_NUMBERS = [7, 8, 9] as const
+export const PSA_GRADE_NUMBERS = [7, 8, 9, 10] as const
 export type PsaGradeNumber = (typeof PSA_GRADE_NUMBERS)[number]
+
+export function isPsaSlabGrade(grade: number): grade is PsaGradeNumber {
+  return (PSA_GRADE_NUMBERS as readonly number[]).includes(grade)
+}
 
 export interface GradeQuote {
   grade: PsaGradeNumber
@@ -129,7 +133,7 @@ export function buildGradeQuotesFromPrices(
     {}
 
   for (const { grade, price } of grades) {
-    if (grade === 7 || grade === 8 || grade === 9) {
+    if (isPsaSlabGrade(grade)) {
       byGrade[grade] = {
         slabPrice: price,
         recentSlabSales: recentByGrade?.[grade],
@@ -344,7 +348,7 @@ export function computeRegradeROI(card: SlabCard, estGrade: number, fee: number)
   }
 }
 
-export const GRADES: Grade[] = ["PSA 7", "PSA 8", "PSA 9"]
+export const GRADES: Grade[] = ["PSA 7", "PSA 8", "PSA 9", "PSA 10"]
 
 export const FEEDS: { id: Feed; label: string }[] = [
   { id: "top", label: "Top Deficits" },

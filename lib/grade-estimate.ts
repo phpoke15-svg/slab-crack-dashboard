@@ -61,6 +61,24 @@ export function formatCenteringRatio(borders: BorderInsets): string {
   return `${h} L/R · ${v} T/B`
 }
 
+/** Measured border thicknesses as % of card width (L/R) or height (T/B). */
+export function borderThicknesses(borders: BorderInsets) {
+  return {
+    top: borders.top,
+    bottom: borders.bottom,
+    left: borders.left,
+    right: borders.right,
+  }
+}
+
+export function borderBalanceLabel(larger: number, smaller: number): string {
+  const total = larger + smaller
+  if (total <= 0) return "—"
+  const pctLarge = Math.round((larger / total) * 100)
+  const pctSmall = Math.round((smaller / total) * 100)
+  return `${pctLarge}/${pctSmall}`
+}
+
 export function effectiveGradeCondition(state: ExtendedGradeCondition): ConditionState {
   const cornerCap = Math.min(state.corners, state.whitening)
   const edgeCap = Math.min(state.edges, state.whitening)

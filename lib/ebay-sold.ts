@@ -35,6 +35,7 @@ export interface EbayGradeQueries {
   psa7?: string
   psa8?: string
   psa9?: string
+  psa10?: string
 }
 
 const DEFAULT_BASE = "https://api.sold-comps.com"
@@ -140,7 +141,7 @@ export async function fetchEbaySoldComps(
 export interface EbayCardPrices {
   rawPrice: number
   grades: { grade: number; price: number }[]
-  sampleCounts: { raw: number; psa7: number; psa8: number; psa9: number }
+  sampleCounts: { raw: number; psa7: number; psa8: number; psa9: number; psa10: number }
   recentRawSales: RecentSale[]
   recentByGrade: Record<number, RecentSale[]>
 }
@@ -149,10 +150,11 @@ function slabQuery(queries: EbayGradeQueries, grade: number): string {
   if (grade === 7 && queries.psa7) return queries.psa7
   if (grade === 8 && queries.psa8) return queries.psa8
   if (grade === 9 && queries.psa9) return queries.psa9
+  if (grade === 10 && queries.psa10) return queries.psa10
   return `${queries.raw} PSA ${grade}`
 }
 
-/** Pull median recent sold prices for raw + PSA 7/8/9 search queries. */
+/** Pull median recent sold prices for raw + PSA 7–10 search queries. */
 export async function fetchCardPricesFromEbaySold(
   apiKey: string,
   queries: EbayGradeQueries,
@@ -165,6 +167,8 @@ export async function fetchCardPricesFromEbaySold(
   const psa8 = await fetchGradeComps(apiKey, slabQuery(queries, 8), 8)
   await delay(1100)
   const psa9 = await fetchGradeComps(apiKey, slabQuery(queries, 9), 9)
+  await delay(1100)
+  const psa10 = await fetchGradeComps(apiKey, slabQuery(queries, 10), 10)
 
   return {
     rawPrice: raw.price,
@@ -172,13 +176,21 @@ export async function fetchCardPricesFromEbaySold(
       { grade: 7, price: psa7.price },
       { grade: 8, price: psa8.price },
       { grade: 9, price: psa9.price },
+      { grade: 10, price: psa10.price },
     ],
-    sampleCounts: { raw: raw.count, psa7: psa7.count, psa8: psa8.count, psa9: psa9.count },
+    sampleCounts: {
+      raw: raw.count,
+      psa7: psa7.count,
+      psa8: psa8.count,
+      psa9: psa9.count,
+      psa10: psa10.count,
+    },
     recentRawSales: raw.recentSales,
     recentByGrade: {
       7: psa7.recentSales,
       8: psa8.recentSales,
       9: psa9.recentSales,
+      10: psa10.recentSales,
     },
   }
 }
@@ -223,5 +235,6 @@ export function defaultEbayQueries(card: {
     psa7: `${base} PSA 7`,
     psa8: `${base} PSA 8`,
     psa9: `${base} PSA 9`,
+    psa10: `${base} PSA 10`,
   }
 }

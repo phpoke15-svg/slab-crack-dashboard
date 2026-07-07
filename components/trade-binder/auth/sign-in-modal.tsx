@@ -62,24 +62,22 @@ export function SignInModal() {
         className="absolute inset-0 bg-background/80 backdrop-blur-sm"
       />
 
-      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-[10px] border-2 border-border bg-card shadow-[4px_4px_0_0_var(--border)]">
-        <div className="hazard-stripes h-1.5 w-full opacity-80" aria-hidden="true" />
-
-        <div className="flex items-center justify-between border-b-2 border-border px-4 py-3">
-          <h2 className="font-serif text-lg font-bold uppercase tracking-widest text-card-foreground">
-            {mode === "sign-in" ? "Sign In" : "Create Account"}
+      <div className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <h2 className="text-base font-semibold text-foreground">
+            {mode === "sign-in" ? "Sign in" : "Create account"}
           </h2>
           <button
             type="button"
             onClick={handleClose}
             aria-label="Close"
-            className="flex size-8 items-center justify-center rounded-xs border-2 border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex size-8 items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
             <X className="size-4" aria-hidden="true" />
           </button>
         </div>
 
-        <div className="flex border-b-2 border-border" role="tablist">
+        <div className="flex gap-1 border-b border-border p-1" role="tablist">
           {(["sign-in", "sign-up"] as const).map((tab) => (
             <button
               key={tab}
@@ -88,35 +86,32 @@ export function SignInModal() {
               aria-selected={mode === tab}
               onClick={() => switchMode(tab)}
               className={cn(
-                "flex-1 px-3 py-2.5 font-mono text-[11px] font-bold uppercase tracking-wider transition-colors",
-                tab === "sign-up" && "border-l-2 border-border",
+                "flex-1 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                 mode === tab
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground",
               )}
             >
-              {tab === "sign-in" ? "Sign In" : "Sign Up"}
+              {tab === "sign-in" ? "Sign in" : "Sign up"}
             </button>
           ))}
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 p-4">
           <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email</span>
+            <span className="text-xs font-medium text-muted-foreground">Email</span>
             <input
               type="email"
               required
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="h-11 rounded-xs border-2 border-border bg-input px-3 font-mono text-sm text-foreground focus-visible:border-primary focus-visible:outline-none"
+              className="h-11 rounded-xl border border-border bg-secondary/60 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary/50 focus:bg-secondary"
             />
           </label>
 
           <label className="flex flex-col gap-1.5">
-            <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              Password
-            </span>
+            <span className="text-xs font-medium text-muted-foreground">Password</span>
             <input
               type="password"
               required
@@ -124,12 +119,12 @@ export function SignInModal() {
               autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="h-11 rounded-xs border-2 border-border bg-input px-3 font-mono text-sm text-foreground focus-visible:border-primary focus-visible:outline-none"
+              className="h-11 rounded-xl border border-border bg-secondary/60 px-3 text-sm text-foreground outline-none transition-colors focus:border-primary/50 focus:bg-secondary"
             />
           </label>
 
           {error && (
-            <p className="rounded-xs border border-destructive/50 bg-destructive/10 px-3 py-2 font-mono text-[11px] text-destructive">
+            <p className="rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
             </p>
           )}
@@ -137,14 +132,14 @@ export function SignInModal() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="mt-1 inline-flex h-11 items-center justify-center gap-2 rounded-xs border-2 border-primary/70 bg-primary font-mono text-xs font-bold uppercase tracking-wider text-primary-foreground transition-colors hover:brightness-110 disabled:opacity-60"
+            className="mt-1 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:brightness-110 disabled:opacity-60"
           >
             {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-            {mode === "sign-in" ? "Sign In" : "Create Account"}
+            {mode === "sign-in" ? "Sign in" : "Create account"}
           </button>
 
           {mode === "sign-up" && (
-            <p className="text-center font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+            <p className="text-center text-xs text-muted-foreground">
               Check your email to confirm, then sign in.
             </p>
           )}

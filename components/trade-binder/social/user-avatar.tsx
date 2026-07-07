@@ -21,7 +21,7 @@ export function UserAvatar({
   return (
     <span
       className={cn(
-        "relative inline-block shrink-0 overflow-hidden rounded-xs border-2 border-border bg-muted",
+        "relative inline-block shrink-0 overflow-hidden rounded-xl border border-border bg-muted",
         box,
         className,
       )}

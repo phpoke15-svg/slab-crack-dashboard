@@ -90,7 +90,12 @@ export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResu
               {card.rawPrice > 0 ? money(card.rawPrice) : "—"}
             </span>
           </div>
-          <GradePriceGrid quotes={gradeQuotes} priced={priced} />
+          <GradePriceGrid
+            quotes={gradeQuotes}
+            priced={priced}
+            selectedGrade={band.point}
+            highlightBest={false}
+          />
           <p className="mt-2 text-[11px] text-muted-foreground">
             Highlighted grade is your midpoint estimate (PSA {band.point}).
           </p>

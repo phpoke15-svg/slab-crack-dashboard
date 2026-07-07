@@ -54,6 +54,7 @@ export function extractCardPrices(product: PriceChartingProduct) {
     { grade: 7, price: parsePriceCents(product["cib-price"]) },
     { grade: 8, price: parsePriceCents(product["new-price"]) },
     { grade: 9, price: parsePriceCents(product["graded-price"]) },
+    { grade: 10, price: parsePriceCents(product["manual-only-price"]) },
   ]
   return { rawPrice, grades, name: product["product-name"] ?? "Unknown card" }
 }

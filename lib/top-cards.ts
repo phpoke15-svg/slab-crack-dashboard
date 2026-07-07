@@ -33,6 +33,7 @@ export function buildEbayQueries(name: string, setName: string, cardNumber: stri
     psa7: `${base} PSA 7`,
     psa8: `${base} PSA 8`,
     psa9: `${base} PSA 9`,
+    psa10: `${base} PSA 10`,
   }
 }
 

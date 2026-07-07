@@ -37,51 +37,50 @@ export function FriendsPanel() {
 
   return (
     <PanelShell title="Traders" onClose={social.close}>
-      {/* Tabs */}
-      <div className="sticky top-0 z-10 flex items-stretch border-b-2 border-border bg-card">
+      <div className="sticky top-0 z-10 flex gap-1 border-b border-border bg-background px-4 py-2">
         <TabButton active={tab === "search"} onClick={() => setTab("search")}>
-          Find Traders
+          Find traders
         </TabButton>
-        <TabButton active={tab === "friends"} onClick={() => setTab("friends")} className="border-l-2 border-border">
+        <TabButton active={tab === "friends"} onClick={() => setTab("friends")}>
           Friends · {social.friendCount}
         </TabButton>
       </div>
 
       {tab === "search" && (
-        <div className="p-3">
+        <div className="p-4">
           <div className="relative mb-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary" aria-hidden="true" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <input
               ref={searchRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="SEARCH BY NAME OR @HANDLE..."
+              placeholder="Search by name or handle…"
               aria-label="Search for traders"
-              className="h-11 w-full rounded-xs border-2 border-border bg-input pl-10 pr-3 font-mono text-sm uppercase tracking-wider text-foreground placeholder:text-muted-foreground placeholder:tracking-widest focus-visible:border-primary focus-visible:outline-none"
+              className="h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/50 focus:bg-secondary"
             />
           </div>
           {searchResults.length > 0 ? (
-            <ul className="flex flex-col gap-1.5">
+            <ul className="flex flex-col gap-2">
               {searchResults.map((u) => (
                 <TraderRow key={u.id} userId={u.id} />
               ))}
             </ul>
           ) : (
-            <EmptyState label="No traders match your search" />
+            <EmptyState label="No traders match your search." />
           )}
         </div>
       )}
 
       {tab === "friends" && (
-        <div className="p-3">
+        <div className="p-4">
           {friends.length > 0 ? (
-            <ul className="flex flex-col gap-1.5">
+            <ul className="flex flex-col gap-2">
               {friends.map((u) => (
                 <TraderRow key={u.id} userId={u.id} />
               ))}
             </ul>
           ) : (
-            <EmptyState label="No friends yet — find traders to connect with" />
+            <EmptyState label="No friends yet — find traders to connect with." />
           )}
         </div>
       )}
@@ -99,23 +98,19 @@ function TraderRow({ userId }: { userId: string }) {
 
   return (
     <li>
-      <div className="flex items-center gap-3 rounded-xs border-2 border-border bg-secondary p-2">
+      <div className="flex items-center gap-3 rounded-xl border border-border bg-card/60 p-2.5">
         <button
           type="button"
           onClick={() => social.openProfile(userId)}
-          className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <UserAvatar user={user} size="md" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-serif text-sm font-bold uppercase tracking-wide text-card-foreground">
-              {user.name}
-            </span>
-            <span className="block truncate font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
-              {user.handle}
-            </span>
+            <span className="block truncate text-sm font-medium text-foreground">{user.name}</span>
+            <span className="block truncate text-[11px] text-muted-foreground">{user.handle}</span>
             <span className="mt-0.5 flex items-center gap-1.5">
               <StarRating value={rating} size="sm" />
-              <span className="font-mono text-[10px] text-muted-foreground">
+              <span className="text-[10px] text-muted-foreground">
                 {rating > 0 ? `${rating.toFixed(1)} (${reviewCount})` : "No reviews"}
               </span>
             </span>
@@ -126,10 +121,10 @@ function TraderRow({ userId }: { userId: string }) {
           onClick={() => (isFriend ? social.removeFriend(userId) : social.addFriend(userId))}
           aria-label={isFriend ? `Remove ${user.name} from friends` : `Add ${user.name} as a friend`}
           className={cn(
-            "group flex size-10 shrink-0 items-center justify-center rounded-xs border-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "group flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             isFriend
-              ? "border-trade/70 bg-trade/15 text-trade hover:border-destructive/70 hover:bg-destructive/15 hover:text-destructive"
-              : "border-primary/70 bg-primary text-primary-foreground",
+              ? "border-trade/50 bg-trade/15 text-trade hover:border-destructive/50 hover:bg-destructive/15 hover:text-destructive"
+              : "border-primary/50 bg-primary text-primary-foreground",
           )}
         >
           {isFriend ? (
@@ -150,12 +145,10 @@ function TabButton({
   active,
   onClick,
   children,
-  className,
 }: {
   active: boolean
   onClick: () => void
   children: React.ReactNode
-  className?: string
 }) {
   return (
     <button
@@ -164,23 +157,23 @@ function TabButton({
       aria-selected={active}
       role="tab"
       className={cn(
-        "flex-1 px-3 py-2.5 font-mono text-[11px] font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-        active ? "bg-primary text-primary-foreground" : "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
-        className,
+        "relative flex-1 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        active ? "text-primary" : "text-muted-foreground hover:text-foreground",
       )}
     >
       {children}
+      {active && <span className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-primary" />}
     </button>
   )
 }
 
 function EmptyState({ label }: { label: string }) {
   return (
-    <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-[10px] border-2 border-border bg-secondary px-6 py-12 text-center">
-      <span className="flex size-10 items-center justify-center rounded-xs border-2 border-border bg-card text-muted-foreground">
+    <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card/60 px-6 py-12 text-center">
+      <span className="flex size-10 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground">
         <Users className="size-5" aria-hidden="true" />
       </span>
-      <p className="font-mono text-xs uppercase tracking-wide text-muted-foreground text-pretty">{label}</p>
+      <p className="text-sm text-muted-foreground text-pretty">{label}</p>
     </div>
   )
 }

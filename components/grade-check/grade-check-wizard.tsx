@@ -163,7 +163,7 @@ export function GradeCheckWizard() {
             <div>
               <h2 className="text-lg font-semibold text-foreground">Choose a card</h2>
               <p className="text-sm text-muted-foreground">
-                Search any card to pull live PSA 7/8/9 comps for your estimate.
+                Search any card to pull live PSA 7–10 comps for your estimate.
               </p>
             </div>
             <div className="relative">

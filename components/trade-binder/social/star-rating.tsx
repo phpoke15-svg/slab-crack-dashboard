@@ -60,7 +60,7 @@ export function StarInput({
           onMouseEnter={() => setHover(n)}
           onMouseLeave={() => setHover(0)}
           onClick={() => onChange(n)}
-          className="rounded-xs p-0.5 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="rounded-md p-0.5 transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Star className={cn("size-7", n <= shown ? "fill-primary text-primary" : "text-border")} />
         </button>

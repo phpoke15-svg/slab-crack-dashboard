@@ -383,10 +383,10 @@ export function SlabDashboard() {
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-muted-foreground">
           {feed === "watchlist"
-            ? "Watchlist is saved on this device. Search any card for PSA 7/8/9 comps from PriceCharting."
+            ? "Watchlist is saved on this device. Search any card for PSA 7–10 comps from PriceCharting."
             : pricedCount > 0
               ? "Top Deficits shows EN/JP slab < raw opportunities from sets released in the last 3 years."
-              : "Search any card for PSA 7/8/9 pricing, or run discover-arbitrage to refresh the feed."}
+              : "Search any card for PSA 7–10 pricing, or run discover-arbitrage to refresh the feed."}
         </p>
       </main>
 

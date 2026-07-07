@@ -14,6 +14,7 @@ import {
 import {
   buildGradeQuotes,
   getBestGradeQuote,
+  isPsaSlabGrade,
   normalizeCardEntry,
   type MockCardEntry,
   type PsaGradeNumber,
@@ -57,7 +58,7 @@ export function searchHitToPlaceholder(hit: CardSearchHit): MockCardEntry {
     slabPrice: 0,
     deficit: 0,
     percentageSavings: 0,
-    marketInsight: "Loading PSA 7/8/9 comps…",
+    marketInsight: "Loading PSA 7–10 comps…",
     gradeQuotes: buildGradeQuotes(0, {}),
     hasPricing: false,
   })
@@ -630,8 +631,8 @@ function productToEntry(
   const byGrade: Partial<Record<PsaGradeNumber, { slabPrice: number }>> = {}
 
   for (const { grade, price } of grades) {
-    if (grade === 7 || grade === 8 || grade === 9) {
-      if (price > 0) byGrade[grade] = { slabPrice: price }
+    if (isPsaSlabGrade(grade) && price > 0) {
+      byGrade[grade] = { slabPrice: price }
     }
   }
 
@@ -651,7 +652,7 @@ function productToEntry(
     deficit: best?.deficit ?? 0,
     percentageSavings: best?.percentageSavings ?? 0,
     marketInsight: pricechartingId
-      ? "Live PSA 7/8/9 comps from PriceCharting."
+      ? "Live PSA 7–10 comps from PriceCharting."
       : "Card catalog match — add PriceCharting API key for slab pricing.",
     gradeQuotes,
     hasPricing: rawPrice > 0 || gradeQuotes.some((q) => q.slabPrice > 0),

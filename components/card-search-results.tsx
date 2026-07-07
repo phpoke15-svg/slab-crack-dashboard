@@ -86,7 +86,7 @@ export function CardSearchResults({
                       {hit.cardNumber ? ` · ${hit.cardNumber}` : ""}
                     </p>
                     <p className="mt-0.5 text-[10px] text-primary">
-                      {loadingDetail ? "Loading PSA 7/8/9…" : "Tap for slab comps"}
+                      {loadingDetail ? "Loading PSA 7–10…" : "Tap for slab comps"}
                     </p>
                   </div>
                 </button>

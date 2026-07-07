@@ -116,9 +116,10 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   if (!selectedCard) return null
 
   const priced = selectedCard.hasPricing !== false
-  const pricingLoading = selectedCard.marketInsight === "Loading PSA 7/8/9 comps…"
+  const pricingLoading = selectedCard.marketInsight === "Loading PSA 7–10 comps…"
   const gradeQuotes = getGradeQuotes(selectedCard)
   const best = getBestGradeQuote(gradeQuotes)
+  const activeQuote = gradeQuotes.find((q) => q.grade === salesGrade) ?? best
   const slabCard = mockEntryToSlabCard(selectedCard)
   const history = priced ? getDeficitHistory(slabCard) : []
   const trend = priced ? getDeficitTrend(slabCard) : ("stable" as const)
@@ -199,9 +200,18 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
               <p className="text-sm text-muted-foreground">{selectedCard.setName}</p>
               <div className="mt-3">
                 {pricingLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading PSA 7/8/9 comps…</p>
-                ) : priced && best ? (
-                  <DeficitBadge diff={-best.deficit} pct={-best.percentageSavings} size="lg" />
+                  <p className="text-sm text-muted-foreground">Loading PSA 7–10 comps…</p>
+                ) : priced && activeQuote?.isArbitrage ? (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      PSA {salesGrade} vs raw NM
+                    </span>
+                    <DeficitBadge diff={-activeQuote.deficit} pct={-activeQuote.percentageSavings} size="lg" />
+                  </div>
+                ) : priced && activeQuote && activeQuote.slabPrice > 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    PSA {salesGrade} slab is at or above raw — no arbitrage gap.
+                  </p>
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     Run sync-prices to load raw vs slab comps for this card.
@@ -218,7 +228,13 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
                 {priced && selectedCard.rawPrice > 0 ? `$${selectedCard.rawPrice.toFixed(2)}` : "—"}
               </span>
             </div>
-            <GradePriceGrid quotes={gradeQuotes} priced={priced && !pricingLoading} />
+            <GradePriceGrid
+              quotes={gradeQuotes}
+              priced={priced && !pricingLoading}
+              selectedGrade={salesGrade}
+              onSelectGrade={setSalesGrade}
+              highlightBest={false}
+            />
           </div>
 
           {/* Recent eBay sold comps */}

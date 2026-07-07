@@ -134,7 +134,7 @@ export async function discoverArbitrageFromMarket(options?: {
 
     const preFilter = products.filter((row) => row.psa9 > 0 && row.psa9 < row.rawPrice)
     if (preFilter.length > 0) {
-      log(`[discover] Enriching top ${enrichLimit} candidates via API for PSA 7/8/9...`)
+      log(`[discover] Enriching top ${enrichLimit} candidates via API for PSA 7–10...`)
       const enriched = await enrichWithApi(apiKey, products, enrichLimit)
       products = enriched.rows
       source = "scrape+api"

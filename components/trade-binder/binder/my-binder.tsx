@@ -1,12 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Library, SearchX, Users } from "lucide-react"
+import { SearchX, Users } from "lucide-react"
 import { type CardStatus, type CatalogCard, type TcgCard } from "@/lib/trade-binder/cards"
 import { addCardToBinder, loadBinderCards, updateBinderStatus } from "@/lib/trade-binder/binder"
 import { cn } from "@/lib/utils"
 import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
+import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SearchBar } from "./search-bar"
 import { CardTile } from "./card-tile"
 import { SearchResultTile } from "./search-result-tile"
@@ -18,7 +19,7 @@ type Filter = "all" | CardStatus
 
 const filters: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
-  { key: "trade", label: "For Trade" },
+  { key: "trade", label: "For trade" },
   { key: "wishlist", label: "Wishlist" },
 ]
 
@@ -53,7 +54,6 @@ export function MyBinder() {
       setCards(loaded)
     } catch {
       if (loadId !== loadIdRef.current) return
-      // Keep existing cards on reload failure — don't wipe the binder.
     } finally {
       if (loadId === loadIdRef.current) setBinderLoading(false)
     }
@@ -98,7 +98,7 @@ export function MyBinder() {
       } catch (err) {
         if (loadId === loadIdRef.current) {
           setCards((prev) => prev.filter((c) => c.id !== card.id))
-          setSaveError(err instanceof Error ? err.message : "Could not save card to binder")
+          setSaveError(err instanceof Error ? err.message : "Could not save card to your binder")
         }
       }
     })
@@ -112,35 +112,21 @@ export function MyBinder() {
   const wishlistCount = cards.filter((c) => c.status === "wishlist").length
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-md flex-col border-x border-border">
-      <header className="sticky top-0 z-10 border-b-2 border-border bg-card/95 backdrop-blur-md">
-        <div className="hazard-stripes h-1.5 w-full opacity-80" aria-hidden="true" />
-        <div className="flex flex-col gap-3 px-4 pb-3 pt-4">
-          <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-xs border-2 border-primary/60 bg-primary/15 text-primary">
-              <Library className="size-4" aria-hidden="true" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <h1 className="font-serif text-2xl font-bold uppercase leading-none tracking-widest text-foreground">
-                My Binder
-              </h1>
-              <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
-                <span className="text-foreground">{cards.length}</span> units ·{" "}
-                <span className="text-trade">{tradeCount}</span> trade ·{" "}
-                <span className="text-wishlist">{wishlistCount}</span> wishlist
-              </p>
-            </div>
-
+    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
+      <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
+        <div className="px-4 pt-5 pb-3 sm:px-6">
+          <div className="flex items-center justify-between gap-3">
+            <CollecToolsBrand href="/" subtitle="Trade Binder · collect & trade" size="sm" />
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={social.openFriends}
                 aria-label={`Find traders and friends (${social.friendCount} friends)`}
-                className="relative flex size-9 items-center justify-center rounded-xs border-2 border-border text-foreground transition-colors hover:border-primary/60 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="relative flex size-9 items-center justify-center rounded-xl border border-border bg-secondary/60 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
               >
                 <Users className="size-4" aria-hidden="true" />
                 {social.friendCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex min-w-4 items-center justify-center rounded-full border border-card bg-primary px-1 font-mono text-[9px] font-bold leading-none text-primary-foreground">
+                  <span className="absolute -right-1.5 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-none text-primary-foreground">
                     {social.friendCount}
                   </span>
                 )}
@@ -149,54 +135,66 @@ export function MyBinder() {
                 type="button"
                 onClick={() => social.openProfile(social.currentUser.id)}
                 aria-label="View your profile"
-                className="rounded-xs transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="rounded-xl transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <UserAvatar user={social.currentUser} size="sm" />
               </button>
             </div>
           </div>
 
-          <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
+          <p className="mt-3 text-[11px] text-muted-foreground">
+            <span className="text-foreground">{cards.length}</span> cards ·{" "}
+            <span className="text-trade">{tradeCount}</span> for trade ·{" "}
+            <span className="text-wishlist">{wishlistCount}</span> on wishlist
+          </p>
+
+          <div className="mt-4">
+            <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
+          </div>
 
           {saveError && (
-            <p className="rounded-xs border border-destructive/50 bg-destructive/10 px-3 py-2 font-mono text-[11px] uppercase tracking-wide text-destructive">
+            <p className="mt-3 rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {saveError}
             </p>
           )}
+        </div>
 
-          {!isSearching && (
-            <div className="flex items-stretch gap-0 border-2 border-border" role="tablist" aria-label="Filter cards">
-              {filters.map((f, i) => (
+        {!isSearching && (
+          <div className="flex gap-1 overflow-x-auto px-4 pb-2 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {filters.map((f) => {
+              const active = filter === f.key
+              return (
                 <button
                   key={f.key}
+                  type="button"
                   role="tab"
-                  aria-selected={filter === f.key}
+                  aria-selected={active}
                   onClick={() => setFilter(f.key)}
                   className={cn(
-                    "flex-1 px-2 py-2 font-mono text-[11px] font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                    i > 0 && "border-l-2 border-border",
-                    filter === f.key
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
+                    "relative whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                    active ? "text-primary" : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {f.label}
+                  {active && (
+                    <span className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-primary" />
+                  )}
                 </button>
-              ))}
-            </div>
-          )}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </header>
 
-      <main className="metal-grain flex-1 px-4 pb-28 pt-4">
+      <main className="flex-1 px-4 pb-28 pt-4 sm:px-6">
         {isSearching ? (
           <>
             {searchError ? (
-              <EmptyState title="Search Offline" message={searchError} />
+              <EmptyState title="Search unavailable" message={searchError} />
             ) : searchLoading && searchResults.length === 0 ? (
-              <EmptyState title="Scanning Database" message="Fetching Pokemon cards from the TCG API..." />
+              <EmptyState title="Searching…" message="Looking up cards in the Pokémon TCG database." />
             ) : searchResults.length > 0 ? (
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {searchResults.map((card) => (
                   <SearchResultTile
                     key={card.id}
@@ -207,24 +205,24 @@ export function MyBinder() {
                 ))}
               </div>
             ) : (
-              <EmptyState title="No Cards Found" message="Try a different Pokemon name or set" />
+              <EmptyState title="No cards found" message="Try a different name or set." />
             )}
           </>
         ) : binderLoading && user ? (
-          <EmptyState title="Loading Binder" message="Syncing your collection..." />
+          <EmptyState title="Loading your binder" message="Syncing your collection…" />
         ) : visibleCards.length > 0 ? (
-          <div className="grid grid-cols-2 gap-1.5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {visibleCards.map((card) => (
               <CardTile key={card.id} card={card} onToggle={toggleStatus} />
             ))}
           </div>
         ) : (
           <EmptyState
-            title="Binder Empty"
+            title="Your binder is empty"
             message={
               user
-                ? "Search for Pokemon cards above to start building your collection"
-                : "Sign in and search for Pokemon cards to build your binder"
+                ? "Search for cards above to start building your collection."
+                : "Sign in and search for cards to build your binder."
             }
           />
         )}
@@ -237,13 +235,13 @@ export function MyBinder() {
 
 function EmptyState({ title, message }: { title: string; message: string }) {
   return (
-    <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-[10px] border-2 border-border bg-card px-6 py-16 text-center">
-      <span className="flex size-12 items-center justify-center rounded-xs border-2 border-border bg-secondary text-muted-foreground">
+    <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card/60 px-6 py-16 text-center">
+      <span className="flex size-12 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground">
         <SearchX className="size-6" aria-hidden="true" />
       </span>
       <div>
-        <p className="font-serif text-lg font-bold uppercase tracking-widest text-foreground">{title}</p>
-        <p className="mt-1 font-mono text-xs uppercase tracking-wide text-muted-foreground text-pretty">{message}</p>
+        <p className="text-base font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground text-pretty">{message}</p>
       </div>
     </div>
   )

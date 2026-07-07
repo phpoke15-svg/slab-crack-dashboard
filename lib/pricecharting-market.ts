@@ -16,6 +16,7 @@ export interface MarketProductRow {
   psa7: number
   psa8: number
   psa9: number
+  psa10: number
   imageUrl?: string
 }
 
@@ -111,6 +112,7 @@ export async function parseSetPageProducts(setSlug: string): Promise<MarketProdu
       psa7: 0,
       psa8: 0,
       psa9,
+      psa10: 0,
       imageUrl: img,
     })
   }
@@ -180,6 +182,7 @@ export function parsePriceChartingCsv(text: string): MarketProductRow[] {
   const cibIdx = idx("cib-price")
   const newIdx = idx("new-price")
   const gradedIdx = idx("graded-price")
+  const manualIdx = idx("manual-only-price")
   const releaseIdx = idx("release-date")
 
   if (idIdx === -1 || nameIdx === -1 || looseIdx === -1) return []
@@ -202,6 +205,7 @@ export function parsePriceChartingCsv(text: string): MarketProductRow[] {
     const psa7 = cibIdx >= 0 ? parseCsvPrice(cells[cibIdx]) : 0
     const psa8 = newIdx >= 0 ? parseCsvPrice(cells[newIdx]) : 0
     const psa9 = gradedIdx >= 0 ? parseCsvPrice(cells[gradedIdx]) : 0
+    const psa10 = manualIdx >= 0 ? parseCsvPrice(cells[manualIdx]) : 0
 
     if (rawPrice <= 0) continue
 
@@ -216,6 +220,7 @@ export function parsePriceChartingCsv(text: string): MarketProductRow[] {
       psa7,
       psa8,
       psa9,
+      psa10,
     })
   }
 
@@ -227,6 +232,7 @@ export function rowToArbitrage(row: MarketProductRow): ArbitrageCandidate | null
     { grade: 7, price: row.psa7 },
     { grade: 8, price: row.psa8 },
     { grade: 9, price: row.psa9 },
+    { grade: 10, price: row.psa10 },
   ].filter((g) => g.price > 0)
 
   if (grades.length === 0 || row.rawPrice <= 0) return null
@@ -316,6 +322,7 @@ export function mergeApiGrades(row: MarketProductRow, product: PriceChartingProd
     psa7: byGrade[7] ?? row.psa7,
     psa8: byGrade[8] ?? row.psa8,
     psa9: byGrade[9] ?? row.psa9,
+    psa10: byGrade[10] ?? row.psa10,
   }
 }
 
@@ -324,6 +331,7 @@ export function candidateToAnomalyEntry(candidate: ArbitrageCandidate) {
     { grade: 7, price: candidate.psa7 },
     { grade: 8, price: candidate.psa8 },
     { grade: 9, price: candidate.psa9 },
+    { grade: 10, price: candidate.psa10 },
   ])
   const best = getBestGradeQuote(gradeQuotes)
 

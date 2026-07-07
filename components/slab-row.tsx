@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { Sparkles, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -7,6 +8,7 @@ import {
   getBestGradeQuote,
   getGradeQuotes,
   type MockCardEntry,
+  type PsaGradeNumber,
 } from "@/lib/slab-data"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { DeficitBadge } from "@/components/deficit-badge"
@@ -21,7 +23,15 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
   const priced = card.hasPricing !== false
   const gradeQuotes = getGradeQuotes(card)
   const best = getBestGradeQuote(gradeQuotes)
-  const ebayGrade = best?.grade ?? 9
+  const [selectedGrade, setSelectedGrade] = useState<PsaGradeNumber | null>(null)
+
+  useEffect(() => {
+    setSelectedGrade(null)
+  }, [card.id])
+
+  const activeGrade = selectedGrade ?? best?.grade ?? 9
+  const activeQuote = gradeQuotes.find((q) => q.grade === activeGrade) ?? best
+  const ebayGrade = activeGrade
   const ebayUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`${card.cardName} ${card.cardNumber} PSA ${ebayGrade}`)}`
 
   return (
@@ -66,8 +76,16 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
             </div>
 
             <div className="flex shrink-0 flex-col items-end gap-1.5">
-              {priced && best ? (
-                <DeficitBadge diff={-best.deficit} pct={-best.percentageSavings} />
+              {priced && activeQuote?.isArbitrage ? (
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="text-[10px] font-medium text-muted-foreground">PSA {activeGrade}</span>
+                  <DeficitBadge diff={-activeQuote.deficit} pct={-activeQuote.percentageSavings} />
+                </div>
+              ) : priced && activeQuote && activeQuote.slabPrice > 0 ? (
+                <div className="rounded-xl border border-border bg-secondary/40 px-3 py-1.5 text-right">
+                  <span className="block text-[10px] font-medium text-muted-foreground">PSA {activeGrade}</span>
+                  <span className="font-mono text-[10px] font-semibold text-muted-foreground">No arbitrage</span>
+                </div>
               ) : (
                 <div className="rounded-xl border border-border bg-secondary/40 px-3 py-1.5 text-right">
                   <span className="font-mono text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -109,7 +127,14 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
         </div>
       </div>
 
-      <GradePriceGrid quotes={gradeQuotes} priced={priced || gradeQuotes.some((q) => q.slabPrice > 0)} compact />
+      <GradePriceGrid
+        quotes={gradeQuotes}
+        priced={priced || gradeQuotes.some((q) => q.slabPrice > 0)}
+        compact
+        selectedGrade={activeGrade}
+        onSelectGrade={setSelectedGrade}
+        highlightBest={selectedGrade == null}
+      />
     </div>
   )
 }

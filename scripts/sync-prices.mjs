@@ -85,11 +85,14 @@ async function syncEbay(apiKey, watchlist) {
     await new Promise((r) => setTimeout(r, 1100))
     const psa9Data = await fetchEbaySold(apiKey, q.psa9 ?? `${q.raw} PSA 9`)
     await new Promise((r) => setTimeout(r, 1100))
+    const psa10Data = await fetchEbaySold(apiKey, q.psa10 ?? `${q.raw} PSA 10`)
+    await new Promise((r) => setTimeout(r, 1100))
 
     const grades = [
       { grade: 7, price: medianSold(psa7Data.items ?? [], 7) },
       { grade: 8, price: medianSold(psa8Data.items ?? [], 8) },
       { grade: 9, price: medianSold(psa9Data.items ?? [], 9) },
+      { grade: 10, price: medianSold(psa10Data.items ?? [], 10) },
     ]
 
     const arbitrage = findBestArbitrage(rawPrice, grades)
@@ -135,6 +138,7 @@ async function syncPriceCharting(apiKey, watchlist) {
       { grade: 7, price: parsePriceCents(data["cib-price"]) },
       { grade: 8, price: parsePriceCents(data["new-price"]) },
       { grade: 9, price: parsePriceCents(data["graded-price"]) },
+      { grade: 10, price: parsePriceCents(data["manual-only-price"]) },
     ]
     const arbitrage = findBestArbitrage(rawPrice, grades)
     if (arbitrage) {
