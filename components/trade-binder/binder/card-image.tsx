@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import Image from "next/image"
 import { isMissingCardImage, useCardImage } from "@/hooks/trade-binder/use-card-image"
 
@@ -22,28 +23,21 @@ export function CardImage({
   className?: string
   upgrade?: boolean
 }) {
-  const src = useCardImage(card, { upgrade })
+  const directSrc = isMissingCardImage(card.image) ? "/placeholder.svg" : card.image
+  const upgradedSrc = useCardImage(card, { upgrade })
+  const [broken, setBroken] = useState(false)
 
-  if (!upgrade) {
-    const directSrc = isMissingCardImage(card.image) ? "/placeholder.svg" : card.image
-    return (
-      <Image
-        src={directSrc}
-        alt={alt}
-        fill
-        sizes={sizes}
-        className={className}
-      />
-    )
-  }
+  const src = upgrade ? upgradedSrc : directSrc
+  const displaySrc = broken ? directSrc : src
 
   return (
     <Image
-      src={src}
+      src={displaySrc || "/placeholder.svg"}
       alt={alt}
       fill
       sizes={sizes}
       className={className}
+      onError={() => setBroken(true)}
     />
   )
 }

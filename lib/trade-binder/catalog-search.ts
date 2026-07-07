@@ -1,6 +1,7 @@
 import { searchCatalogCards, type CardSearchHit } from "@/lib/card-lookup"
 import { mapPokemonRarity } from "@/lib/trade-binder/pokemon-tcg"
 import { isEnglishOrJapanesePricedCard } from "@/lib/trade-binder/priced-catalog"
+import { attachBinderCardImages } from "@/lib/trade-binder/resolve-binder-image"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
 
 export type BinderCatalogCard = CatalogCard & { rawPrice?: number; cardNumber?: string }
@@ -45,5 +46,5 @@ export async function searchBinderCatalog(
     if (card) cards.push(card)
   }
 
-  return cards
+  return attachBinderCardImages(cards, 20)
 }

@@ -23,6 +23,9 @@ export async function resolveCatalogCardImage(
   })
   const number = card.cardNumber || parseNumberFromName(card.name)
   if (number) params.set("number", number)
+  if (card.image && !isPlaceholder(card.image)) {
+    params.set("imageUrl", card.image)
+  }
 
   try {
     const res = await fetch(`/api/binder/card-image?${params.toString()}`)

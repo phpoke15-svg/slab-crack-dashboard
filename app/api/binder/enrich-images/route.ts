@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { resolvePokemonCardImage } from "@/lib/pokemon-tcg"
-import { mapPokemonRarity } from "@/lib/trade-binder/pokemon-tcg"
+import { attachBinderCardImages, cardNeedsImage } from "@/lib/trade-binder/resolve-binder-image"
 
 export const maxDuration = 10
 
@@ -13,18 +12,6 @@ type EnrichInput = {
   cardNumber?: string
 }
 
-function needsImage(image?: string): boolean {
-  if (!image?.trim()) return true
-  return image.includes("placeholder")
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
-  ])
-}
-
 export async function POST(request: NextRequest) {
   let cards: EnrichInput[] = []
 
@@ -35,37 +22,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
 
-  const toEnrich = cards.filter((card) => needsImage(card.image)).slice(0, 20)
+  const toEnrich = cards
+    .filter((card) => cardNeedsImage(card.image))
+    .map((card) => ({
+      id: card.id,
+      name: card.name,
+      set: card.set,
+      image: card.image ?? "/placeholder.svg",
+      cardNumber: card.cardNumber,
+    }))
+
   if (toEnrich.length === 0) {
     return NextResponse.json({ cards })
   }
 
-  const enrichedById = new Map<string, EnrichInput>()
+  const enriched = await attachBinderCardImages(toEnrich, 24)
+  const imageById = new Map(enriched.map((card) => [card.id, card.image]))
 
-  await Promise.all(
-    toEnrich.map(async (card) => {
-      const resolved = await withTimeout(
-        resolvePokemonCardImage({
-          cardName: card.name,
-          setName: card.set,
-          cardNumber: card.cardNumber ?? "",
-          pokemonTcgId: card.id,
-        }),
-        3000,
-        null,
-      )
+  const merged = cards.map((card) => {
+    const image = imageById.get(card.id)
+    return image ? { ...card, image } : card
+  })
 
-      const image = resolved?.imageLarge ?? resolved?.imageSmall
-      if (!image) return
-
-      enrichedById.set(card.id, {
-        ...card,
-        image,
-        rarity: card.rarity ?? mapPokemonRarity(resolved.rarity ?? undefined),
-      })
-    }),
-  )
-
-  const merged = cards.map((card) => enrichedById.get(card.id) ?? card)
   return NextResponse.json({ cards: merged })
 }

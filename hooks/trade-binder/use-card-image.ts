@@ -4,6 +4,27 @@ import { useEffect, useState } from "react"
 
 const imageCache = new Map<string, string>()
 const inflight = new Map<string, Promise<string | null>>()
+let activeRequests = 0
+const requestQueue: Array<() => void> = []
+
+const MAX_CONCURRENT = 3
+
+function runWithQueue<T>(task: () => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      activeRequests += 1
+      task()
+        .then(resolve, reject)
+        .finally(() => {
+          activeRequests -= 1
+          requestQueue.shift()?.()
+        })
+    }
+
+    if (activeRequests < MAX_CONCURRENT) run()
+    else requestQueue.push(run)
+  })
+}
 
 export function isMissingCardImage(image?: string): boolean {
   if (!image?.trim()) return true
@@ -20,6 +41,14 @@ function parseNumberFromName(name: string): string {
   return name.match(/#(\d+[a-zA-Z/-]*)/)?.[1] ?? ""
 }
 
+function hashDelay(id: string): number {
+  let hash = 0
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  }
+  return hash % 1200
+}
+
 async function fetchCardImage(input: {
   id: string
   name: string
@@ -33,7 +62,9 @@ async function fetchCardImage(input: {
   const pending = inflight.get(input.id)
   if (pending) return pending
 
-  const promise = (async () => {
+  const promise = runWithQueue(async () => {
+    await new Promise((resolve) => setTimeout(resolve, hashDelay(input.id)))
+
     const params = new URLSearchParams({
       id: input.id,
       name: input.name,
@@ -54,7 +85,7 @@ async function fetchCardImage(input: {
       return data.image
     }
     return null
-  })()
+  })
 
   inflight.set(input.id, promise)
   try {

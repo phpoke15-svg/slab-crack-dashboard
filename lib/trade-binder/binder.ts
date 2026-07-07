@@ -83,6 +83,7 @@ async function enrichBinderCardImages(cards: TcgCard[]): Promise<TcgCard[]> {
           set: card.set,
           image: card.image,
           rarity: card.rarity,
+          cardNumber: card.name.match(/#(\d+[a-zA-Z/-]*)/)?.[1],
         })),
       }),
     })
