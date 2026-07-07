@@ -7,6 +7,7 @@ export function SlabCardImage({
   alt,
   className = "object-contain p-0.5 transition-transform duration-300 group-hover:scale-105",
   sizes = "(max-width: 640px) 64px, 112px",
+  upgrade = false,
 }: {
   card: {
     id: string
@@ -18,6 +19,7 @@ export function SlabCardImage({
   alt: string
   className?: string
   sizes?: string
+  upgrade?: boolean
 }) {
   return (
     <CardImage
@@ -31,6 +33,7 @@ export function SlabCardImage({
       alt={alt}
       sizes={sizes}
       className={className}
+      upgrade={upgrade}
     />
   )
 }

@@ -5,10 +5,14 @@ import { useEffect, useState } from "react"
 const imageCache = new Map<string, string>()
 const inflight = new Map<string, Promise<string | null>>()
 
-function isPlaceholder(image?: string): boolean {
+export function isMissingCardImage(image?: string): boolean {
   if (!image?.trim()) return true
-  if (image.includes("placeholder") || image.includes("placehold.co")) return true
-  if (/\/(60|160)\.jpg(?:\?|$)/i.test(image)) return true
+  return image.includes("placeholder") || image.includes("placehold.co")
+}
+
+export function shouldUpgradeCardImage(image?: string): boolean {
+  if (isMissingCardImage(image)) return true
+  if (/\/(60|160)\.jpg(?:\?|$)/i.test(image ?? "")) return true
   return false
 }
 
@@ -20,6 +24,7 @@ async function fetchCardImage(input: {
   id: string
   name: string
   set: string
+  image: string
   cardNumber?: string
 }): Promise<string | null> {
   const cached = imageCache.get(input.id)
@@ -36,6 +41,9 @@ async function fetchCardImage(input: {
     })
     const number = input.cardNumber || parseNumberFromName(input.name)
     if (number) params.set("number", number)
+    if (input.image && !isMissingCardImage(input.image)) {
+      params.set("imageUrl", input.image)
+    }
 
     const res = await fetch(`/api/binder/card-image?${params.toString()}`)
     if (!res.ok) return null
@@ -56,22 +64,24 @@ async function fetchCardImage(input: {
   }
 }
 
-export function useCardImage(card: {
-  id: string
-  name: string
-  set: string
-  image: string
-  cardNumber?: string
-}): string {
-  const [src, setSrc] = useState(() =>
-    isPlaceholder(card.image) ? "/placeholder.svg" : card.image,
-  )
+export function useCardImage(
+  card: {
+    id: string
+    name: string
+    set: string
+    image: string
+    cardNumber?: string
+  },
+  options?: { upgrade?: boolean },
+): string {
+  const upgrade = options?.upgrade ?? true
+  const fallbackSrc = isMissingCardImage(card.image) ? "/placeholder.svg" : card.image
+  const [src, setSrc] = useState(fallbackSrc)
 
   useEffect(() => {
-    if (!isPlaceholder(card.image)) {
-      setSrc(card.image)
-      return
-    }
+    setSrc(fallbackSrc)
+
+    if (!upgrade || !shouldUpgradeCardImage(card.image)) return
 
     const cached = imageCache.get(card.id)
     if (cached) {
@@ -85,6 +95,7 @@ export function useCardImage(card: {
       id: card.id,
       name: card.name,
       set: card.set,
+      image: card.image,
       cardNumber: card.cardNumber,
     }).then((image) => {
       if (cancelled || !image) return
@@ -94,7 +105,7 @@ export function useCardImage(card: {
     return () => {
       cancelled = true
     }
-  }, [card.id, card.name, card.set, card.image, card.cardNumber])
+  }, [card.id, card.name, card.set, card.image, card.cardNumber, fallbackSrc, upgrade])
 
   return src
 }

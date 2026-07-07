@@ -186,6 +186,7 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
                 alt={`${selectedCard.cardName} card artwork`}
                 sizes="(max-width: 640px) 112px, 128px"
                 className="object-contain p-1"
+                upgrade
               />
             </div>
             <div className="min-w-0 flex-1">
