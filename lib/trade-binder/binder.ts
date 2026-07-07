@@ -1,5 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js"
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js"
 import type { CardStatus, CatalogCard, Rarity, TcgCard } from "@/lib/trade-binder/cards"
+import { binderErrorMessage } from "@/lib/trade-binder/errors"
+
+function throwBinderError(error: PostgrestError): never {
+  throw new Error(binderErrorMessage(error, "Binder operation failed"))
+}
 
 export type UserBinderRow = {
   card_id: string
@@ -25,7 +30,7 @@ function rowToCard(row: UserBinderRow): TcgCard | null {
 export async function fetchUserBinder(supabase: SupabaseClient, userId: string): Promise<UserBinderRow[]> {
   const { data, error } = await supabase.from("user_binders").select("*").eq("user_id", userId)
 
-  if (error) throw error
+  if (error) throwBinderError(error)
   return data ?? []
 }
 
@@ -137,10 +142,69 @@ export async function updateBinderStatus(
     .eq("user_id", userId)
     .eq("card_id", cardId)
 
-  if (error) throw error
+  if (error) throwBinderError(error)
 }
 
-const BULK_INSERT_BATCH = 80
+const BULK_INSERT_BATCH = 40
+
+function dedupeCards(cards: CatalogCard[], skipIds: Set<string>): CatalogCard[] {
+  const seen = new Set<string>()
+  const unique: CatalogCard[] = []
+
+  for (const card of cards) {
+    if (skipIds.has(card.id) || seen.has(card.id)) continue
+    seen.add(card.id)
+    unique.push(card)
+  }
+
+  return unique
+}
+
+function binderInsertRows(
+  userId: string,
+  cards: CatalogCard[],
+  status: CardStatus,
+  minimal = false,
+) {
+  return cards.map((card) =>
+    minimal
+      ? { user_id: userId, card_id: card.id, status }
+      : {
+          user_id: userId,
+          card_id: card.id,
+          status,
+          card_name: card.name,
+          card_set: card.set,
+          card_image: card.image,
+          card_rarity: card.rarity,
+        },
+  )
+}
+
+async function insertBinderBatch(
+  supabase: SupabaseClient,
+  userId: string,
+  cards: CatalogCard[],
+  status: CardStatus,
+): Promise<void> {
+  const fullBatch = binderInsertRows(userId, cards, status)
+  const { error } = await supabase.from("user_binders").insert(fullBatch, {
+    ignoreDuplicates: true,
+  })
+
+  if (!error) return
+
+  if (error.code === "42703" || error.code === "PGRST204") {
+    const minimalBatch = binderInsertRows(userId, cards, status, true)
+    const { error: minimalError } = await supabase.from("user_binders").insert(minimalBatch, {
+      ignoreDuplicates: true,
+    })
+    if (!minimalError) return
+    throwBinderError(minimalError)
+  }
+
+  throwBinderError(error)
+}
 
 export async function bulkAddCardsToBinder(
   supabase: SupabaseClient,
@@ -150,33 +214,16 @@ export async function bulkAddCardsToBinder(
   options?: { skipIds?: Set<string> },
 ): Promise<{ added: number; skipped: number }> {
   const skipIds = options?.skipIds ?? new Set<string>()
-  const toInsert = cards.filter((card) => !skipIds.has(card.id))
+  const toInsert = dedupeCards(cards, skipIds)
 
   if (toInsert.length === 0) {
     return { added: 0, skipped: cards.length }
   }
 
-  let added = 0
-
   for (let i = 0; i < toInsert.length; i += BULK_INSERT_BATCH) {
-    const batch = toInsert.slice(i, i + BULK_INSERT_BATCH).map((card) => ({
-      user_id: userId,
-      card_id: card.id,
-      status,
-      card_name: card.name,
-      card_set: card.set,
-      card_image: card.image,
-      card_rarity: card.rarity,
-    }))
-
-    const { error, count } = await supabase.from("user_binders").upsert(batch, {
-      onConflict: "user_id,card_id",
-      count: "exact",
-    })
-
-    if (error) throw error
-    added += count ?? batch.length
+    const batch = toInsert.slice(i, i + BULK_INSERT_BATCH)
+    await insertBinderBatch(supabase, userId, batch, status)
   }
 
-  return { added, skipped: cards.length - toInsert.length }
+  return { added: toInsert.length, skipped: cards.length - toInsert.length }
 }

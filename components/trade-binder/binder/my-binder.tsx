@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Download, Loader2, SearchX, Users } from "lucide-react"
 import { type CardStatus, type CatalogCard, type TcgCard } from "@/lib/trade-binder/cards"
-import { addCardToBinder, bulkAddCardsToBinder, loadBinderCards, updateBinderStatus } from "@/lib/trade-binder/binder"
+import { addCardToBinder, bulkAddCardsToBinder, fetchUserBinder, loadBinderCards, updateBinderStatus } from "@/lib/trade-binder/binder"
+import { binderErrorMessage } from "@/lib/trade-binder/errors"
 import { cn } from "@/lib/utils"
 import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
 import { fetchAllPricedCatalogCards } from "@/hooks/trade-binder/use-priced-catalog-search"
@@ -128,17 +129,25 @@ export function MyBinder() {
 
       try {
         const catalog = await fetchAllPricedCatalogCards()
+        if (catalog.length === 0) {
+          setSaveError("No priced English or Japanese cards are available to import yet.")
+          return
+        }
+
+        const existingRows = await fetchUserBinder(getSupabase(), currentUser.id)
+        const skipIds = new Set(existingRows.map((row) => row.card_id))
+
         const { added, skipped } = await bulkAddCardsToBinder(
           getSupabase(),
           currentUser.id,
           catalog,
           "trade",
-          { skipIds: ownedIds },
+          { skipIds },
         )
         setImportMessage(`Added ${added} priced cards${skipped > 0 ? ` (${skipped} already in binder)` : ""}.`)
         await loadBinder()
       } catch (err) {
-        setSaveError(err instanceof Error ? err.message : "Could not import priced catalog")
+        setSaveError(binderErrorMessage(err, "Could not import priced catalog"))
       } finally {
         setImporting(false)
       }
