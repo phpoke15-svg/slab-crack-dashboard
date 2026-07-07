@@ -1,7 +1,9 @@
 import {
   extractCardPrices,
   resolvePriceChartingForCard,
+  fetchPriceChartingProducts,
   type PriceChartingCardContext,
+  type PriceChartingSearchHit,
 } from "@/lib/pricecharting"
 import {
   fetchPokemonCardById,
@@ -337,11 +339,20 @@ async function fetchCardsForHints(
     }
   }
 
-  addQuery(`name:${escapedName}`)
+  const hasOnlyNumberHints =
+    normalizedHints.length > 0 &&
+    normalizedHints.every((hint) => /^\d+$/.test(hint) && !resolveSetIdForHint(hint))
+
+  if (!hasOnlyNumberHints) {
+    addQuery(`name:${escapedName}`)
+  }
 
   for (const query of queries) {
     try {
-      const pageSize = query === `name:${escapedName}` ? Math.min(100, limit * 8) : limit
+      const pageSize =
+        query === `name:${escapedName}` && !hasOnlyNumberHints
+          ? Math.min(100, limit * 8)
+          : limit
       const cards = await fetchPokemonCardsByQuery(query, pageSize)
       const filtered =
         normalizedHints.length > 0
@@ -390,6 +401,154 @@ export function catalogToSearchHit(card: CatalogCard): CardSearchHit {
   }
 }
 
+function isPokemonCardProduct(hit: PriceChartingSearchHit): boolean {
+  const consoleName = (hit["console-name"] ?? "").toLowerCase()
+  if (!consoleName.includes("pokemon")) return false
+  if (/\b(nintendo|3ds|switch|gameboy|wii|ds)\b/.test(consoleName) && !consoleName.includes("card")) {
+    return false
+  }
+  return true
+}
+
+function parseCardNumberFromProductName(productName: string): string {
+  const hashMatch = productName.match(/#(\d{1,4}[a-z/-]*)/i)
+  if (hashMatch) return hashMatch[1]
+  const trailingMatch = productName.match(/\b(\d{1,4})\b(?=[^0-9]*$)/)
+  return trailingMatch?.[1] ?? ""
+}
+
+function priceChartingHitToSearchHit(hit: PriceChartingSearchHit): CardSearchHit | null {
+  if (!hit.id || !isPokemonCardProduct(hit)) return null
+
+  const productName = hit["product-name"] ?? "Unknown card"
+  const setName = hit["console-name"] ?? "Unknown set"
+  const cardNumber = parseCardNumberFromProductName(productName)
+  const cardName =
+    productName
+      .replace(/\s*#\d+.*$/i, "")
+      .replace(/\s+\d{1,4}\/[a-z0-9-]+$/i, "")
+      .trim() || productName
+
+  return {
+    id: `pc-${hit.id}`,
+    pokemonTcgId: `pc-${hit.id}`,
+    cardName,
+    setName,
+    cardNumber,
+    imageUrl: "",
+    rarity: null,
+  }
+}
+
+function buildPriceChartingCatalogQueries(query: string, parsed: ParsedSearch): string[] {
+  const trimmed = query.trim().toLowerCase().replace(/\s+/g, " ")
+  const out = new Set<string>([trimmed])
+
+  if (parsed.mode === "name-hints") {
+    const numbers = parsed.hints.filter((h) => /^\d+$/.test(h))
+    const words = parsed.hints.filter((h) => !/^\d+$/.test(h))
+    const name = parsed.name.toLowerCase()
+
+    for (const num of numbers) {
+      out.add(`${name} #${num}`)
+      out.add(`${name} ${num} pokemon`)
+      out.add(`pokemon japanese ${name} ${num}`)
+      if (words.length > 0) {
+        out.add(`${name} #${num} ${words.join(" ")}`)
+      }
+      if (trimmed.includes("stamp") || words.some((w) => w.toLowerCase().includes("stamp"))) {
+        out.add(`${name} #${num} stamp box`)
+        out.add(`pokemon ${name} ${num} stamp`)
+      }
+    }
+
+    if (words.length > 0 && numbers.length === 0) {
+      out.add(`${name} ${words.join(" ")}`)
+      out.add(`pokemon ${name} ${words.join(" ")}`)
+    }
+  }
+
+  if (parsed.mode === "number") {
+    out.add(`pokemon #${parsed.number}`)
+    out.add(`pokemon card ${parsed.number}`)
+  }
+
+  if (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name") {
+    out.add(`pokemon ${trimmed}`)
+  }
+
+  return [...out].slice(0, 6)
+}
+
+function scorePcCatalogHit(hit: PriceChartingSearchHit, query: string): number {
+  const productName = (hit["product-name"] ?? "").toLowerCase()
+  const consoleName = (hit["console-name"] ?? "").toLowerCase()
+  const q = query.toLowerCase()
+  let score = 0
+
+  if (consoleName.includes("pokemon")) score += 4
+  if (consoleName.includes("japanese")) score += 3
+
+  for (const token of q.split(/\s+/).filter(Boolean)) {
+    if (token.length < 2) continue
+    if (/^\d+$/.test(token)) {
+      if (productName.includes(`#${token}`) || productName.includes(` ${token}`)) score += 10
+    } else if (productName.includes(token) || consoleName.includes(token)) {
+      score += 6
+    }
+  }
+
+  return score
+}
+
+async function searchPriceChartingCards(
+  query: string,
+  parsed: ParsedSearch,
+  limit: number,
+): Promise<CardSearchHit[]> {
+  const apiKey = process.env.PRICECHARTING_API_KEY
+  if (!apiKey || limit <= 0) return []
+
+  const queries = buildPriceChartingCatalogQueries(query, parsed)
+  const scored = new Map<string, { hit: CardSearchHit; score: number }>()
+
+  const batches = [queries.slice(0, 2), queries.slice(2, 4), queries.slice(4, 6)].filter(
+    (batch) => batch.length > 0,
+  )
+
+  for (const batch of batches) {
+    const results = await Promise.all(
+      batch.map(async (q) => {
+        try {
+          return await fetchPriceChartingProducts(apiKey, q)
+        } catch {
+          return []
+        }
+      }),
+    )
+
+    for (const hits of results) {
+      for (const hit of hits) {
+        const score = scorePcCatalogHit(hit, query)
+        if (score < 8) continue
+        const mapped = priceChartingHitToSearchHit(hit)
+        if (!mapped) continue
+        const existing = scored.get(mapped.id)
+        if (!existing || score > existing.score) {
+          scored.set(mapped.id, { hit: mapped, score })
+        }
+      }
+    }
+
+    if (scored.size >= limit) break
+  }
+
+  return [...scored.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((entry) => entry.hit)
+}
+
 export async function searchCatalogCards(query: string, limit = 12): Promise<CardSearchHit[]> {
   const parsed = parseSearchInput(query)
 
@@ -425,7 +584,10 @@ export async function searchCatalogCards(query: string, limit = 12): Promise<Car
       cards = []
   }
 
-  return cards.slice(0, limit).map(catalogToSearchHit)
+  const pokemonHits = cards.slice(0, limit).map(catalogToSearchHit)
+  if (pokemonHits.length > 0) return pokemonHits
+
+  return searchPriceChartingCards(query, parsed, limit)
 }
 
 function formatCardName(name: string, rarity: string | null): string {

@@ -104,13 +104,15 @@ export function SlabDashboard() {
   )
 
   const lookupCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry | null> => {
-    const params = new URLSearchParams({
-      pokemonTcgId: hit.pokemonTcgId,
-      cardName: hit.cardName,
-      setName: hit.setName,
-      cardNumber: hit.cardNumber,
-    })
-    if (hit.imageUrl) params.set("imageUrl", hit.imageUrl)
+    const params = hit.id.startsWith("pc-")
+      ? new URLSearchParams({ id: hit.id })
+      : new URLSearchParams({
+          pokemonTcgId: hit.pokemonTcgId,
+          cardName: hit.cardName,
+          setName: hit.setName,
+          cardNumber: hit.cardNumber,
+        })
+    if (!hit.id.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl)
 
     const res = await fetch(`/api/cards/lookup?${params.toString()}`)
     if (!res.ok) return null
