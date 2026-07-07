@@ -73,8 +73,11 @@ async function fetchCardsForHints(
 
   for (const hint of hints) {
     const setId = resolveSetIdForHint(hint)
-    if (setId) addQuery(`name:${escapedName} set.id:${setId}`)
-    addQuery(`name:${escapedName} set.name:"${escapeLucene(hint)}"`)
+    if (setId) {
+      addQuery(`name:${escapedName} set.id:${setId}`)
+    } else {
+      addQuery(`name:${escapedName} set.name:"${escapeLucene(hint)}"`)
+    }
   }
 
   for (const hint of normalizedHints) {
