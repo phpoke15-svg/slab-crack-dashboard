@@ -192,15 +192,12 @@ export async function resolvePokemonCardImage(input: {
     if (byId?.imageLarge || byId?.imageSmall) return byId
   }
 
-  const strict = await fetchPokemonCardForWatchlist(input)
-  if (strict?.imageLarge || strict?.imageSmall) return strict
-
   const name = stripRaritySuffix(input.cardName)
   const number = extractCardNumberFromName(input.cardName, input.cardNumber)
   if (!name || !number) return null
 
   try {
-    const cards = await fetchPokemonCardsByQuery(`name:"${escapeLucene(name)}" number:${number}`, 25)
+    const cards = await fetchPokemonCardsByQuery(`name:"${escapeLucene(name)}" number:${number}`, 15)
     const targetName = normalizeForCompare(name)
     const targetNum = cardNumberPrefix(number)
 
@@ -237,7 +234,7 @@ export function toCatalogCard(card: PokemonApiCard): CatalogCard {
   }
 }
 
-async function fetchWithTimeout(url: string, headers: HeadersInit, ms = 12000) {
+async function fetchWithTimeout(url: string, headers: HeadersInit, ms = 6000) {
   const run = async () => {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), ms)

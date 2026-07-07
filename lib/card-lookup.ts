@@ -9,7 +9,6 @@ import {
 import {
   fetchPokemonCardById,
   fetchPokemonCardsByQuery,
-  resolvePokemonCardImage,
   type CatalogCard,
 } from "@/lib/pokemon-tcg"
 import {
@@ -33,6 +32,14 @@ export type CardSearchHit = {
 
 const LOOKUP_CACHE_TTL_MS = 15 * 60 * 1000
 const lookupCache = new Map<string, { entry: MockCardEntry; expiresAt: number }>()
+const SEARCH_BUDGET_MS = 7500
+
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ])
+}
 
 function getCachedLookup(key: string): MockCardEntry | null {
   const hit = lookupCache.get(key)
@@ -582,15 +589,13 @@ async function searchPriceChartingCards(
   const queries = buildPriceChartingCatalogQueries(query, parsed)
   const scored = new Map<string, { hit: CardSearchHit; score: number }>()
 
-  const batches = [queries.slice(0, 2), queries.slice(2, 4), queries.slice(4, 6)].filter(
-    (batch) => batch.length > 0,
-  )
+  const batches = [queries.slice(0, 2)].filter((batch) => batch.length > 0)
 
   for (const batch of batches) {
     const results = await Promise.all(
       batch.map(async (q) => {
         try {
-          return await fetchPriceChartingProducts(apiKey, q)
+          return await withTimeout(fetchPriceChartingProducts(apiKey, q), 4000, [])
         } catch {
           return []
         }
@@ -614,9 +619,14 @@ async function searchPriceChartingCards(
   }
 
   if (scored.size === 0) {
-    for (const q of queries.slice(0, 4)) {
+    for (const q of queries.slice(0, 1)) {
       try {
-        const product = await fetchPriceChartingProduct(apiKey, { query: q })
+        const product = await withTimeout(
+          fetchPriceChartingProduct(apiKey, { query: q }),
+          4000,
+          null,
+        )
+        if (!product) break
         const hit = priceChartingHitToSearchHit({
           id: product.id,
           "product-name": product["product-name"],
@@ -667,14 +677,16 @@ async function fetchSupplementalPokemonForName(name: string, limit: number): Pro
   const escaped = escapeLucene(name)
   const queries = [
     `name:${escaped} set.name:"First Partner"`,
-    `name:${escaped} set.name:"SV Black Star Promos"`,
-    `name:${escaped} set.name:"SVP"`,
     `name:${escaped} set.name:"Promo"`,
   ]
   const batches = await Promise.all(
     queries.map(async (query) => {
       try {
-        return await fetchPokemonCardsByQuery(query, Math.min(limit, 25))
+        return await withTimeout(
+          fetchPokemonCardsByQuery(query, Math.min(limit, 15)),
+          4000,
+          [],
+        )
       } catch {
         return []
       }
@@ -693,9 +705,9 @@ async function fetchPokemonCardsForParsed(parsed: ParsedSearch, limit: number): 
       return fetchBySetAndNumber(parsed.setHint, parsed.setId, parsed.number, limit)
     case "name": {
       const escaped = escapeLucene(parsed.name)
-      const pageSize = Math.min(250, Math.max(limit * 3, 60))
+      const pageSize = Math.min(80, Math.max(limit * 2, 40))
       const [main, supplemental] = await Promise.all([
-        fetchPokemonCardsByQuery(`name:${escaped}`, pageSize),
+        withTimeout(fetchPokemonCardsByQuery(`name:${escaped}`, pageSize), 5000, []),
         fetchSupplementalPokemonForName(parsed.name, limit),
       ])
       return dedupeCatalogCards([...main, ...supplemental])
@@ -782,7 +794,6 @@ function mergeAndRankSearchHits(hits: CardSearchHit[], query: string, limit: num
     }
 
     const prefer = score > existing.score ? hit : existing.hit
-    const other = score > existing.score ? existing.hit : hit
     byKey.set(key, {
       hit: mergeSearchHits(hit, existing.hit, prefer),
       score: Math.max(score, existing.score),
@@ -801,44 +812,7 @@ function mergeAndRankSearchHits(hits: CardSearchHit[], query: string, limit: num
     .map((entry) => entry.hit)
 }
 
-const IMAGE_ENRICH_CONCURRENCY = 6
-const MAX_IMAGE_ENRICH = 40
-
-async function enrichSearchHitsWithImages(hits: CardSearchHit[]): Promise<CardSearchHit[]> {
-  const missing = hits
-    .map((hit, index) => ({ hit, index }))
-    .filter(({ hit }) => !hit.imageUrl?.trim())
-
-  if (missing.length === 0) return hits
-
-  const updated = [...hits]
-
-  for (let i = 0; i < Math.min(missing.length, MAX_IMAGE_ENRICH); i += IMAGE_ENRICH_CONCURRENCY) {
-    const chunk = missing.slice(i, i + IMAGE_ENRICH_CONCURRENCY)
-    await Promise.all(
-      chunk.map(async ({ hit, index }) => {
-        const catalog = await resolvePokemonCardImage({
-          cardName: hit.cardName,
-          setName: hit.setName,
-          cardNumber: hit.cardNumber,
-          pokemonTcgId: hit.pokemonTcgId,
-        })
-        if (!catalog?.imageLarge && !catalog?.imageSmall) return
-
-        updated[index] = {
-          ...hit,
-          imageUrl: catalog.imageLarge ?? catalog.imageSmall ?? hit.imageUrl,
-          pokemonTcgId: catalog.id.startsWith("pc-") ? hit.pokemonTcgId : `poke-${catalog.id}`,
-          rarity: hit.rarity ?? catalog.rarity,
-        }
-      }),
-    )
-  }
-
-  return updated
-}
-
-export async function searchCatalogCards(query: string, limit = 12): Promise<CardSearchHit[]> {
+async function runSearchCatalogCards(query: string, limit: number): Promise<CardSearchHit[]> {
   const parsed = parseSearchInput(query)
   if (parsed.mode === "empty") return []
 
@@ -867,7 +841,11 @@ export async function searchCatalogCards(query: string, limit = 12): Promise<Car
 
   if (merged.length === 0) return []
 
-  return enrichSearchHitsWithImages(merged)
+  return merged
+}
+
+export async function searchCatalogCards(query: string, limit = 12): Promise<CardSearchHit[]> {
+  return withTimeout(runSearchCatalogCards(query, limit), SEARCH_BUDGET_MS, [])
 }
 
 function formatCardName(name: string, rarity: string | null): string {

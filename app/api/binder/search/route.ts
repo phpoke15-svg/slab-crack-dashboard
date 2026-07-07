@@ -6,7 +6,7 @@ import {
   pokemonApiToBinderCard,
 } from "@/lib/trade-binder/pokemon-catalog"
 
-export const maxDuration = 60
+export const maxDuration = 10
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? ""
@@ -14,19 +14,27 @@ export async function GET(request: NextRequest) {
   const pageSize = Math.min(Number(request.nextUrl.searchParams.get("pageSize") ?? 40), 80)
 
   try {
-    const rawPriceByCardId = await getRawPriceByCardId()
-
     if (q.length >= 2) {
-      const cards = await searchBinderCatalog(q, { limit: pageSize, rawPriceByCardId })
+      const [rawPriceByCardId, cards] = await Promise.all([
+        getRawPriceByCardId(),
+        searchBinderCatalog(q, { limit: pageSize }),
+      ])
+
+      const pricedCards = cards.map((card) => {
+        const rawPrice = rawPriceByCardId.get(card.id)
+        return rawPrice && rawPrice > 0 ? { ...card, rawPrice } : card
+      })
 
       return NextResponse.json({
-        cards,
-        totalCount: cards.length,
+        cards: pricedCards,
+        totalCount: pricedCards.length,
         page: 1,
         hasMore: false,
         languageFilter: "english-japanese",
       })
     }
+
+    const rawPriceByCardId = await getRawPriceByCardId()
 
     const { cards: apiCards, totalCount, pageSize: apiPageSize } = await fetchPokemonCatalogPage(
       page,

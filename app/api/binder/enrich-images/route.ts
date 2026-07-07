@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { resolvePokemonCardImage } from "@/lib/pokemon-tcg"
 import { mapPokemonRarity } from "@/lib/trade-binder/pokemon-tcg"
 
-export const maxDuration = 60
+export const maxDuration = 10
 
 type EnrichInput = {
   id: string
@@ -18,6 +18,13 @@ function needsImage(image?: string): boolean {
   return image.includes("placeholder")
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+  ])
+}
+
 export async function POST(request: NextRequest) {
   let cards: EnrichInput[] = []
 
@@ -28,7 +35,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
 
-  const toEnrich = cards.filter((card) => needsImage(card.image)).slice(0, 50)
+  const toEnrich = cards.filter((card) => needsImage(card.image)).slice(0, 20)
   if (toEnrich.length === 0) {
     return NextResponse.json({ cards })
   }
@@ -37,12 +44,16 @@ export async function POST(request: NextRequest) {
 
   await Promise.all(
     toEnrich.map(async (card) => {
-      const resolved = await resolvePokemonCardImage({
-        cardName: card.name,
-        setName: card.set,
-        cardNumber: card.cardNumber ?? "",
-        pokemonTcgId: card.id,
-      })
+      const resolved = await withTimeout(
+        resolvePokemonCardImage({
+          cardName: card.name,
+          setName: card.set,
+          cardNumber: card.cardNumber ?? "",
+          pokemonTcgId: card.id,
+        }),
+        3000,
+        null,
+      )
 
       const image = resolved?.imageLarge ?? resolved?.imageSmall
       if (!image) return
