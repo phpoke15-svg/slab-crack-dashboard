@@ -348,7 +348,7 @@ export function SlabDashboard() {
             <p className="mt-1 text-sm text-muted-foreground">
               {feed === "watchlist"
                 ? "Search any card above and tap the star to add it here."
-                : "Try searching any Pokémon card by name or number."}
+                : "Try a card name, set (151), number (#173), or both (151 173)."}
             </p>
           </div>
         ) : (
