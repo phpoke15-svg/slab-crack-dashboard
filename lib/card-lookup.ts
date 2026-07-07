@@ -34,6 +34,17 @@ function normalizeToken(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "")
 }
 
+/** User-facing set nicknames → Pokémon TCG API set.id */
+const SET_HINT_IDS: Record<string, string> = {
+  "151": "sv3pt5",
+  pokemon151: "sv3pt5",
+  sv151: "sv3pt5",
+}
+
+function resolveSetIdForHint(hint: string): string | null {
+  return SET_HINT_IDS[normalizeToken(hint)] ?? null
+}
+
 function cardMatchesHints(card: CatalogCard, hints: string[]): boolean {
   const setNorm = normalizeToken(card.setName)
   const numNorm = normalizeToken(card.cardNumber.split("/")[0] ?? "")
@@ -42,6 +53,53 @@ function cardMatchesHints(card: CatalogCard, hints: string[]): boolean {
   return hints.every(
     (hint) => setNorm.includes(hint) || numNorm.includes(hint) || nameNorm.includes(hint),
   )
+}
+
+async function fetchCardsForHints(
+  name: string,
+  hints: string[],
+  limit: number,
+): Promise<CatalogCard[]> {
+  const escapedName = escapeLucene(name)
+  const normalizedHints = hints.map(normalizeToken).filter(Boolean)
+  const queries: string[] = []
+  const seenQueries = new Set<string>()
+
+  const addQuery = (query: string) => {
+    if (!query || seenQueries.has(query)) return
+    seenQueries.add(query)
+    queries.push(query)
+  }
+
+  for (const hint of hints) {
+    const setId = resolveSetIdForHint(hint)
+    if (setId) addQuery(`name:${escapedName} set.id:${setId}`)
+    addQuery(`name:${escapedName} set.name:"${escapeLucene(hint)}"`)
+  }
+
+  for (const hint of normalizedHints) {
+    if (/^\d+$/.test(hint) && !resolveSetIdForHint(hint)) {
+      addQuery(`name:${escapedName} number:${hint}`)
+    }
+  }
+
+  addQuery(`name:${escapedName}`)
+
+  for (const query of queries) {
+    try {
+      const pageSize = query === `name:${escapedName}` ? Math.min(100, limit * 8) : limit
+      const cards = await fetchPokemonCardsByQuery(query, pageSize)
+      const filtered =
+        normalizedHints.length > 0
+          ? cards.filter((card) => cardMatchesHints(card, normalizedHints))
+          : cards
+      if (filtered.length > 0) return filtered
+    } catch {
+      /* try next query strategy */
+    }
+  }
+
+  return []
 }
 
 /** Build a Pokémon TCG API query from free-text user input. */
@@ -80,23 +138,15 @@ export async function searchCatalogCards(query: string, limit = 12): Promise<Car
   }
 
   const parts = trimmed.split(/\s+/).filter(Boolean)
-  const hints = parts.slice(1).map(normalizeToken).filter(Boolean)
-  const pageSize = hints.length > 0 ? Math.min(50, limit * 4) : limit
-  const cards = await fetchPokemonCardsByQuery(buildUserSearchQuery(trimmed), pageSize)
-  const filtered = hints.length > 0 ? cards.filter((card) => cardMatchesHints(card, hints)) : cards
-  const pool = filtered.length > 0 ? filtered : cards
+  const hints = parts.slice(1)
 
-  const seen = new Set<string>()
-  const hits: CardSearchHit[] = []
-
-  for (const card of pool) {
-    if (seen.has(card.id)) continue
-    seen.add(card.id)
-    hits.push(catalogToSearchHit(card))
-    if (hits.length >= limit) break
+  if (hints.length > 0) {
+    const cards = await fetchCardsForHints(parts[0], hints, limit)
+    return cards.slice(0, limit).map(catalogToSearchHit)
   }
 
-  return hits
+  const cards = await fetchPokemonCardsByQuery(buildUserSearchQuery(trimmed), limit)
+  return cards.slice(0, limit).map(catalogToSearchHit)
 }
 
 function formatCardName(name: string, rarity: string | null): string {
