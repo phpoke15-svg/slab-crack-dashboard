@@ -1,6 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import {
+  bestDisplayCardImageUrl,
+  isLowResCardImage,
+  isPlaceholderCardImage,
+} from "@/lib/card-image-url"
 
 const imageCache = new Map<string, string>()
 const inflight = new Map<string, Promise<string | null>>()
@@ -27,14 +32,11 @@ function runWithQueue<T>(task: () => Promise<T>): Promise<T> {
 }
 
 export function isMissingCardImage(image?: string): boolean {
-  if (!image?.trim()) return true
-  return image.includes("placeholder") || image.includes("placehold.co")
+  return isPlaceholderCardImage(image)
 }
 
 export function shouldUpgradeCardImage(image?: string): boolean {
-  if (isMissingCardImage(image)) return true
-  if (/\/(60|160)\.jpg(?:\?|$)/i.test(image ?? "")) return true
-  return false
+  return isLowResCardImage(image)
 }
 
 function parseNumberFromName(name: string): string {
@@ -72,7 +74,7 @@ async function fetchCardImage(input: {
     })
     const number = input.cardNumber || parseNumberFromName(input.name)
     if (number) params.set("number", number)
-    if (input.image && !isMissingCardImage(input.image)) {
+    if (input.image && !isPlaceholderCardImage(input.image)) {
       params.set("imageUrl", input.image)
     }
 
@@ -106,13 +108,13 @@ export function useCardImage(
   options?: { upgrade?: boolean },
 ): string {
   const upgrade = options?.upgrade ?? true
-  const fallbackSrc = isMissingCardImage(card.image) ? "/placeholder.svg" : card.image
+  const fallbackSrc = bestDisplayCardImageUrl(card.image)
   const [src, setSrc] = useState(fallbackSrc)
 
   useEffect(() => {
     setSrc(fallbackSrc)
 
-    if (!upgrade || !shouldUpgradeCardImage(card.image)) return
+    if (!upgrade || !isLowResCardImage(card.image)) return
 
     const cached = imageCache.get(card.id)
     if (cached) {

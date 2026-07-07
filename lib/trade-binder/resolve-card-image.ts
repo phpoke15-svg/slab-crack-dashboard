@@ -1,11 +1,5 @@
+import { isLowResCardImage } from "@/lib/card-image-url"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
-
-function isPlaceholder(image?: string): boolean {
-  if (!image?.trim()) return true
-  if (image.includes("placeholder") || image.includes("placehold.co")) return true
-  if (/\/(60|160)\.jpg(?:\?|$)/i.test(image)) return true
-  return false
-}
 
 function parseNumberFromName(name: string): string {
   return name.match(/#(\d+[a-zA-Z/-]*)/)?.[1] ?? ""
@@ -14,7 +8,7 @@ function parseNumberFromName(name: string): string {
 export async function resolveCatalogCardImage(
   card: CatalogCard & { cardNumber?: string },
 ): Promise<CatalogCard> {
-  if (!isPlaceholder(card.image)) return card
+  if (!isLowResCardImage(card.image)) return card
 
   const params = new URLSearchParams({
     id: card.id,
@@ -23,9 +17,7 @@ export async function resolveCatalogCardImage(
   })
   const number = card.cardNumber || parseNumberFromName(card.name)
   if (number) params.set("number", number)
-  if (card.image && !isPlaceholder(card.image)) {
-    params.set("imageUrl", card.image)
-  }
+  if (card.image) params.set("imageUrl", card.image)
 
   try {
     const res = await fetch(`/api/binder/card-image?${params.toString()}`)

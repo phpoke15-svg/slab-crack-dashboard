@@ -1,4 +1,5 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js"
+import { cardImageNeedsUpgrade } from "@/lib/trade-binder/image-quality"
 import type { CardStatus, CatalogCard, Rarity, TcgCard } from "@/lib/trade-binder/cards"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
 
@@ -69,7 +70,7 @@ export async function loadBinderCards(supabase: SupabaseClient, userId: string):
 }
 
 async function enrichBinderCardImages(cards: TcgCard[]): Promise<TcgCard[]> {
-  const needsImage = cards.filter((card) => !card.image || card.image.includes("placeholder"))
+  const needsImage = cards.filter((card) => cardImageNeedsUpgrade(card.image))
   if (needsImage.length === 0) return cards
 
   try {

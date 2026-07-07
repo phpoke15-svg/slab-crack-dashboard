@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
+import { bestDisplayCardImageUrl } from "@/lib/card-image-url"
 import { isMissingCardImage, useCardImage } from "@/hooks/trade-binder/use-card-image"
 
 export function CardImage({
@@ -23,12 +24,13 @@ export function CardImage({
   className?: string
   upgrade?: boolean
 }) {
-  const directSrc = isMissingCardImage(card.image) ? "/placeholder.svg" : card.image
+  const originalSrc = isMissingCardImage(card.image) ? "/placeholder.svg" : card.image
+  const directSrc = bestDisplayCardImageUrl(card.image)
   const upgradedSrc = useCardImage(card, { upgrade })
   const [broken, setBroken] = useState(false)
 
   const src = upgrade ? upgradedSrc : directSrc
-  const displaySrc = broken ? directSrc : src
+  const displaySrc = broken ? originalSrc : src
 
   return (
     <Image
