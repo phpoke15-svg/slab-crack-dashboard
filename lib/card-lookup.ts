@@ -41,6 +41,40 @@ const SET_HINT_IDS: Record<string, string> = {
   sv151: "sv3pt5",
 }
 
+const CARD_NAME_SUFFIXES = new Set(["ex", "gx", "v", "vmax", "vstar", "lv", "x", "break", "prime"])
+
+function isCardNameSuffix(token: string): boolean {
+  return CARD_NAME_SUFFIXES.has(token.toLowerCase())
+}
+
+function buildNameSetCandidates(tokens: string[]): Array<{ name: string; setHint: string }> {
+  const candidates: Array<{ name: string; setHint: string }> = []
+  const seen = new Set<string>()
+
+  const add = (name: string, setHint: string) => {
+    const key = `${normalizeToken(name)}|${normalizeToken(setHint)}`
+    if (!name.trim() || !setHint.trim() || seen.has(key)) return
+    seen.add(key)
+    candidates.push({ name: name.trim(), setHint: setHint.trim() })
+  }
+
+  // Name-first: "charizard evolving skies", "mew ex destined rivals"
+  for (const nameLen of [1, 2]) {
+    if (tokens.length <= nameLen) continue
+    if (nameLen === 2 && !isCardNameSuffix(tokens[1])) continue
+    add(tokens.slice(0, nameLen).join(" "), tokens.slice(nameLen).join(" "))
+  }
+
+  // Set-first: "Mega Evolution Lucario", "Destined Rivals Mewtwo"
+  for (const nameLen of [1, 2]) {
+    if (tokens.length <= nameLen) continue
+    if (nameLen === 2 && !isCardNameSuffix(tokens[tokens.length - 1])) continue
+    add(tokens.slice(-nameLen).join(" "), tokens.slice(0, -nameLen).join(" "))
+  }
+
+  return candidates
+}
+
 function resolveSetIdForHint(hint: string): string | null {
   return SET_HINT_IDS[normalizeToken(hint)] ?? null
 }
@@ -72,6 +106,7 @@ type ParsedSearch =
   | { mode: "name"; name: string }
   | { mode: "name-hints"; name: string; hints: string[] }
   | { mode: "set-or-name"; setHint: string; name: string; hints: string[] }
+  | { mode: "name-set-combo"; tokens: string[] }
 
 /** Classify free-text search into card name, set, and/or number tokens. */
 export function parseSearchInput(input: string): ParsedSearch {
@@ -129,11 +164,7 @@ export function parseSearchInput(input: string): ParsedSearch {
   }
 
   if (textTokens.length >= 3) {
-    return {
-      mode: "name-hints",
-      name: textTokens[0],
-      hints: [textTokens.slice(1).join(" ")],
-    }
+    return { mode: "name-set-combo", tokens: textTokens }
   }
 
   return {
@@ -190,6 +221,39 @@ async function fetchBySetAndNumber(
   }
 
   return []
+}
+
+async function fetchByNameAndSet(
+  name: string,
+  setHint: string,
+  limit: number,
+): Promise<CatalogCard[]> {
+  const escapedName = escapeLucene(name)
+  const setId = resolveSetIdForHint(setHint)
+  const queries: string[] = []
+
+  if (setId) queries.push(`name:${escapedName} set.id:${setId}`)
+  queries.push(`name:${escapedName} set.name:"${escapeLucene(setHint)}"`)
+
+  for (const query of queries) {
+    try {
+      const cards = await fetchPokemonCardsByQuery(query, limit)
+      if (cards.length > 0) return cards.slice(0, limit)
+    } catch {
+      /* try next query */
+    }
+  }
+
+  return []
+}
+
+async function fetchNameSetCombos(tokens: string[], limit: number): Promise<CatalogCard[]> {
+  for (const { name, setHint } of buildNameSetCandidates(tokens)) {
+    const cards = await fetchByNameAndSet(name, setHint, limit)
+    if (cards.length > 0) return cards
+  }
+
+  return fetchCardsForHints(tokens[0], [tokens.slice(1).join(" ")], limit)
 }
 
 async function fetchCardsForHints(
@@ -296,6 +360,9 @@ export async function searchCatalogCards(query: string, limit = 12): Promise<Car
       break
     case "name-hints":
       cards = await fetchCardsForHints(parsed.name, parsed.hints, limit)
+      break
+    case "name-set-combo":
+      cards = await fetchNameSetCombos(parsed.tokens, limit)
       break
     case "set-or-name": {
       cards = await fetchBySet(parsed.setHint, null, limit)
