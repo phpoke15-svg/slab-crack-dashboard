@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { Search, Layers, Zap, TrendingDown, DollarSign, Percent } from "lucide-react"
 import { cn } from "@/lib/utils"
 import mockData from "@/lib/mockData.json"
@@ -14,6 +14,16 @@ import { SlabRow } from "@/components/slab-row"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { FeedAdSlot } from "@/components/feed-ad-slot"
 import { interleaveFeedAds } from "@/lib/feed-ads"
+import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
+import {
+  findWatchedIdForHit,
+  isSearchHitWatched,
+  loadWatchlistStore,
+  resolveWatchedCards,
+  saveWatchlistStore,
+  toggleWatchlistCard,
+  type WatchlistStore,
+} from "@/lib/watchlist-storage"
 
 const FALLBACK_FEED: MockCardEntry[] = []
 
@@ -23,8 +33,22 @@ export function SlabDashboard() {
   const [query, setQuery] = useState("")
   const [feed, setFeed] = useState<Feed>("top")
   const [selectedCard, setSelectedCard] = useState<MockCardEntry | null>(null)
-  const [watchlist, setWatchlist] = useState<string[]>([])
+  const [watchlistStore, setWatchlistStore] = useState<WatchlistStore>({
+    ids: [],
+    cards: {},
+  })
   const [sortMode, setSortMode] = useState<"dollar" | "percent">("dollar")
+  const [searchHits, setSearchHits] = useState<CardSearchHit[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setWatchlistStore(loadWatchlistStore())
+  }, [])
+
+  useEffect(() => {
+    saveWatchlistStore(watchlistStore)
+  }, [watchlistStore])
 
   const handleSelectCard = (card: MockCardEntry) => setSelectedCard(card)
   const handleCloseDrawer = () => setSelectedCard(null)
@@ -45,31 +69,116 @@ export function SlabDashboard() {
       .finally(() => setFeedLoading(false))
   }, [])
 
-  const toggleWatch = (id: string) =>
-    setWatchlist((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) {
+      setSearchHits([])
+      setSearchLoading(false)
+      return
+    }
+
+    setSearchLoading(true)
+    const timer = window.setTimeout(() => {
+      fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
+        .then((res) => (res.ok ? res.json() : { results: [] }))
+        .then((data: { results?: CardSearchHit[] }) => {
+          setSearchHits(data.results ?? [])
+        })
+        .catch(() => setSearchHits([]))
+        .finally(() => setSearchLoading(false))
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [query])
+
+  const feedById = useMemo(() => {
+    const map = new Map<string, MockCardEntry>()
+    for (const card of arbitrageFeed) map.set(card.id, card)
+    return map
+  }, [arbitrageFeed])
+
+  const watchedCards = useMemo(
+    () => resolveWatchedCards(watchlistStore, feedById).map(normalizeCardEntry),
+    [watchlistStore, feedById],
+  )
+
+  const lookupCard = useCallback(async (pokemonTcgId: string): Promise<MockCardEntry | null> => {
+    const res = await fetch(`/api/cards/lookup?pokemonTcgId=${encodeURIComponent(pokemonTcgId)}`)
+    if (!res.ok) return null
+    const data = (await res.json()) as MockCardEntry
+    return normalizeCardEntry(data)
+  }, [])
+
+  const toggleWatch = useCallback((card: MockCardEntry) => {
+    setWatchlistStore((prev) => toggleWatchlistCard(prev, normalizeCardEntry(card)))
+  }, [])
+
+  const handleSearchSelect = useCallback(
+    async (hit: CardSearchHit) => {
+      setDetailLoadingId(hit.id)
+      try {
+        const card = await lookupCard(hit.pokemonTcgId)
+        if (card) setSelectedCard(card)
+      } finally {
+        setDetailLoadingId(null)
+      }
+    },
+    [lookupCard],
+  )
+
+  const handleSearchWatch = useCallback(
+    async (hit: CardSearchHit) => {
+      const watchedId = findWatchedIdForHit(watchlistStore, hit, feedById)
+      if (watchedId) {
+        const existing = watchlistStore.cards[watchedId] ?? feedById.get(watchedId)
+        if (existing) {
+          toggleWatch(existing)
+          return
+        }
+      }
+
+      setDetailLoadingId(hit.id)
+      try {
+        const card = await lookupCard(hit.pokemonTcgId)
+        if (card) toggleWatch(card)
+      } finally {
+        setDetailLoadingId(null)
+      }
+    },
+    [feedById, lookupCard, toggleWatch, watchlistStore],
+  )
+
+  const checkHitWatched = useCallback(
+    (hit: CardSearchHit) => isSearchHitWatched(watchlistStore, hit, feedById),
+    [watchlistStore, feedById],
+  )
 
   const results = useMemo(() => {
-    return arbitrageFeed
+    const source = feed === "watchlist" ? watchedCards : arbitrageFeed
+
+    return source
       .filter((card) => {
         const matchesFeed =
           feed === "watchlist"
-            ? watchlist.includes(card.id)
+            ? true
             : feed === "top"
               ? card.hasPricing !== false && card.deficit > 0
               : true
         const q = query.trim().toLowerCase()
         const matchesQuery =
-          q === "" ||
-          card.cardName.toLowerCase().includes(q) ||
-          card.setName.toLowerCase().includes(q) ||
-          card.cardNumber.toLowerCase().includes(q)
+          feed === "watchlist" && q.length >= 2
+            ? true
+            : q === "" ||
+              card.cardName.toLowerCase().includes(q) ||
+              card.setName.toLowerCase().includes(q) ||
+              card.cardNumber.toLowerCase().includes(q)
         return matchesFeed && matchesQuery
       })
       .sort((a, b) => {
         if (a.hasPricing !== b.hasPricing) return a.hasPricing ? -1 : 1
         return sortMode === "dollar" ? b.deficit - a.deficit : b.percentageSavings - a.percentageSavings
       })
-  }, [arbitrageFeed, feed, query, watchlist, sortMode])
+  }, [arbitrageFeed, feed, query, sortMode, watchedCards])
 
   const pricedCount = useMemo(
     () => arbitrageFeed.filter((card) => card.hasPricing !== false).length,
@@ -82,6 +191,7 @@ export function SlabDashboard() {
   )
 
   const feedItems = useMemo(() => interleaveFeedAds(results), [results])
+  const showCatalogSearch = query.trim().length >= 2 && feed !== "watchlist"
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -116,7 +226,7 @@ export function SlabDashboard() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search cards or sets…"
+              placeholder="Search any card, set, or number…"
               className={cn(
                 "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground",
                 "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
@@ -140,9 +250,9 @@ export function SlabDashboard() {
                 )}
               >
                 {f.label}
-                {f.id === "watchlist" && watchlist.length > 0 && (
+                {f.id === "watchlist" && watchlistStore.ids.length > 0 && (
                   <span className="ml-1.5 rounded-full bg-primary/20 px-1.5 py-0.5 font-mono text-[10px] text-primary">
-                    {watchlist.length}
+                    {watchlistStore.ids.length}
                   </span>
                 )}
                 {active && (
@@ -156,12 +266,26 @@ export function SlabDashboard() {
 
       {/* Feed */}
       <main className="flex-1 px-4 py-4 sm:px-6">
+        {showCatalogSearch && (
+          <CardSearchResults
+            hits={searchHits}
+            loading={searchLoading}
+            query={query}
+            watchedIds={watchlistStore.ids}
+            isHitWatched={checkHitWatched}
+            onSelect={handleSearchSelect}
+            onToggleWatch={handleSearchWatch}
+            detailLoadingId={detailLoadingId}
+          />
+        )}
+
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <TrendingDown className="size-3.5 text-primary" />
             <span>
-              {results.length} {results.length === 1 ? "card" : "cards"} tracked
-              {pricedCount > 0 && (
+              {results.length} {results.length === 1 ? "card" : "cards"}
+              {feed === "watchlist" ? " on watchlist" : " tracked"}
+              {feed !== "watchlist" && pricedCount > 0 && (
                 <>
                   {" "}
                   · {pricedCount} with live pricing · by{" "}
@@ -171,43 +295,44 @@ export function SlabDashboard() {
             </span>
           </div>
 
-          {/* Sort toggle */}
-          <div
-            role="radiogroup"
-            aria-label="Sort deficits by"
-            className="flex items-center rounded-lg border border-border bg-secondary/40 p-0.5"
-          >
-            <button
-              type="button"
-              role="radio"
-              aria-checked={sortMode === "dollar"}
-              onClick={() => setSortMode("dollar")}
-              className={cn(
-                "flex items-center gap-1 rounded-md px-2.5 py-1.5 font-mono text-xs font-semibold transition-all",
-                sortMode === "dollar"
-                  ? "bg-primary/15 text-primary shadow-[0_0_14px_-6px] shadow-primary/60"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
+          {feed !== "watchlist" && (
+            <div
+              role="radiogroup"
+              aria-label="Sort deficits by"
+              className="flex items-center rounded-lg border border-border bg-secondary/40 p-0.5"
             >
-              <DollarSign className="size-3.5" strokeWidth={2.5} />
-              <span className="sr-only sm:not-sr-only">Deficit</span>
-            </button>
-            <button
-              type="button"
-              role="radio"
-              aria-checked={sortMode === "percent"}
-              onClick={() => setSortMode("percent")}
-              className={cn(
-                "flex items-center gap-1 rounded-md px-2.5 py-1.5 font-mono text-xs font-semibold transition-all",
-                sortMode === "percent"
-                  ? "bg-primary/15 text-primary shadow-[0_0_14px_-6px] shadow-primary/60"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              <Percent className="size-3.5" strokeWidth={2.5} />
-              <span className="sr-only sm:not-sr-only">Discount</span>
-            </button>
-          </div>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={sortMode === "dollar"}
+                onClick={() => setSortMode("dollar")}
+                className={cn(
+                  "flex items-center gap-1 rounded-md px-2.5 py-1.5 font-mono text-xs font-semibold transition-all",
+                  sortMode === "dollar"
+                    ? "bg-primary/15 text-primary shadow-[0_0_14px_-6px] shadow-primary/60"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <DollarSign className="size-3.5" strokeWidth={2.5} />
+                <span className="sr-only sm:not-sr-only">Deficit</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={sortMode === "percent"}
+                onClick={() => setSortMode("percent")}
+                className={cn(
+                  "flex items-center gap-1 rounded-md px-2.5 py-1.5 font-mono text-xs font-semibold transition-all",
+                  sortMode === "percent"
+                    ? "bg-primary/15 text-primary shadow-[0_0_14px_-6px] shadow-primary/60"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Percent className="size-3.5" strokeWidth={2.5} />
+                <span className="sr-only sm:not-sr-only">Discount</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {feedLoading ? (
@@ -222,8 +347,8 @@ export function SlabDashboard() {
             <p className="mt-4 font-medium text-foreground">No slabs match your filters</p>
             <p className="mt-1 text-sm text-muted-foreground">
               {feed === "watchlist"
-                ? "Add cards to your watchlist to track them here."
-                : "Try clearing your search."}
+                ? "Search any card above and tap the star to add it here."
+                : "Try searching any Pokémon card by name or number."}
             </p>
           </div>
         ) : (
@@ -233,7 +358,7 @@ export function SlabDashboard() {
                 <SlabRow
                   key={item.card.id}
                   card={item.card}
-                  watched={watchlist.includes(item.card.id)}
+                  watched={watchlistStore.ids.includes(item.card.id)}
                   onClick={() => handleSelectCard(item.card)}
                 />
               ) : (
@@ -244,15 +369,22 @@ export function SlabDashboard() {
         )}
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-muted-foreground">
-          {pricedCount > 0
-            ? "Top Deficits shows EN/JP slab < raw opportunities from sets released in the last 3 years. Run discover-arbitrage to refresh."
-            : "Run npm run discover-arbitrage to scan PriceCharting and find the best slab vs raw deals."}
+          {feed === "watchlist"
+            ? "Watchlist is saved on this device. Search any card for PSA 7/8/9 comps from PriceCharting."
+            : pricedCount > 0
+              ? "Top Deficits shows EN/JP slab < raw opportunities from sets released in the last 3 years."
+              : "Search any card for PSA 7/8/9 pricing, or run discover-arbitrage to refresh the feed."}
         </p>
       </main>
 
       <SlabDrawer
         selectedCard={selectedCard}
-        watched={selectedCard ? watchlist.includes(selectedCard.id) : false}
+        watched={
+          selectedCard
+            ? isSearchHitWatched(watchlistStore, selectedCard, feedById) ||
+              watchlistStore.ids.includes(selectedCard.id)
+            : false
+        }
         onClose={handleCloseDrawer}
         onToggleWatch={toggleWatch}
       />

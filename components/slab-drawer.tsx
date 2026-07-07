@@ -28,7 +28,7 @@ interface SlabDrawerProps {
   selectedCard: MockCardEntry | null
   watched: boolean
   onClose: () => void
-  onToggleWatch: (id: string) => void
+  onToggleWatch: (card: MockCardEntry) => void
 }
 
 export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: SlabDrawerProps) {
@@ -355,7 +355,7 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={() => onToggleWatch(selectedCard.id)}
+                onClick={() => onToggleWatch(selectedCard)}
                 className={cn(
                   "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 font-medium transition-colors",
                   watched
