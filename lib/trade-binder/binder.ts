@@ -66,7 +66,49 @@ export async function loadBinderCards(supabase: SupabaseClient, userId: string):
     cards = [...fromDb, ...enriched]
   }
 
-  return enrichBinderCardImages(cards)
+  return enrichBinderCardPrices(await enrichBinderCardImages(cards))
+}
+
+const PRICE_CHUNK = 20
+
+async function enrichBinderCardPrices(cards: TcgCard[]): Promise<TcgCard[]> {
+  const unpriced = cards.filter((card) => !card.rawPrice || card.rawPrice <= 0)
+  if (unpriced.length === 0) return cards
+
+  const priceById = new Map<string, number>()
+
+  try {
+    for (let i = 0; i < unpriced.length; i += PRICE_CHUNK) {
+      const chunk = unpriced.slice(i, i + PRICE_CHUNK)
+      const res = await fetch("/api/binder/prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cards: chunk.map((card) => ({
+            id: card.id,
+            name: card.name,
+            set: card.set,
+            cardNumber: card.name.match(/#(\d+[a-zA-Z/-]*)/)?.[1],
+          })),
+        }),
+      })
+      if (!res.ok) continue
+
+      const data = (await res.json()) as { prices?: Record<string, number> }
+      for (const [id, price] of Object.entries(data.prices ?? {})) {
+        if (price > 0) priceById.set(id, price)
+      }
+    }
+  } catch {
+    return cards
+  }
+
+  if (priceById.size === 0) return cards
+
+  return cards.map((card) => {
+    const price = priceById.get(card.id)
+    return price ? { ...card, rawPrice: price } : card
+  })
 }
 
 async function enrichBinderCardImages(cards: TcgCard[]): Promise<TcgCard[]> {

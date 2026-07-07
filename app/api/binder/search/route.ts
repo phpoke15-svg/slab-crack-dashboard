@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
 import {
+  attachBinderCardPrices,
+  mergePricesIntoCards,
+} from "@/lib/trade-binder/binder-prices"
+import {
   fetchPokemonCatalogPage,
   pokemonApiToBinderCard,
 } from "@/lib/trade-binder/pokemon-catalog"
@@ -17,13 +21,32 @@ export async function GET(request: NextRequest) {
     if (q.length >= 2) {
       const [rawPriceByCardId, cards] = await Promise.all([
         getRawPriceByCardId(),
-        searchBinderCatalog(q, { limit: pageSize }),
+        searchBinderCatalog(q, { limit: pageSize, rawPriceByCardId }),
       ])
 
-      const pricedCards = cards.map((card) => {
-        const rawPrice = rawPriceByCardId.get(card.id)
+      let pricedCards = cards.map((card) => {
+        const rawPrice = card.rawPrice ?? rawPriceByCardId.get(card.id)
         return rawPrice && rawPrice > 0 ? { ...card, rawPrice } : card
       })
+
+      const needsPrice = pricedCards
+        .filter((card) => !card.rawPrice || card.rawPrice <= 0)
+        .slice(0, 16)
+        .map((card) => ({
+          id: card.id,
+          name: card.name,
+          set: card.set,
+          cardNumber: card.cardNumber,
+        }))
+
+      if (needsPrice.length > 0 && process.env.PRICECHARTING_API_KEY) {
+        const fetched = await attachBinderCardPrices(needsPrice, {
+          cachedPrices: rawPriceByCardId,
+          limit: 16,
+          concurrency: 2,
+        })
+        pricedCards = mergePricesIntoCards(pricedCards, fetched)
+      }
 
       return NextResponse.json({
         cards: pricedCards,
@@ -40,7 +63,7 @@ export async function GET(request: NextRequest) {
       page,
       pageSize,
     )
-    const cards = apiCards
+    let cards = apiCards
       .map((card) => {
         const binderCard = pokemonApiToBinderCard(card, rawPriceByCardId.get(card.id) ?? 0)
         if (!binderCard) return null
@@ -50,10 +73,30 @@ export async function GET(request: NextRequest) {
           set: binderCard.set,
           rarity: binderCard.rarity,
           image: binderCard.image,
+          cardNumber: binderCard.cardNumber,
           rawPrice: binderCard.rawPrice > 0 ? binderCard.rawPrice : undefined,
         }
       })
       .filter((card): card is NonNullable<typeof card> => card !== null)
+
+    const needsPrice = cards
+      .filter((card) => !card.rawPrice || card.rawPrice <= 0)
+      .slice(0, 12)
+      .map((card) => ({
+        id: card.id,
+        name: card.name,
+        set: card.set,
+        cardNumber: card.cardNumber,
+      }))
+
+    if (needsPrice.length > 0 && process.env.PRICECHARTING_API_KEY) {
+      const fetched = await attachBinderCardPrices(needsPrice, {
+        cachedPrices: rawPriceByCardId,
+        limit: 12,
+        concurrency: 2,
+      })
+      cards = mergePricesIntoCards(cards, fetched)
+    }
 
     return NextResponse.json({
       cards,

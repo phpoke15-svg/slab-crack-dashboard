@@ -118,7 +118,7 @@ export function MyBinder() {
 
       const cardToSave = await resolveCatalogCardImage(card)
 
-      setCards((prev) => [{ ...cardToSave, status }, ...prev])
+      setCards((prev) => [{ ...cardToSave, status, rawPrice: card.rawPrice }, ...prev])
       setActiveTab(statusToTab(status))
 
       try {

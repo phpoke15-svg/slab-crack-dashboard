@@ -10,6 +10,40 @@ type SearchResponse = {
   totalCount?: number
 }
 
+async function fetchMissingPrices(cards: BinderSearchResult[]): Promise<BinderSearchResult[]> {
+  const unpriced = cards
+    .filter((card) => !card.rawPrice || card.rawPrice <= 0)
+    .slice(0, 24)
+    .map((card) => ({
+      id: card.id,
+      name: card.name,
+      set: card.set,
+      cardNumber: card.cardNumber,
+    }))
+
+  if (unpriced.length === 0) return cards
+
+  try {
+    const res = await fetch("/api/binder/prices", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cards: unpriced }),
+    })
+    if (!res.ok) return cards
+
+    const data = (await res.json()) as { prices?: Record<string, number> }
+    const prices = data.prices ?? {}
+    if (Object.keys(prices).length === 0) return cards
+
+    return cards.map((card) => {
+      const price = prices[card.id]
+      return price && price > 0 ? { ...card, rawPrice: price } : card
+    })
+  } catch {
+    return cards
+  }
+}
+
 export function usePokemonSearch(query: string, enabled = true) {
   const [results, setResults] = useState<BinderSearchResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -44,6 +78,11 @@ export function usePokemonSearch(query: string, enabled = true) {
         const cards = data.cards ?? []
         setResults(cards)
         setTotal(data.totalCount ?? cards.length)
+
+        const priced = await fetchMissingPrices(cards)
+        if (!controller.signal.aborted) {
+          setResults(priced)
+        }
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
           setError("Could not load cards. Try again.")

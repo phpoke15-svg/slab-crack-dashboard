@@ -14,4 +14,5 @@ export type CatalogCard = {
 /** A card in the user's binder, with a trade/wishlist status. */
 export type TcgCard = CatalogCard & {
   status: CardStatus
+  rawPrice?: number
 }
