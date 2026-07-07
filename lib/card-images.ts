@@ -222,9 +222,8 @@ export async function resolveCardArtwork(input: {
       const known = bestKnownImageUrl(input.imageUrl)
       if (known && !cardImageNeedsUpgrade(known)) return known
     }
+    return input.imageUrl
   }
-
-  return null
 }
 
 export async function enrichEntryImages<T extends {

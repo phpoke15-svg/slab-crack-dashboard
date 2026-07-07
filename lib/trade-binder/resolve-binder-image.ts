@@ -2,6 +2,8 @@ import { resolveCardArtwork, isPlaceholderImage } from "@/lib/card-images"
 import {
   bestKnownImageUrl,
   cardImageNeedsUpgrade,
+  isPlaceholderCardImage,
+  upgradeCardImageUrlSync,
 } from "@/lib/card-image-url"
 import { resolvePokemonCardImage } from "@/lib/pokemon-tcg"
 
@@ -11,9 +13,9 @@ function parseNumberFromName(name: string): string {
 
 function existingImageUrl(imageUrl?: string): string | null {
   if (!imageUrl || isPlaceholderImage(imageUrl)) return null
-  const best = bestKnownImageUrl(imageUrl)
-  if (!best || cardImageNeedsUpgrade(best)) return null
-  return best
+  if (isPlaceholderCardImage(imageUrl)) return null
+  const upgraded = bestKnownImageUrl(imageUrl)
+  return upgraded ?? imageUrl
 }
 
 export async function resolveBinderCardImage(input: {
@@ -34,10 +36,12 @@ export async function resolveBinderCardImage(input: {
       cardNumber,
       pokemonTcgId,
     })
-    const pokemonImage = catalog?.imageLarge
+    const pokemonImage = catalog?.imageLarge ?? catalog?.imageSmall
     if (pokemonImage) {
-      const url = bestKnownImageUrl(pokemonImage) ?? pokemonImage
+      const url = upgradeCardImageUrlSync(pokemonImage)
       if (!cardImageNeedsUpgrade(url)) return url
+      if (catalog?.imageLarge) return catalog.imageLarge
+      return pokemonImage
     }
   }
 

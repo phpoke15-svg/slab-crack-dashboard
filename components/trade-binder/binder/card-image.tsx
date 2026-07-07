@@ -1,9 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
 import { bestDisplayCardImageUrl } from "@/lib/card-image-url"
-import { isMissingCardImage, useCardImage } from "@/hooks/trade-binder/use-card-image"
+import { useCardImage } from "@/hooks/trade-binder/use-card-image"
 
 export function CardImage({
   card,
@@ -24,13 +24,16 @@ export function CardImage({
   className?: string
   upgrade?: boolean
 }) {
-  const originalSrc = isMissingCardImage(card.image) ? "/placeholder.svg" : card.image
-  const directSrc = bestDisplayCardImageUrl(card.image)
+  const originalSrc = bestDisplayCardImageUrl(card.image)
   const upgradedSrc = useCardImage(card, { upgrade })
-  const [broken, setBroken] = useState(false)
+  const preferredSrc = upgrade ? upgradedSrc : originalSrc
+  const [useOriginal, setUseOriginal] = useState(false)
 
-  const src = upgrade ? upgradedSrc : directSrc
-  const displaySrc = broken ? originalSrc : src
+  useEffect(() => {
+    setUseOriginal(false)
+  }, [card.id, card.image, preferredSrc])
+
+  const displaySrc = useOriginal ? originalSrc : preferredSrc
 
   return (
     <Image
@@ -39,7 +42,11 @@ export function CardImage({
       fill
       sizes={sizes}
       className={className}
-      onError={() => setBroken(true)}
+      onError={() => {
+        if (!useOriginal && originalSrc !== preferredSrc && originalSrc !== "/placeholder.svg") {
+          setUseOriginal(true)
+        }
+      }}
     />
   )
 }

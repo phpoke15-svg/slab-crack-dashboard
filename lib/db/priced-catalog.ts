@@ -8,8 +8,6 @@ import {
   toPricedCatalogCard,
 } from "@/lib/trade-binder/priced-catalog"
 import type { MockCardEntry } from "@/lib/slab-data"
-import { bestKnownImageUrl } from "@/lib/card-image-url"
-
 type SlabCardRow = {
   id: string
   name: string
@@ -132,7 +130,7 @@ async function allRowsFromDb(): Promise<PricedCatalogCard[]> {
     setName: card.set_name,
     cardNumber: card.card_number,
     rarity: card.rarity,
-    imageUrl: bestKnownImageUrl(card.image_large ?? card.image_small ?? "") ?? card.image_large ?? card.image_small,
+    imageUrl: card.image_large ?? card.image_small,
     rawPrice: priceByCardId.get(card.id) ?? 0,
   }))
 

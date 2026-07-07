@@ -8,7 +8,6 @@ import {
   type PsaGradeNumber,
   type RecentSale,
 } from "@/lib/slab-data"
-import { bestKnownImageUrl } from "@/lib/card-image-url"
 
 type SlabCardRow = {
   id: string
@@ -91,7 +90,6 @@ function watchlistToEntry(row: WatchlistRow, anomaly: AnomalyRow | undefined): M
     setName: card.set_name,
     cardNumber: card.card_number,
     imageUrl:
-      bestKnownImageUrl(card.image_large ?? "") ??
       card.image_large ??
       "https://placehold.co/150x210",
     marketInsight: row.market_insight,

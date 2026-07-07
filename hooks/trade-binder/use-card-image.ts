@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react"
 import {
   bestDisplayCardImageUrl,
-  isPlaceholderCardImage,
   cardImageNeedsUpgrade,
+  isPlaceholderCardImage,
+  upgradeCardImageUrlSync,
 } from "@/lib/card-image-url"
 
 const imageCache = new Map<string, string>()
@@ -115,6 +116,11 @@ export function useCardImage(
     setSrc(fallbackSrc)
 
     if (!upgrade || !cardImageNeedsUpgrade(card.image)) return
+
+    const synced = upgradeCardImageUrlSync(card.image)
+    if (synced !== card.image) {
+      setSrc(synced)
+    }
 
     const cached = imageCache.get(card.id)
     if (cached) {
