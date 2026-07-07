@@ -35,8 +35,7 @@ export function isEnglishOrJapanesePricedCard(input: {
   })
 }
 
-export function toPricedCatalogCard(source: PricedCatalogSource): PricedCatalogCard | null {
-  if (source.rawPrice <= 0) return null
+export function toBinderCatalogCard(source: PricedCatalogSource): PricedCatalogCard | null {
   if (!isEnglishOrJapanesePricedCard({ setName: source.setName, productName: source.name })) {
     return null
   }
@@ -47,9 +46,15 @@ export function toPricedCatalogCard(source: PricedCatalogSource): PricedCatalogC
     set: source.setName,
     rarity: mapPokemonRarity(source.rarity ?? undefined),
     image: source.imageUrl ?? "/placeholder.svg",
-    rawPrice: source.rawPrice,
+    rawPrice: Math.max(0, source.rawPrice),
     cardNumber: source.cardNumber,
   }
+}
+
+/** Priced-only catalog entries (raw price required). */
+export function toPricedCatalogCard(source: PricedCatalogSource): PricedCatalogCard | null {
+  if (source.rawPrice <= 0) return null
+  return toBinderCatalogCard(source)
 }
 
 export function filterPricedCatalog(

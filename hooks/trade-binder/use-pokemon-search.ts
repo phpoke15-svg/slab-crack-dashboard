@@ -2,19 +2,12 @@
 
 import { useEffect, useState } from "react"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
-import type { PricedCatalogCard } from "@/lib/trade-binder/priced-catalog"
 
 export type BinderSearchResult = CatalogCard & { rawPrice?: number }
 
-function pricedToCatalog(card: PricedCatalogCard): BinderSearchResult {
-  return {
-    id: card.id,
-    name: card.name,
-    set: card.set,
-    rarity: card.rarity,
-    image: card.image,
-    rawPrice: card.rawPrice,
-  }
+type SearchResponse = {
+  cards?: BinderSearchResult[]
+  totalCount?: number
 }
 
 export function usePokemonSearch(query: string, enabled = true) {
@@ -39,18 +32,18 @@ export function usePokemonSearch(query: string, enabled = true) {
     const timer = setTimeout(async () => {
       try {
         const q = query.trim()
-        const params = new URLSearchParams({ limit: "80" })
-        if (q.length >= 1) params.set("q", q)
+        const params = new URLSearchParams({ pageSize: "80" })
+        if (q) params.set("q", q)
 
-        const res = await fetch(`/api/binder/priced-catalog?${params.toString()}`, {
+        const res = await fetch(`/api/binder/search?${params.toString()}`, {
           signal: controller.signal,
         })
         if (!res.ok) throw new Error("Search failed")
 
-        const data = await res.json()
-        const cards = (data.cards ?? []) as PricedCatalogCard[]
-        setResults(cards.map(pricedToCatalog))
-        setTotal(data.total ?? cards.length)
+        const data = (await res.json()) as SearchResponse
+        const cards = data.cards ?? []
+        setResults(cards)
+        setTotal(data.totalCount ?? cards.length)
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
           setError("Could not load cards. Try again.")

@@ -4,7 +4,7 @@ import { filterPricedCatalog } from "@/lib/trade-binder/priced-catalog"
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? ""
-  const limit = Math.min(Number(request.nextUrl.searchParams.get("limit") ?? 60), 200)
+  const limit = Math.min(Number(request.nextUrl.searchParams.get("limit") ?? 60), 500)
   const offset = Math.max(Number(request.nextUrl.searchParams.get("offset") ?? 0), 0)
 
   try {

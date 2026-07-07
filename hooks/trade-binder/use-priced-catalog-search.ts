@@ -69,6 +69,40 @@ export function usePricedCatalogSearch(query: string, enabled = true) {
   return state
 }
 
+type ImportPageResponse = {
+  cards?: PricedCatalogCard[]
+  hasMore?: boolean
+  totalCount?: number
+}
+
+/** Paginate the full EN/JP Pokémon catalog for bulk import. */
+export async function* streamBinderCatalogPages(): AsyncGenerator<{
+  cards: PricedCatalogCard[]
+  page: number
+  hasMore: boolean
+  totalCount?: number
+}> {
+  let page = 1
+
+  while (true) {
+    const res = await fetch(`/api/binder/catalog/import-page?page=${page}`)
+    if (!res.ok) throw new Error("Could not load catalog page")
+
+    const data = (await res.json()) as ImportPageResponse
+    const cards = data.cards ?? []
+
+    yield {
+      cards,
+      page,
+      hasMore: Boolean(data.hasMore),
+      totalCount: data.totalCount,
+    }
+
+    if (!data.hasMore || cards.length === 0) break
+    page += 1
+  }
+}
+
 export async function fetchAllPricedCatalogCards(): Promise<PricedCatalogCard[]> {
   const pageSize = 200
   let offset = 0

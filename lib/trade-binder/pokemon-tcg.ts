@@ -3,6 +3,7 @@ import type { CatalogCard, Rarity } from "./cards"
 export type PokemonApiCard = {
   id: string
   name: string
+  number?: string
   rarity?: string
   set?: { name?: string }
   images?: { small?: string; large?: string }
