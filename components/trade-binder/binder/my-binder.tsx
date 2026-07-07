@@ -210,7 +210,7 @@ export function MyBinder() {
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="px-4 pt-5 pb-2 sm:px-6">
           <div className="flex items-center justify-between gap-3">
-            <CollecToolsBrand href="/" subtitle="Trade Binder · collect & trade" size="sm" />
+            <CollecToolsBrand href="/" subtitle="Perfect Match · collect & trade" size="sm" />
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -264,7 +264,7 @@ export function MyBinder() {
         <div
           className="flex gap-1 overflow-x-auto px-4 pb-2 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"
-          aria-label="Trade binder sections"
+          aria-label="Perfect Match sections"
         >
           {tabs.map((tab) => {
             const active = activeTab === tab.key

@@ -1,4 +1,4 @@
--- Run in Supabase SQL editor (required for Trade Binder)
+-- Run in Supabase SQL editor (required for Perfect Match)
 
 create table if not exists public.user_binders (
   id uuid primary key default gen_random_uuid(),

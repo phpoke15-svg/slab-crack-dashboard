@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'CollecTools — TCG Collector Toolkit',
   description:
-    'SlabCrack arbitrage, Grade Check pre-submission estimator, and Trade Binder for Pokémon TCG collectors.',
+    'SlabCrack arbitrage, Grade Check pre-submission estimator, and Perfect Match for Pokémon TCG collectors.',
   generator: 'v0.app',
   other: {
     'google-adsense-account': 'ca-pub-8023063687308230',

@@ -32,7 +32,7 @@ export const COLLECTOOLS: CollecTool[] = [
   {
     id: "binder",
     href: "/binder",
-    name: "Trade Binder",
+    name: "Perfect Match",
     tagline: "Collect & trade",
     description:
       "Build your binder, mark cards for trade or wishlist, and connect with other collectors.",

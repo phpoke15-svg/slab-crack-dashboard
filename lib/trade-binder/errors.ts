@@ -12,7 +12,7 @@ export function binderErrorMessage(error: unknown, fallback: string): string {
     const code = (error as PostgrestLikeError).code
 
     if (code === "42P01" || message.includes("user_binders")) {
-      return "Trade Binder storage is not set up. Run supabase/user_binders.sql in your Supabase SQL editor, then try again."
+      return "Perfect Match storage is not set up. Run supabase/user_binders.sql in your Supabase SQL editor, then try again."
     }
 
     if (message) return message
