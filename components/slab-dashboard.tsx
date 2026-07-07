@@ -15,6 +15,7 @@ import { SlabDrawer } from "@/components/slab-drawer"
 import { FeedAdSlot } from "@/components/feed-ad-slot"
 import { interleaveFeedAds } from "@/lib/feed-ads"
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
+import { searchHitToPlaceholder } from "@/lib/card-lookup"
 import {
   findWatchedIdForHit,
   isSearchHitWatched,
@@ -102,8 +103,16 @@ export function SlabDashboard() {
     [watchlistStore, feedById],
   )
 
-  const lookupCard = useCallback(async (pokemonTcgId: string): Promise<MockCardEntry | null> => {
-    const res = await fetch(`/api/cards/lookup?pokemonTcgId=${encodeURIComponent(pokemonTcgId)}`)
+  const lookupCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry | null> => {
+    const params = new URLSearchParams({
+      pokemonTcgId: hit.pokemonTcgId,
+      cardName: hit.cardName,
+      setName: hit.setName,
+      cardNumber: hit.cardNumber,
+    })
+    if (hit.imageUrl) params.set("imageUrl", hit.imageUrl)
+
+    const res = await fetch(`/api/cards/lookup?${params.toString()}`)
     if (!res.ok) return null
     const data = (await res.json()) as MockCardEntry
     return normalizeCardEntry(data)
@@ -115,9 +124,10 @@ export function SlabDashboard() {
 
   const handleSearchSelect = useCallback(
     async (hit: CardSearchHit) => {
+      setSelectedCard(searchHitToPlaceholder(hit))
       setDetailLoadingId(hit.id)
       try {
-        const card = await lookupCard(hit.pokemonTcgId)
+        const card = await lookupCard(hit)
         if (card) setSelectedCard(card)
       } finally {
         setDetailLoadingId(null)
@@ -139,7 +149,7 @@ export function SlabDashboard() {
 
       setDetailLoadingId(hit.id)
       try {
-        const card = await lookupCard(hit.pokemonTcgId)
+        const card = await lookupCard(hit)
         if (card) toggleWatch(card)
       } finally {
         setDetailLoadingId(null)

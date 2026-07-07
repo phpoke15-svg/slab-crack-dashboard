@@ -26,6 +26,48 @@ export type CardSearchHit = {
   rarity: string | null
 }
 
+const LOOKUP_CACHE_TTL_MS = 15 * 60 * 1000
+const lookupCache = new Map<string, { entry: MockCardEntry; expiresAt: number }>()
+
+function getCachedLookup(key: string): MockCardEntry | null {
+  const hit = lookupCache.get(key)
+  if (!hit || hit.expiresAt < Date.now()) {
+    lookupCache.delete(key)
+    return null
+  }
+  return hit.entry
+}
+
+function setCachedLookup(key: string, entry: MockCardEntry) {
+  lookupCache.set(key, { entry, expiresAt: Date.now() + LOOKUP_CACHE_TTL_MS })
+}
+
+export function searchHitToPlaceholder(hit: CardSearchHit): MockCardEntry {
+  return normalizeCardEntry({
+    id: hit.id,
+    cardName: hit.cardName,
+    setName: hit.setName,
+    cardNumber: hit.cardNumber,
+    imageUrl: hit.imageUrl,
+    rawPrice: 0,
+    slabGrade: 8,
+    slabPrice: 0,
+    deficit: 0,
+    percentageSavings: 0,
+    marketInsight: "Loading PSA 7/8/9 comps…",
+    gradeQuotes: buildGradeQuotes(0, {}),
+    hasPricing: false,
+  })
+}
+
+export type LookupCatalogContext = {
+  cardName: string
+  setName: string
+  cardNumber: string
+  imageUrl?: string
+  rarity?: string | null
+}
+
 function escapeLucene(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
 }
@@ -48,31 +90,30 @@ function isCardNameSuffix(token: string): boolean {
 }
 
 function buildNameSetCandidates(tokens: string[]): Array<{ name: string; setHint: string }> {
-  const candidates: Array<{ name: string; setHint: string }> = []
+  const nameFirst: Array<{ name: string; setHint: string }> = []
+  const setFirst: Array<{ name: string; setHint: string }> = []
   const seen = new Set<string>()
 
-  const add = (name: string, setHint: string) => {
+  const add = (bucket: Array<{ name: string; setHint: string }>, name: string, setHint: string) => {
     const key = `${normalizeToken(name)}|${normalizeToken(setHint)}`
     if (!name.trim() || !setHint.trim() || seen.has(key)) return
     seen.add(key)
-    candidates.push({ name: name.trim(), setHint: setHint.trim() })
+    bucket.push({ name: name.trim(), setHint: setHint.trim() })
   }
 
-  // Name-first: "charizard evolving skies", "mew ex destined rivals"
   for (const nameLen of [1, 2]) {
     if (tokens.length <= nameLen) continue
     if (nameLen === 2 && !isCardNameSuffix(tokens[1])) continue
-    add(tokens.slice(0, nameLen).join(" "), tokens.slice(nameLen).join(" "))
+    add(nameFirst, tokens.slice(0, nameLen).join(" "), tokens.slice(nameLen).join(" "))
   }
 
-  // Set-first: "Mega Evolution Lucario", "Destined Rivals Mewtwo"
   for (const nameLen of [1, 2]) {
     if (tokens.length <= nameLen) continue
     if (nameLen === 2 && !isCardNameSuffix(tokens[tokens.length - 1])) continue
-    add(tokens.slice(-nameLen).join(" "), tokens.slice(0, -nameLen).join(" "))
+    add(setFirst, tokens.slice(-nameLen).join(" "), tokens.slice(0, -nameLen).join(" "))
   }
 
-  return candidates
+  return tokens.length >= 3 ? [...setFirst, ...nameFirst] : [...nameFirst, ...setFirst]
 }
 
 function resolveSetIdForHint(hint: string): string | null {
@@ -248,7 +289,16 @@ async function fetchByNameAndSet(
 }
 
 async function fetchNameSetCombos(tokens: string[], limit: number): Promise<CatalogCard[]> {
-  for (const { name, setHint } of buildNameSetCandidates(tokens)) {
+  const candidates = buildNameSetCandidates(tokens)
+  const primary = candidates.slice(0, 2)
+  const parallelResults = await Promise.all(
+    primary.map(({ name, setHint }) => fetchByNameAndSet(name, setHint, limit)),
+  )
+  for (const cards of parallelResults) {
+    if (cards.length > 0) return cards
+  }
+
+  for (const { name, setHint } of candidates.slice(2)) {
     const cards = await fetchByNameAndSet(name, setHint, limit)
     if (cards.length > 0) return cards
   }
@@ -421,8 +471,26 @@ function productToEntry(
   })
 }
 
-export async function lookupCardByPokemonId(pokemonTcgId: string): Promise<MockCardEntry | null> {
-  const catalog = await fetchPokemonCardById(pokemonTcgId)
+export async function lookupCardByPokemonId(
+  pokemonTcgId: string,
+  catalogContext?: LookupCatalogContext,
+): Promise<MockCardEntry | null> {
+  const cacheKey = `poke:${pokemonTcgId}`
+  const cached = getCachedLookup(cacheKey)
+  if (cached) return cached
+
+  const catalog: CatalogCard | null = catalogContext
+    ? {
+        id: pokemonTcgId,
+        name: catalogContext.cardName,
+        setName: catalogContext.setName,
+        cardNumber: catalogContext.cardNumber,
+        rarity: catalogContext.rarity ?? null,
+        imageSmall: catalogContext.imageUrl ?? null,
+        imageLarge: catalogContext.imageUrl ?? null,
+      }
+    : await fetchPokemonCardById(pokemonTcgId)
+
   if (!catalog) return null
 
   const ctx: PriceChartingCardContext = {
@@ -452,9 +520,11 @@ export async function lookupCardByPokemonId(pokemonTcgId: string): Promise<MockC
 
   try {
     const { product, resolvedId } = await resolvePriceChartingForCard(apiKey, ctx)
-    return productToEntry(catalog, product, resolvedId)
+    const entry = productToEntry(catalog, product, resolvedId)
+    setCachedLookup(cacheKey, entry)
+    return entry
   } catch {
-    return productToEntry(
+    const entry = productToEntry(
       catalog,
       {
         "product-name": catalog.name,
@@ -462,6 +532,8 @@ export async function lookupCardByPokemonId(pokemonTcgId: string): Promise<MockC
       },
       undefined,
     )
+    setCachedLookup(cacheKey, entry)
+    return entry
   }
 }
 

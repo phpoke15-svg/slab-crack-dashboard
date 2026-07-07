@@ -116,6 +116,7 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   if (!selectedCard) return null
 
   const priced = selectedCard.hasPricing !== false
+  const pricingLoading = selectedCard.marketInsight === "Loading PSA 7/8/9 comps…"
   const gradeQuotes = getGradeQuotes(selectedCard)
   const best = getBestGradeQuote(gradeQuotes)
   const slabCard = mockEntryToSlabCard(selectedCard)
@@ -197,7 +198,9 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
               </div>
               <p className="text-sm text-muted-foreground">{selectedCard.setName}</p>
               <div className="mt-3">
-                {priced && best ? (
+                {pricingLoading ? (
+                  <p className="text-sm text-muted-foreground">Loading PSA 7/8/9 comps…</p>
+                ) : priced && best ? (
                   <DeficitBadge diff={-best.deficit} pct={-best.percentageSavings} size="lg" />
                 ) : (
                   <p className="text-sm text-muted-foreground">

@@ -190,22 +190,37 @@ export async function resolvePriceChartingForCard(
     ...(card.searchQuery ? [card.searchQuery] : []),
     ...buildPriceChartingSearchQueries(card.cardName, card.setName, card.cardNumber),
   ]
+  const uniqueQueries = [...new Set(queries)].slice(0, 4)
 
   let bestId: string | undefined
   let bestScore = 0
 
-  for (const query of [...new Set(queries)]) {
+  async function scoreQuery(query: string) {
     const hits = await fetchPriceChartingProducts(apiKey, query)
+    let localBestId: string | undefined
+    let localBestScore = 0
     for (const hit of hits) {
       if (!hit.id) continue
       const score = scorePriceChartingMatch(hit, card)
-      if (score > bestScore) {
-        bestScore = score
-        bestId = hit.id
+      if (score > localBestScore) {
+        localBestScore = score
+        localBestId = hit.id
       }
     }
-    if (bestScore >= 18) break
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    return { id: localBestId, score: localBestScore }
+  }
+
+  const batches = [uniqueQueries.slice(0, 2), uniqueQueries.slice(2, 4)].filter((b) => b.length > 0)
+
+  for (const batch of batches) {
+    const results = await Promise.all(batch.map((query) => scoreQuery(query)))
+    for (const result of results) {
+      if (result.score > bestScore) {
+        bestScore = result.score
+        bestId = result.id
+      }
+    }
+    if (bestScore >= 18 && bestId) break
   }
 
   if (bestId && bestScore >= 10) {
@@ -213,7 +228,7 @@ export async function resolvePriceChartingForCard(
     return { product, resolvedId: bestId }
   }
 
-  const fallbackQuery = queries[0]
+  const fallbackQuery = uniqueQueries[0]
   if (!fallbackQuery) throw new Error("No PriceCharting search query available")
   const product = await fetchPriceChartingProduct(apiKey, { query: fallbackQuery })
   return { product }
