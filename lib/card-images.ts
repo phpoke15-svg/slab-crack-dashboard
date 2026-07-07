@@ -1,4 +1,9 @@
 import { fetchPokemonCardForWatchlist, resolvePokemonCardImage } from "@/lib/pokemon-tcg"
+import {
+  bestKnownImageUrl,
+  cardImageNeedsUpgrade,
+  upgradeCardImageUrlSync,
+} from "@/lib/card-image-url"
 
 const PLACEHOLDER_HOSTS = ["placehold.co", "via.placeholder.com"]
 
@@ -52,9 +57,7 @@ export function priceChartingProductSlug(productName: string): string {
 }
 
 function upgradePriceChartingHashTo1600(url: string): string {
-  const match = url.match(/images\.pricecharting\.com\/([a-z0-9]+)\/\d+\.jpg/i)
-  if (!match) return url
-  return `https://storage.googleapis.com/images.pricecharting.com/${match[1]}/1600.jpg`
+  return upgradeCardImageUrlSync(url)
 }
 
 function largestImageForHash(html: string, hash: string): string | null {
@@ -171,18 +174,8 @@ async function fetchPriceChartingArtwork(input: {
   return fetchPriceChartingArtworkFromGamePage(input.setName, input.productName)
 }
 
-function upgradePriceChartingImageUrl(url: string): string | null {
-  try {
-    const parsed = new URL(url)
-    if (!parsed.hostname.includes("storage.googleapis.com")) return null
-    const match = parsed.pathname.match(/\/([a-z0-9]+)\/(\d+)\.jpg$/i)
-    if (!match) return null
-    const [, hash, size] = match
-    if (Number(size) >= 400) return url
-    return `https://storage.googleapis.com/images.pricecharting.com/${hash}/1600.jpg`
-  } catch {
-    return null
-  }
+function upgradePriceChartingImageUrlLocal(url: string): string {
+  return upgradeCardImageUrlSync(url)
 }
 
 /** PriceCharting product ID is ground truth for discovered cards; Pokémon API is validated fallback. */
@@ -223,13 +216,12 @@ export async function resolveCardArtwork(input: {
   if (catalog?.imageSmall) return catalog.imageSmall
 
   if (input.imageUrl && !isPlaceholderImage(input.imageUrl)) {
-    const upgraded = upgradePriceChartingImageUrl(input.imageUrl)
-    if (upgraded) return upgraded
+    const upgraded = upgradePriceChartingImageUrlLocal(input.imageUrl)
+    if (upgraded && !cardImageNeedsUpgrade(upgraded)) return upgraded
     if (!input.imageUrl.includes("storage.googleapis.com")) {
-      return input.imageUrl
+      const known = bestKnownImageUrl(input.imageUrl)
+      if (known && !cardImageNeedsUpgrade(known)) return known
     }
-    const sizeMatch = input.imageUrl.match(/\/(\d+)\.jpg$/)
-    if (sizeMatch && Number(sizeMatch[1]) >= 400) return input.imageUrl
   }
 
   return null
@@ -258,9 +250,7 @@ export async function enrichEntryImages<T extends {
     const needsLookup =
       forceRefresh ||
       isDiscovered ||
-      isPlaceholderImage(entry.imageUrl) ||
-      (entry.imageUrl.includes("storage.googleapis.com") &&
-        !/\/(400|1600)\.jpg(?:\?|$)/.test(entry.imageUrl))
+      cardImageNeedsUpgrade(entry.imageUrl)
 
     if (!needsLookup) {
       updated.push(entry)

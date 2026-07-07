@@ -1,5 +1,5 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js"
-import { cardImageNeedsUpgrade } from "@/lib/trade-binder/image-quality"
+import { cardImageNeedsUpgrade } from "@/lib/card-image-url"
 import type { CardStatus, CatalogCard, Rarity, TcgCard } from "@/lib/trade-binder/cards"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
 

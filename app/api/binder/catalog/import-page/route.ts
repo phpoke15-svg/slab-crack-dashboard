@@ -6,7 +6,7 @@ import {
   POKEMON_PAGE_SIZE,
 } from "@/lib/trade-binder/pokemon-catalog"
 
-export const maxDuration = 60
+export const maxDuration = 10
 
 export async function GET(request: NextRequest) {
   const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1)

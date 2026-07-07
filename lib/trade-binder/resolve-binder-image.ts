@@ -1,5 +1,8 @@
 import { resolveCardArtwork, isPlaceholderImage } from "@/lib/card-images"
-import { upgradeCardImageUrlSync, isLowResCardImage } from "@/lib/card-image-url"
+import {
+  bestKnownImageUrl,
+  cardImageNeedsUpgrade,
+} from "@/lib/card-image-url"
 import { resolvePokemonCardImage } from "@/lib/pokemon-tcg"
 
 function parseNumberFromName(name: string): string {
@@ -8,7 +11,9 @@ function parseNumberFromName(name: string): string {
 
 function existingImageUrl(imageUrl?: string): string | null {
   if (!imageUrl || isPlaceholderImage(imageUrl)) return null
-  return upgradeCardImageUrlSync(imageUrl)
+  const best = bestKnownImageUrl(imageUrl)
+  if (!best || cardImageNeedsUpgrade(best)) return null
+  return best
 }
 
 export async function resolveBinderCardImage(input: {
@@ -29,9 +34,10 @@ export async function resolveBinderCardImage(input: {
       cardNumber,
       pokemonTcgId,
     })
-    const pokemonImage = catalog?.imageLarge ?? catalog?.imageSmall
+    const pokemonImage = catalog?.imageLarge
     if (pokemonImage) {
-      return upgradeCardImageUrlSync(pokemonImage)
+      const url = bestKnownImageUrl(pokemonImage) ?? pokemonImage
+      if (!cardImageNeedsUpgrade(url)) return url
     }
   }
 
@@ -48,13 +54,13 @@ export async function resolveBinderCardImage(input: {
 }
 
 export function cardNeedsImage(image?: string): boolean {
-  return isLowResCardImage(image)
+  return cardImageNeedsUpgrade(image)
 }
 
 export async function attachBinderCardImages<
   T extends { id: string; name: string; set: string; image: string; cardNumber?: string },
 >(cards: T[], limit = 16): Promise<T[]> {
-  const missing = cards.filter((card) => isLowResCardImage(card.image)).slice(0, limit)
+  const missing = cards.filter((card) => cardImageNeedsUpgrade(card.image)).slice(0, limit)
   if (missing.length === 0) return cards
 
   const resolved = new Map<string, string>()

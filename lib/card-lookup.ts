@@ -19,6 +19,7 @@ import {
   type MockCardEntry,
   type PsaGradeNumber,
 } from "@/lib/slab-data"
+import { bestKnownImageUrl } from "@/lib/card-image-url"
 
 export type CardSearchHit = {
   id: string
@@ -422,13 +423,14 @@ export function buildUserSearchQuery(input: string): string {
 }
 
 export function catalogToSearchHit(card: CatalogCard): CardSearchHit {
+  const source = card.imageLarge ?? card.imageSmall ?? ""
   return {
     id: `poke-${card.id}`,
     pokemonTcgId: card.id,
     cardName: card.name,
     setName: card.setName,
     cardNumber: card.cardNumber,
-    imageUrl: card.imageLarge ?? card.imageSmall ?? "",
+    imageUrl: bestKnownImageUrl(source) ?? source,
     rarity: card.rarity,
   }
 }
@@ -877,7 +879,7 @@ function productToEntry(
     cardName: formatCardName(catalog.name, catalog.rarity),
     setName: catalog.setName,
     cardNumber: catalog.cardNumber,
-    imageUrl: catalog.imageLarge ?? catalog.imageSmall ?? "",
+    imageUrl: bestKnownImageUrl(catalog.imageLarge ?? catalog.imageSmall ?? "") ?? catalog.imageLarge ?? catalog.imageSmall ?? "",
     rawPrice,
     slabGrade: best?.grade ?? 8,
     slabPrice: best?.slabPrice ?? 0,
@@ -926,7 +928,7 @@ export async function lookupCardByPokemonId(
       cardName: formatCardName(catalog.name, catalog.rarity),
       setName: catalog.setName,
       cardNumber: catalog.cardNumber,
-      imageUrl: catalog.imageLarge ?? catalog.imageSmall ?? "",
+      imageUrl: bestKnownImageUrl(catalog.imageLarge ?? catalog.imageSmall ?? "") ?? catalog.imageLarge ?? catalog.imageSmall ?? "",
       rawPrice: 0,
       slabGrade: 8,
       slabPrice: 0,

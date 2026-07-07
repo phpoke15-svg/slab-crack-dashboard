@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react"
 import {
   bestDisplayCardImageUrl,
-  isLowResCardImage,
   isPlaceholderCardImage,
+  cardImageNeedsUpgrade,
 } from "@/lib/card-image-url"
 
 const imageCache = new Map<string, string>()
@@ -36,7 +36,7 @@ export function isMissingCardImage(image?: string): boolean {
 }
 
 export function shouldUpgradeCardImage(image?: string): boolean {
-  return isLowResCardImage(image)
+  return cardImageNeedsUpgrade(image)
 }
 
 function parseNumberFromName(name: string): string {
@@ -114,7 +114,7 @@ export function useCardImage(
   useEffect(() => {
     setSrc(fallbackSrc)
 
-    if (!upgrade || !isLowResCardImage(card.image)) return
+    if (!upgrade || !cardImageNeedsUpgrade(card.image)) return
 
     const cached = imageCache.get(card.id)
     if (cached) {

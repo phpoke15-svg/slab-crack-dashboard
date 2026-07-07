@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server"
 import { lookupCardById, lookupCardByPokemonId } from "@/lib/card-lookup"
+import { resolveCardArtwork } from "@/lib/card-images"
 import { resolvePokemonCardImage } from "@/lib/pokemon-tcg"
+import { bestKnownImageUrl, cardImageNeedsUpgrade } from "@/lib/card-image-url"
 
 export const dynamic = "force-dynamic"
-
-function isLowResImage(url: string): boolean {
-  if (!url || url.includes("placeholder")) return true
-  if (url.includes("placehold.co")) return true
-  if (/images\.pricecharting\.com\/[^/]+\/(60|160)\.jpg/i.test(url)) return true
-  if (url.includes("storage.googleapis.com") && /\/(60|160)\.jpg(?:\?|$)/.test(url)) return true
-  return false
-}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -44,15 +38,36 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Card not found" }, { status: 404 })
     }
 
-    if (isLowResImage(card.imageUrl)) {
-      const resolved = await resolvePokemonCardImage({
-        cardName: card.cardName,
-        setName: card.setName,
-        cardNumber: card.cardNumber,
-        pokemonTcgId: pokemonTcgId ?? (id?.startsWith("poke-") ? id : undefined),
-      })
-      const image = resolved?.imageLarge ?? resolved?.imageSmall
-      if (image) card.imageUrl = image
+    if (cardImageNeedsUpgrade(card.imageUrl)) {
+      const synced = bestKnownImageUrl(card.imageUrl)
+      if (synced && !cardImageNeedsUpgrade(synced)) {
+        card.imageUrl = synced
+      } else {
+        const pcId = id?.startsWith("pc-") ? id.replace(/^pc-/, "") : undefined
+        const artwork = await Promise.race([
+          resolveCardArtwork({
+            cardName: card.cardName,
+            setName: card.setName,
+            cardNumber: card.cardNumber,
+            imageUrl: card.imageUrl,
+            pricechartingId: pcId,
+          }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 6000)),
+        ])
+
+        if (artwork) {
+          card.imageUrl = bestKnownImageUrl(artwork) ?? artwork
+        } else {
+          const resolved = await resolvePokemonCardImage({
+            cardName: card.cardName,
+            setName: card.setName,
+            cardNumber: card.cardNumber,
+            pokemonTcgId: pokemonTcgId ?? (id?.startsWith("poke-") ? id.replace(/^poke-/, "") : undefined),
+          })
+          const image = resolved?.imageLarge ?? resolved?.imageSmall
+          if (image) card.imageUrl = bestKnownImageUrl(image) ?? image
+        }
+      }
     }
 
     return NextResponse.json(card, {

@@ -7,7 +7,7 @@ import {
 import { buildPokemonSearchQuery, type PokemonApiCard } from "@/lib/trade-binder/pokemon-tcg"
 import { filterPricedCatalog } from "@/lib/trade-binder/priced-catalog"
 
-export const maxDuration = 60
+export const maxDuration = 10
 
 function toResponseCards(apiCards: PokemonApiCard[], rawPriceByCardId: Map<string, number>) {
   return apiCards

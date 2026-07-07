@@ -59,3 +59,19 @@ export function bestDisplayCardImageUrl(url?: string | null): string {
   if (!url) return "/placeholder.svg"
   return upgradeCardImageUrlSync(url)
 }
+
+/** @alias bestDisplayCardImageUrl for non-placeholder URLs */
+export function bestKnownImageUrl(url?: string | null): string | null {
+  if (isPlaceholderCardImage(url)) return null
+  if (!url) return null
+  return upgradeCardImageUrlSync(url)
+}
+
+/** True when sync upgrade is not enough and an API fetch may help. */
+export function cardImageNeedsUpgrade(image?: string | null): boolean {
+  if (isPlaceholderCardImage(image)) return true
+  if (!image) return true
+  if (/pricecharting\.com.*\/im/i.test(image)) return true
+  const upgraded = upgradeCardImageUrlSync(image)
+  return isLowResCardImage(upgraded)
+}
