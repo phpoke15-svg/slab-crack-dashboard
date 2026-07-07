@@ -45,6 +45,15 @@ function resolveSetIdForHint(hint: string): string | null {
   return SET_HINT_IDS[normalizeToken(hint)] ?? null
 }
 
+function sortByCardNumber(cards: CatalogCard[]): CatalogCard[] {
+  return [...cards].sort((a, b) => {
+    const aNum = Number.parseInt(a.cardNumber.split("/")[0] ?? "", 10)
+    const bNum = Number.parseInt(b.cardNumber.split("/")[0] ?? "", 10)
+    if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum
+    return a.cardNumber.localeCompare(b.cardNumber)
+  })
+}
+
 function cardMatchesHints(card: CatalogCard, hints: string[]): boolean {
   const setNorm = normalizeToken(card.setName)
   const numNorm = normalizeToken(card.cardNumber.split("/")[0] ?? "")
@@ -53,6 +62,134 @@ function cardMatchesHints(card: CatalogCard, hints: string[]): boolean {
   return hints.every(
     (hint) => setNorm.includes(hint) || numNorm.includes(hint) || nameNorm.includes(hint),
   )
+}
+
+type ParsedSearch =
+  | { mode: "empty" }
+  | { mode: "number"; number: string }
+  | { mode: "set"; setHint: string; setId: string | null }
+  | { mode: "set-number"; setHint: string; setId: string | null; number: string }
+  | { mode: "name"; name: string }
+  | { mode: "name-hints"; name: string; hints: string[] }
+  | { mode: "set-or-name"; setHint: string; name: string; hints: string[] }
+
+/** Classify free-text search into card name, set, and/or number tokens. */
+export function parseSearchInput(input: string): ParsedSearch {
+  const trimmed = input.trim()
+  if (!trimmed) return { mode: "empty" }
+
+  const slashNumber = trimmed.match(/^#?(\d{1,4})\/(\d{1,4})$/)
+  if (slashNumber) return { mode: "number", number: slashNumber[1] }
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean)
+  const setTokens: string[] = []
+  const numberTokens: string[] = []
+  const textTokens: string[] = []
+
+  for (const token of tokens) {
+    const bare = token.replace(/^#/, "")
+    if (resolveSetIdForHint(bare)) {
+      setTokens.push(bare)
+    } else if (/^\d{1,4}$/.test(bare)) {
+      numberTokens.push(bare)
+    } else {
+      textTokens.push(bare)
+    }
+  }
+
+  if (textTokens.length === 0) {
+    if (setTokens.length > 0 && numberTokens.length > 0) {
+      return {
+        mode: "set-number",
+        setHint: setTokens.join(" "),
+        setId: resolveSetIdForHint(setTokens[0]),
+        number: numberTokens[0],
+      }
+    }
+    if (setTokens.length > 0) {
+      return {
+        mode: "set",
+        setHint: setTokens.join(" "),
+        setId: resolveSetIdForHint(setTokens[0]),
+      }
+    }
+    if (numberTokens.length === 1) {
+      return { mode: "number", number: numberTokens[0] }
+    }
+    return { mode: "empty" }
+  }
+
+  const trailingHints = [...setTokens, ...numberTokens]
+  if (trailingHints.length > 0) {
+    return { mode: "name-hints", name: textTokens.join(" "), hints: trailingHints }
+  }
+
+  if (textTokens.length === 1) {
+    return { mode: "name", name: textTokens[0] }
+  }
+
+  if (textTokens.length >= 3) {
+    return {
+      mode: "name-hints",
+      name: textTokens[0],
+      hints: [textTokens.slice(1).join(" ")],
+    }
+  }
+
+  return {
+    mode: "set-or-name",
+    setHint: textTokens.join(" "),
+    name: textTokens[0],
+    hints: textTokens.slice(1),
+  }
+}
+
+async function fetchByNumber(number: string, limit: number): Promise<CatalogCard[]> {
+  const cards = await fetchPokemonCardsByQuery(`number:${number}`, limit)
+  return sortByCardNumber(cards).slice(0, limit)
+}
+
+async function fetchBySet(
+  setHint: string,
+  setId: string | null,
+  limit: number,
+): Promise<CatalogCard[]> {
+  const queries: string[] = []
+  if (setId) queries.push(`set.id:${setId}`)
+  queries.push(`set.name:"${escapeLucene(setHint)}"`)
+
+  for (const query of queries) {
+    try {
+      const cards = await fetchPokemonCardsByQuery(query, limit)
+      if (cards.length > 0) return sortByCardNumber(cards).slice(0, limit)
+    } catch {
+      /* try next query */
+    }
+  }
+
+  return []
+}
+
+async function fetchBySetAndNumber(
+  setHint: string,
+  setId: string | null,
+  number: string,
+  limit: number,
+): Promise<CatalogCard[]> {
+  const queries: string[] = []
+  if (setId) queries.push(`set.id:${setId} number:${number}`)
+  queries.push(`set.name:"${escapeLucene(setHint)}" number:${number}`)
+
+  for (const query of queries) {
+    try {
+      const cards = await fetchPokemonCardsByQuery(query, limit)
+      if (cards.length > 0) return cards.slice(0, limit)
+    } catch {
+      /* try next query */
+    }
+  }
+
+  return []
 }
 
 async function fetchCardsForHints(
@@ -107,15 +244,24 @@ async function fetchCardsForHints(
 
 /** Build a Pokémon TCG API query from free-text user input. */
 export function buildUserSearchQuery(input: string): string {
-  const trimmed = input.trim()
-  if (!trimmed) return ""
-
-  const numberOnly = trimmed.match(/^#?(\d{1,4})(?:\/(\d{1,4}))?$/)
-  if (numberOnly) return `number:${numberOnly[1]}`
-
-  const parts = trimmed.split(/\s+/).filter(Boolean)
-  // Multi-word queries fetch by name only; extra tokens are filtered client-side.
-  return `name:${escapeLucene(parts[0])}`
+  const parsed = parseSearchInput(input)
+  switch (parsed.mode) {
+    case "number":
+      return `number:${parsed.number}`
+    case "set":
+      return parsed.setId ? `set.id:${parsed.setId}` : `set.name:"${escapeLucene(parsed.setHint)}"`
+    case "set-number":
+      return parsed.setId
+        ? `set.id:${parsed.setId} number:${parsed.number}`
+        : `set.name:"${escapeLucene(parsed.setHint)}" number:${parsed.number}`
+    case "name-hints":
+    case "set-or-name":
+      return `name:${escapeLucene(parsed.name)}`
+    case "name":
+      return `name:${escapeLucene(parsed.name)}`
+    default:
+      return ""
+  }
 }
 
 export function catalogToSearchHit(card: CatalogCard): CardSearchHit {
@@ -131,24 +277,37 @@ export function catalogToSearchHit(card: CatalogCard): CardSearchHit {
 }
 
 export async function searchCatalogCards(query: string, limit = 12): Promise<CardSearchHit[]> {
-  const trimmed = query.trim()
-  if (!trimmed) return []
+  const parsed = parseSearchInput(query)
 
-  const numberOnly = trimmed.match(/^#?(\d{1,4})(?:\/(\d{1,4}))?$/)
-  if (numberOnly) {
-    const cards = await fetchPokemonCardsByQuery(`number:${numberOnly[1]}`, limit)
-    return cards.slice(0, limit).map(catalogToSearchHit)
+  let cards: CatalogCard[] = []
+
+  switch (parsed.mode) {
+    case "number":
+      cards = await fetchByNumber(parsed.number, limit)
+      break
+    case "set":
+      cards = await fetchBySet(parsed.setHint, parsed.setId, limit)
+      break
+    case "set-number":
+      cards = await fetchBySetAndNumber(parsed.setHint, parsed.setId, parsed.number, limit)
+      break
+    case "name":
+      cards = await fetchPokemonCardsByQuery(`name:${escapeLucene(parsed.name)}`, limit)
+      break
+    case "name-hints":
+      cards = await fetchCardsForHints(parsed.name, parsed.hints, limit)
+      break
+    case "set-or-name": {
+      cards = await fetchBySet(parsed.setHint, null, limit)
+      if (cards.length === 0) {
+        cards = await fetchCardsForHints(parsed.name, parsed.hints, limit)
+      }
+      break
+    }
+    default:
+      cards = []
   }
 
-  const parts = trimmed.split(/\s+/).filter(Boolean)
-  const hints = parts.slice(1)
-
-  if (hints.length > 0) {
-    const cards = await fetchCardsForHints(parts[0], hints, limit)
-    return cards.slice(0, limit).map(catalogToSearchHit)
-  }
-
-  const cards = await fetchPokemonCardsByQuery(buildUserSearchQuery(trimmed), limit)
   return cards.slice(0, limit).map(catalogToSearchHit)
 }
 

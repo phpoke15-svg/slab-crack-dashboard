@@ -51,7 +51,7 @@ export function CardSearchResults({
         </p>
       ) : hits.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border bg-secondary/20 px-4 py-6 text-center text-sm text-muted-foreground">
-          No cards found for &ldquo;{query}&rdquo;. Try a shorter name or card number.
+          No cards found for &ldquo;{query}&rdquo;. Try a name, set (e.g. 151), or number (e.g. #173).
         </p>
       ) : (
         <ul className="flex flex-col gap-2">

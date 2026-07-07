@@ -226,7 +226,7 @@ export function SlabDashboard() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search any card, set, or number…"
+              placeholder="Search card, set (151), or #173…"
               className={cn(
                 "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground",
                 "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
