@@ -1,12 +1,12 @@
 "use client"
 
-import Image from "next/image"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CardStatus, CatalogCard, Rarity } from "@/lib/trade-binder/cards"
 import { FolderSwitcher } from "./folder-switcher"
+import { CardImage } from "./card-image"
 
-export type SearchResultCard = CatalogCard & { rawPrice?: number }
+export type SearchResultCard = CatalogCard & { rawPrice?: number; cardNumber?: string }
 
 const rarityStyles: Record<Rarity, string> = {
   Common: "border-border bg-secondary/80 text-muted-foreground",
@@ -31,12 +31,9 @@ export function SearchResultTile({
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="relative aspect-[3/4] overflow-hidden border-b border-border bg-muted/40">
-        <Image
-          src={card.image || "/placeholder.svg"}
+        <CardImage
+          card={card}
           alt={`${card.name} Pokémon card`}
-          fill
-          sizes="(max-width: 640px) 50vw, 200px"
-          className="object-contain p-1 transition-transform duration-300 group-active:scale-[1.02]"
         />
         <span
           className={cn(

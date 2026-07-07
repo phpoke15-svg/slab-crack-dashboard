@@ -17,7 +17,8 @@ import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SearchBar } from "./search-bar"
 import { CardTile } from "./card-tile"
-import { SearchResultTile } from "./search-result-tile"
+import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
+import { resolveCatalogCardImage } from "@/lib/trade-binder/resolve-card-image"
 import { useSocial } from "@/components/trade-binder/social/social-provider"
 import { UserAvatar } from "@/components/trade-binder/social/user-avatar"
 
@@ -97,7 +98,7 @@ export function MyBinder() {
     })
   }
 
-  const addCard = (card: CatalogCard, status: CardStatus) => {
+  const addCard = (card: SearchResultCard, status: CardStatus) => {
     runWithAuth(async () => {
       const loadId = ++loadIdRef.current
       const {
@@ -114,11 +115,13 @@ export function MyBinder() {
         return
       }
 
-      setCards((prev) => [{ ...card, status }, ...prev])
+      const cardToSave = await resolveCatalogCardImage(card)
+
+      setCards((prev) => [{ ...cardToSave, status }, ...prev])
       setActiveTab(statusToTab(status))
 
       try {
-        await addCardToBinder(getSupabase(), currentUser.id, card, status)
+        await addCardToBinder(getSupabase(), currentUser.id, cardToSave, status)
       } catch (err) {
         if (loadId === loadIdRef.current) {
           setCards((prev) => prev.filter((c) => c.id !== card.id))

@@ -194,22 +194,30 @@ export async function resolvePokemonCardImage(input: {
 
   const name = stripRaritySuffix(input.cardName)
   const number = extractCardNumberFromName(input.cardName, input.cardNumber)
-  if (!name || !number) return null
+  const targetName = normalizeForCompare(name)
 
-  try {
-    const cards = await fetchPokemonCardsByQuery(`name:"${escapeLucene(name)}" number:${number}`, 15)
-    const targetName = normalizeForCompare(name)
-    const targetNum = cardNumberPrefix(number)
-
+  const pickBest = (cards: CatalogCard[]): CatalogCard | null => {
     let best: CatalogCard | null = null
     let bestScore = 0
 
     for (const card of cards) {
       if (!card.imageLarge && !card.imageSmall) continue
-      if (normalizeForCompare(card.name) !== targetName) continue
-      if (cardNumberPrefix(card.cardNumber) !== targetNum) continue
 
-      const score = Math.max(35, scorePokemonCardMatch(card, input))
+      const cardNorm = normalizeForCompare(card.name)
+      if (targetName && cardNorm !== targetName && !cardNorm.startsWith(targetName)) continue
+
+      let score = 20
+      if (number) {
+        if (cardNumberPrefix(card.cardNumber) !== cardNumberPrefix(number)) continue
+        score += 20
+      }
+
+      const fullScore = scorePokemonCardMatch(card, input)
+      score = Math.max(score, fullScore > 0 ? fullScore : score)
+
+      if (/promo|first partner|black star|svp/i.test(card.setName)) score += 4
+      if (/promo|first partner|black star|svp/i.test(input.setName) && number) score += 6
+
       if (score > bestScore) {
         bestScore = score
         best = card
@@ -217,9 +225,35 @@ export async function resolvePokemonCardImage(input: {
     }
 
     return best
-  } catch {
-    return null
   }
+
+  const queries: string[] = []
+  if (name && number) {
+    queries.push(`name:"${escapeLucene(name)}" number:${number}`)
+    queries.push(`name:"${escapeLucene(name)}" number:${number} set.name:Promo`)
+    queries.push(`name:"${escapeLucene(name)}" number:${number} set.name:"First Partner"`)
+    queries.push(`name:"${escapeLucene(name)}" number:${number} set.name:"Black Star"`)
+  }
+  if (name) {
+    queries.push(`name:"${escapeLucene(name)}"`)
+  }
+
+  const seenQueries = new Set<string>()
+  for (const query of queries) {
+    if (!query || seenQueries.has(query)) continue
+    seenQueries.add(query)
+
+    try {
+      const pageSize = number ? 20 : 40
+      const cards = await fetchPokemonCardsByQuery(query, pageSize)
+      const best = pickBest(cards)
+      if (best) return best
+    } catch {
+      /* try next query */
+    }
+  }
+
+  return null
 }
 
 export function toCatalogCard(card: PokemonApiCard): CatalogCard {

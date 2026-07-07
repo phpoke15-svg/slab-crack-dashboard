@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
 
-export type BinderSearchResult = CatalogCard & { rawPrice?: number }
+export type BinderSearchResult = CatalogCard & { rawPrice?: number; cardNumber?: string }
 
 type SearchResponse = {
   cards?: BinderSearchResult[]

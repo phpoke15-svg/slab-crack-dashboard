@@ -3,7 +3,7 @@ import { mapPokemonRarity } from "@/lib/trade-binder/pokemon-tcg"
 import { isEnglishOrJapanesePricedCard } from "@/lib/trade-binder/priced-catalog"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
 
-export type BinderCatalogCard = CatalogCard & { rawPrice?: number }
+export type BinderCatalogCard = CatalogCard & { rawPrice?: number; cardNumber?: string }
 
 function hitToBinderCard(hit: CardSearchHit, rawPriceByCardId: Map<string, number>): BinderCatalogCard | null {
   if (
@@ -23,6 +23,7 @@ function hitToBinderCard(hit: CardSearchHit, rawPriceByCardId: Map<string, numbe
     set: hit.setName,
     rarity: mapPokemonRarity(hit.rarity ?? undefined),
     image: hit.imageUrl || "/placeholder.svg",
+    cardNumber: hit.cardNumber || undefined,
     rawPrice: rawPrice && rawPrice > 0 ? rawPrice : undefined,
   }
 }

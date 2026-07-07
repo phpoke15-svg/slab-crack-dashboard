@@ -1,10 +1,10 @@
 "use client"
 
-import Image from "next/image"
 import { Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CardStatus, TcgCard } from "@/lib/trade-binder/cards"
 import { FolderSwitcher } from "./folder-switcher"
+import { CardImage } from "./card-image"
 
 const rarityStyles: Record<TcgCard["rarity"], string> = {
   Common: "border-border bg-secondary/80 text-muted-foreground",
@@ -27,12 +27,9 @@ export function CardTile({
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="relative aspect-[3/4] overflow-hidden border-b border-border bg-muted/40">
-        <Image
-          src={card.image || "/placeholder.svg"}
+        <CardImage
+          card={card}
           alt={`${card.name} trading card`}
-          fill
-          sizes="(max-width: 640px) 50vw, 200px"
-          className="object-contain p-1 transition-transform duration-300 group-active:scale-[1.02]"
         />
         <span
           className={cn(
