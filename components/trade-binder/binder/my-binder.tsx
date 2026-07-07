@@ -51,6 +51,7 @@ export function MyBinder() {
   const [query, setQuery] = useState("")
   const [activeTab, setActiveTab] = useState<BinderTab>("search")
   const [clearing, setClearing] = useState(false)
+  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const loadIdRef = useRef(0)
 
   const isSearchActive = activeTab === "search"
@@ -171,11 +172,12 @@ export function MyBinder() {
 
   const clearBinder = () => {
     if (!user || cards.length === 0) return
+    setShowClearConfirm(true)
+  }
 
-    const confirmed = window.confirm(
-      `Remove all ${cards.length.toLocaleString()} cards from your binder? This cannot be undone.`,
-    )
-    if (!confirmed) return
+  const confirmClearBinder = () => {
+    setShowClearConfirm(false)
+    if (!user || cards.length === 0) return
 
     runWithAuth(async () => {
       const {
@@ -402,6 +404,54 @@ export function MyBinder() {
           />
         )}
       </main>
+
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <button
+            type="button"
+            aria-label="Cancel clear binder"
+            onClick={() => setShowClearConfirm(false)}
+            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+          />
+
+          <div
+            role="alertdialog"
+            aria-labelledby="clear-binder-title"
+            aria-describedby="clear-binder-description"
+            className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
+          >
+            <div className="border-b border-border px-4 py-3">
+              <h2 id="clear-binder-title" className="text-base font-semibold text-foreground">
+                Clear binder?
+              </h2>
+            </div>
+
+            <div className="px-4 py-4">
+              <p id="clear-binder-description" className="text-sm text-muted-foreground text-pretty">
+                Remove all {cards.length.toLocaleString()} cards from your binder. This cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex gap-2 border-t border-border p-4">
+              <button
+                type="button"
+                onClick={() => setShowClearConfirm(false)}
+                className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmClearBinder}
+                disabled={clearing}
+                className="flex-1 rounded-xl bg-destructive px-4 py-2.5 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
+              >
+                Clear all
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
