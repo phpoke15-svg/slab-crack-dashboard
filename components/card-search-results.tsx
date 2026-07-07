@@ -1,8 +1,8 @@
 "use client"
 
-import Image from "next/image"
 import { Loader2, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { SlabCardImage } from "@/components/slab-card-image"
 export type CardSearchHit = {
   id: string
   pokemonTcgId: string
@@ -71,12 +71,17 @@ export function CardSearchResults({
                   className="flex min-w-0 flex-1 items-center gap-3 text-left"
                 >
                   <div className="relative aspect-[3/4] w-11 shrink-0 overflow-hidden rounded-md border border-white/10">
-                    <Image
-                      src={hit.imageUrl || "/placeholder.svg"}
+                    <SlabCardImage
+                      card={{
+                        id: hit.id,
+                        cardName: hit.cardName,
+                        setName: hit.setName,
+                        imageUrl: hit.imageUrl,
+                        cardNumber: hit.cardNumber,
+                      }}
                       alt=""
-                      fill
                       sizes="44px"
-                      className="object-cover"
+                      className="object-contain p-0.5"
                     />
                   </div>
                   <div className="min-w-0 flex-1">

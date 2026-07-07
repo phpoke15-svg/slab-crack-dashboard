@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import { Sparkles, ExternalLink } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -12,6 +11,7 @@ import {
 } from "@/lib/slab-data"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { DeficitBadge } from "@/components/deficit-badge"
+import { SlabCardImage } from "@/components/slab-card-image"
 
 interface SlabRowProps {
   card: MockCardEntry
@@ -50,13 +50,11 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
     >
       <div className="flex items-start gap-3 sm:gap-4">
         <div className="relative aspect-[3/4] w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 sm:w-16">
-          <Image
-            src={card.imageUrl || "/placeholder.svg"}
+          <SlabCardImage
+            card={card}
             alt={`${card.cardName} card artwork`}
-            fill
             sizes="(max-width: 640px) 64px, 80px"
-            quality={90}
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
+            className="object-contain p-0.5 transition-transform duration-300 group-hover:scale-105"
           />
           {watched && (
             <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">

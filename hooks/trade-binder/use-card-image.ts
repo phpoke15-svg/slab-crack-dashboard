@@ -7,7 +7,9 @@ const inflight = new Map<string, Promise<string | null>>()
 
 function isPlaceholder(image?: string): boolean {
   if (!image?.trim()) return true
-  return image.includes("placeholder")
+  if (image.includes("placeholder") || image.includes("placehold.co")) return true
+  if (/\/(60|160)\.jpg(?:\?|$)/i.test(image)) return true
+  return false
 }
 
 function parseNumberFromName(name: string): string {

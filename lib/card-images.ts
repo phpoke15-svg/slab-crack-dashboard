@@ -1,4 +1,4 @@
-import { fetchPokemonCardForWatchlist } from "@/lib/pokemon-tcg"
+import { fetchPokemonCardForWatchlist, resolvePokemonCardImage } from "@/lib/pokemon-tcg"
 
 const PLACEHOLDER_HOSTS = ["placehold.co", "via.placeholder.com"]
 
@@ -193,6 +193,17 @@ export async function resolveCardArtwork(input: {
   imageUrl?: string
   pricechartingId?: string
 }): Promise<string | null> {
+  const cardNumber = input.cardNumber || extractCardNumberFromName(input.cardName)
+  const lookupName = cleanCardNameForLookup(input.cardName)
+
+  const fromPokemon = await resolvePokemonCardImage({
+    cardName: lookupName,
+    setName: input.setName,
+    cardNumber,
+  })
+  if (fromPokemon?.imageLarge) return fromPokemon.imageLarge
+  if (fromPokemon?.imageSmall) return fromPokemon.imageSmall
+
   if (input.pricechartingId) {
     const fromPc = await fetchPriceChartingArtwork({
       pricechartingId: input.pricechartingId,
@@ -202,9 +213,8 @@ export async function resolveCardArtwork(input: {
     if (fromPc) return fromPc
   }
 
-  const cardNumber = input.cardNumber || extractCardNumberFromName(input.cardName)
   const catalog = await fetchPokemonCardForWatchlist({
-    cardName: cleanCardNameForLookup(input.cardName),
+    cardName: lookupName,
     setName: input.setName,
     cardNumber,
   })

@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Image from "next/image"
 import { X, ExternalLink, Star, Calculator, Lightbulb, ChevronDown, Activity, BarChart3, ShieldCheck, Receipt } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
@@ -18,6 +17,7 @@ import {
   type RecentSale,
 } from "@/lib/slab-data"
 import { DeficitBadge } from "@/components/deficit-badge"
+import { SlabCardImage } from "@/components/slab-card-image"
 import { DeficitSparkline } from "@/components/deficit-sparkline"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RegradeCalculator } from "@/components/regrade-calculator"
@@ -181,13 +181,11 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
           {/* Header */}
           <div className="flex gap-4">
             <div className="relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 shadow-lg sm:w-28">
-              <Image
-                src={selectedCard.imageUrl || "/placeholder.svg"}
+              <SlabCardImage
+                card={selectedCard}
                 alt={`${selectedCard.cardName} card artwork`}
-                fill
-                sizes="(max-width: 640px) 96px, 112px"
-                quality={90}
-                className="object-cover"
+                sizes="(max-width: 640px) 112px, 128px"
+                className="object-contain p-1"
               />
             </div>
             <div className="min-w-0 flex-1">
