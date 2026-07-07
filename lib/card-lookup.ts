@@ -40,12 +40,13 @@ export function buildUserSearchQuery(input: string): string {
 
   const parts = trimmed.split(/\s+/).filter(Boolean)
   if (parts.length === 1) {
-    return `name:${escapeLucene(parts[0])}*`
+    // Avoid trailing wildcards — name:foo* is very slow on the public Pokémon TCG API.
+    return `name:${escapeLucene(parts[0])}`
   }
 
   const name = escapeLucene(parts[0])
-  const rest = escapeLucene(parts.slice(1).join(" "))
-  return `name:${name}* set.name:${rest}*`
+  const setHint = escapeLucene(parts.slice(1).join(" "))
+  return `name:${name} set.name:"${setHint}"`
 }
 
 export function catalogToSearchHit(card: CatalogCard): CardSearchHit {

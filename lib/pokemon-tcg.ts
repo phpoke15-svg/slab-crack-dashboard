@@ -187,7 +187,7 @@ export function toCatalogCard(card: PokemonApiCard): CatalogCard {
   }
 }
 
-async function fetchWithTimeout(url: string, headers: HeadersInit, ms = 8000) {
+async function fetchWithTimeout(url: string, headers: HeadersInit, ms = 12000) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), ms)
   try {
