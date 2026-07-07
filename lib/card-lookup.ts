@@ -499,6 +499,21 @@ function buildPriceChartingCatalogQueries(query: string, parsed: ParsedSearch): 
     out.add(`pokemon card ${parsed.number}`)
   }
 
+  if (parsed.mode === "name") {
+    out.add(`pokemon ${parsed.name.toLowerCase()}`)
+    out.add(`${parsed.name.toLowerCase()} pokemon`)
+  }
+
+  if (parsed.mode === "name-hints" || parsed.mode === "set-or-name") {
+    const hintsJoined = (parsed.mode === "name-hints" ? parsed.hints : parsed.hints).join(" ").toLowerCase()
+    const name = parsed.name.toLowerCase()
+    if (/vol|series|first partner/i.test(hintsJoined) || /vol|series|first partner/i.test(query)) {
+      out.add(`${name} first partner`)
+      out.add(`${name} first partner illustration`)
+      out.add(`pokemon ${name} first partner`)
+    }
+  }
+
   if (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name") {
     out.add(`pokemon ${trimmed}`)
     const comboTokens =
@@ -619,46 +634,157 @@ async function searchPriceChartingCards(
     .map((entry) => entry.hit)
 }
 
-export async function searchCatalogCards(query: string, limit = 12): Promise<CardSearchHit[]> {
-  const parsed = parseSearchInput(query)
+function expandSearchHints(hints: string[]): string[] {
+  const expanded = new Set(hints)
+  for (const hint of hints) {
+    const lower = hint.toLowerCase().trim()
+    if (/^(vol|volume|series)\s*1$/i.test(lower)) {
+      expanded.add("first partner")
+      expanded.add("series 1")
+      expanded.add("first partner illustration")
+    }
+    if (/^(vol|volume|series)\s*2$/i.test(lower)) {
+      expanded.add("series 2")
+      expanded.add("first partner illustration")
+    }
+  }
+  return [...expanded]
+}
 
-  let cards: CatalogCard[] = []
+function dedupeCatalogCards(cards: CatalogCard[]): CatalogCard[] {
+  const seen = new Set<string>()
+  const out: CatalogCard[] = []
+  for (const card of cards) {
+    if (seen.has(card.id)) continue
+    seen.add(card.id)
+    out.push(card)
+  }
+  return out
+}
 
+async function fetchSupplementalPokemonForName(name: string, limit: number): Promise<CatalogCard[]> {
+  const escaped = escapeLucene(name)
+  const queries = [
+    `name:${escaped} set.name:"First Partner"`,
+    `name:${escaped} set.name:"SV Black Star Promos"`,
+    `name:${escaped} set.name:"SVP"`,
+    `name:${escaped} set.name:"Promo"`,
+  ]
+  const batches = await Promise.all(
+    queries.map(async (query) => {
+      try {
+        return await fetchPokemonCardsByQuery(query, Math.min(limit, 25))
+      } catch {
+        return []
+      }
+    }),
+  )
+  return dedupeCatalogCards(batches.flat())
+}
+
+async function fetchPokemonCardsForParsed(parsed: ParsedSearch, limit: number): Promise<CatalogCard[]> {
   switch (parsed.mode) {
     case "number":
-      cards = await fetchByNumber(parsed.number, limit)
-      break
+      return fetchByNumber(parsed.number, limit)
     case "set":
-      cards = await fetchBySet(parsed.setHint, parsed.setId, limit)
-      break
+      return fetchBySet(parsed.setHint, parsed.setId, limit)
     case "set-number":
-      cards = await fetchBySetAndNumber(parsed.setHint, parsed.setId, parsed.number, limit)
-      break
-    case "name":
-      cards = await fetchPokemonCardsByQuery(`name:${escapeLucene(parsed.name)}`, limit)
-      break
+      return fetchBySetAndNumber(parsed.setHint, parsed.setId, parsed.number, limit)
+    case "name": {
+      const escaped = escapeLucene(parsed.name)
+      const pageSize = Math.min(250, Math.max(limit * 3, 60))
+      const [main, supplemental] = await Promise.all([
+        fetchPokemonCardsByQuery(`name:${escaped}`, pageSize),
+        fetchSupplementalPokemonForName(parsed.name, limit),
+      ])
+      return dedupeCatalogCards([...main, ...supplemental])
+    }
     case "name-hints":
-      cards = await fetchCardsForHints(parsed.name, parsed.hints, limit)
-      break
+      return fetchCardsForHints(parsed.name, expandSearchHints(parsed.hints), limit)
     case "name-set-combo":
-      cards = await fetchNameSetCombos(parsed.tokens, limit)
-      break
+      return fetchNameSetCombos(parsed.tokens, limit)
     case "set-or-name": {
-      cards = await fetchBySet(parsed.setHint, null, limit)
-      if (cards.length === 0) {
-        cards = await fetchCardsForHints(parsed.name, parsed.hints, limit)
-      }
-      break
+      const setCards = await fetchBySet(parsed.setHint, null, limit)
+      if (setCards.length > 0) return setCards
+      return fetchCardsForHints(parsed.name, expandSearchHints(parsed.hints), limit)
     }
     default:
-      cards = []
+      return []
+  }
+}
+
+function dedupeSearchHitKey(hit: CardSearchHit): string {
+  return `${normalizeToken(hit.cardName)}|${normalizeToken(hit.setName)}|${normalizeToken(hit.cardNumber)}`
+}
+
+function scoreSearchHit(hit: CardSearchHit, query: string): number {
+  const productName = `${hit.cardName} ${hit.setName}`.toLowerCase()
+  const q = query.toLowerCase()
+  let score = 0
+
+  const looksLikeSealed =
+    /\b(pack|collection|box|tin|bundle|deck|pin collection)\b/i.test(productName) &&
+    !/#\d+/.test(hit.cardName)
+  if (looksLikeSealed) score -= 25
+
+  const firstToken = q.split(/\s+/).find((token) => token.length >= 2) ?? ""
+  if (firstToken && hit.cardName.toLowerCase().startsWith(firstToken)) score += 12
+
+  for (const token of q.split(/\s+/).filter(Boolean)) {
+    if (token.length < 2) continue
+    if (/^\d+$/.test(token)) {
+      if (
+        productName.includes(`#${token}`) ||
+        productName.includes(` ${token}`) ||
+        productName.includes(`${token}/`) ||
+        hit.cardNumber.startsWith(token)
+      ) {
+        score += 10
+      }
+    } else if (productName.includes(token)) {
+      score += 6
+    }
   }
 
-  const pokemonHits = cards.slice(0, limit).map(catalogToSearchHit)
-  if (pokemonHits.length > 0) return pokemonHits
+  if (hit.imageUrl) score += 2
+  if (productName.includes("first partner")) score += 4
+  return score
+}
 
-  const priceChartingHits = await searchPriceChartingCards(query, parsed, limit)
-  if (priceChartingHits.length > 0) return priceChartingHits
+function mergeAndRankSearchHits(hits: CardSearchHit[], query: string, limit: number): CardSearchHit[] {
+  const byKey = new Map<string, { hit: CardSearchHit; score: number }>()
+
+  for (const hit of hits) {
+    const key = dedupeSearchHitKey(hit)
+    const score = scoreSearchHit(hit, query)
+    const existing = byKey.get(key)
+    if (
+      !existing ||
+      score > existing.score ||
+      (score === existing.score && hit.imageUrl && !existing.hit.imageUrl)
+    ) {
+      byKey.set(key, { hit, score })
+    }
+  }
+
+  return [...byKey.values()]
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((entry) => entry.hit)
+}
+
+export async function searchCatalogCards(query: string, limit = 12): Promise<CardSearchHit[]> {
+  const parsed = parseSearchInput(query)
+  if (parsed.mode === "empty") return []
+
+  const [cards, priceChartingHits] = await Promise.all([
+    fetchPokemonCardsForParsed(parsed, limit),
+    searchPriceChartingCards(query, parsed, limit),
+  ])
+
+  const pokemonHits = cards.map(catalogToSearchHit)
+  const merged = mergeAndRankSearchHits([...pokemonHits, ...priceChartingHits], query, limit)
+  if (merged.length > 0) return merged
 
   if (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name") {
     const name = parsed.mode === "name-set-combo" ? parsed.tokens[0] : parsed.name
