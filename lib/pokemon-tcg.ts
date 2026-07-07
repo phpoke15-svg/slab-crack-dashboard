@@ -188,12 +188,22 @@ export function toCatalogCard(card: PokemonApiCard): CatalogCard {
 }
 
 async function fetchWithTimeout(url: string, headers: HeadersInit, ms = 12000) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), ms)
+  const run = async () => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), ms)
+    try {
+      return await fetch(url, { headers, signal: controller.signal })
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   try {
-    return await fetch(url, { headers, signal: controller.signal })
-  } finally {
-    clearTimeout(timer)
+    return await run()
+  } catch (error) {
+    const aborted = error instanceof Error && error.name === "AbortError"
+    if (!aborted) throw error
+    return run()
   }
 }
 
