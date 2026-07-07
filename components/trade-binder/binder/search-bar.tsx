@@ -23,7 +23,7 @@ export function SearchBar({
         inputMode="search"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="Search cards by name or set…"
+        placeholder="Search English & Japanese cards with raw prices…"
         aria-label="Search cards by name or set"
         className={cn(
           "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground",

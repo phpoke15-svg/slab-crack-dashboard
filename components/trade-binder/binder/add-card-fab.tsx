@@ -123,7 +123,7 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
                   ref={searchRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search cards by name or set…"
+                  placeholder="Search priced EN/JP cards…"
                   aria-label="Search cards"
                   className="h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/50 focus:bg-secondary"
                 />
@@ -138,10 +138,10 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 {error ? (
                   <PickerEmpty message={error} />
-                ) : isLoading && availableResults.length === 0 && query.trim().length >= 2 ? (
-                  <PickerEmpty message="Looking up cards…" />
-                ) : query.trim().length < 2 ? (
-                  <PickerEmpty message="Type at least 2 characters to search." />
+                ) : isLoading && availableResults.length === 0 && query.trim().length >= 1 ? (
+                  <PickerEmpty message="Loading priced cards…" />
+                ) : query.trim().length < 1 ? (
+                  <PickerEmpty message="Type to search the priced catalog." />
                 ) : availableResults.length > 0 ? (
                   <ul className="flex flex-col gap-1.5">
                     {availableResults.map((card) => (
@@ -161,8 +161,13 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
                             />
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium text-foreground">{card.name}</span>
+                          <span className="block truncate text-sm font-medium text-foreground">{card.name}</span>
                             <span className="block truncate text-[11px] text-muted-foreground">{card.set}</span>
+                            {"rawPrice" in card && typeof card.rawPrice === "number" && card.rawPrice > 0 && (
+                              <span className="block font-mono text-[10px] text-primary tabular-nums">
+                                Raw ${card.rawPrice.toFixed(0)}
+                              </span>
+                            )}
                           </span>
                           <span className={cn("shrink-0 text-[10px] font-medium", rarityText[card.rarity])}>
                             {card.rarity}

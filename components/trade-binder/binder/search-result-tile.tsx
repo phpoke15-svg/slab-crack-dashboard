@@ -5,6 +5,8 @@ import { ArrowLeftRight, Check, Heart } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CardStatus, CatalogCard, Rarity } from "@/lib/trade-binder/cards"
 
+export type SearchResultCard = CatalogCard & { rawPrice?: number }
+
 const rarityStyles: Record<Rarity, string> = {
   Common: "border-border bg-secondary/80 text-muted-foreground",
   Rare: "border-border bg-secondary text-foreground",
@@ -17,7 +19,7 @@ export function SearchResultTile({
   owned,
   onAdd,
 }: {
-  card: CatalogCard
+  card: SearchResultCard
   owned: boolean
   onAdd: (status: CardStatus) => void
 }) {
@@ -51,6 +53,11 @@ export function SearchResultTile({
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold leading-tight text-foreground">{card.name}</h3>
           <p className="truncate text-[11px] text-muted-foreground">{card.set}</p>
+          {card.rawPrice != null && card.rawPrice > 0 && (
+            <p className="mt-0.5 font-mono text-[11px] font-medium text-primary tabular-nums">
+              Raw ${card.rawPrice.toFixed(0)}
+            </p>
+          )}
         </div>
 
         {owned ? (

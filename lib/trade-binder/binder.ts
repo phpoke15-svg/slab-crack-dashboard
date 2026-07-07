@@ -139,3 +139,44 @@ export async function updateBinderStatus(
 
   if (error) throw error
 }
+
+const BULK_INSERT_BATCH = 80
+
+export async function bulkAddCardsToBinder(
+  supabase: SupabaseClient,
+  userId: string,
+  cards: CatalogCard[],
+  status: CardStatus,
+  options?: { skipIds?: Set<string> },
+): Promise<{ added: number; skipped: number }> {
+  const skipIds = options?.skipIds ?? new Set<string>()
+  const toInsert = cards.filter((card) => !skipIds.has(card.id))
+
+  if (toInsert.length === 0) {
+    return { added: 0, skipped: cards.length }
+  }
+
+  let added = 0
+
+  for (let i = 0; i < toInsert.length; i += BULK_INSERT_BATCH) {
+    const batch = toInsert.slice(i, i + BULK_INSERT_BATCH).map((card) => ({
+      user_id: userId,
+      card_id: card.id,
+      status,
+      card_name: card.name,
+      card_set: card.set,
+      card_image: card.image,
+      card_rarity: card.rarity,
+    }))
+
+    const { error, count } = await supabase.from("user_binders").upsert(batch, {
+      onConflict: "user_id,card_id",
+      count: "exact",
+    })
+
+    if (error) throw error
+    added += count ?? batch.length
+  }
+
+  return { added, skipped: cards.length - toInsert.length }
+}

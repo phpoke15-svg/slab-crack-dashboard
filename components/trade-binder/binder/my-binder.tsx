@@ -1,11 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { SearchX, Users } from "lucide-react"
+import { Download, Loader2, SearchX, Users } from "lucide-react"
 import { type CardStatus, type CatalogCard, type TcgCard } from "@/lib/trade-binder/cards"
-import { addCardToBinder, loadBinderCards, updateBinderStatus } from "@/lib/trade-binder/binder"
+import { addCardToBinder, bulkAddCardsToBinder, loadBinderCards, updateBinderStatus } from "@/lib/trade-binder/binder"
 import { cn } from "@/lib/utils"
 import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
+import { fetchAllPricedCatalogCards } from "@/hooks/trade-binder/use-priced-catalog-search"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SearchBar } from "./search-bar"
@@ -32,10 +33,13 @@ export function MyBinder() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [filter, setFilter] = useState<Filter>("all")
+  const [importing, setImporting] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
   const loadIdRef = useRef(0)
 
-  const isSearching = query.trim().length >= 2
-  const { results: searchResults, isLoading: searchLoading, error: searchError } = usePokemonSearch(query, isSearching)
+  const isSearching = query.trim().length >= 1
+  const { results: searchResults, isLoading: searchLoading, error: searchError, total: searchTotal } =
+    usePokemonSearch(query, isSearching)
 
   const ownedIds = useMemo(() => new Set(cards.map((c) => c.id)), [cards])
 
@@ -111,6 +115,36 @@ export function MyBinder() {
   const tradeCount = cards.filter((c) => c.status === "trade").length
   const wishlistCount = cards.filter((c) => c.status === "wishlist").length
 
+  const importAllPriced = () => {
+    runWithAuth(async () => {
+      const {
+        data: { user: currentUser },
+      } = await getSupabase().auth.getUser()
+      if (!currentUser) return
+
+      setImporting(true)
+      setImportMessage(null)
+      setSaveError(null)
+
+      try {
+        const catalog = await fetchAllPricedCatalogCards()
+        const { added, skipped } = await bulkAddCardsToBinder(
+          getSupabase(),
+          currentUser.id,
+          catalog,
+          "trade",
+          { skipIds: ownedIds },
+        )
+        setImportMessage(`Added ${added} priced cards${skipped > 0 ? ` (${skipped} already in binder)` : ""}.`)
+        await loadBinder()
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : "Could not import priced catalog")
+      } finally {
+        setImporting(false)
+      }
+    })
+  }
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
@@ -146,7 +180,28 @@ export function MyBinder() {
             <span className="text-foreground">{cards.length}</span> cards ·{" "}
             <span className="text-trade">{tradeCount}</span> for trade ·{" "}
             <span className="text-wishlist">{wishlistCount}</span> on wishlist
+            <span className="text-muted-foreground/80"> · EN/JP priced catalog</span>
           </p>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={importAllPriced}
+              disabled={importing || authLoading}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-secondary/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-50"
+            >
+              {importing ? (
+                <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+              ) : (
+                <Download className="size-3.5" aria-hidden="true" />
+              )}
+              Import all priced cards
+            </button>
+          </div>
+
+          {importMessage && (
+            <p className="mt-2 text-xs text-primary">{importMessage}</p>
+          )}
 
           <div className="mt-4">
             <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
@@ -192,9 +247,13 @@ export function MyBinder() {
             {searchError ? (
               <EmptyState title="Search unavailable" message={searchError} />
             ) : searchLoading && searchResults.length === 0 ? (
-              <EmptyState title="Searching…" message="Looking up cards in the Pokémon TCG database." />
+              <EmptyState title="Searching…" message="Loading English & Japanese cards with raw prices." />
             ) : searchResults.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {searchTotal} priced card{searchTotal === 1 ? "" : "s"} found
+                </p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {searchResults.map((card) => (
                   <SearchResultTile
                     key={card.id}
@@ -203,7 +262,8 @@ export function MyBinder() {
                     onAdd={(status) => addCard(card, status)}
                   />
                 ))}
-              </div>
+                </div>
+              </>
             ) : (
               <EmptyState title="No cards found" message="Try a different name or set." />
             )}
@@ -221,8 +281,8 @@ export function MyBinder() {
             title="Your binder is empty"
             message={
               user
-                ? "Search for cards above to start building your collection."
-                : "Sign in and search for cards to build your binder."
+                ? "Search priced English & Japanese cards above, or import the full catalog."
+                : "Sign in to search priced cards or import the catalog."
             }
           />
         )}
