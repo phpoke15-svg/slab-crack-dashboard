@@ -13,7 +13,7 @@ export function CollecToolsHub() {
         <CollecToolsBrand href={undefined} size="lg" subtitle="Tools for TCG collectors" />
         <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted-foreground">
           Pick a tool to get started. SlabCrack finds arbitrage, Grade Check helps you pre-grade at
-          home, and Perfect Match keeps your collection organized for swaps.
+          home, and PokeMatch keeps your collection organized for swaps.
         </p>
       </header>
 

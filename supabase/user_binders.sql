@@ -1,4 +1,4 @@
--- Run in Supabase SQL editor (required for Perfect Match)
+-- Run in Supabase SQL editor (required for PokeMatch)
 
 create table if not exists public.user_binders (
   id uuid primary key default gen_random_uuid(),
