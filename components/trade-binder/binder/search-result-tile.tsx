@@ -1,9 +1,10 @@
 "use client"
 
 import Image from "next/image"
-import { ArrowLeftRight, Check, Heart } from "lucide-react"
+import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CardStatus, CatalogCard, Rarity } from "@/lib/trade-binder/cards"
+import { FolderSwitcher } from "./folder-switcher"
 
 export type SearchResultCard = CatalogCard & { rawPrice?: number }
 
@@ -16,13 +17,17 @@ const rarityStyles: Record<Rarity, string> = {
 
 export function SearchResultTile({
   card,
-  owned,
+  ownedStatus,
   onAdd,
+  onSetStatus,
 }: {
   card: SearchResultCard
-  owned: boolean
+  ownedStatus?: CardStatus | null
   onAdd: (status: CardStatus) => void
+  onSetStatus?: (status: CardStatus) => void
 }) {
+  const owned = ownedStatus != null
+
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="relative aspect-[3/4] overflow-hidden border-b border-border bg-muted/40">
@@ -42,9 +47,9 @@ export function SearchResultTile({
           {card.rarity}
         </span>
         {owned && (
-          <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md border border-trade/50 bg-trade/20 px-1.5 py-0.5 text-[10px] font-medium text-trade">
+          <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md border border-primary/40 bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
             <Check className="size-3" aria-hidden="true" />
-            Owned
+            In binder
           </span>
         )}
       </div>
@@ -60,27 +65,13 @@ export function SearchResultTile({
           )}
         </div>
 
-        {owned ? (
-          <p className="mt-auto py-2 text-center text-[11px] text-muted-foreground">Already in your binder</p>
+        {owned && ownedStatus && onSetStatus ? (
+          <FolderSwitcher status={ownedStatus} onSelect={onSetStatus} size="sm" />
         ) : (
-          <div className="mt-auto grid grid-cols-1 gap-1.5">
-            <button
-              type="button"
-              onClick={() => onAdd("trade")}
-              className="inline-flex items-center justify-center gap-1 rounded-lg bg-trade/20 px-2 py-2 text-xs font-medium text-trade transition-colors hover:bg-trade/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ArrowLeftRight className="size-3" aria-hidden="true" />
-              Add for trade
-            </button>
-            <button
-              type="button"
-              onClick={() => onAdd("wishlist")}
-              className="inline-flex items-center justify-center gap-1 rounded-lg bg-wishlist/20 px-2 py-2 text-xs font-medium text-wishlist transition-colors hover:bg-wishlist/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Heart className="size-3 fill-current" aria-hidden="true" />
-              Add to wishlist
-            </button>
-          </div>
+          <>
+            <p className="text-[10px] text-muted-foreground">Add to folder:</p>
+            <FolderSwitcher status={null} onSelect={onAdd} size="sm" />
+          </>
         )}
       </div>
     </article>

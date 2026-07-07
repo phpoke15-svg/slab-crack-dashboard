@@ -1,9 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Loader2, SearchX, Trash2, Users } from "lucide-react"
 import { type CardStatus, type CatalogCard, type TcgCard } from "@/lib/trade-binder/cards"
-import { addCardToBinder, clearUserBinder, loadBinderCards, updateBinderStatus } from "@/lib/trade-binder/binder"
+import {
+  addCardToBinder,
+  clearUserBinder,
+  loadBinderCards,
+  removeCardFromBinder,
+  updateBinderStatus,
+} from "@/lib/trade-binder/binder"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
 import { cn } from "@/lib/utils"
 import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
@@ -12,17 +18,27 @@ import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SearchBar } from "./search-bar"
 import { CardTile } from "./card-tile"
 import { SearchResultTile } from "./search-result-tile"
-import { AddCardFab } from "./add-card-fab"
 import { useSocial } from "@/components/trade-binder/social/social-provider"
 import { UserAvatar } from "@/components/trade-binder/social/user-avatar"
 
-type Filter = "all" | CardStatus
+type BinderTab = "search" | "binder" | "have" | "want"
 
-const filters: { key: Filter; label: string }[] = [
-  { key: "all", label: "All" },
-  { key: "trade", label: "For trade" },
-  { key: "wishlist", label: "Wishlist" },
+const tabs: { key: BinderTab; label: string }[] = [
+  { key: "search", label: "Search" },
+  { key: "binder", label: "My Binder" },
+  { key: "have", label: "I have" },
+  { key: "want", label: "I want" },
 ]
+
+function tabToStatus(tab: BinderTab): CardStatus | null {
+  if (tab === "have") return "trade"
+  if (tab === "want") return "wishlist"
+  return null
+}
+
+function statusToTab(status: CardStatus): BinderTab {
+  return status === "trade" ? "have" : "want"
+}
 
 export function MyBinder() {
   const social = useSocial()
@@ -32,15 +48,16 @@ export function MyBinder() {
   const [binderLoading, setBinderLoading] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
-  const [filter, setFilter] = useState<Filter>("all")
+  const [activeTab, setActiveTab] = useState<BinderTab>("search")
   const [clearing, setClearing] = useState(false)
   const loadIdRef = useRef(0)
 
-  const isSearching = query.trim().length >= 2
+  const isSearchActive = activeTab === "search"
+  const searchEnabled = isSearchActive && query.trim().length >= 2
   const { results: searchResults, isLoading: searchLoading, error: searchError, total: searchTotal } =
-    usePokemonSearch(query, isSearching)
+    usePokemonSearch(query, searchEnabled)
 
-  const ownedIds = useMemo(() => new Set(cards.map((c) => c.id)), [cards])
+  const ownedById = useMemo(() => new Map(cards.map((c) => [c.id, c.status])), [cards])
 
   const loadBinder = useCallback(async () => {
     if (!user) {
@@ -66,17 +83,17 @@ export function MyBinder() {
     if (!authLoading) void loadBinder()
   }, [authLoading, loadBinder])
 
-  const toggleStatus = (id: string) => {
+  const setCardStatus = (id: string, status: CardStatus) => {
     if (!user) return
 
     const card = cards.find((c) => c.id === id)
-    if (!card) return
+    if (!card || card.status === status) return
 
-    const nextStatus: CardStatus = card.status === "trade" ? "wishlist" : "trade"
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status: nextStatus } : c)))
+    const previousStatus = card.status
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
 
-    void updateBinderStatus(getSupabase(), user.id, id, nextStatus).catch(() => {
-      setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status: card.status } : c)))
+    void updateBinderStatus(getSupabase(), user.id, id, status).catch(() => {
+      setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status: previousStatus } : c)))
     })
   }
 
@@ -89,12 +106,16 @@ export function MyBinder() {
       if (!currentUser) return
 
       setSaveError(null)
-      setCards((prev) => {
-        if (prev.some((c) => c.id === card.id)) return prev
-        return [{ ...card, status }, ...prev]
-      })
-      setFilter(status)
-      setQuery("")
+      const existing = cards.find((c) => c.id === card.id)
+
+      if (existing) {
+        setCardStatus(card.id, status)
+        setActiveTab(statusToTab(status))
+        return
+      }
+
+      setCards((prev) => [{ ...card, status }, ...prev])
+      setActiveTab(statusToTab(status))
 
       try {
         await addCardToBinder(getSupabase(), currentUser.id, card, status)
@@ -107,9 +128,29 @@ export function MyBinder() {
     })
   }
 
+  const removeCard = (id: string) => {
+    if (!user) return
+
+    const card = cards.find((c) => c.id === id)
+    if (!card) return
+
+    const confirmed = window.confirm(`Remove ${card.name} from your binder?`)
+    if (!confirmed) return
+
+    setCards((prev) => prev.filter((c) => c.id !== id))
+
+    void removeCardFromBinder(getSupabase(), user.id, id).catch(() => {
+      setCards((prev) => [card, ...prev])
+      setSaveError(binderErrorMessage(null, "Could not remove card"))
+    })
+  }
+
   const visibleCards = useMemo(() => {
-    return cards.filter((c) => filter === "all" || c.status === filter)
-  }, [cards, filter])
+    const status = tabToStatus(activeTab)
+    if (status) return cards.filter((c) => c.status === status)
+    if (activeTab === "binder") return cards
+    return []
+  }, [activeTab, cards])
 
   const filteredCount = visibleCards.length
   const gridCards = visibleCards.slice(0, 500)
@@ -117,6 +158,13 @@ export function MyBinder() {
 
   const tradeCount = cards.filter((c) => c.status === "trade").length
   const wishlistCount = cards.filter((c) => c.status === "wishlist").length
+
+  const tabCount = (tab: BinderTab) => {
+    if (tab === "binder") return cards.length
+    if (tab === "have") return tradeCount
+    if (tab === "want") return wishlistCount
+    return null
+  }
 
   const clearBinder = () => {
     if (!user || cards.length === 0) return
@@ -140,8 +188,8 @@ export function MyBinder() {
         await clearUserBinder(getSupabase(), currentUser.id)
         if (loadId !== loadIdRef.current) return
         setCards([])
-        setFilter("all")
         setQuery("")
+        setActiveTab("search")
       } catch (err) {
         if (loadId === loadIdRef.current) {
           setSaveError(binderErrorMessage(err, "Could not clear your binder"))
@@ -155,7 +203,7 @@ export function MyBinder() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
-        <div className="px-4 pt-5 pb-3 sm:px-6">
+        <div className="px-4 pt-5 pb-2 sm:px-6">
           <div className="flex items-center justify-between gap-3">
             <CollecToolsBrand href="/" subtitle="Trade Binder · collect & trade" size="sm" />
             <div className="flex items-center gap-2">
@@ -183,14 +231,8 @@ export function MyBinder() {
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <p className="text-[11px] text-muted-foreground">
-              <span className="text-foreground">{cards.length}</span> cards ·{" "}
-              <span className="text-trade">{tradeCount}</span> for trade ·{" "}
-              <span className="text-wishlist">{wishlistCount}</span> on wishlist
-              <span className="text-muted-foreground/80"> · search any EN/JP card</span>
-            </p>
-            {user && cards.length > 0 && !isSearching && (
+          {activeTab === "binder" && user && cards.length > 0 && (
+            <div className="mt-3 flex justify-end">
               <button
                 type="button"
                 onClick={clearBinder}
@@ -204,12 +246,8 @@ export function MyBinder() {
                 )}
                 Clear binder
               </button>
-            )}
-          </div>
-
-          <div className="mt-4">
-            <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
-          </div>
+            </div>
+          )}
 
           {saveError && (
             <p className="mt-3 rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -218,60 +256,93 @@ export function MyBinder() {
           )}
         </div>
 
-        {!isSearching && (
-          <div className="flex gap-1 overflow-x-auto px-4 pb-2 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {filters.map((f) => {
-              const active = filter === f.key
-              return (
-                <button
-                  key={f.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setFilter(f.key)}
-                  className={cn(
-                    "relative whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                    active ? "text-primary" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {f.label}
-                  {active && (
-                    <span className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-primary" />
-                  )}
-                </button>
-              )
-            })}
-          </div>
-        )}
+        <div
+          className="flex gap-1 overflow-x-auto px-4 pb-2 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label="Trade binder sections"
+        >
+          {tabs.map((tab) => {
+            const active = activeTab === tab.key
+            const count = tabCount(tab.key)
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "relative flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                  active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {tab.label}
+                {count != null && count > 0 && (
+                  <span
+                    className={cn(
+                      "rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums",
+                      active ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground",
+                    )}
+                  >
+                    {count}
+                  </span>
+                )}
+                {active && (
+                  <span className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-primary" />
+                )}
+              </button>
+            )
+          })}
+        </div>
       </header>
 
-      <main className="flex-1 px-4 pb-28 pt-4 sm:px-6">
-        {isSearching ? (
+      <main className="flex-1 px-4 pb-8 pt-4 sm:px-6">
+        {activeTab === "search" ? (
           <>
-            {searchError ? (
-              <EmptyState title="Search unavailable" message={searchError} />
-            ) : searchLoading && searchResults.length === 0 ? (
-              <EmptyState title="Searching…" message="Loading English & Japanese cards." />
-            ) : searchResults.length > 0 ? (
-              <>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  {searchTotal.toLocaleString()} result{searchTotal === 1 ? "" : "s"}
-                  {searchResults.length < searchTotal ? ` · showing ${searchResults.length}` : ""}
-                </p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                {searchResults.map((card) => (
-                  <SearchResultTile
-                    key={card.id}
-                    card={card}
-                    owned={ownedIds.has(card.id)}
-                    onAdd={(status) => addCard(card, status)}
-                  />
-                ))}
-                </div>
-              </>
-            ) : (
-              <EmptyState title="No cards found" message="Try a different name or set." />
-            )}
+            <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
+            <div className="mt-4">
+              {!user ? (
+                <EmptyState
+                  title="Sign in to search"
+                  message="Search any English or Japanese Pokémon card and add it to your binder."
+                />
+              ) : query.trim().length < 2 ? (
+                <EmptyState
+                  title="Find any card"
+                  message="Type a Pokémon name, set, or card number to search the full catalog."
+                />
+              ) : searchError ? (
+                <EmptyState title="Search unavailable" message={searchError} />
+              ) : searchLoading && searchResults.length === 0 ? (
+                <EmptyState title="Searching…" message="Looking through the catalog." />
+              ) : searchResults.length > 0 ? (
+                <>
+                  <p className="mb-3 text-xs text-muted-foreground">
+                    {searchTotal.toLocaleString()} result{searchTotal === 1 ? "" : "s"}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {searchResults.map((card) => {
+                      const ownedStatus = ownedById.get(card.id) ?? null
+                      return (
+                        <SearchResultTile
+                          key={card.id}
+                          card={card}
+                          ownedStatus={ownedStatus}
+                          onAdd={(status) => addCard(card, status)}
+                          onSetStatus={
+                            ownedStatus
+                              ? (status) => setCardStatus(card.id, status)
+                              : undefined
+                          }
+                        />
+                      )
+                    })}
+                  </div>
+                </>
+              ) : (
+                <EmptyState title="No cards found" message="Try a different name or set." />
+              )}
+            </div>
           </>
         ) : binderLoading && user ? (
           <EmptyState title="Loading your binder" message="Syncing your collection…" />
@@ -279,33 +350,68 @@ export function MyBinder() {
           <>
             {gridTruncated && (
               <p className="mb-3 text-xs text-muted-foreground">
-                Showing {gridCards.length.toLocaleString()} of {filteredCount.toLocaleString()} binder cards. Search above to find a specific card.
+                Showing {gridCards.length.toLocaleString()} of {filteredCount.toLocaleString()} cards.
               </p>
             )}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {gridCards.map((card) => (
-              <CardTile key={card.id} card={card} onToggle={toggleStatus} />
-            ))}
-          </div>
+            {activeTab !== "binder" && (
+              <p className="mb-3 text-xs text-muted-foreground">
+                Tap <span className="text-trade">I have</span> or <span className="text-wishlist">I want</span> on a
+                card to move it between folders.
+              </p>
+            )}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {gridCards.map((card) => (
+                <CardTile
+                  key={card.id}
+                  card={card}
+                  onSetStatus={setCardStatus}
+                  onRemove={removeCard}
+                  showRemove={activeTab === "binder"}
+                />
+              ))}
+            </div>
           </>
         ) : (
           <EmptyState
-            title="Your binder is empty"
+            title={
+              activeTab === "binder"
+                ? "Your binder is empty"
+                : activeTab === "have"
+                  ? "Nothing listed to trade"
+                  : "Nothing on your want list"
+            }
             message={
               user
-                ? "Search any English or Japanese card above, then add it to your binder."
-                : "Sign in to search the catalog and build your binder."
+                ? "Use the Search tab to find cards, then add them to I have or I want."
+                : "Sign in to build your binder."
+            }
+            action={
+              user ? (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("search")}
+                  className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Go to Search
+                </button>
+              ) : undefined
             }
           />
         )}
       </main>
-
-      <AddCardFab ownedIds={ownedIds} onAdd={addCard} />
     </div>
   )
 }
 
-function EmptyState({ title, message }: { title: string; message: string }) {
+function EmptyState({
+  title,
+  message,
+  action,
+}: {
+  title: string
+  message: string
+  action?: ReactNode
+}) {
   return (
     <div className="mt-8 flex flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card/60 px-6 py-16 text-center">
       <span className="flex size-12 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground">
@@ -314,6 +420,7 @@ function EmptyState({ title, message }: { title: string; message: string }) {
       <div>
         <p className="text-base font-semibold text-foreground">{title}</p>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">{message}</p>
+        {action}
       </div>
     </div>
   )

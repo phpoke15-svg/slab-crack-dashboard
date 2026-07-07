@@ -1,9 +1,10 @@
 "use client"
 
 import Image from "next/image"
-import { ArrowLeftRight, Heart } from "lucide-react"
+import { Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import type { TcgCard } from "@/lib/trade-binder/cards"
+import type { CardStatus, TcgCard } from "@/lib/trade-binder/cards"
+import { FolderSwitcher } from "./folder-switcher"
 
 const rarityStyles: Record<TcgCard["rarity"], string> = {
   Common: "border-border bg-secondary/80 text-muted-foreground",
@@ -14,13 +15,15 @@ const rarityStyles: Record<TcgCard["rarity"], string> = {
 
 export function CardTile({
   card,
-  onToggle,
+  onSetStatus,
+  onRemove,
+  showRemove = false,
 }: {
   card: TcgCard
-  onToggle: (id: string) => void
+  onSetStatus: (id: string, status: CardStatus) => void
+  onRemove?: (id: string) => void
+  showRemove?: boolean
 }) {
-  const isTrade = card.status === "trade"
-
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
       <div className="relative aspect-[3/4] overflow-hidden border-b border-border bg-muted/40">
@@ -39,6 +42,16 @@ export function CardTile({
         >
           {card.rarity}
         </span>
+        {showRemove && onRemove && (
+          <button
+            type="button"
+            onClick={() => onRemove(card.id)}
+            aria-label={`Remove ${card.name} from binder`}
+            className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-lg border border-border bg-background/90 text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
+          >
+            <Trash2 className="size-3.5" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
       <div className="flex flex-1 flex-col gap-2.5 p-2.5">
@@ -47,30 +60,10 @@ export function CardTile({
           <p className="truncate text-[11px] text-muted-foreground">{card.set}</p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => onToggle(card.id)}
-          aria-pressed={isTrade}
-          aria-label={`${card.name} is ${isTrade ? "for trade" : "on your wishlist"}. Tap to toggle.`}
-          className={cn(
-            "mt-auto inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            isTrade
-              ? "bg-trade/20 text-trade hover:bg-trade/30"
-              : "bg-wishlist/20 text-wishlist hover:bg-wishlist/30",
-          )}
-        >
-          {isTrade ? (
-            <>
-              <ArrowLeftRight className="size-3.5" aria-hidden="true" />
-              For trade
-            </>
-          ) : (
-            <>
-              <Heart className="size-3.5 fill-current" aria-hidden="true" />
-              Wishlist
-            </>
-          )}
-        </button>
+        <FolderSwitcher
+          status={card.status}
+          onSelect={(status) => onSetStatus(card.id, status)}
+        />
       </div>
     </article>
   )
