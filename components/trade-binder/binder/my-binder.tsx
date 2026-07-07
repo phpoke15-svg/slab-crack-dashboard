@@ -113,6 +113,10 @@ export function MyBinder() {
     return cards.filter((c) => filter === "all" || c.status === filter)
   }, [cards, filter])
 
+  const filteredCount = visibleCards.length
+  const gridCards = visibleCards.slice(0, 500)
+  const gridTruncated = filteredCount > gridCards.length
+
   const tradeCount = cards.filter((c) => c.status === "trade").length
   const wishlistCount = cards.filter((c) => c.status === "wishlist").length
 
@@ -302,12 +306,19 @@ export function MyBinder() {
           </>
         ) : binderLoading && user ? (
           <EmptyState title="Loading your binder" message="Syncing your collection…" />
-        ) : visibleCards.length > 0 ? (
+        ) : gridCards.length > 0 ? (
+          <>
+            {gridTruncated && (
+              <p className="mb-3 text-xs text-muted-foreground">
+                Showing {gridCards.length.toLocaleString()} of {filteredCount.toLocaleString()} binder cards. Search above to find a specific card.
+              </p>
+            )}
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {visibleCards.map((card) => (
+            {gridCards.map((card) => (
               <CardTile key={card.id} card={card} onToggle={toggleStatus} />
             ))}
           </div>
+          </>
         ) : (
           <EmptyState
             title="Your binder is empty"

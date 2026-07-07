@@ -28,10 +28,26 @@ function rowToCard(row: UserBinderRow): TcgCard | null {
 }
 
 export async function fetchUserBinder(supabase: SupabaseClient, userId: string): Promise<UserBinderRow[]> {
-  const { data, error } = await supabase.from("user_binders").select("*").eq("user_id", userId)
+  const pageSize = 1000
+  let from = 0
+  const all: UserBinderRow[] = []
 
-  if (error) throwBinderError(error)
-  return data ?? []
+  while (true) {
+    const { data, error } = await supabase
+      .from("user_binders")
+      .select("*")
+      .eq("user_id", userId)
+      .range(from, from + pageSize - 1)
+
+    if (error) throwBinderError(error)
+    if (!data?.length) break
+
+    all.push(...(data as UserBinderRow[]))
+    if (data.length < pageSize) break
+    from += pageSize
+  }
+
+  return all
 }
 
 export async function loadBinderCards(supabase: SupabaseClient, userId: string): Promise<TcgCard[]> {
