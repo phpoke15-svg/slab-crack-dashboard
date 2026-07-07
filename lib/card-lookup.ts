@@ -1,6 +1,7 @@
 import {
   extractCardPrices,
   resolvePriceChartingForCard,
+  fetchPriceChartingProduct,
   fetchPriceChartingProducts,
   type PriceChartingCardContext,
   type PriceChartingSearchHit,
@@ -451,8 +452,10 @@ function buildPriceChartingCatalogQueries(query: string, parsed: ParsedSearch): 
 
     for (const num of numbers) {
       out.add(`${name} #${num}`)
+      out.add(`${name} #${num}/s-p`)
       out.add(`${name} ${num} pokemon`)
-      out.add(`pokemon japanese ${name} ${num}`)
+      out.add(`${name} ${num} pokemon japanese`)
+      out.add(`${name} stamp box ${num}`)
       if (words.length > 0) {
         out.add(`${name} #${num} ${words.join(" ")}`)
       }
@@ -492,7 +495,13 @@ function scorePcCatalogHit(hit: PriceChartingSearchHit, query: string): number {
   for (const token of q.split(/\s+/).filter(Boolean)) {
     if (token.length < 2) continue
     if (/^\d+$/.test(token)) {
-      if (productName.includes(`#${token}`) || productName.includes(` ${token}`)) score += 10
+      if (
+        productName.includes(`#${token}`) ||
+        productName.includes(` ${token}`) ||
+        productName.includes(`${token}/`)
+      ) {
+        score += 10
+      }
     } else if (productName.includes(token) || consoleName.includes(token)) {
       score += 6
     }
@@ -530,7 +539,7 @@ async function searchPriceChartingCards(
     for (const hits of results) {
       for (const hit of hits) {
         const score = scorePcCatalogHit(hit, query)
-        if (score < 8) continue
+        if (score < 6) continue
         const mapped = priceChartingHitToSearchHit(hit)
         if (!mapped) continue
         const existing = scored.get(mapped.id)
@@ -541,6 +550,22 @@ async function searchPriceChartingCards(
     }
 
     if (scored.size >= limit) break
+  }
+
+  if (scored.size === 0) {
+    for (const q of queries.slice(0, 4)) {
+      try {
+        const product = await fetchPriceChartingProduct(apiKey, { query: q })
+        const hit = priceChartingHitToSearchHit({
+          id: product.id,
+          "product-name": product["product-name"],
+          "console-name": product["console-name"],
+        })
+        if (hit) return [hit]
+      } catch {
+        /* try next query */
+      }
+    }
   }
 
   return [...scored.values()]
