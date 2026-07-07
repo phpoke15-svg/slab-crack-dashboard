@@ -1,7 +1,8 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Search, Layers, Zap, TrendingDown, DollarSign, Percent } from "lucide-react"
+import Link from "next/link"
+import { Search, Layers, Zap, TrendingDown, DollarSign, Percent, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import mockData from "@/lib/mockData.json"
 import {
@@ -222,13 +223,22 @@ export function SlabDashboard() {
                 <p className="text-[11px] text-muted-foreground">Graded slab arbitrage</p>
               </div>
             </div>
-            <div className="flex flex-col items-end">
+            <div className="flex items-center gap-2">
+              <Link
+                href="/grade-check"
+                className="flex size-9 items-center justify-center rounded-xl border border-border bg-secondary/60 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                title="Grade Check"
+              >
+                <ShieldCheck className="size-4" />
+              </Link>
+              <div className="flex flex-col items-end">
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 <Zap className="size-3 text-primary" /> Live deficits
               </span>
               <span className="font-mono text-sm font-semibold text-primary tabular-nums">
                 {"$"}{totalDeficit.toFixed(2)}
               </span>
+              </div>
             </div>
           </div>
 
