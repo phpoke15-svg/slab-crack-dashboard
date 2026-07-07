@@ -9,6 +9,7 @@ import {
 import {
   fetchPokemonCardById,
   fetchPokemonCardsByQuery,
+  resolvePokemonCardImage,
   type CatalogCard,
 } from "@/lib/pokemon-tcg"
 import {
@@ -751,6 +752,23 @@ function scoreSearchHit(hit: CardSearchHit, query: string): number {
   return score
 }
 
+function mergeSearchHits(a: CardSearchHit, b: CardSearchHit, prefer: CardSearchHit): CardSearchHit {
+  return {
+    ...prefer,
+    imageUrl: prefer.imageUrl || a.imageUrl || b.imageUrl,
+    pokemonTcgId:
+      prefer.pokemonTcgId.startsWith("poke-")
+        ? prefer.pokemonTcgId
+        : a.pokemonTcgId.startsWith("poke-")
+          ? a.pokemonTcgId
+          : b.pokemonTcgId.startsWith("poke-")
+            ? b.pokemonTcgId
+            : prefer.pokemonTcgId,
+    rarity: prefer.rarity ?? a.rarity ?? b.rarity,
+    cardNumber: prefer.cardNumber || a.cardNumber || b.cardNumber,
+  }
+}
+
 function mergeAndRankSearchHits(hits: CardSearchHit[], query: string, limit: number): CardSearchHit[] {
   const byKey = new Map<string, { hit: CardSearchHit; score: number }>()
 
@@ -758,19 +776,66 @@ function mergeAndRankSearchHits(hits: CardSearchHit[], query: string, limit: num
     const key = dedupeSearchHitKey(hit)
     const score = scoreSearchHit(hit, query)
     const existing = byKey.get(key)
-    if (
-      !existing ||
-      score > existing.score ||
-      (score === existing.score && hit.imageUrl && !existing.hit.imageUrl)
-    ) {
+    if (!existing) {
       byKey.set(key, { hit, score })
+      continue
     }
+
+    const prefer = score > existing.score ? hit : existing.hit
+    const other = score > existing.score ? existing.hit : hit
+    byKey.set(key, {
+      hit: mergeSearchHits(hit, existing.hit, prefer),
+      score: Math.max(score, existing.score),
+    })
   }
 
   return [...byKey.values()]
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score
+      if (Boolean(b.hit.imageUrl) !== Boolean(a.hit.imageUrl)) {
+        return Number(Boolean(b.hit.imageUrl)) - Number(Boolean(a.hit.imageUrl))
+      }
+      return 0
+    })
     .slice(0, limit)
     .map((entry) => entry.hit)
+}
+
+const IMAGE_ENRICH_CONCURRENCY = 6
+const MAX_IMAGE_ENRICH = 40
+
+async function enrichSearchHitsWithImages(hits: CardSearchHit[]): Promise<CardSearchHit[]> {
+  const missing = hits
+    .map((hit, index) => ({ hit, index }))
+    .filter(({ hit }) => !hit.imageUrl?.trim())
+
+  if (missing.length === 0) return hits
+
+  const updated = [...hits]
+
+  for (let i = 0; i < Math.min(missing.length, MAX_IMAGE_ENRICH); i += IMAGE_ENRICH_CONCURRENCY) {
+    const chunk = missing.slice(i, i + IMAGE_ENRICH_CONCURRENCY)
+    await Promise.all(
+      chunk.map(async ({ hit, index }) => {
+        const catalog = await resolvePokemonCardImage({
+          cardName: hit.cardName,
+          setName: hit.setName,
+          cardNumber: hit.cardNumber,
+          pokemonTcgId: hit.pokemonTcgId,
+        })
+        if (!catalog?.imageLarge && !catalog?.imageSmall) return
+
+        updated[index] = {
+          ...hit,
+          imageUrl: catalog.imageLarge ?? catalog.imageSmall ?? hit.imageUrl,
+          pokemonTcgId: catalog.id.startsWith("pc-") ? hit.pokemonTcgId : `poke-${catalog.id}`,
+          rarity: hit.rarity ?? catalog.rarity,
+        }
+      }),
+    )
+  }
+
+  return updated
 }
 
 export async function searchCatalogCards(query: string, limit = 12): Promise<CardSearchHit[]> {
@@ -783,25 +848,26 @@ export async function searchCatalogCards(query: string, limit = 12): Promise<Car
   ])
 
   const pokemonHits = cards.map(catalogToSearchHit)
-  const merged = mergeAndRankSearchHits([...pokemonHits, ...priceChartingHits], query, limit)
-  if (merged.length > 0) return merged
+  let merged = mergeAndRankSearchHits([...pokemonHits, ...priceChartingHits], query, limit)
 
-  if (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name") {
+  if (merged.length === 0 && (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name")) {
     const name = parsed.mode === "name-set-combo" ? parsed.tokens[0] : parsed.name
     const setHint =
       parsed.mode === "name-set-combo" ? parsed.tokens.slice(1).join(" ") : parsed.hints.join(" ")
 
     if (name && setHint) {
       const narrowed = await searchPriceChartingCards(`${name} ${setHint}`, parsed, limit)
-      if (narrowed.length > 0) return narrowed
+      if (narrowed.length > 0) merged = narrowed
     }
 
-    if (name) {
-      return searchPriceChartingCards(name, { mode: "name", name }, limit)
+    if (merged.length === 0 && name) {
+      merged = await searchPriceChartingCards(name, { mode: "name", name }, limit)
     }
   }
 
-  return []
+  if (merged.length === 0) return []
+
+  return enrichSearchHitsWithImages(merged)
 }
 
 function formatCardName(name: string, rarity: string | null): string {

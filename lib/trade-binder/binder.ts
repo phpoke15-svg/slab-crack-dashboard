@@ -57,10 +57,47 @@ export async function loadBinderCards(supabase: SupabaseClient, userId: string):
   const fromDb = rows.map(rowToCard).filter((c): c is TcgCard => c !== null)
   const missingMeta = rows.filter((r) => !r.card_name)
 
-  if (missingMeta.length === 0) return fromDb
+  let cards: TcgCard[]
+  if (missingMeta.length === 0) {
+    cards = fromDb
+  } else {
+    const enriched = await enrichBinderCards(missingMeta)
+    cards = [...fromDb, ...enriched]
+  }
 
-  const enriched = await enrichBinderCards(missingMeta)
-  return [...fromDb, ...enriched]
+  return enrichBinderCardImages(cards)
+}
+
+async function enrichBinderCardImages(cards: TcgCard[]): Promise<TcgCard[]> {
+  const needsImage = cards.filter((card) => !card.image || card.image.includes("placeholder"))
+  if (needsImage.length === 0) return cards
+
+  try {
+    const res = await fetch("/api/binder/enrich-images", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cards: needsImage.map((card) => ({
+          id: card.id,
+          name: card.name,
+          set: card.set,
+          image: card.image,
+          rarity: card.rarity,
+        })),
+      }),
+    })
+    if (!res.ok) return cards
+
+    const data = (await res.json()) as { cards?: Array<{ id: string; image?: string }> }
+    const imageById = new Map((data.cards ?? []).map((card) => [card.id, card.image]))
+
+    return cards.map((card) => {
+      const image = imageById.get(card.id)
+      return image ? { ...card, image } : card
+    })
+  } catch {
+    return cards
+  }
 }
 
 export async function enrichBinderCards(rows: UserBinderRow[]): Promise<TcgCard[]> {

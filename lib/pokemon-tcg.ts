@@ -175,6 +175,56 @@ export async function fetchPokemonCardForWatchlist(input: {
   return bestScore >= MIN_POKEMON_MATCH_SCORE ? best : null
 }
 
+function extractCardNumberFromName(cardName: string, cardNumber: string): string {
+  return cardNumberPrefix(cardNumber || cardName.match(/#(\d+[a-zA-Z/-]*)/)?.[1] || "")
+}
+
+/** Resolve card artwork from the Pokémon TCG API when PriceCharting or other sources lack images. */
+export async function resolvePokemonCardImage(input: {
+  cardName: string
+  setName: string
+  cardNumber: string
+  pokemonTcgId?: string
+}): Promise<CatalogCard | null> {
+  const pokemonId = input.pokemonTcgId?.replace(/^poke-/, "")
+  if (pokemonId && !pokemonId.startsWith("pc-")) {
+    const byId = await fetchPokemonCardById(pokemonId)
+    if (byId?.imageLarge || byId?.imageSmall) return byId
+  }
+
+  const strict = await fetchPokemonCardForWatchlist(input)
+  if (strict?.imageLarge || strict?.imageSmall) return strict
+
+  const name = stripRaritySuffix(input.cardName)
+  const number = extractCardNumberFromName(input.cardName, input.cardNumber)
+  if (!name || !number) return null
+
+  try {
+    const cards = await fetchPokemonCardsByQuery(`name:"${escapeLucene(name)}" number:${number}`, 25)
+    const targetName = normalizeForCompare(name)
+    const targetNum = cardNumberPrefix(number)
+
+    let best: CatalogCard | null = null
+    let bestScore = 0
+
+    for (const card of cards) {
+      if (!card.imageLarge && !card.imageSmall) continue
+      if (normalizeForCompare(card.name) !== targetName) continue
+      if (cardNumberPrefix(card.cardNumber) !== targetNum) continue
+
+      const score = Math.max(35, scorePokemonCardMatch(card, input))
+      if (score > bestScore) {
+        bestScore = score
+        best = card
+      }
+    }
+
+    return best
+  } catch {
+    return null
+  }
+}
+
 export function toCatalogCard(card: PokemonApiCard): CatalogCard {
   return {
     id: card.id,
