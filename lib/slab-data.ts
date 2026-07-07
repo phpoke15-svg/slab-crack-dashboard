@@ -2,7 +2,7 @@ import mockData from "@/lib/mockData.json"
 
 export type Grade = "PSA 7" | "PSA 8" | "PSA 9" | "PSA 10"
 
-export type Feed = "top" | "modern" | "watchlist"
+export type Feed = "top" | "watchlist"
 
 export interface RecentSale {
   title: string
@@ -180,7 +180,7 @@ function toSlabCard(entry: MockCardEntry): SlabCard {
     rawValue: entry.rawPrice,
     slabValue: entry.slabPrice,
     grade: toGrade(entry.slabGrade),
-    feeds: ["top", "modern"],
+    feeds: ["top"],
     insight: entry.marketInsight,
   }
 }
@@ -352,6 +352,5 @@ export const GRADES: Grade[] = ["PSA 7", "PSA 8", "PSA 9", "PSA 10"]
 
 export const FEEDS: { id: Feed; label: string }[] = [
   { id: "top", label: "Top Deficits" },
-  { id: "modern", label: "Modern Chase" },
   { id: "watchlist", label: "Watchlist" },
 ]
