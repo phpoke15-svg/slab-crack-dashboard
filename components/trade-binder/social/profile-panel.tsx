@@ -181,9 +181,20 @@ export function ProfilePanel({ userId }: { userId: string }) {
 
             <button
               type="button"
-              onClick={() => (isFriend ? social.removeFriend(userId) : social.addFriend(userId))}
+              disabled={friendBusy}
+              onClick={() => {
+                setFriendBusy(true)
+                setFriendError(null)
+                void (async () => {
+                  const err = isFriend
+                    ? await social.removeFriend(userId)
+                    : await social.addFriend(userId)
+                  if (err) setFriendError(err)
+                  setFriendBusy(false)
+                })()
+              }}
               className={cn(
-                "mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                "mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
                 isFriend
                   ? "border border-trade/50 bg-trade/15 text-trade"
                   : "bg-primary text-primary-foreground",
@@ -199,6 +210,7 @@ export function ProfilePanel({ userId }: { userId: string }) {
                 </>
               )}
             </button>
+            {friendError && <p className="mt-2 text-sm text-destructive">{friendError}</p>}
           </>
         )}
       </section>

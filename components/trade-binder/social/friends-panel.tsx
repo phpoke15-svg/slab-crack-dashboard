@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Search, UserPlus, UserCheck, UserX, Users } from "lucide-react"
+import { Search, UserPlus, UserCheck, UserX, Users, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { User } from "@/lib/trade-binder/users"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -131,9 +131,14 @@ function TraderRow({ user }: { user: User }) {
   const toggleFriend = async () => {
     setBusy(true)
     setError(null)
-    const err = isFriend ? await social.removeFriend(user.id) : await social.addFriend(user.id)
-    if (err) setError(err)
-    setBusy(false)
+    try {
+      const err = isFriend ? await social.removeFriend(user.id) : await social.addFriend(user.id)
+      if (err) setError(err)
+    } catch {
+      setError("Something went wrong")
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -163,13 +168,15 @@ function TraderRow({ user }: { user: User }) {
           onClick={() => void toggleFriend()}
           aria-label={isFriend ? `Remove ${user.name} from friends` : `Add ${user.name} as a friend`}
           className={cn(
-            "group flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            "group flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
             isFriend
               ? "border-trade/50 bg-trade/15 text-trade hover:border-destructive/50 hover:bg-destructive/15 hover:text-destructive"
               : "border-primary/50 bg-primary text-primary-foreground",
           )}
         >
-          {isFriend ? (
+          {busy ? (
+            <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+          ) : isFriend ? (
             <>
               <UserCheck className="size-4 group-hover:hidden" aria-hidden="true" />
               <UserX className="hidden size-4 group-hover:block" aria-hidden="true" />

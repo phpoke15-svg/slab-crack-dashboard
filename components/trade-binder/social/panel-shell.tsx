@@ -30,7 +30,7 @@ export function PanelShell({
         onClick={onClose}
         className="absolute inset-0 bg-background/70 backdrop-blur-sm"
       />
-      <div className="absolute inset-x-0 bottom-0 top-0 mx-auto flex w-full max-w-3xl flex-col border-x border-border bg-background">
+      <div className="absolute inset-x-0 bottom-0 top-0 z-10 mx-auto flex w-full max-w-3xl flex-col border-x border-border bg-background">
         <header className="shrink-0 border-b border-border bg-background/80 backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
             <h2 className="text-lg font-semibold text-foreground text-balance">{title}</h2>

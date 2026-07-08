@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
+import { listFriendIds, removeFriendship, sendFriendRequest } from "@/lib/trade-binder/friends"
+import { fetchProfile } from "@/lib/trade-binder/profile-db"
 import {
   averageRating,
   type Review,
@@ -58,7 +60,7 @@ export function useOptionalSocial() {
 }
 
 export function SocialProvider({ children }: { children: ReactNode }) {
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isLoading: authLoading, getSupabase } = useAuth()
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [friendIds, setFriendIds] = useState<string[]>([])
@@ -75,31 +77,34 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     }
     setProfileLoading(true)
     try {
-      const res = await fetch("/api/profile")
-      if (!res.ok) return
-      const data = (await res.json()) as { profile: User }
-      setCurrentUser(data.profile)
-      setProfileCache((prev) => ({ ...prev, [data.profile.id]: data.profile }))
+      const profile = await fetchProfile(getSupabase(), user.id)
+      if (profile) {
+        setCurrentUser(profile)
+        setProfileCache((prev) => ({ ...prev, [profile.id]: profile }))
+      }
     } finally {
       setProfileLoading(false)
     }
-  }, [user])
+  }, [user, getSupabase])
 
   const refreshFriends = useCallback(async () => {
     if (!user) {
       setFriendIds([])
       return
     }
-    const res = await fetch("/api/friends")
-    if (!res.ok) return
-    const data = (await res.json()) as { friendIds: string[]; profiles: User[] }
-    setFriendIds(data.friendIds)
-    setProfileCache((prev) => {
-      const next = { ...prev }
-      for (const p of data.profiles) next[p.id] = p
-      return next
-    })
-  }, [user])
+    const ids = await listFriendIds(getSupabase(), user.id)
+    setFriendIds(ids)
+    const profiles = (
+      await Promise.all(ids.map((id) => fetchProfile(getSupabase(), id)))
+    ).filter((p): p is User => p !== null)
+    if (profiles.length > 0) {
+      setProfileCache((prev) => {
+        const next = { ...prev }
+        for (const p of profiles) next[p.id] = p
+        return next
+      })
+    }
+  }, [user, getSupabase])
 
   const refreshTrades = useCallback(async () => {
     if (!user) {
@@ -107,7 +112,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       setTradePartnerIds([])
       return
     }
-    const res = await fetch("/api/trades")
+    const res = await fetch("/api/trades", { credentials: "same-origin" })
     if (!res.ok) return
     const data = (await res.json()) as { trades: Trade[] }
     setTrades(data.trades)
@@ -127,7 +132,9 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   }, [authLoading, refreshProfile, refreshFriends, refreshTrades])
 
   const loadReviews = useCallback(async (userId: string) => {
-    const res = await fetch(`/api/reviews?userId=${encodeURIComponent(userId)}`)
+    const res = await fetch(`/api/reviews?userId=${encodeURIComponent(userId)}`, {
+      credentials: "same-origin",
+    })
     if (!res.ok) return
     const data = (await res.json()) as { reviews: Review[] }
     setReviewsByUser((prev) => ({ ...prev, [userId]: data.reviews }))
@@ -142,6 +149,41 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     [profileCache],
   )
 
+  const addFriend = useCallback(
+    async (id: string): Promise<string | null> => {
+      if (!user) return "Sign in to add friends"
+      if (id === user.id) return "You cannot add yourself"
+      try {
+        const { error } = await sendFriendRequest(getSupabase(), user.id, id)
+        if (error) return error
+        setFriendIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+        const profile = await fetchProfile(getSupabase(), id)
+        if (profile) {
+          setProfileCache((prev) => ({ ...prev, [id]: profile }))
+        }
+        return null
+      } catch {
+        return "Could not add friend"
+      }
+    },
+    [user, getSupabase],
+  )
+
+  const removeFriend = useCallback(
+    async (id: string): Promise<string | null> => {
+      if (!user) return "Sign in required"
+      try {
+        const { error } = await removeFriendship(getSupabase(), user.id, id)
+        if (error) return error
+        setFriendIds((prev) => prev.filter((f) => f !== id))
+        return null
+      } catch {
+        return "Could not remove friend"
+      }
+    },
+    [user, getSupabase],
+  )
+
   const value = useMemo<SocialContextValue>(() => {
     const reviewsFor = (id: string) => reviewsByUser[id] ?? []
     return {
@@ -150,28 +192,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       friendIds,
       friendCount: friendIds.length,
       isFriend: (id) => friendIds.includes(id),
-      addFriend: async (id) => {
-        const res = await fetch("/api/friends", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: id }),
-          credentials: "same-origin",
-        })
-        const data = (await res.json().catch(() => ({}))) as { error?: string }
-        if (!res.ok) return data.error ?? "Could not add friend"
-        await refreshFriends()
-        return null
-      },
-      removeFriend: async (id) => {
-        const res = await fetch(`/api/friends?userId=${encodeURIComponent(id)}`, {
-          method: "DELETE",
-          credentials: "same-origin",
-        })
-        const data = (await res.json().catch(() => ({}))) as { error?: string }
-        if (!res.ok) return data.error ?? "Could not remove friend"
-        await refreshFriends()
-        return null
-      },
+      addFriend,
+      removeFriend,
       hasTradedWith: (id) => tradePartnerIds.includes(id),
       reviewsFor,
       ratingFor: (id) => averageRating(reviewsFor(id)),
@@ -182,6 +204,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ revieweeId: userId, rating, comment }),
+          credentials: "same-origin",
         })
         if (res.ok) await loadReviews(userId)
       },
@@ -208,6 +231,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     reviewsByUser,
     profileCache,
     trades,
+    addFriend,
+    removeFriend,
     refreshFriends,
     refreshTrades,
     refreshProfile,
