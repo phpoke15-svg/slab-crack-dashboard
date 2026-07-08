@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { addTradeMessage } from "@/lib/trade-binder/trade-messages"
+import { addTradeMessage, listLatestMessagesForTrades } from "@/lib/trade-binder/trade-messages"
 import { createTrade, listTradesForUser, updateTradeStatus } from "@/lib/trade-binder/trades"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
@@ -8,7 +8,11 @@ export async function GET() {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const trades = await listTradesForUser(auth.supabase, auth.user.id)
-  return NextResponse.json({ trades })
+  const lastMessages = await listLatestMessagesForTrades(
+    auth.supabase,
+    trades.map((t) => t.id),
+  )
+  return NextResponse.json({ trades, lastMessages })
 }
 
 export async function POST(request: NextRequest) {

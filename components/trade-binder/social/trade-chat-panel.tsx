@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeftRight, Check, Loader2, Send, X } from "lucide-react"
+import { ArrowLeftRight, Check, ChevronLeft, Loader2, Send, X } from "lucide-react"
 import type { TcgCard } from "@/lib/trade-binder/cards"
 import type { Trade, TradeMessage } from "@/lib/trade-binder/users"
 import { loadBinderCards } from "@/lib/trade-binder/binder"
@@ -16,9 +16,16 @@ import {
 } from "./trade-card-picker"
 import { UserAvatar } from "./user-avatar"
 
-export function TradeChatPanel({ tradeId }: { tradeId: string }) {
+export function TradeChatPanel({
+  tradeId,
+  returnTo,
+}: {
+  tradeId: string
+  returnTo?: "messages"
+}) {
   const social = useSocial()
   const { user, getSupabase } = useAuth()
+  const closePanel = returnTo === "messages" ? social.openMessages : social.close
 
   const [trade, setTrade] = useState<Trade | null>(null)
   const [messages, setMessages] = useState<TradeMessage[]>([])
@@ -157,7 +164,7 @@ export function TradeChatPanel({ tradeId }: { tradeId: string }) {
 
   if (loading && !trade) {
     return (
-      <PanelShell title="Trade chat" onClose={social.close}>
+      <PanelShell title="Trade chat" onClose={closePanel}>
         <div className="flex items-center justify-center p-12">
           <Loader2 className="size-6 animate-spin text-muted-foreground" />
         </div>
@@ -167,7 +174,7 @@ export function TradeChatPanel({ tradeId }: { tradeId: string }) {
 
   if (!trade) {
     return (
-      <PanelShell title="Trade chat" onClose={social.close}>
+      <PanelShell title="Trade chat" onClose={closePanel}>
         <p className="p-6 text-sm text-muted-foreground">Trade not found.</p>
       </PanelShell>
     )
@@ -176,18 +183,30 @@ export function TradeChatPanel({ tradeId }: { tradeId: string }) {
   return (
     <PanelShell
       title="Trade chat"
-      onClose={social.close}
+      onClose={closePanel}
       headerAccessory={
-        other ? (
-          <button
-            type="button"
-            onClick={() => social.openProfile(other.id)}
-            className="flex items-center gap-2 rounded-lg border border-border px-2 py-1 text-xs hover:border-primary/40"
-          >
-            <UserAvatar user={other} size="sm" />
-            <span className="max-w-[8rem] truncate">{other.name}</span>
-          </button>
-        ) : null
+        <>
+          {returnTo === "messages" && (
+            <button
+              type="button"
+              onClick={social.openMessages}
+              aria-label="Back to messages"
+              className="flex size-9 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+          )}
+          {other ? (
+            <button
+              type="button"
+              onClick={() => social.openProfile(other.id)}
+              className="flex items-center gap-2 rounded-lg border border-border px-2 py-1 text-xs hover:border-primary/40"
+            >
+              <UserAvatar user={other} size="sm" />
+              <span className="max-w-[8rem] truncate">{other.name}</span>
+            </button>
+          ) : null}
+        </>
       }
     >
       <div className="flex min-h-full flex-col">

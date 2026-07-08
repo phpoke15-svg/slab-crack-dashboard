@@ -35,6 +35,29 @@ export async function listTradeMessages(
   return (data as MessageRow[]).map(mapMessage)
 }
 
+export async function listLatestMessagesForTrades(
+  supabase: SupabaseClient,
+  tradeIds: string[],
+): Promise<Record<string, TradeMessage>> {
+  if (tradeIds.length === 0) return {}
+
+  const { data, error } = await supabase
+    .from("trade_messages")
+    .select("*")
+    .in("trade_id", tradeIds)
+    .order("created_at", { ascending: false })
+
+  if (error || !data) return {}
+
+  const latest: Record<string, TradeMessage> = {}
+  for (const row of data as MessageRow[]) {
+    if (!latest[row.trade_id]) {
+      latest[row.trade_id] = mapMessage(row)
+    }
+  }
+  return latest
+}
+
 export async function addTradeMessage(
   supabase: SupabaseClient,
   tradeId: string,

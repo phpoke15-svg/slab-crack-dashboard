@@ -2,8 +2,14 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { useEffect, useRef, useState } from "react"
-import { BookOpen, LogOut, User, Users, ArrowLeftRight } from "lucide-react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
+import {
+  BookOpen,
+  LogOut,
+  MessageSquare,
+  User,
+  Users,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useOptionalSocial } from "@/components/trade-binder/social/social-provider"
@@ -16,6 +22,37 @@ function accountInitial(email?: string | null): string {
   const local = email?.split("@")[0]?.trim()
   if (!local) return "?"
   return local.slice(0, 1).toUpperCase()
+}
+
+function SocialNavTab({
+  label,
+  icon,
+  badge,
+  onClick,
+  ariaLabel,
+}: {
+  label: string
+  icon: ReactNode
+  badge?: number
+  onClick: () => void
+  ariaLabel: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      className="relative inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground sm:px-2.5"
+    >
+      <span className="relative flex size-4 items-center justify-center">{icon}</span>
+      <span className="hidden sm:inline">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="absolute -right-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-none text-primary-foreground">
+          {badge > 9 ? "9+" : badge}
+        </span>
+      )}
+    </button>
+  )
 }
 
 export function SiteAuthButton({ className }: SiteAuthButtonProps) {
@@ -71,19 +108,31 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
   return (
     <div ref={rootRef} className={cn("relative flex items-center gap-2", className)}>
       {social && (
-        <button
-          type="button"
-          onClick={() => social.openFriends()}
-          aria-label={`Traders and friends (${social.friendCount} friends)`}
-          className="relative flex size-9 items-center justify-center rounded-xl border border-border bg-secondary/60 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+        <nav
+          aria-label="Social navigation"
+          className="flex items-center rounded-xl border border-border bg-secondary/60 p-1"
         >
-          <Users className="size-4" aria-hidden="true" />
-          {social.friendCount > 0 && (
-            <span className="absolute -right-1.5 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-none text-primary-foreground">
-              {social.friendCount}
-            </span>
-          )}
-        </button>
+          <SocialNavTab
+            label="Profile"
+            icon={<User className="size-4" aria-hidden="true" />}
+            onClick={() => social.openProfile(user.id)}
+            ariaLabel="Open your profile"
+          />
+          <SocialNavTab
+            label="Friends"
+            icon={<Users className="size-4" aria-hidden="true" />}
+            badge={social.friendCount}
+            onClick={() => social.openFriends()}
+            ariaLabel={`Friends (${social.friendCount})`}
+          />
+          <SocialNavTab
+            label="Messages"
+            icon={<MessageSquare className="size-4" aria-hidden="true" />}
+            badge={social.pendingTradeCount}
+            onClick={() => social.openMessages()}
+            ariaLabel={`Messages (${social.pendingTradeCount} pending)`}
+          />
+        </nav>
       )}
 
       <button
@@ -112,21 +161,6 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
             )}
           </div>
 
-          {social && social.currentUser && (
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false)
-                social.openProfile(social.currentUser!.id)
-              }}
-              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-foreground transition-colors hover:bg-accent"
-            >
-              <User className="size-4 text-muted-foreground" aria-hidden="true" />
-              My profile
-            </button>
-          )}
-
           <Link
             href="/binder"
             role="menuitem"
@@ -143,12 +177,12 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
               role="menuitem"
               onClick={() => {
                 setMenuOpen(false)
-                social.openTrades()
+                social.openMessages()
               }}
               className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-accent"
             >
-              <ArrowLeftRight className="size-4 text-muted-foreground" aria-hidden="true" />
-              My trades
+              <MessageSquare className="size-4 text-muted-foreground" aria-hidden="true" />
+              Messages
             </button>
           )}
 
