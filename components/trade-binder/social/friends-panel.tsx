@@ -165,7 +165,10 @@ function TraderRow({ user }: { user: User }) {
         <button
           type="button"
           disabled={busy}
-          onClick={() => void toggleFriend()}
+          onClick={(event) => {
+            event.stopPropagation()
+            void toggleFriend()
+          }}
           aria-label={isFriend ? `Remove ${user.name} from friends` : `Add ${user.name} as a friend`}
           className={cn(
             "group flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",

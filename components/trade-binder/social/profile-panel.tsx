@@ -182,7 +182,8 @@ export function ProfilePanel({ userId }: { userId: string }) {
             <button
               type="button"
               disabled={friendBusy}
-              onClick={() => {
+              onClick={(event) => {
+                event.stopPropagation()
                 setFriendBusy(true)
                 setFriendError(null)
                 void (async () => {
