@@ -13,7 +13,6 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { TcgCard } from "@/lib/trade-binder/cards"
-import type { MatchCard } from "@/lib/trade-binder/users"
 import {
   binderAccessMessage,
   resolveBinderAccess,
@@ -36,10 +35,6 @@ export function ProfilePanel({ userId }: { userId: string }) {
   const [binderLoading, setBinderLoading] = useState(false)
   const [binderAccess, setBinderAccess] = useState<BinderAccessReason | null>(null)
   const [binderMessage, setBinderMessage] = useState<string | null>(null)
-  const [tradeMessage, setTradeMessage] = useState("")
-  const [tradeSending, setTradeSending] = useState(false)
-  const [tradeError, setTradeError] = useState<string | null>(null)
-  const [tradeSuccess, setTradeSuccess] = useState(false)
   const [friendBusy, setFriendBusy] = useState(false)
   const [friendError, setFriendError] = useState<string | null>(null)
 
@@ -176,44 +171,6 @@ export function ProfilePanel({ userId }: { userId: string }) {
   const reviews = social.reviewsFor(userId)
   const rating = social.ratingFor(userId)
 
-  const proposeTrade = async (myItems: MatchCard[], theirItems: MatchCard[]) => {
-    if (!authUser || myItems.length === 0 && theirItems.length === 0) return
-    setTradeSending(true)
-    setTradeError(null)
-    setTradeSuccess(false)
-    try {
-      const res = await fetch("/api/trades", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipientId: userId,
-          message: tradeMessage,
-          myItems: myItems.map((c) => ({
-            cardId: c.cardId,
-            cardName: c.cardName,
-            cardSet: c.cardSet,
-            cardImage: c.cardImage,
-          })),
-          theirItems: theirItems.map((c) => ({
-            cardId: c.cardId,
-            cardName: c.cardName,
-            cardSet: c.cardSet,
-            cardImage: c.cardImage,
-          })),
-        }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        setTradeError(data.error ?? "Could not send trade proposal")
-        return
-      }
-      setTradeSuccess(true)
-      await social.refreshTrades()
-    } finally {
-      setTradeSending(false)
-    }
-  }
-
   return (
     <PanelShell title="Profile" onClose={social.close}>
       <section className="border-b border-border p-4 sm:px-6">
@@ -327,44 +284,13 @@ export function ProfilePanel({ userId }: { userId: string }) {
               {binderWishlist.length > 0 && (
                 <BinderList title="I want" cards={binderWishlist} variant="wishlist" />
               )}
-              <textarea
-                value={tradeMessage}
-                onChange={(e) => setTradeMessage(e.target.value)}
-                rows={2}
-                placeholder="Optional message with your trade proposal…"
-                className="w-full resize-none rounded-xl border border-border bg-secondary/60 p-2.5 text-sm outline-none focus:border-primary/50"
-              />
-              {tradeError && <p className="text-sm text-destructive">{tradeError}</p>}
-              {tradeSuccess && (
-                <p className="text-sm text-trade">Trade proposal sent!</p>
-              )}
               <button
                 type="button"
-                disabled={tradeSending}
-                onClick={() =>
-                  proposeTrade(
-                    binderWishlist.map((c) => ({
-                      cardId: c.id,
-                      cardName: c.name,
-                      cardSet: c.set,
-                      cardImage: c.image,
-                    })),
-                    binderTrade.map((c) => ({
-                      cardId: c.id,
-                      cardName: c.name,
-                      cardSet: c.set,
-                      cardImage: c.image,
-                    })),
-                  )
-                }
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                onClick={() => social.openTradeComposer(userId)}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
               >
-                {tradeSending ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <ArrowLeftRight className="size-4" />
-                )}
-                Propose trade
+                <ArrowLeftRight className="size-4" />
+                Start trade chat
               </button>
             </div>
           )}

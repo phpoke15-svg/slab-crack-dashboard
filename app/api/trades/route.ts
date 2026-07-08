@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { addTradeMessage } from "@/lib/trade-binder/trade-messages"
 import { createTrade, listTradesForUser, updateTradeStatus } from "@/lib/trade-binder/trades"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
@@ -28,6 +29,18 @@ export async function POST(request: NextRequest) {
   )
 
   if (error) return NextResponse.json({ error }, { status: 400 })
+
+  if (trade) {
+    const note = (body.message ?? "").trim()
+    await addTradeMessage(
+      auth.supabase,
+      trade.id,
+      auth.user.id,
+      note || "Sent a trade proposal.",
+      "proposal",
+    )
+  }
+
   return NextResponse.json({ trade })
 }
 

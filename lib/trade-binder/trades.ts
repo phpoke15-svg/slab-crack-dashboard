@@ -145,6 +145,81 @@ export async function createTrade(
   return { trade: mapTrade(tradeRow as TradeRow, (items ?? []) as TradeItemRow[]), error: null }
 }
 
+export async function getTradeById(
+  supabase: SupabaseClient,
+  tradeId: string,
+  userId: string,
+): Promise<Trade | null> {
+  const { data: tradeRow, error } = await supabase
+    .from("trades")
+    .select("*")
+    .eq("id", tradeId)
+    .or(`initiator_id.eq.${userId},recipient_id.eq.${userId}`)
+    .maybeSingle()
+
+  if (error || !tradeRow) return null
+
+  const { data: items } = await supabase.from("trade_items").select("*").eq("trade_id", tradeId)
+  return mapTrade(tradeRow as TradeRow, (items ?? []) as TradeItemRow[])
+}
+
+export async function replaceTradeItems(
+  supabase: SupabaseClient,
+  tradeId: string,
+  userId: string,
+  initiatorId: string,
+  recipientId: string,
+  initiatorItems: { cardId: string; cardName: string; cardSet: string; cardImage: string }[],
+  recipientItems: { cardId: string; cardName: string; cardSet: string; cardImage: string }[],
+): Promise<{ error: string | null }> {
+  const { data: trade } = await supabase
+    .from("trades")
+    .select("status, initiator_id, recipient_id")
+    .eq("id", tradeId)
+    .maybeSingle()
+
+  if (!trade || trade.status !== "pending") {
+    return { error: "Trade is not open for changes" }
+  }
+  if (trade.initiator_id !== userId && trade.recipient_id !== userId) {
+    return { error: "Not a participant" }
+  }
+
+  const { error: deleteError } = await supabase.from("trade_items").delete().eq("trade_id", tradeId)
+  if (deleteError) return { error: deleteError.message }
+
+  const rows = [
+    ...initiatorItems.map((c) => ({
+      trade_id: tradeId,
+      user_id: initiatorId,
+      card_id: c.cardId,
+      card_name: c.cardName,
+      card_set: c.cardSet,
+      card_image: c.cardImage,
+    })),
+    ...recipientItems.map((c) => ({
+      trade_id: tradeId,
+      user_id: recipientId,
+      card_id: c.cardId,
+      card_name: c.cardName,
+      card_set: c.cardSet,
+      card_image: c.cardImage,
+    })),
+  ]
+
+  if (rows.length > 0) {
+    const { error: insertError } = await supabase.from("trade_items").insert(rows)
+    if (insertError) return { error: insertError.message }
+  }
+
+  await supabase
+    .from("trades")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", tradeId)
+
+  return { error: null }
+}
+
 export async function updateTradeStatus(
   supabase: SupabaseClient,
   tradeId: string,

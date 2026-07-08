@@ -14,11 +14,15 @@ import type { TraderProfile } from "@/lib/trade-binder/profile"
 import { FriendsPanel } from "./friends-panel"
 import { ProfilePanel } from "./profile-panel"
 import { TradesPanel } from "./trades-panel"
+import { TradeComposerPanel } from "./trade-composer-panel"
+import { TradeChatPanel } from "./trade-chat-panel"
 
 type Panel =
   | { type: "friends" }
   | { type: "profile"; userId: string }
   | { type: "trades" }
+  | { type: "trade-composer"; userId: string; prefillMyIds?: string[]; prefillTheirIds?: string[] }
+  | { type: "trade-chat"; tradeId: string }
   | null
 
 type SocialContextValue = {
@@ -44,6 +48,8 @@ type SocialContextValue = {
   openFriends: () => void
   openProfile: (id: string) => void
   openTrades: () => void
+  openTradeComposer: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
+  openTradeChat: (tradeId: string) => void
   close: () => void
 }
 
@@ -243,6 +249,14 @@ export function SocialProvider({ children }: { children: ReactNode }) {
         void loadReviews(id)
       },
       openTrades: () => setPanel({ type: "trades" }),
+      openTradeComposer: (userId, prefill) =>
+        setPanel({
+          type: "trade-composer",
+          userId,
+          prefillMyIds: prefill?.myIds,
+          prefillTheirIds: prefill?.theirIds,
+        }),
+      openTradeChat: (tradeId) => setPanel({ type: "trade-chat", tradeId }),
       close: () => setPanel(null),
     }
   }, [
@@ -269,6 +283,14 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       {panel?.type === "friends" && <FriendsPanel />}
       {panel?.type === "profile" && <ProfilePanel userId={panel.userId} />}
       {panel?.type === "trades" && <TradesPanel />}
+      {panel?.type === "trade-composer" && (
+        <TradeComposerPanel
+          userId={panel.userId}
+          prefillMyIds={panel.prefillMyIds}
+          prefillTheirIds={panel.prefillTheirIds}
+        />
+      )}
+      {panel?.type === "trade-chat" && <TradeChatPanel tradeId={panel.tradeId} />}
     </SocialContext.Provider>
   )
 }

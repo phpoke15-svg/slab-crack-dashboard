@@ -307,10 +307,20 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                 </button>
                 <button
                   type="button"
-                  onClick={() => social?.openProfile(match.userId)}
+                  onClick={() => {
+                    const pair = match.fairPairs[0]
+                    social?.openTradeComposer(match.userId, {
+                      myIds: pair
+                        ? [pair.youOffer.cardId]
+                        : match.youHaveTheyWant.slice(0, 1).map((c) => c.cardId),
+                      theirIds: pair
+                        ? [pair.theyOffer.cardId]
+                        : match.theyHaveYouWant.slice(0, 1).map((c) => c.cardId),
+                    })
+                  }}
                   className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-medium text-primary-foreground"
                 >
-                  <ArrowLeftRight className="size-3.5" /> Propose trade
+                  <ArrowLeftRight className="size-3.5" /> Start trade
                 </button>
               </div>
             </article>

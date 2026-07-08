@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeftRight, Check, Loader2, X } from "lucide-react"
+import { ArrowLeftRight } from "lucide-react"
 import type { Trade } from "@/lib/trade-binder/users"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
@@ -13,7 +13,6 @@ export function TradesPanel() {
   const { user } = useAuth()
   const [trades, setTrades] = useState<Trade[]>(social.trades)
   const [loading, setLoading] = useState(false)
-  const [actionId, setActionId] = useState<string | null>(null)
 
   useEffect(() => {
     setTrades(social.trades)
@@ -23,20 +22,6 @@ export function TradesPanel() {
     setLoading(true)
     void social.refreshTrades().finally(() => setLoading(false))
   }, [social])
-
-  const updateStatus = async (tradeId: string, status: Trade["status"]) => {
-    setActionId(tradeId)
-    try {
-      const res = await fetch("/api/trades", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tradeId, status }),
-      })
-      if (res.ok) await social.refreshTrades()
-    } finally {
-      setActionId(null)
-    }
-  }
 
   return (
     <PanelShell title="Trades" onClose={social.close}>
@@ -55,66 +40,32 @@ export function TradesPanel() {
               const other = social.getCachedProfile(otherId)
               const myItems = trade.items.filter((i) => i.userId === user?.id)
               const theirItems = trade.items.filter((i) => i.userId !== user?.id)
-              const busy = actionId === trade.id
 
               return (
-                <li key={trade.id} className="rounded-xl border border-border bg-card/60 p-3">
-                  <div className="flex items-center gap-2">
-                    {other && <UserAvatar user={other} size="sm" />}
-                    <div className="min-w-0 flex-1">
-                      <button
-                        type="button"
-                        onClick={() => social.openProfile(otherId)}
-                        className="truncate text-sm font-medium text-foreground hover:text-primary"
-                      >
-                        {other?.name ?? "Trader"}
-                      </button>
-                      <p className="text-[10px] capitalize text-muted-foreground">{trade.status}</p>
+                <li key={trade.id}>
+                  <button
+                    type="button"
+                    onClick={() => social.openTradeChat(trade.id)}
+                    className="w-full rounded-xl border border-border bg-card/60 p-3 text-left transition-colors hover:border-primary/40"
+                  >
+                    <div className="flex items-center gap-2">
+                      {other && <UserAvatar user={other} size="sm" />}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {other?.name ?? "Trader"}
+                        </p>
+                        <p className="text-[10px] capitalize text-muted-foreground">
+                          {trade.status} · Open chat
+                        </p>
+                      </div>
+                      <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
                     </div>
-                    <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
-                  </div>
 
-                  {trade.message && (
-                    <p className="mt-2 text-sm text-muted-foreground text-pretty">{trade.message}</p>
-                  )}
-
-                  <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
-                    <TradeItemList title="You give" items={myItems} />
-                    <TradeItemList title="You get" items={theirItems} />
-                  </div>
-
-                  {trade.status === "pending" && !isInitiator && (
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => updateStatus(trade.id, "accepted")}
-                        className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground"
-                      >
-                        {busy ? <Loader2 className="size-3 animate-spin" /> : <Check className="size-3" />}
-                        Accept
-                      </button>
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => updateStatus(trade.id, "declined")}
-                        className="flex flex-1 items-center justify-center gap-1 rounded-lg border border-border px-3 py-2 text-xs font-medium"
-                      >
-                        <X className="size-3" /> Decline
-                      </button>
+                    <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+                      <TradeItemList title="You give" items={myItems} />
+                      <TradeItemList title="You get" items={theirItems} />
                     </div>
-                  )}
-
-                  {trade.status === "accepted" && (
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => updateStatus(trade.id, "completed")}
-                      className="mt-3 w-full rounded-lg bg-trade px-3 py-2 text-xs font-medium text-white"
-                    >
-                      Mark completed
-                    </button>
-                  )}
+                  </button>
                 </li>
               )
             })}

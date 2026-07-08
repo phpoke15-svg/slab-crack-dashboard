@@ -65,3 +65,21 @@ export type Trade = {
   completedAt: string | null
   items: TradeItem[]
 }
+
+export type TradeCardDraft = {
+  cardId: string
+  cardName: string
+  cardSet: string
+  cardImage: string
+}
+
+export type TradeMessageType = "text" | "proposal" | "counter" | "status"
+
+export type TradeMessage = {
+  id: string
+  tradeId: string
+  senderId: string
+  body: string
+  messageType: TradeMessageType
+  createdAt: string
+}
