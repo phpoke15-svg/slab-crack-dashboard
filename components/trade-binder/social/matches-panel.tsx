@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeftRight, Loader2, RefreshCw, Sparkles, User } from "lucide-react"
-import { computeMatchSuggestions } from "@/lib/trade-binder/matching"
 import {
   formatUsd,
   MATCH_VALUE_TOLERANCE_DEFAULT,
@@ -31,7 +30,7 @@ const TOLERANCE_OPTIONS = [
 ] as const
 
 export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps) {
-  const { user, getSupabase } = useAuth()
+  const { user } = useAuth()
   const social = useOptionalSocial()
   const [suggestions, setSuggestions] = useState<MatchSuggestion[]>([])
   const [loading, setLoading] = useState(false)
@@ -52,19 +51,35 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
     setLoading(true)
     setError(null)
     try {
-      const result = await computeMatchSuggestions(getSupabase(), user.id, valueTolerance)
-      if (result.error) {
+      const res = await fetch(
+        `/api/match/suggestions?tolerance=${encodeURIComponent(String(valueTolerance))}`,
+        { credentials: "same-origin" },
+      )
+      const result = (await res.json().catch(() => ({}))) as {
+        suggestions?: MatchSuggestion[]
+        error?: string | null
+        myHaveCount?: number
+        myWantCount?: number
+        pricesLoaded?: boolean
+        overlapUsers?: number
+      }
+
+      if (!res.ok) {
+        setError(result.error ?? "Could not load matches.")
+        setSuggestions([])
+        onCountChange?.(0)
+      } else if (result.error) {
         setError(result.error)
         setSuggestions([])
         onCountChange?.(0)
       } else {
-        setSuggestions(result.suggestions)
-        setMyHaveCount(result.myHaveCount)
-        setMyWantCount(result.myWantCount)
-        setPricesLoaded(result.pricesLoaded)
-        setOverlapUsers(result.overlapUsers)
-        onCountChange?.(result.suggestions.length)
-        for (const s of result.suggestions) social?.cacheProfile(s.profile)
+        setSuggestions(result.suggestions ?? [])
+        setMyHaveCount(result.myHaveCount ?? 0)
+        setMyWantCount(result.myWantCount ?? 0)
+        setPricesLoaded(result.pricesLoaded ?? false)
+        setOverlapUsers(result.overlapUsers ?? 0)
+        onCountChange?.(result.suggestions?.length ?? 0)
+        for (const s of result.suggestions ?? []) social?.cacheProfile(s.profile)
       }
     } catch {
       setError("Could not load matches.")
@@ -73,7 +88,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
     } finally {
       setLoading(false)
     }
-  }, [user, getSupabase, social, onCountChange, valueTolerance])
+  }, [user, social, onCountChange, valueTolerance])
 
   useEffect(() => {
     if (active && user) void loadMatches()
@@ -214,7 +229,9 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
 
               {!match.valueVerified && (
                 <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
-                  Card overlap found — prices unavailable, value check skipped.
+                  {match.fairPairs.length === 0
+                    ? "Card overlap found — values differ or prices unavailable."
+                    : "Card overlap found — prices unavailable, value check skipped."}
                 </p>
               )}
 

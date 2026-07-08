@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
 import { listFriendIds } from "@/lib/trade-binder/friends"
 import {
   cardIdsEquivalent,
@@ -15,6 +16,10 @@ import {
 } from "@/lib/trade-binder/match-value"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
 import type { MatchCard, MatchSuggestion } from "@/lib/trade-binder/users"
+import {
+  filterRowsByBinderVisibility,
+  loadVisibilityContext,
+} from "@/lib/trade-binder/visibility-filter"
 
 type BinderRow = {
   user_id: string
@@ -210,11 +215,13 @@ export async function computeMatchSuggestions(
     }
   }
 
+  const crossUserReader = createCrossUserReader() ?? supabase
+
   const [theyHaveRes, theyWantRes, theyHaveByName, theyWantByName] = await Promise.all([
-    fetchByCardIds(supabase, userId, "trade", myWant),
-    fetchByCardIds(supabase, userId, "wishlist", myHave),
-    fetchByNameSet(supabase, userId, "trade", myWantRows),
-    fetchByNameSet(supabase, userId, "wishlist", myHaveRows),
+    fetchByCardIds(crossUserReader, userId, "trade", myWant),
+    fetchByCardIds(crossUserReader, userId, "wishlist", myHave),
+    fetchByNameSet(crossUserReader, userId, "trade", myWantRows),
+    fetchByNameSet(crossUserReader, userId, "wishlist", myHaveRows),
   ])
 
   if (theyHaveRes.error || theyWantRes.error) {
@@ -237,13 +244,34 @@ export async function computeMatchSuggestions(
     myHaveRows,
   )
 
+  const allOwnerIds = [...theyHaveRows, ...theyWantRows].map((row) => row.user_id)
+  const { friendSet, profilesByUser } = await loadVisibilityContext(
+    crossUserReader,
+    userId,
+    allOwnerIds,
+    friendIds,
+  )
+
+  const visibleTheyHaveRows = filterRowsByBinderVisibility(
+    theyHaveRows,
+    userId,
+    friendSet,
+    profilesByUser,
+  )
+  const visibleTheyWantRows = filterRowsByBinderVisibility(
+    theyWantRows,
+    userId,
+    friendSet,
+    profilesByUser,
+  )
+
   const byUser = new Map<
     string,
     { theyHaveYouWant: MatchCard[]; youHaveTheyWant: MatchCard[] }
   >()
 
-  mergeMatchRows(byUser, theyHaveRows, "theyHaveYouWant")
-  mergeMatchRows(byUser, theyWantRows, "youHaveTheyWant")
+  mergeMatchRows(byUser, visibleTheyHaveRows, "theyHaveYouWant")
+  mergeMatchRows(byUser, visibleTheyWantRows, "youHaveTheyWant")
 
   const overlapUsers = [...byUser.values()].filter(
     (m) => m.theyHaveYouWant.length > 0 && m.youHaveTheyWant.length > 0,
@@ -258,7 +286,7 @@ export async function computeMatchSuggestions(
   const pricedCards = await enrichMatchCardsWithPrices(uniqueCards)
   const pricesLoaded = pricedCards.some((c) => c.rawPrice && c.rawPrice > 0)
 
-  const friendSet = new Set(friendIds)
+  const friendSetForScore = new Set(friendIds)
   const suggestions: MatchSuggestion[] = []
 
   for (const [otherId, match] of byUser) {
@@ -266,20 +294,15 @@ export async function computeMatchSuggestions(
 
     const theyHaveYouWant = attachPrices(match.theyHaveYouWant, pricedCards)
     const youHaveTheyWant = attachPrices(match.youHaveTheyWant, pricedCards)
-    let fairPairs = buildFairTradePairs(theyHaveYouWant, youHaveTheyWant, valueTolerance)
-    let valueVerified = fairPairs.length > 0
-
-    if (fairPairs.length === 0 && !pricesLoaded) {
-      valueVerified = false
-    } else if (fairPairs.length === 0) {
-      continue
-    }
+    const fairPairs = buildFairTradePairs(theyHaveYouWant, youHaveTheyWant, valueTolerance)
+    const valueVerified = fairPairs.length > 0
 
     const filtered = valueVerified
       ? filterCardsToFairPairs(theyHaveYouWant, youHaveTheyWant, fairPairs)
       : { theyHaveYouWant, youHaveTheyWant }
 
-    const profile = await fetchProfile(supabase, otherId)
+    const profile =
+      profilesByUser.get(otherId) ?? (await fetchProfile(crossUserReader, otherId))
     if (!profile) continue
 
     suggestions.push({
@@ -292,8 +315,8 @@ export async function computeMatchSuggestions(
       score:
         (fairPairs.length || Math.min(filtered.theyHaveYouWant.length, filtered.youHaveTheyWant.length)) *
           10 +
-        (friendSet.has(otherId) ? 5 : 0),
-      isFriend: friendSet.has(otherId),
+        (friendSetForScore.has(otherId) ? 5 : 0),
+      isFriend: friendSetForScore.has(otherId),
     })
   }
 

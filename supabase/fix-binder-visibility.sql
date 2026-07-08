@@ -1,5 +1,10 @@
 -- Run this if friends' binders / matches return empty but cards exist.
 -- Requires pokematch.sql to have been run first (profiles + friendships tables).
+--
+-- Full setup order:
+--   1. supabase/user_binders.sql
+--   2. supabase/pokematch.sql   (profiles, friends, trades, reviews, visibility)
+-- Or run this file alone after step 1 if social tables already exist.
 
 -- Cross-user binder visibility (safe to re-run)
 create or replace function public.can_view_binder(owner_id uuid)

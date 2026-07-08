@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { binderAccessMessage, canViewBinderByPolicy, resolveBinderAccess } from "@/lib/trade-binder/binder-access"
 import { loadBinderCards } from "@/lib/trade-binder/binder"
+import { readerForBinderLoad } from "@/lib/trade-binder/cross-user-client"
 import { listFriendIds } from "@/lib/trade-binder/friends"
-import { fetchProfile } from "@/lib/trade-binder/profile-db"
+import { ensureProfile, fetchProfile } from "@/lib/trade-binder/profile-db"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export async function GET(
@@ -13,10 +14,17 @@ export async function GET(
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { userId } = await params
-  const profile = await fetchProfile(auth.supabase, userId)
-  if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 })
-
   const isSelf = auth.user.id === userId
+  const readClient = readerForBinderLoad(auth.user.id, userId, auth.supabase)
+
+  let profile = await fetchProfile(readClient, userId)
+  if (!profile && isSelf) {
+    profile = await ensureProfile(auth.supabase, auth.user.id, auth.user.email)
+  }
+  if (!profile) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+  }
+
   const friendIds = isSelf ? [] : await listFriendIds(auth.supabase, auth.user.id)
   const isFriend = friendIds.includes(userId)
 
@@ -37,7 +45,7 @@ export async function GET(
     })
   }
 
-  const cards = await loadBinderCards(auth.supabase, userId)
+  const cards = await loadBinderCards(readClient, userId)
   const trade = cards.filter((c) => c.status === "trade")
   const wishlist = cards.filter((c) => c.status === "wishlist")
   const access = resolveBinderAccess({

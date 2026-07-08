@@ -77,6 +77,15 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     }
     setProfileLoading(true)
     try {
+      const res = await fetch("/api/profile", { credentials: "same-origin" })
+      if (res.ok) {
+        const data = (await res.json()) as { profile?: User }
+        if (data.profile) {
+          setCurrentUser(data.profile)
+          setProfileCache((prev) => ({ ...prev, [data.profile!.id]: data.profile! }))
+        }
+        return
+      }
       const profile = await fetchProfile(getSupabase(), user.id)
       if (profile) {
         setCurrentUser(profile)
@@ -90,6 +99,19 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const refreshFriends = useCallback(async () => {
     if (!user) {
       setFriendIds([])
+      return
+    }
+    const res = await fetch("/api/friends", { credentials: "same-origin" })
+    if (res.ok) {
+      const data = (await res.json()) as { friendIds?: string[]; profiles?: User[] }
+      setFriendIds(data.friendIds ?? [])
+      if (data.profiles?.length) {
+        setProfileCache((prev) => {
+          const next = { ...prev }
+          for (const p of data.profiles!) next[p.id] = p
+          return next
+        })
+      }
       return
     }
     const ids = await listFriendIds(getSupabase(), user.id)
@@ -219,6 +241,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       openProfile: (id) => {
         setPanel({ type: "profile", userId: id })
         void loadReviews(id)
+        void refreshFriends()
       },
       openTrades: () => setPanel({ type: "trades" }),
       close: () => setPanel(null),

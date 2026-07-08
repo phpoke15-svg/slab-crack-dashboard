@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
 import { listReviewsForUser } from "@/lib/trade-binder/reviews"
 import { averageRating } from "@/lib/trade-binder/users"
@@ -12,7 +13,8 @@ export async function GET(
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const { userId } = await params
-  const profile = await fetchProfile(auth.supabase, userId)
+  const readClient = createCrossUserReader() ?? auth.supabase
+  const profile = await fetchProfile(readClient, userId)
   if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 })
 
   const reviews = await listReviewsForUser(auth.supabase, userId)
