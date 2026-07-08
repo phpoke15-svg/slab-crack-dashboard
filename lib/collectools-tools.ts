@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { BookOpen, Layers, ShieldCheck } from "lucide-react"
+import { Bell, BookOpen, Layers, ShieldCheck } from "lucide-react"
 
 export type CollecTool = {
   id: string
@@ -37,5 +37,14 @@ export const COLLECTOOLS: CollecTool[] = [
     description:
       "Build your binder, mark cards for trade or wishlist, and connect with other collectors.",
     icon: BookOpen,
+  },
+  {
+    id: "queue-watch",
+    href: "/queue-watch",
+    name: "Queue Watch",
+    tagline: "Pokemon Center alerts",
+    description:
+      "Instant browser and Discord alerts when the Pokemon Center virtual queue goes live.",
+    icon: Bell,
   },
 ]

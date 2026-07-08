@@ -1,0 +1,63 @@
+{
+  "expo": {
+    "name": "CollecTools",
+    "slug": "pokepax",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "scheme": "collectools",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0b0e14"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.collectools.app",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "fetch",
+          "remote-notification",
+          "fetch",
+          "remote-notification"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.collectools.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0b0e14"
+      },
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "POST_NOTIFICATIONS",
+        "WAKE_LOCK",
+        "INTERNET",
+        "FOREGROUND_SERVICE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.WAKE_LOCK"
+      ]
+    },
+    "plugins": [
+      "expo-background-fetch",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2563eb"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "36c104de-8e81-4804-86b5-5d5a0d70ae18"
+      }
+    },
+    "owner": "phpoke15s-team"
+  }
+}
