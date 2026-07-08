@@ -2,12 +2,11 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Loader2, SearchX, Trash2 } from "lucide-react"
+import { SearchX } from "lucide-react"
 import { type CardStatus, type CatalogCard, type TcgCard } from "@/lib/trade-binder/cards"
 import {
   addCardToBinder,
   binderCardKey,
-  clearUserBinder,
   dedupeBinderCards,
   enrichBinderCardPrices,
   loadBinderCards,
@@ -28,11 +27,10 @@ import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
 import { MatchesPanel } from "@/components/trade-binder/social/matches-panel"
 import { SiteAuthButton } from "@/components/site-auth-button"
 
-type BinderTab = "search" | "binder" | "have" | "want" | "matches"
+type BinderTab = "search" | "have" | "want" | "matches"
 
 const tabs: { key: BinderTab; label: string }[] = [
   { key: "search", label: "Search" },
-  { key: "binder", label: "My Binder" },
   { key: "have", label: "I have" },
   { key: "want", label: "I want" },
   { key: "matches", label: "Matches" },
@@ -52,8 +50,6 @@ export function MyBinder() {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [activeTab, setActiveTab] = useState<BinderTab>("search")
-  const [clearing, setClearing] = useState(false)
-  const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [matchCount, setMatchCount] = useState(0)
   const loadIdRef = useRef(0)
 
@@ -197,11 +193,8 @@ export function MyBinder() {
 
   const visibleCards = useMemo(() => {
     const status = tabToStatus(activeTab)
-    let filtered: TcgCard[]
-    if (status) filtered = cards.filter((c) => c.status === status)
-    else if (activeTab === "binder") filtered = cards
-    else filtered = []
-    return dedupeBinderCards(filtered)
+    if (!status) return []
+    return dedupeBinderCards(cards.filter((c) => c.status === status))
   }, [activeTab, cards])
 
   const filteredCount = visibleCards.length
@@ -212,47 +205,13 @@ export function MyBinder() {
   const wishlistCount = cards.filter((c) => c.status === "wishlist").length
 
   const tabCount = (tab: BinderTab) => {
-    if (tab === "binder") return cards.length
     if (tab === "have") return tradeCount
     if (tab === "want") return wishlistCount
     if (tab === "matches") return matchCount
     return null
   }
 
-  const clearBinder = () => {
-    if (!user || cards.length === 0) return
-    setShowClearConfirm(true)
-  }
-
-  const confirmClearBinder = () => {
-    setShowClearConfirm(false)
-    if (!user || cards.length === 0) return
-
-    runWithAuth(async () => {
-      const {
-        data: { user: currentUser },
-      } = await getSupabase().auth.getUser()
-      if (!currentUser) return
-
-      const loadId = ++loadIdRef.current
-      setClearing(true)
-      setSaveError(null)
-
-      try {
-        await clearUserBinder(getSupabase(), currentUser.id)
-        if (loadId !== loadIdRef.current) return
-        setCards([])
-        setQuery("")
-        setActiveTab("search")
-      } catch (err) {
-        if (loadId === loadIdRef.current) {
-          setSaveError(binderErrorMessage(err, "Could not clear your binder"))
-        }
-      } finally {
-        if (loadId === loadIdRef.current) setClearing(false)
-      }
-    })
-  }
+  const isListTab = activeTab === "have" || activeTab === "want"
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -262,24 +221,6 @@ export function MyBinder() {
             <CollecToolsBrand href="/" subtitle="PokeMatch · collect & trade" size="sm" />
             <SiteAuthButton />
           </div>
-
-          {activeTab === "binder" && user && cards.length > 0 && (
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                onClick={clearBinder}
-                disabled={clearing || binderLoading}
-                className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive disabled:opacity-50"
-              >
-                {clearing ? (
-                  <Loader2 className="size-3 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Trash2 className="size-3" aria-hidden="true" />
-                )}
-                Clear binder
-              </button>
-            </div>
-          )}
 
           {saveError && (
             <p className="mt-3 rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -395,10 +336,11 @@ export function MyBinder() {
                 Showing {gridCards.length.toLocaleString()} of {filteredCount.toLocaleString()} cards.
               </p>
             )}
-            {activeTab !== "binder" && (
+            {isListTab && (
               <p className="mb-3 text-xs text-muted-foreground">
-                Tap <span className="text-trade">I have</span> or <span className="text-wishlist">I want</span> on a
-                card to move it between folders.
+                Tap the trash icon to remove a card, or use{" "}
+                <span className="text-trade">I have</span> / <span className="text-wishlist">I want</span> to move it
+                between lists.
               </p>
             )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -408,7 +350,7 @@ export function MyBinder() {
                   card={card}
                   onSetStatus={setCardStatus}
                   onRemove={removeCard}
-                  showRemove={activeTab === "binder"}
+                  showRemove={isListTab}
                 />
               ))}
             </div>
@@ -416,11 +358,7 @@ export function MyBinder() {
         ) : (
           <EmptyState
             title={
-              activeTab === "binder"
-                ? "Your binder is empty"
-                : activeTab === "have"
-                  ? "Nothing listed to trade"
-                  : "Nothing on your want list"
+              activeTab === "have" ? "Nothing listed to trade" : "Nothing on your want list"
             }
             message={
               user
@@ -448,54 +386,6 @@ export function MyBinder() {
           />
         )}
       </main>
-
-      {showClearConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label="Cancel clear binder"
-            onClick={() => setShowClearConfirm(false)}
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm"
-          />
-
-          <div
-            role="alertdialog"
-            aria-labelledby="clear-binder-title"
-            aria-describedby="clear-binder-description"
-            className="relative z-10 w-full max-w-sm overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
-          >
-            <div className="border-b border-border px-4 py-3">
-              <h2 id="clear-binder-title" className="text-base font-semibold text-foreground">
-                Clear binder?
-              </h2>
-            </div>
-
-            <div className="px-4 py-4">
-              <p id="clear-binder-description" className="text-sm text-muted-foreground text-pretty">
-                Remove all {cards.length.toLocaleString()} cards from your binder. This cannot be undone.
-              </p>
-            </div>
-
-            <div className="flex gap-2 border-t border-border p-4">
-              <button
-                type="button"
-                onClick={() => setShowClearConfirm(false)}
-                className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={confirmClearBinder}
-                disabled={clearing}
-                className="flex-1 rounded-xl bg-destructive px-4 py-2.5 text-sm font-medium text-destructive-foreground transition-colors hover:bg-destructive/90 disabled:opacity-50"
-              >
-                Clear all
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
