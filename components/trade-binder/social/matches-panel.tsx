@@ -6,6 +6,7 @@ import { ArrowLeftRight, Loader2, RefreshCw, Sparkles, User } from "lucide-react
 import { computeMatchSuggestions } from "@/lib/trade-binder/matching"
 import {
   formatUsd,
+  MATCH_VALUE_TOLERANCE_DEFAULT,
   MATCH_VALUE_TOLERANCE_MAX,
   MATCH_VALUE_TOLERANCE_MIN,
 } from "@/lib/trade-binder/match-value"
@@ -23,7 +24,10 @@ type MatchesPanelProps = {
 const TOLERANCE_OPTIONS = [
   { label: "5%", value: MATCH_VALUE_TOLERANCE_MIN },
   { label: "6%", value: 0.06 },
-  { label: "7%", value: MATCH_VALUE_TOLERANCE_MAX },
+  { label: "7%", value: 0.07 },
+  { label: "8%", value: 0.08 },
+  { label: "9%", value: 0.09 },
+  { label: "10%", value: MATCH_VALUE_TOLERANCE_MAX },
 ] as const
 
 export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps) {
@@ -35,7 +39,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
   const [myHaveCount, setMyHaveCount] = useState(0)
   const [myWantCount, setMyWantCount] = useState(0)
   const [pricesLoaded, setPricesLoaded] = useState(false)
-  const [valueTolerance, setValueTolerance] = useState(0.06)
+  const [valueTolerance, setValueTolerance] = useState(MATCH_VALUE_TOLERANCE_DEFAULT)
 
   const loadMatches = useCallback(async () => {
     if (!user) {

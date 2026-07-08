@@ -1,7 +1,7 @@
 import type { FairTradePair, MatchCard } from "@/lib/trade-binder/users"
 
 export const MATCH_VALUE_TOLERANCE_MIN = 0.05
-export const MATCH_VALUE_TOLERANCE_MAX = 0.07
+export const MATCH_VALUE_TOLERANCE_MAX = 0.1
 export const MATCH_VALUE_TOLERANCE_DEFAULT = 0.06
 
 const PRICE_CHUNK = 20
