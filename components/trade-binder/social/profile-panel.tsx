@@ -186,11 +186,16 @@ export function ProfilePanel({ userId }: { userId: string }) {
                 setFriendBusy(true)
                 setFriendError(null)
                 void (async () => {
-                  const err = isFriend
-                    ? await social.removeFriend(userId)
-                    : await social.addFriend(userId)
-                  if (err) setFriendError(err)
-                  setFriendBusy(false)
+                  try {
+                    const err = isFriend
+                      ? await social.removeFriend(userId)
+                      : await social.addFriend(userId)
+                    if (err) setFriendError(err)
+                  } catch {
+                    setFriendError("Something went wrong")
+                  } finally {
+                    setFriendBusy(false)
+                  }
                 })()
               }}
               className={cn(
