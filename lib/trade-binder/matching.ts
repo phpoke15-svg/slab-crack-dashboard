@@ -1,6 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { listFriendIds } from "@/lib/trade-binder/friends"
 import {
+  cardIdsEquivalent,
+  cardIdVariants,
+  cardsMatchByNameSet,
+  expandCardIdList,
+  nameSetKey,
+} from "@/lib/trade-binder/card-id-match"
+import {
   buildFairTradePairs,
   enrichMatchCardsWithPrices,
   filterCardsToFairPairs,
@@ -25,11 +32,43 @@ const BINDER_SELECT =
 function rowToMatchCard(row: BinderRow): MatchCard {
   return {
     cardId: row.card_id,
-    cardName: row.card_name ?? "Unknown card",
-    cardSet: row.card_set ?? "",
+    cardName: row.card_name?.trim() || "Unknown card",
+    cardSet: row.card_set?.trim() || "",
     cardImage: row.card_image ?? "",
     cardNumber: row.card_number ?? undefined,
   }
+}
+
+function rowKey(row: BinderRow): string {
+  return `${row.user_id}:${row.card_id}`
+}
+
+function filterTheyHaveYouWant(rows: BinderRow[], myWantRows: BinderRow[]): BinderRow[] {
+  const wantIds = myWantRows.map((r) => r.card_id)
+  const wantKeys = new Set(
+    myWantRows.map((r) => nameSetKey(r.card_name, r.card_set)).filter(Boolean) as string[],
+  )
+
+  return rows.filter((row) => {
+    if (wantIds.some((id) => cardIdsEquivalent(id, row.card_id))) return true
+    const key = nameSetKey(row.card_name, row.card_set)
+    if (key && wantKeys.has(key)) return true
+    return myWantRows.some((want) => cardsMatchByNameSet(rowToMatchCard(want), row))
+  })
+}
+
+function filterYouHaveTheyWant(rows: BinderRow[], myHaveRows: BinderRow[]): BinderRow[] {
+  const haveIds = myHaveRows.map((r) => r.card_id)
+  const haveKeys = new Set(
+    myHaveRows.map((r) => nameSetKey(r.card_name, r.card_set)).filter(Boolean) as string[],
+  )
+
+  return rows.filter((row) => {
+    if (haveIds.some((id) => cardIdsEquivalent(id, row.card_id))) return true
+    const key = nameSetKey(row.card_name, row.card_set)
+    if (key && haveKeys.has(key)) return true
+    return myHaveRows.some((have) => cardsMatchByNameSet(rowToMatchCard(have), row))
+  })
 }
 
 function mergeMatchRows(
@@ -41,15 +80,37 @@ function mergeMatchRows(
     if (!byUser.has(row.user_id)) {
       byUser.set(row.user_id, { theyHaveYouWant: [], youHaveTheyWant: [] })
     }
-    byUser.get(row.user_id)![direction].push(rowToMatchCard(row))
+    const bucket = byUser.get(row.user_id)!
+    const card = rowToMatchCard(row)
+    const list = bucket[direction]
+    if (!list.some((c) => cardIdsEquivalent(c.cardId, card.cardId))) {
+      list.push(card)
+    }
   }
 }
 
 function attachPrices(cards: MatchCard[], priced: MatchCard[]): MatchCard[] {
-  const priceById = new Map(priced.map((c) => [c.cardId, c.rawPrice]))
-  return cards.map((c) => {
-    const rawPrice = priceById.get(c.cardId)
-    return rawPrice && rawPrice > 0 ? { ...c, rawPrice } : c
+  const priceById = new Map<string, number>()
+  const priceByNameSet = new Map<string, number>()
+
+  for (const card of priced) {
+    if (!card.rawPrice || card.rawPrice <= 0) continue
+    for (const variant of cardIdVariants(card.cardId)) {
+      if (!priceById.has(variant)) priceById.set(variant, card.rawPrice)
+    }
+    const key = nameSetKey(card.cardName, card.cardSet)
+    if (key && !priceByNameSet.has(key)) priceByNameSet.set(key, card.rawPrice)
+  }
+
+  return cards.map((card) => {
+    if (card.rawPrice && card.rawPrice > 0) return card
+    for (const variant of cardIdVariants(card.cardId)) {
+      const rawPrice = priceById.get(variant)
+      if (rawPrice && rawPrice > 0) return { ...card, rawPrice }
+    }
+    const key = nameSetKey(card.cardName, card.cardSet)
+    const byName = key ? priceByNameSet.get(key) : undefined
+    return byName ? { ...card, rawPrice: byName } : card
   })
 }
 
@@ -59,6 +120,56 @@ export type MatchResult = {
   myHaveCount: number
   myWantCount: number
   pricesLoaded: boolean
+  overlapUsers: number
+}
+
+async function fetchByCardIds(
+  supabase: SupabaseClient,
+  userId: string,
+  status: "trade" | "wishlist",
+  cardIds: string[],
+) {
+  if (cardIds.length === 0) return { data: [] as BinderRow[], error: null }
+  return supabase
+    .from("user_binders")
+    .select(BINDER_SELECT)
+    .eq("status", status)
+    .neq("user_id", userId)
+    .in("card_id", cardIds)
+}
+
+async function fetchByNameSet(
+  supabase: SupabaseClient,
+  userId: string,
+  status: "trade" | "wishlist",
+  sourceRows: BinderRow[],
+) {
+  const withMeta = sourceRows.filter((r) => r.card_name?.trim() && r.card_set?.trim())
+  if (withMeta.length === 0) return [] as BinderRow[]
+
+  const batches = await Promise.all(
+    withMeta.map((row) =>
+      supabase
+        .from("user_binders")
+        .select(BINDER_SELECT)
+        .eq("status", status)
+        .neq("user_id", userId)
+        .ilike("card_name", row.card_name!.trim())
+        .ilike("card_set", row.card_set!.trim()),
+    ),
+  )
+
+  const merged: BinderRow[] = []
+  const seen = new Set<string>()
+  for (const batch of batches) {
+    for (const row of (batch.data ?? []) as BinderRow[]) {
+      const key = rowKey(row)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(row)
+    }
+  }
+  return merged
 }
 
 export async function computeMatchSuggestions(
@@ -78,12 +189,15 @@ export async function computeMatchSuggestions(
       myHaveCount: 0,
       myWantCount: 0,
       pricesLoaded: false,
+      overlapUsers: 0,
     }
   }
 
   const mine = (myRows ?? []) as BinderRow[]
-  const myWant = [...new Set(mine.filter((r) => r.status === "wishlist").map((r) => r.card_id))]
-  const myHave = [...new Set(mine.filter((r) => r.status === "trade").map((r) => r.card_id))]
+  const myWantRows = mine.filter((r) => r.status === "wishlist")
+  const myHaveRows = mine.filter((r) => r.status === "trade")
+  const myWant = expandCardIdList(myWantRows.map((r) => r.card_id))
+  const myHave = expandCardIdList(myHaveRows.map((r) => r.card_id))
 
   if (myWant.length === 0 && myHave.length === 0) {
     return {
@@ -92,45 +206,48 @@ export async function computeMatchSuggestions(
       myHaveCount: 0,
       myWantCount: 0,
       pricesLoaded: false,
+      overlapUsers: 0,
     }
   }
 
-  const [theyHaveRes, theyWantRes] = await Promise.all([
-    myWant.length > 0
-      ? supabase
-          .from("user_binders")
-          .select(BINDER_SELECT)
-          .eq("status", "trade")
-          .neq("user_id", userId)
-          .in("card_id", myWant)
-      : Promise.resolve({ data: [], error: null }),
-    myHave.length > 0
-      ? supabase
-          .from("user_binders")
-          .select(BINDER_SELECT)
-          .eq("status", "wishlist")
-          .neq("user_id", userId)
-          .in("card_id", myHave)
-      : Promise.resolve({ data: [], error: null }),
+  const [theyHaveRes, theyWantRes, theyHaveByName, theyWantByName] = await Promise.all([
+    fetchByCardIds(supabase, userId, "trade", myWant),
+    fetchByCardIds(supabase, userId, "wishlist", myHave),
+    fetchByNameSet(supabase, userId, "trade", myWantRows),
+    fetchByNameSet(supabase, userId, "wishlist", myHaveRows),
   ])
 
   if (theyHaveRes.error || theyWantRes.error) {
     return {
       suggestions: [],
       error: theyHaveRes.error?.message ?? theyWantRes.error?.message ?? "Could not load matches",
-      myHaveCount: myHave.length,
-      myWantCount: myWant.length,
+      myHaveCount: myHaveRows.length,
+      myWantCount: myWantRows.length,
       pricesLoaded: false,
+      overlapUsers: 0,
     }
   }
+
+  const theyHaveRows = filterTheyHaveYouWant(
+    [...((theyHaveRes.data ?? []) as BinderRow[]), ...theyHaveByName],
+    myWantRows,
+  )
+  const theyWantRows = filterYouHaveTheyWant(
+    [...((theyWantRes.data ?? []) as BinderRow[]), ...theyWantByName],
+    myHaveRows,
+  )
 
   const byUser = new Map<
     string,
     { theyHaveYouWant: MatchCard[]; youHaveTheyWant: MatchCard[] }
   >()
 
-  mergeMatchRows(byUser, (theyHaveRes.data ?? []) as BinderRow[], "theyHaveYouWant")
-  mergeMatchRows(byUser, (theyWantRes.data ?? []) as BinderRow[], "youHaveTheyWant")
+  mergeMatchRows(byUser, theyHaveRows, "theyHaveYouWant")
+  mergeMatchRows(byUser, theyWantRows, "youHaveTheyWant")
+
+  const overlapUsers = [...byUser.values()].filter(
+    (m) => m.theyHaveYouWant.length > 0 && m.youHaveTheyWant.length > 0,
+  ).length
 
   const allCards: MatchCard[] = []
   for (const match of byUser.values()) {
@@ -149,10 +266,19 @@ export async function computeMatchSuggestions(
 
     const theyHaveYouWant = attachPrices(match.theyHaveYouWant, pricedCards)
     const youHaveTheyWant = attachPrices(match.youHaveTheyWant, pricedCards)
-    const fairPairs = buildFairTradePairs(theyHaveYouWant, youHaveTheyWant, valueTolerance)
-    if (fairPairs.length === 0) continue
+    let fairPairs = buildFairTradePairs(theyHaveYouWant, youHaveTheyWant, valueTolerance)
+    let valueVerified = fairPairs.length > 0
 
-    const filtered = filterCardsToFairPairs(theyHaveYouWant, youHaveTheyWant, fairPairs)
+    if (fairPairs.length === 0 && !pricesLoaded) {
+      valueVerified = false
+    } else if (fairPairs.length === 0) {
+      continue
+    }
+
+    const filtered = valueVerified
+      ? filterCardsToFairPairs(theyHaveYouWant, youHaveTheyWant, fairPairs)
+      : { theyHaveYouWant, youHaveTheyWant }
+
     const profile = await fetchProfile(supabase, otherId)
     if (!profile) continue
 
@@ -162,7 +288,11 @@ export async function computeMatchSuggestions(
       theyHaveYouWant: filtered.theyHaveYouWant,
       youHaveTheyWant: filtered.youHaveTheyWant,
       fairPairs,
-      score: fairPairs.length * 10 + (friendSet.has(otherId) ? 5 : 0),
+      valueVerified,
+      score:
+        (fairPairs.length || Math.min(filtered.theyHaveYouWant.length, filtered.youHaveTheyWant.length)) *
+          10 +
+        (friendSet.has(otherId) ? 5 : 0),
       isFriend: friendSet.has(otherId),
     })
   }
@@ -175,8 +305,9 @@ export async function computeMatchSuggestions(
   return {
     suggestions,
     error: null,
-    myHaveCount: myHave.length,
-    myWantCount: myWant.length,
+    myHaveCount: myHaveRows.length,
+    myWantCount: myWantRows.length,
     pricesLoaded,
+    overlapUsers,
   }
 }

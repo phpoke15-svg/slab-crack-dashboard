@@ -14,6 +14,11 @@ import {
 import { cn } from "@/lib/utils"
 import type { TcgCard } from "@/lib/trade-binder/cards"
 import type { MatchCard } from "@/lib/trade-binder/users"
+import {
+  binderAccessMessage,
+  resolveBinderAccess,
+  type BinderAccessReason,
+} from "@/lib/trade-binder/binder-access"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
 import { PanelShell } from "./panel-shell"
@@ -29,6 +34,8 @@ export function ProfilePanel({ userId }: { userId: string }) {
   const [binderTrade, setBinderTrade] = useState<TcgCard[]>([])
   const [binderWishlist, setBinderWishlist] = useState<TcgCard[]>([])
   const [binderLoading, setBinderLoading] = useState(false)
+  const [binderAccess, setBinderAccess] = useState<BinderAccessReason | null>(null)
+  const [binderMessage, setBinderMessage] = useState<string | null>(null)
   const [tradeMessage, setTradeMessage] = useState("")
   const [tradeSending, setTradeSending] = useState(false)
   const [tradeError, setTradeError] = useState<string | null>(null)
@@ -59,21 +66,77 @@ export function ProfilePanel({ userId }: { userId: string }) {
 
   useEffect(() => {
     let cancelled = false
+    if (!authUser || authUser.id === userId) {
+      setBinderTrade([])
+      setBinderWishlist([])
+      setBinderAccess(null)
+      setBinderMessage(null)
+      return
+    }
+
+    const isFriend = social.isFriend(userId)
+    const cachedProfile = social.getCachedProfile(userId)
+
     setBinderLoading(true)
-    fetch(`/api/binder/${encodeURIComponent(userId)}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled || !data) return
-        setBinderTrade(data.trade ?? [])
-        setBinderWishlist(data.wishlist ?? [])
-      })
-      .finally(() => {
+    void (async () => {
+      try {
+        const res = await fetch(`/api/binder/${encodeURIComponent(userId)}`, {
+          credentials: "same-origin",
+        })
+        if (cancelled) return
+
+        const data = (await res.json().catch(() => ({}))) as {
+          trade?: TcgCard[]
+          wishlist?: TcgCard[]
+          access?: BinderAccessReason
+          message?: string | null
+          error?: string
+        }
+
+        if (!res.ok) {
+          setBinderTrade([])
+          setBinderWishlist([])
+          setBinderAccess("empty")
+          setBinderMessage(data.error ?? "Could not load this binder.")
+          return
+        }
+
+        const trade = data.trade ?? []
+        const wishlist = data.wishlist ?? []
+        const prof = profile ?? cachedProfile
+
+        if (data.access) {
+          setBinderAccess(data.access)
+          setBinderMessage(data.message ?? binderAccessMessage(data.access))
+        } else if (prof) {
+          const access = resolveBinderAccess({
+            profile: prof,
+            isSelf: false,
+            isFriend,
+            cardCount: trade.length + wishlist.length,
+          })
+          setBinderAccess(access)
+          setBinderMessage(binderAccessMessage(access))
+        }
+
+        setBinderTrade(trade)
+        setBinderWishlist(wishlist)
+      } catch {
+        if (!cancelled) {
+          setBinderTrade([])
+          setBinderWishlist([])
+          setBinderAccess("empty")
+          setBinderMessage("Could not load this binder. Check that both accounts are signed in.")
+        }
+      } finally {
         if (!cancelled) setBinderLoading(false)
-      })
+      }
+    })()
+
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, authUser, social.friendIds, social, profile])
 
   if (loading && !profile) {
     return (
@@ -223,11 +286,25 @@ export function ProfilePanel({ userId }: { userId: string }) {
 
       {!isSelf && (
         <section className="border-b border-border p-4 sm:px-6">
-          <h4 className="mb-3 text-sm font-semibold text-foreground">Binder</h4>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h4 className="text-sm font-semibold text-foreground">Binder</h4>
+            {profile.binderVisibility && (
+              <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">
+                {profile.binderVisibility}
+              </span>
+            )}
+          </div>
           {binderLoading ? (
             <p className="text-sm text-muted-foreground">Loading binder…</p>
           ) : binderTrade.length === 0 && binderWishlist.length === 0 ? (
-            <p className="text-sm text-muted-foreground">This trader&apos;s binder is empty or private.</p>
+            <p className="text-sm text-muted-foreground">
+              {binderMessage ??
+                (binderAccess === "friends_only"
+                  ? "Add this trader as a friend to view their binder."
+                  : binderAccess === "private"
+                    ? "This trader's binder is set to private."
+                    : "This trader has not listed any cards yet, or binder sharing is not enabled.")}
+            </p>
           ) : (
             <div className="space-y-3">
               {binderTrade.length > 0 && (

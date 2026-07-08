@@ -86,14 +86,14 @@ function cardNumberFromId(cardId: string): string {
 }
 
 function rowToCard(row: UserBinderRow): TcgCard | null {
-  if (!row.card_id?.trim() || !row.card_name) return null
+  if (!row.card_id?.trim()) return null
   const image = upgradeCardImageUrlSync(row.card_image ?? "/placeholder.svg")
   return {
     entryId: row.id,
     clientKey: row.id,
     id: row.card_id,
-    name: row.card_name,
-    set: row.card_set ?? "Unknown Set",
+    name: row.card_name?.trim() || "Unknown card",
+    set: row.card_set?.trim() || "Unknown Set",
     image,
     rarity: (row.card_rarity as Rarity) ?? "Common",
     status: row.status,

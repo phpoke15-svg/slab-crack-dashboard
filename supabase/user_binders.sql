@@ -1,4 +1,6 @@
 -- Run in Supabase SQL editor (required for PokeMatch)
+-- For friends / matches / profile binder views, ALSO run pokematch.sql
+-- (or supabase/fix-binder-visibility.sql after profiles exist).
 
 create table if not exists public.user_binders (
   id uuid primary key default gen_random_uuid(),

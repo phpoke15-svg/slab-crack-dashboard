@@ -39,6 +39,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
   const [myHaveCount, setMyHaveCount] = useState(0)
   const [myWantCount, setMyWantCount] = useState(0)
   const [pricesLoaded, setPricesLoaded] = useState(false)
+  const [overlapUsers, setOverlapUsers] = useState(0)
   const [valueTolerance, setValueTolerance] = useState(MATCH_VALUE_TOLERANCE_DEFAULT)
 
   const loadMatches = useCallback(async () => {
@@ -61,6 +62,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
         setMyHaveCount(result.myHaveCount)
         setMyWantCount(result.myWantCount)
         setPricesLoaded(result.pricesLoaded)
+        setOverlapUsers(result.overlapUsers)
         onCountChange?.(result.suggestions.length)
         for (const s of result.suggestions) social?.cacheProfile(s.profile)
       }
@@ -152,12 +154,21 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
             <ol className="list-decimal space-y-1 pl-5 text-left">
               <li>
                 Add cards to <span className="text-trade">I have</span> and{" "}
-                <span className="text-wishlist">I want</span>
+                <span className="text-wishlist">I want</span> (use Search so both accounts pick the
+                same card)
               </li>
-              <li>Another collector needs the opposite lists with similar card values</li>
+              <li>They must want cards you have, and have cards you want</li>
               <li>Both binders set to <strong>Public</strong> or <strong>Friends</strong></li>
+              <li>Try widening value tolerance to 10%</li>
             </ol>
-            {!pricesLoaded && (
+            {overlapUsers > 0 && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Found {overlapUsers} trader{overlapUsers === 1 ? "" : "s"} with overlapping cards, but
+                no pairs within {Math.round(valueTolerance * 100)}% value
+                {!pricesLoaded ? " (prices could not be loaded)" : ""}.
+              </p>
+            )}
+            {!pricesLoaded && overlapUsers === 0 && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
                 Card prices could not be loaded — matching needs PriceCharting prices.
               </p>
@@ -195,10 +206,19 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                   <p className="text-[11px] text-muted-foreground">{match.profile.handle}</p>
                 </div>
                 <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  {match.fairPairs.length} fair pair{match.fairPairs.length === 1 ? "" : "s"}
+                  {match.fairPairs.length > 0
+                    ? `${match.fairPairs.length} fair pair${match.fairPairs.length === 1 ? "" : "s"}`
+                    : "Overlap"}
                 </span>
               </div>
 
+              {!match.valueVerified && (
+                <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                  Card overlap found — prices unavailable, value check skipped.
+                </p>
+              )}
+
+              {match.fairPairs.length > 0 ? (
               <ul className="mt-3 space-y-2">
                 {match.fairPairs.slice(0, 6).map((pair) => (
                   <li
@@ -245,6 +265,20 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                   </li>
                 )}
               </ul>
+              ) : (
+                <ul className="mt-3 space-y-2 text-sm">
+                  {match.theyHaveYouWant.slice(0, 4).map((card) => (
+                    <li key={`get-${card.cardId}`} className="text-wishlist">
+                      You get: {card.cardName}
+                    </li>
+                  ))}
+                  {match.youHaveTheyWant.slice(0, 4).map((card) => (
+                    <li key={`give-${card.cardId}`} className="text-trade">
+                      You give: {card.cardName}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               <div className="mt-3 flex gap-2">
                 <button

@@ -38,6 +38,8 @@ export type MatchSuggestion = {
   theyHaveYouWant: MatchCard[]
   youHaveTheyWant: MatchCard[]
   fairPairs: FairTradePair[]
+  /** False when prices could not be loaded — overlap shown without value check */
+  valueVerified?: boolean
   score: number
   isFriend: boolean
 }
