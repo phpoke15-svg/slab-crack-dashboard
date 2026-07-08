@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { listFriendIds } from "@/lib/trade-binder/friends"
+import {
+  buildFairTradePairs,
+  enrichMatchCardsWithPrices,
+  filterCardsToFairPairs,
+  MATCH_VALUE_TOLERANCE_DEFAULT,
+} from "@/lib/trade-binder/match-value"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
 import type { MatchCard, MatchSuggestion } from "@/lib/trade-binder/users"
 
@@ -39,16 +45,26 @@ function mergeMatchRows(
   }
 }
 
+function attachPrices(cards: MatchCard[], priced: MatchCard[]): MatchCard[] {
+  const priceById = new Map(priced.map((c) => [c.cardId, c.rawPrice]))
+  return cards.map((c) => {
+    const rawPrice = priceById.get(c.cardId)
+    return rawPrice && rawPrice > 0 ? { ...c, rawPrice } : c
+  })
+}
+
 export type MatchResult = {
   suggestions: MatchSuggestion[]
   error: string | null
   myHaveCount: number
   myWantCount: number
+  pricesLoaded: boolean
 }
 
 export async function computeMatchSuggestions(
   supabase: SupabaseClient,
   userId: string,
+  valueTolerance = MATCH_VALUE_TOLERANCE_DEFAULT,
 ): Promise<MatchResult> {
   const [{ data: myRows, error: myError }, friendIds] = await Promise.all([
     supabase.from("user_binders").select(BINDER_SELECT).eq("user_id", userId),
@@ -61,6 +77,7 @@ export async function computeMatchSuggestions(
       error: myError.message,
       myHaveCount: 0,
       myWantCount: 0,
+      pricesLoaded: false,
     }
   }
 
@@ -74,6 +91,7 @@ export async function computeMatchSuggestions(
       error: null,
       myHaveCount: 0,
       myWantCount: 0,
+      pricesLoaded: false,
     }
   }
 
@@ -102,6 +120,7 @@ export async function computeMatchSuggestions(
       error: theyHaveRes.error?.message ?? theyWantRes.error?.message ?? "Could not load matches",
       myHaveCount: myHave.length,
       myWantCount: myWant.length,
+      pricesLoaded: false,
     }
   }
 
@@ -113,20 +132,37 @@ export async function computeMatchSuggestions(
   mergeMatchRows(byUser, (theyHaveRes.data ?? []) as BinderRow[], "theyHaveYouWant")
   mergeMatchRows(byUser, (theyWantRes.data ?? []) as BinderRow[], "youHaveTheyWant")
 
+  const allCards: MatchCard[] = []
+  for (const match of byUser.values()) {
+    allCards.push(...match.theyHaveYouWant, ...match.youHaveTheyWant)
+  }
+
+  const uniqueCards = [...new Map(allCards.map((c) => [c.cardId, c])).values()]
+  const pricedCards = await enrichMatchCardsWithPrices(uniqueCards)
+  const pricesLoaded = pricedCards.some((c) => c.rawPrice && c.rawPrice > 0)
+
   const friendSet = new Set(friendIds)
   const suggestions: MatchSuggestion[] = []
 
   for (const [otherId, match] of byUser) {
-    if (match.theyHaveYouWant.length === 0 && match.youHaveTheyWant.length === 0) continue
+    if (match.theyHaveYouWant.length === 0 || match.youHaveTheyWant.length === 0) continue
+
+    const theyHaveYouWant = attachPrices(match.theyHaveYouWant, pricedCards)
+    const youHaveTheyWant = attachPrices(match.youHaveTheyWant, pricedCards)
+    const fairPairs = buildFairTradePairs(theyHaveYouWant, youHaveTheyWant, valueTolerance)
+    if (fairPairs.length === 0) continue
+
+    const filtered = filterCardsToFairPairs(theyHaveYouWant, youHaveTheyWant, fairPairs)
     const profile = await fetchProfile(supabase, otherId)
     if (!profile) continue
-    const mutual = Math.min(match.theyHaveYouWant.length, match.youHaveTheyWant.length)
+
     suggestions.push({
       userId: otherId,
       profile,
-      theyHaveYouWant: match.theyHaveYouWant,
-      youHaveTheyWant: match.youHaveTheyWant,
-      score: match.theyHaveYouWant.length + match.youHaveTheyWant.length + mutual * 2,
+      theyHaveYouWant: filtered.theyHaveYouWant,
+      youHaveTheyWant: filtered.youHaveTheyWant,
+      fairPairs,
+      score: fairPairs.length * 10 + (friendSet.has(otherId) ? 5 : 0),
       isFriend: friendSet.has(otherId),
     })
   }
@@ -141,5 +177,6 @@ export async function computeMatchSuggestions(
     error: null,
     myHaveCount: myHave.length,
     myWantCount: myWant.length,
+    pricesLoaded,
   }
 }

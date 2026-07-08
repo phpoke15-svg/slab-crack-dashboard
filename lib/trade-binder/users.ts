@@ -26,11 +26,18 @@ export type MatchCard = {
   rawPrice?: number
 }
 
+export type FairTradePair = {
+  theyOffer: MatchCard
+  youOffer: MatchCard
+  valueDiffPercent: number
+}
+
 export type MatchSuggestion = {
   userId: string
   profile: TraderProfile
   theyHaveYouWant: MatchCard[]
   youHaveTheyWant: MatchCard[]
+  fairPairs: FairTradePair[]
   score: number
   isFriend: boolean
 }

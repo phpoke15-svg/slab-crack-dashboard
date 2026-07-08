@@ -4,15 +4,27 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeftRight, Loader2, RefreshCw, Sparkles, User } from "lucide-react"
 import { computeMatchSuggestions } from "@/lib/trade-binder/matching"
+import {
+  formatUsd,
+  MATCH_VALUE_TOLERANCE_MAX,
+  MATCH_VALUE_TOLERANCE_MIN,
+} from "@/lib/trade-binder/match-value"
 import type { MatchSuggestion } from "@/lib/trade-binder/users"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useOptionalSocial } from "./social-provider"
 import { UserAvatar } from "./user-avatar"
+import { cn } from "@/lib/utils"
 
 type MatchesPanelProps = {
   active?: boolean
   onCountChange?: (count: number) => void
 }
+
+const TOLERANCE_OPTIONS = [
+  { label: "5%", value: MATCH_VALUE_TOLERANCE_MIN },
+  { label: "6%", value: 0.06 },
+  { label: "7%", value: MATCH_VALUE_TOLERANCE_MAX },
+] as const
 
 export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps) {
   const { user, getSupabase } = useAuth()
@@ -22,6 +34,8 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
   const [error, setError] = useState<string | null>(null)
   const [myHaveCount, setMyHaveCount] = useState(0)
   const [myWantCount, setMyWantCount] = useState(0)
+  const [pricesLoaded, setPricesLoaded] = useState(false)
+  const [valueTolerance, setValueTolerance] = useState(0.06)
 
   const loadMatches = useCallback(async () => {
     if (!user) {
@@ -33,7 +47,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
     setLoading(true)
     setError(null)
     try {
-      const result = await computeMatchSuggestions(getSupabase(), user.id)
+      const result = await computeMatchSuggestions(getSupabase(), user.id, valueTolerance)
       if (result.error) {
         setError(result.error)
         setSuggestions([])
@@ -42,6 +56,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
         setSuggestions(result.suggestions)
         setMyHaveCount(result.myHaveCount)
         setMyWantCount(result.myWantCount)
+        setPricesLoaded(result.pricesLoaded)
         onCountChange?.(result.suggestions.length)
         for (const s of result.suggestions) social?.cacheProfile(s.profile)
       }
@@ -52,7 +67,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
     } finally {
       setLoading(false)
     }
-  }, [user, getSupabase, social, onCountChange])
+  }, [user, getSupabase, social, onCountChange, valueTolerance])
 
   useEffect(() => {
     if (active && user) void loadMatches()
@@ -74,7 +89,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
 
   return (
     <div className="mt-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">
           {myHaveCount > 0 || myWantCount > 0
             ? `${myWantCount} wanted · ${myHaveCount} for trade`
@@ -91,10 +106,29 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
         </button>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-medium text-muted-foreground">Max value gap:</span>
+        {TOLERANCE_OPTIONS.map((opt) => (
+          <button
+            key={opt.label}
+            type="button"
+            onClick={() => setValueTolerance(opt.value)}
+            className={cn(
+              "rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors",
+              valueTolerance === opt.value
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-border text-muted-foreground hover:border-primary/40",
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
       {loading && suggestions.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-16 text-center">
           <Loader2 className="size-6 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Finding collectors with overlapping cards…</p>
+          <p className="text-sm text-muted-foreground">Finding fair-value trade matches…</p>
         </div>
       ) : error ? (
         <div className="rounded-2xl border border-destructive/40 bg-destructive/10 px-6 py-10 text-center">
@@ -105,29 +139,32 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
           <span className="flex size-12 items-center justify-center rounded-xl border border-border bg-secondary text-muted-foreground">
             <Sparkles className="size-6" />
           </span>
-          <p className="text-base font-semibold text-foreground">No matches yet</p>
+          <p className="text-base font-semibold text-foreground">No fair matches yet</p>
           <div className="max-w-sm text-sm text-muted-foreground text-pretty space-y-2">
-            <p>For a match to appear, you need:</p>
+            <p>
+              Matches require overlapping cards <strong>and</strong> similar raw values (within{" "}
+              {Math.round(valueTolerance * 100)}%).
+            </p>
             <ol className="list-decimal space-y-1 pl-5 text-left">
               <li>
-                Cards in <span className="text-trade">I have</span> and/or{" "}
-                <span className="text-wishlist">I want</span> on this account
+                Add cards to <span className="text-trade">I have</span> and{" "}
+                <span className="text-wishlist">I want</span>
               </li>
-              <li>
-                Another collector with the <strong>same card</strong> in the opposite list
-                (add from Search so card IDs match)
-              </li>
-              <li>
-                Their binder visibility set to <strong>Public</strong> or{" "}
-                <strong>Friends</strong> (My profile → Binder visibility)
-              </li>
+              <li>Another collector needs the opposite lists with similar card values</li>
+              <li>Both binders set to <strong>Public</strong> or <strong>Friends</strong></li>
             </ol>
+            {!pricesLoaded && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Card prices could not be loaded — matching needs PriceCharting prices.
+              </p>
+            )}
           </div>
         </div>
       ) : (
         <div className="space-y-3">
           <p className="text-xs text-muted-foreground">
-            {suggestions.length} collector{suggestions.length === 1 ? "" : "s"} with overlapping cards
+            {suggestions.length} fair match{suggestions.length === 1 ? "" : "es"} within{" "}
+            {Math.round(valueTolerance * 100)}% value
           </p>
           {suggestions.map((match) => (
             <article
@@ -154,24 +191,56 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                   <p className="text-[11px] text-muted-foreground">{match.profile.handle}</p>
                 </div>
                 <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  {match.score} pt{match.score === 1 ? "" : "s"}
+                  {match.fairPairs.length} fair pair{match.fairPairs.length === 1 ? "" : "s"}
                 </span>
               </div>
 
-              {match.theyHaveYouWant.length > 0 && (
-                <MatchCardList
-                  title="They have · you want"
-                  cards={match.theyHaveYouWant}
-                  className="text-wishlist"
-                />
-              )}
-              {match.youHaveTheyWant.length > 0 && (
-                <MatchCardList
-                  title="You have · they want"
-                  cards={match.youHaveTheyWant}
-                  className="text-trade"
-                />
-              )}
+              <ul className="mt-3 space-y-2">
+                {match.fairPairs.slice(0, 6).map((pair) => (
+                  <li
+                    key={`${pair.theyOffer.cardId}-${pair.youOffer.cardId}`}
+                    className="rounded-xl border border-border bg-secondary/30 p-2.5 text-sm"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-wishlist">
+                          You get
+                        </p>
+                        <p className="truncate font-medium text-foreground">
+                          {pair.theyOffer.cardName}
+                        </p>
+                        {pair.theyOffer.rawPrice ? (
+                          <p className="text-xs text-muted-foreground">
+                            {formatUsd(pair.theyOffer.rawPrice)}
+                          </p>
+                        ) : null}
+                      </div>
+                      <ArrowLeftRight className="mt-4 size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1 text-right">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-trade">
+                          You give
+                        </p>
+                        <p className="truncate font-medium text-foreground">
+                          {pair.youOffer.cardName}
+                        </p>
+                        {pair.youOffer.rawPrice ? (
+                          <p className="text-xs text-muted-foreground">
+                            {formatUsd(pair.youOffer.rawPrice)}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                    <p className="mt-1.5 text-center text-[10px] text-primary">
+                      {pair.valueDiffPercent.toFixed(1)}% value difference
+                    </p>
+                  </li>
+                ))}
+                {match.fairPairs.length > 6 && (
+                  <li className="text-center text-xs text-muted-foreground">
+                    +{match.fairPairs.length - 6} more fair pairs
+                  </li>
+                )}
+              </ul>
 
               <div className="mt-3 flex gap-2">
                 <button
@@ -193,33 +262,6 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function MatchCardList({
-  title,
-  cards,
-  className,
-}: {
-  title: string
-  cards: MatchSuggestion["theyHaveYouWant"]
-  className: string
-}) {
-  return (
-    <div className="mt-3">
-      <p className={`mb-1 text-[11px] font-medium ${className}`}>{title}</p>
-      <ul className="space-y-1">
-        {cards.slice(0, 5).map((c) => (
-          <li key={c.cardId} className="truncate text-sm text-foreground">
-            {c.cardName}
-            {c.cardSet ? <span className="text-muted-foreground"> · {c.cardSet}</span> : null}
-          </li>
-        ))}
-        {cards.length > 5 && (
-          <li className="text-xs text-muted-foreground">+{cards.length - 5} more</li>
-        )}
-      </ul>
     </div>
   )
 }
