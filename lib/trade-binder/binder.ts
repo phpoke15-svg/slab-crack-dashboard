@@ -1,6 +1,7 @@
 import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js"
 import { bestKnownImageUrl, upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import type { CardStatus, CatalogCard, Rarity, TcgCard } from "@/lib/trade-binder/cards"
+import { catalogCardsByStoredId, lookupCatalogCardsByIds } from "@/lib/trade-binder/catalog-batch"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
 
 function throwBinderError(error: PostgrestError): never {
@@ -131,21 +132,30 @@ function withSyncedImages(cards: TcgCard[]): TcgCard[] {
   })
 }
 
+function rowMissingMeta(row: UserBinderRow): boolean {
+  return !row.card_name?.trim() || !row.card_set?.trim()
+}
+
 export async function loadBinderCards(supabase: SupabaseClient, userId: string): Promise<TcgCard[]> {
   const rows = await fetchUserBinder(supabase, userId)
   if (rows.length === 0) return []
 
-  const fromDb = rows.map(rowToCard).filter((c): c is TcgCard => c !== null)
-  const missingMeta = rows.filter((r) => !r.card_name)
+  const missingMeta = rows.filter(rowMissingMeta)
+  const completeRows = rows.filter((r) => !rowMissingMeta(r))
+
+  const fromDb = completeRows.map(rowToCard).filter((c): c is TcgCard => c !== null)
 
   let cards: TcgCard[]
-  // Server-side API routes must not use relative fetch() in enrichBinderCards — it hangs.
-  if (missingMeta.length === 0 || typeof window === "undefined") {
+  if (missingMeta.length === 0) {
     cards = fromDb
   } else {
     const enriched = await enrichBinderCards(missingMeta)
     const enrichedIds = new Set(enriched.map((c) => c.id))
-    cards = [...fromDb.filter((c) => !enrichedIds.has(c.id) || c.name !== "Unknown card"), ...enriched]
+    const fallback = missingMeta
+      .filter((row) => !enrichedIds.has(row.card_id))
+      .map(rowToCard)
+      .filter((c): c is TcgCard => c !== null)
+    cards = [...fromDb, ...enriched, ...fallback]
   }
 
   return dedupeBinderCards(withSyncedImages(cards))
@@ -209,19 +219,19 @@ export async function enrichBinderCardPrices(
 export async function enrichBinderCards(rows: UserBinderRow[]): Promise<TcgCard[]> {
   if (rows.length === 0) return []
 
-  const ids = rows.map((r) => r.card_id).join(",")
-  const res = await fetch(`/api/binder/batch?ids=${encodeURIComponent(ids)}`)
-  if (!res.ok) return []
+  const ids = rows.map((r) => r.card_id).filter(Boolean)
+  let catalogCards: CatalogCard[] = []
 
-  const { cards } = (await res.json()) as { cards: CatalogCard[] }
-  const cardById = new Map<string, CatalogCard>()
-  for (const card of cards) {
-    cardById.set(card.id, card)
-    if (!card.id.startsWith("poke-") && !card.id.startsWith("pc-")) {
-      cardById.set(`poke-${card.id}`, card)
-    }
+  if (typeof window === "undefined") {
+    catalogCards = await lookupCatalogCardsByIds(ids)
+  } else {
+    const res = await fetch(`/api/binder/batch?ids=${encodeURIComponent(ids.join(","))}`)
+    if (!res.ok) return []
+    const data = (await res.json()) as { cards?: CatalogCard[] }
+    catalogCards = data.cards ?? []
   }
 
+  const cardById = catalogCardsByStoredId(catalogCards)
   const enriched: TcgCard[] = []
 
   for (const row of rows) {

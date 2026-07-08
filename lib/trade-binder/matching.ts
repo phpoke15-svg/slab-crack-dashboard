@@ -8,6 +8,7 @@ import {
   expandCardIdList,
   nameSetKey,
 } from "@/lib/trade-binder/card-id-match"
+import { catalogCardsByStoredId, lookupCatalogCardsByIds } from "@/lib/trade-binder/catalog-batch"
 import {
   buildFairTradePairs,
   enrichMatchCardsWithPrices,
@@ -46,6 +47,30 @@ function rowToMatchCard(row: BinderRow): MatchCard {
 
 function rowKey(row: BinderRow): string {
   return `${row.user_id}:${row.card_id}`
+}
+
+function stripPokemonApiId(cardId: string): string {
+  return cardId.startsWith("poke-") ? cardId.slice("poke-".length) : cardId
+}
+
+async function enrichRowsMissingMeta(rows: BinderRow[]): Promise<BinderRow[]> {
+  const need = rows.filter((r) => !r.card_name?.trim() || !r.card_set?.trim())
+  if (need.length === 0) return rows
+
+  const catalog = await lookupCatalogCardsByIds(need.map((r) => r.card_id))
+  const byId = catalogCardsByStoredId(catalog)
+
+  return rows.map((row) => {
+    if (row.card_name?.trim() && row.card_set?.trim()) return row
+    const card = byId.get(row.card_id) ?? byId.get(stripPokemonApiId(row.card_id))
+    if (!card) return row
+    return {
+      ...row,
+      card_name: card.name,
+      card_set: card.set,
+      card_image: row.card_image ?? card.image,
+    }
+  })
 }
 
 function filterTheyHaveYouWant(rows: BinderRow[], myWantRows: BinderRow[]): BinderRow[] {
@@ -225,8 +250,12 @@ export async function computeMatchSuggestions(
   const mine = (myRows ?? []) as BinderRow[]
   const myWantRows = mine.filter((r) => r.status === "wishlist")
   const myHaveRows = mine.filter((r) => r.status === "trade")
-  const myWant = expandCardIdList(myWantRows.map((r) => r.card_id))
-  const myHave = expandCardIdList(myHaveRows.map((r) => r.card_id))
+  const [enrichedWantRows, enrichedHaveRows] = await Promise.all([
+    enrichRowsMissingMeta(myWantRows),
+    enrichRowsMissingMeta(myHaveRows),
+  ])
+  const myWant = expandCardIdList(enrichedWantRows.map((r) => r.card_id))
+  const myHave = expandCardIdList(enrichedHaveRows.map((r) => r.card_id))
 
   if (myWant.length === 0 && myHave.length === 0) {
     return {
@@ -244,8 +273,8 @@ export async function computeMatchSuggestions(
   const [theyHaveRes, theyWantRes, theyHaveByName, theyWantByName] = await Promise.all([
     fetchByCardIds(crossUserReader, userId, "trade", myWant),
     fetchByCardIds(crossUserReader, userId, "wishlist", myHave),
-    fetchByNameSet(crossUserReader, userId, "trade", myWantRows),
-    fetchByNameSet(crossUserReader, userId, "wishlist", myHaveRows),
+    fetchByNameSet(crossUserReader, userId, "trade", enrichedWantRows),
+    fetchByNameSet(crossUserReader, userId, "wishlist", enrichedHaveRows),
   ])
 
   if (theyHaveRes.error || theyWantRes.error) {
@@ -260,12 +289,18 @@ export async function computeMatchSuggestions(
   }
 
   const theyHaveRows = filterTheyHaveYouWant(
-    [...((theyHaveRes.data ?? []) as BinderRow[]), ...theyHaveByName],
-    myWantRows,
+    await enrichRowsMissingMeta([
+      ...((theyHaveRes.data ?? []) as BinderRow[]),
+      ...theyHaveByName,
+    ]),
+    enrichedWantRows,
   )
   const theyWantRows = filterYouHaveTheyWant(
-    [...((theyWantRes.data ?? []) as BinderRow[]), ...theyWantByName],
-    myHaveRows,
+    await enrichRowsMissingMeta([
+      ...((theyWantRes.data ?? []) as BinderRow[]),
+      ...theyWantByName,
+    ]),
+    enrichedHaveRows,
   )
 
   const allOwnerIds = [...theyHaveRows, ...theyWantRows].map((row) => row.user_id)
