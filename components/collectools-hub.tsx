@@ -3,18 +3,22 @@
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { SiteAuthButton } from "@/components/site-auth-button"
 import { COLLECTOOLS } from "@/lib/collectools-tools"
 import { cn } from "@/lib/utils"
 
 export function CollecToolsHub() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
-      <header className="mb-10">
-        <CollecToolsBrand href={undefined} size="lg" subtitle="Tools for TCG collectors" />
-        <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Pick a tool to get started. SlabCrack finds arbitrage, Grade Check helps you pre-grade at
-          home, and PokeMatch keeps your collection organized for swaps.
-        </p>
+      <header className="mb-10 flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <CollecToolsBrand href={undefined} size="lg" subtitle="Tools for TCG collectors" />
+          <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Pick a tool to get started. SlabCrack finds arbitrage, Grade Check helps you pre-grade at
+            home, and PokeMatch keeps your collection organized for swaps.
+          </p>
+        </div>
+        <SiteAuthButton className="shrink-0" />
       </header>
 
       <div className="grid gap-4 sm:grid-cols-1">

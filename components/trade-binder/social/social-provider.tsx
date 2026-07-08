@@ -1,40 +1,47 @@
 "use client"
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import {
-  CURRENT_USER_ID,
   averageRating,
-  getUser,
-  initialFriendIds,
-  initialTradeIds,
-  initialReviews,
-  users,
   type Review,
+  type Trade,
   type User,
 } from "@/lib/trade-binder/users"
+import type { TraderProfile } from "@/lib/trade-binder/profile"
 import { FriendsPanel } from "./friends-panel"
 import { ProfilePanel } from "./profile-panel"
+import { TradesPanel } from "./trades-panel"
 
-type Panel = { type: "friends" } | { type: "profile"; userId: string } | null
+type Panel =
+  | { type: "friends" }
+  | { type: "profile"; userId: string }
+  | { type: "trades" }
+  | null
 
 type SocialContextValue = {
-  currentUser: User
-  users: User[]
-  getUser: (id: string) => User | undefined
+  currentUser: User | null
+  profileLoading: boolean
   friendIds: string[]
   friendCount: number
   isFriend: (id: string) => boolean
-  addFriend: (id: string) => void
-  removeFriend: (id: string) => void
-  /** Whether the current user has completed a trade with this user. */
+  addFriend: (id: string) => Promise<void>
+  removeFriend: (id: string) => Promise<void>
   hasTradedWith: (id: string) => boolean
   reviewsFor: (id: string) => Review[]
   ratingFor: (id: string) => number
   hasReviewed: (id: string) => boolean
-  addReview: (userId: string, rating: number, comment: string) => void
-  // navigation
+  addReview: (userId: string, rating: number, comment: string) => Promise<void>
+  loadReviews: (userId: string) => Promise<void>
+  getCachedProfile: (id: string) => User | undefined
+  cacheProfile: (profile: TraderProfile) => void
+  trades: Trade[]
+  refreshTrades: () => Promise<void>
+  refreshFriends: () => Promise<void>
+  refreshProfile: () => Promise<void>
   openFriends: () => void
   openProfile: (id: string) => void
+  openTrades: () => void
   close: () => void
 }
 
@@ -46,54 +53,165 @@ export function useSocial() {
   return ctx
 }
 
+export function useOptionalSocial() {
+  return useContext(SocialContext)
+}
+
 export function SocialProvider({ children }: { children: ReactNode }) {
-  const [friendIds, setFriendIds] = useState<string[]>(initialFriendIds)
-  const [tradeIds] = useState<string[]>(initialTradeIds)
-  const [reviews, setReviews] = useState<Record<string, Review[]>>(initialReviews)
+  const { user, isLoading: authLoading } = useAuth()
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [friendIds, setFriendIds] = useState<string[]>([])
+  const [tradePartnerIds, setTradePartnerIds] = useState<string[]>([])
+  const [reviewsByUser, setReviewsByUser] = useState<Record<string, Review[]>>({})
+  const [profileCache, setProfileCache] = useState<Record<string, User>>({})
+  const [trades, setTrades] = useState<Trade[]>([])
   const [panel, setPanel] = useState<Panel>(null)
 
-  const currentUser = getUser(CURRENT_USER_ID)!
+  const refreshProfile = useCallback(async () => {
+    if (!user) {
+      setCurrentUser(null)
+      return
+    }
+    setProfileLoading(true)
+    try {
+      const res = await fetch("/api/profile")
+      if (!res.ok) return
+      const data = (await res.json()) as { profile: User }
+      setCurrentUser(data.profile)
+      setProfileCache((prev) => ({ ...prev, [data.profile.id]: data.profile }))
+    } finally {
+      setProfileLoading(false)
+    }
+  }, [user])
+
+  const refreshFriends = useCallback(async () => {
+    if (!user) {
+      setFriendIds([])
+      return
+    }
+    const res = await fetch("/api/friends")
+    if (!res.ok) return
+    const data = (await res.json()) as { friendIds: string[]; profiles: User[] }
+    setFriendIds(data.friendIds)
+    setProfileCache((prev) => {
+      const next = { ...prev }
+      for (const p of data.profiles) next[p.id] = p
+      return next
+    })
+  }, [user])
+
+  const refreshTrades = useCallback(async () => {
+    if (!user) {
+      setTrades([])
+      setTradePartnerIds([])
+      return
+    }
+    const res = await fetch("/api/trades")
+    if (!res.ok) return
+    const data = (await res.json()) as { trades: Trade[] }
+    setTrades(data.trades)
+    const partners = new Set<string>()
+    for (const t of data.trades) {
+      if (t.status !== "completed") continue
+      partners.add(t.initiatorId === user.id ? t.recipientId : t.initiatorId)
+    }
+    setTradePartnerIds([...partners])
+  }, [user])
+
+  useEffect(() => {
+    if (authLoading) return
+    void refreshProfile()
+    void refreshFriends()
+    void refreshTrades()
+  }, [authLoading, refreshProfile, refreshFriends, refreshTrades])
+
+  const loadReviews = useCallback(async (userId: string) => {
+    const res = await fetch(`/api/reviews?userId=${encodeURIComponent(userId)}`)
+    if (!res.ok) return
+    const data = (await res.json()) as { reviews: Review[] }
+    setReviewsByUser((prev) => ({ ...prev, [userId]: data.reviews }))
+  }, [])
+
+  const cacheProfile = useCallback((profile: TraderProfile) => {
+    setProfileCache((prev) => ({ ...prev, [profile.id]: profile }))
+  }, [])
+
+  const getCachedProfile = useCallback(
+    (id: string) => profileCache[id],
+    [profileCache],
+  )
 
   const value = useMemo<SocialContextValue>(() => {
-    const reviewsFor = (id: string) => reviews[id] ?? []
+    const reviewsFor = (id: string) => reviewsByUser[id] ?? []
     return {
       currentUser,
-      users,
-      getUser,
+      profileLoading,
       friendIds,
       friendCount: friendIds.length,
       isFriend: (id) => friendIds.includes(id),
-      addFriend: (id) => setFriendIds((prev) => (prev.includes(id) ? prev : [...prev, id])),
-      removeFriend: (id) => setFriendIds((prev) => prev.filter((f) => f !== id)),
-      hasTradedWith: (id) => tradeIds.includes(id),
+      addFriend: async (id) => {
+        const res = await fetch("/api/friends", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: id }),
+        })
+        if (res.ok) await refreshFriends()
+      },
+      removeFriend: async (id) => {
+        const res = await fetch(`/api/friends?userId=${encodeURIComponent(id)}`, { method: "DELETE" })
+        if (res.ok) await refreshFriends()
+      },
+      hasTradedWith: (id) => tradePartnerIds.includes(id),
       reviewsFor,
       ratingFor: (id) => averageRating(reviewsFor(id)),
-      hasReviewed: (id) => reviewsFor(id).some((r) => r.authorId === CURRENT_USER_ID),
-      addReview: (userId, rating, comment) =>
-        setReviews((prev) => {
-          const existing = prev[userId] ?? []
-          // One review per author: replace if the current user already reviewed.
-          const withoutMine = existing.filter((r) => r.authorId !== CURRENT_USER_ID)
-          const review: Review = {
-            id: `r-${userId}-${Date.now()}`,
-            authorId: CURRENT_USER_ID,
-            rating,
-            comment: comment.trim(),
-            createdAt: new Date().toISOString().slice(0, 10),
-          }
-          return { ...prev, [userId]: [review, ...withoutMine] }
-        }),
+      hasReviewed: (id) =>
+        currentUser ? reviewsFor(id).some((r) => r.authorId === currentUser.id) : false,
+      addReview: async (userId, rating, comment) => {
+        const res = await fetch("/api/reviews", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revieweeId: userId, rating, comment }),
+        })
+        if (res.ok) await loadReviews(userId)
+      },
+      loadReviews,
+      getCachedProfile,
+      cacheProfile,
+      trades,
+      refreshTrades,
+      refreshFriends,
+      refreshProfile,
       openFriends: () => setPanel({ type: "friends" }),
-      openProfile: (id) => setPanel({ type: "profile", userId: id }),
+      openProfile: (id) => {
+        setPanel({ type: "profile", userId: id })
+        void loadReviews(id)
+      },
+      openTrades: () => setPanel({ type: "trades" }),
       close: () => setPanel(null),
     }
-  }, [currentUser, friendIds, tradeIds, reviews])
+  }, [
+    currentUser,
+    profileLoading,
+    friendIds,
+    tradePartnerIds,
+    reviewsByUser,
+    profileCache,
+    trades,
+    refreshFriends,
+    refreshTrades,
+    refreshProfile,
+    loadReviews,
+    getCachedProfile,
+    cacheProfile,
+  ])
 
   return (
     <SocialContext.Provider value={value}>
       {children}
       {panel?.type === "friends" && <FriendsPanel />}
       {panel?.type === "profile" && <ProfilePanel userId={panel.userId} />}
+      {panel?.type === "trades" && <TradesPanel />}
     </SocialContext.Provider>
   )
 }

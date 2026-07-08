@@ -10,10 +10,21 @@ type SearchResponse = {
   totalCount?: number
 }
 
+function dedupeSearchResults<T extends { id: string }>(cards: T[]): T[] {
+  const seen = new Set<string>()
+  const unique: T[] = []
+  for (const card of cards) {
+    if (seen.has(card.id)) continue
+    seen.add(card.id)
+    unique.push(card)
+  }
+  return unique
+}
+
 async function fetchMissingPrices(cards: BinderSearchResult[]): Promise<BinderSearchResult[]> {
   const unpriced = cards
     .filter((card) => !card.rawPrice || card.rawPrice <= 0)
-    .slice(0, 24)
+    .slice(0, 12)
     .map((card) => ({
       id: card.id,
       name: card.name,
@@ -66,26 +77,28 @@ export function usePokemonSearch(query: string, enabled = true) {
     const timer = setTimeout(async () => {
       try {
         const q = query.trim()
-        const params = new URLSearchParams({ pageSize: "80" })
+        const params = new URLSearchParams({ pageSize: "40" })
         if (q) params.set("q", q)
 
         const res = await fetch(`/api/binder/search?${params.toString()}`, {
           signal: controller.signal,
         })
-        if (!res.ok) throw new Error("Search failed")
+        const data = (await res.json()) as SearchResponse & { error?: string }
+        if (!res.ok) throw new Error(data.error ?? "Search failed")
 
-        const data = (await res.json()) as SearchResponse
-        const cards = data.cards ?? []
+        const cards = dedupeSearchResults(data.cards ?? [])
+        if (controller.signal.aborted) return
+
         setResults(cards)
         setTotal(data.totalCount ?? cards.length)
 
-        const priced = await fetchMissingPrices(cards)
-        if (!controller.signal.aborted) {
-          setResults(priced)
-        }
+        void fetchMissingPrices(cards).then((priced) => {
+          if (!controller.signal.aborted) setResults(dedupeSearchResults(priced))
+        })
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
-          setError("Could not load cards. Try again.")
+          const message = e instanceof Error ? e.message : "Could not load cards. Try again."
+          setError(message === "Search failed" ? "Could not load cards. Try again." : message)
           setResults([])
           setTotal(0)
         }

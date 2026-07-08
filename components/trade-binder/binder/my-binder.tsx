@@ -1,16 +1,23 @@
 "use client"
 
+import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Loader2, SearchX, Trash2, Users } from "lucide-react"
+import { Loader2, SearchX, Trash2 } from "lucide-react"
 import { type CardStatus, type CatalogCard, type TcgCard } from "@/lib/trade-binder/cards"
 import {
   addCardToBinder,
+  binderCardKey,
   clearUserBinder,
+  dedupeBinderCards,
+  enrichBinderCardPrices,
   loadBinderCards,
+  removeBinderEntry,
   removeCardFromBinder,
   updateBinderStatus,
+  withClientKey,
 } from "@/lib/trade-binder/binder"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
+import { bestKnownImageUrl, upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { cn } from "@/lib/utils"
 import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -18,17 +25,17 @@ import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SearchBar } from "./search-bar"
 import { CardTile } from "./card-tile"
 import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
-import { resolveCatalogCardImage } from "@/lib/trade-binder/resolve-card-image"
-import { useSocial } from "@/components/trade-binder/social/social-provider"
-import { UserAvatar } from "@/components/trade-binder/social/user-avatar"
+import { MatchesPanel } from "@/components/trade-binder/social/matches-panel"
+import { SiteAuthButton } from "@/components/site-auth-button"
 
-type BinderTab = "search" | "binder" | "have" | "want"
+type BinderTab = "search" | "binder" | "have" | "want" | "matches"
 
 const tabs: { key: BinderTab; label: string }[] = [
   { key: "search", label: "Search" },
   { key: "binder", label: "My Binder" },
   { key: "have", label: "I have" },
   { key: "want", label: "I want" },
+  { key: "matches", label: "Matches" },
 ]
 
 function tabToStatus(tab: BinderTab): CardStatus | null {
@@ -37,12 +44,7 @@ function tabToStatus(tab: BinderTab): CardStatus | null {
   return null
 }
 
-function statusToTab(status: CardStatus): BinderTab {
-  return status === "trade" ? "have" : "want"
-}
-
 export function MyBinder() {
-  const social = useSocial()
   const { user, isLoading: authLoading, runWithAuth, getSupabase } = useAuth()
 
   const [cards, setCards] = useState<TcgCard[]>([])
@@ -70,15 +72,32 @@ export function MyBinder() {
     const loadId = ++loadIdRef.current
     setBinderLoading(true)
 
+    let loaded: TcgCard[] = []
     try {
-      const loaded = await loadBinderCards(getSupabase(), user.id)
+      loaded = await loadBinderCards(getSupabase(), user.id)
       if (loadId !== loadIdRef.current) return
-      setCards(loaded)
+      setCards(dedupeBinderCards(loaded))
     } catch {
       if (loadId !== loadIdRef.current) return
     } finally {
       if (loadId === loadIdRef.current) setBinderLoading(false)
     }
+
+    if (loaded.length === 0 || loadId !== loadIdRef.current) return
+
+    void enrichBinderCardPrices(loaded).then((priced) => {
+      if (loadId !== loadIdRef.current) return
+      setCards((prev) => {
+        const priceById = new Map(priced.filter((c) => c.rawPrice).map((c) => [c.id, c.rawPrice!]))
+        if (priceById.size === 0) return prev
+        return dedupeBinderCards(
+          prev.map((card) => {
+            const rawPrice = priceById.get(card.id)
+            return rawPrice ? { ...card, rawPrice } : card
+          }),
+        )
+      })
+    })
   }, [getSupabase, user])
 
   useEffect(() => {
@@ -92,10 +111,14 @@ export function MyBinder() {
     if (!card || card.status === status) return
 
     const previousStatus = card.status
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)))
+    setCards((prev) =>
+      dedupeBinderCards(prev.map((c) => (c.id === id ? { ...c, status } : c))),
+    )
 
     void updateBinderStatus(getSupabase(), user.id, id, status).catch(() => {
-      setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status: previousStatus } : c)))
+      setCards((prev) =>
+        dedupeBinderCards(prev.map((c) => (c.id === id ? { ...c, status: previousStatus } : c))),
+      )
     })
   }
 
@@ -108,52 +131,76 @@ export function MyBinder() {
       if (!currentUser) return
 
       setSaveError(null)
-      const existing = cards.find((c) => c.id === card.id)
 
+      const existing = cards.find((c) => c.id === card.id)
       if (existing) {
         setCardStatus(card.id, status)
-        setActiveTab(statusToTab(status))
         return
       }
 
-      const cardToSave = await resolveCatalogCardImage(card)
+      const cardToSave = card
+      const displayImage = bestKnownImageUrl(card.image) ?? upgradeCardImageUrlSync(card.image)
+      const optimistic = withClientKey({
+        ...cardToSave,
+        image: displayImage,
+        status,
+        rawPrice: card.rawPrice,
+      })
 
-      setCards((prev) => [{ ...cardToSave, status, rawPrice: card.rawPrice }, ...prev])
-      setActiveTab(statusToTab(status))
+      setCards((prev) => {
+        if (prev.some((c) => c.id === card.id)) return prev
+        return dedupeBinderCards([optimistic, ...prev])
+      })
 
       try {
-        await addCardToBinder(getSupabase(), currentUser.id, cardToSave, status)
+        const entryId = await addCardToBinder(getSupabase(), currentUser.id, cardToSave, status)
+        if (loadId !== loadIdRef.current) return
+        setCards((prev) =>
+          dedupeBinderCards(
+            prev.map((c) =>
+              c.clientKey === optimistic.clientKey ? { ...c, entryId } : c,
+            ),
+          ),
+        )
       } catch (err) {
         if (loadId === loadIdRef.current) {
-          setCards((prev) => prev.filter((c) => c.id !== card.id))
+          setCards((prev) =>
+            dedupeBinderCards(prev.filter((c) => c.clientKey !== optimistic.clientKey)),
+          )
           setSaveError(binderErrorMessage(err, "Could not save card to your binder"))
         }
       }
     })
   }
 
-  const removeCard = (id: string) => {
+  const removeCard = (key: string) => {
     if (!user) return
 
-    const card = cards.find((c) => c.id === id)
+    const card = cards.find((c) => c.clientKey === key)
     if (!card) return
 
     const confirmed = window.confirm(`Remove ${card.name} from your binder?`)
     if (!confirmed) return
 
-    setCards((prev) => prev.filter((c) => c.id !== id))
+    setCards((prev) => dedupeBinderCards(prev.filter((c) => c.clientKey !== key)))
 
-    void removeCardFromBinder(getSupabase(), user.id, id).catch(() => {
-      setCards((prev) => [card, ...prev])
+    const removePromise = card.entryId
+      ? removeBinderEntry(getSupabase(), user.id, card.entryId)
+      : removeCardFromBinder(getSupabase(), user.id, card.id)
+
+    void removePromise.catch(() => {
+      setCards((prev) => dedupeBinderCards([card, ...prev]))
       setSaveError(binderErrorMessage(null, "Could not remove card"))
     })
   }
 
   const visibleCards = useMemo(() => {
     const status = tabToStatus(activeTab)
-    if (status) return cards.filter((c) => c.status === status)
-    if (activeTab === "binder") return cards
-    return []
+    let filtered: TcgCard[]
+    if (status) filtered = cards.filter((c) => c.status === status)
+    else if (activeTab === "binder") filtered = cards
+    else filtered = []
+    return dedupeBinderCards(filtered)
   }, [activeTab, cards])
 
   const filteredCount = visibleCards.length
@@ -211,29 +258,7 @@ export function MyBinder() {
         <div className="px-4 pt-5 pb-2 sm:px-6">
           <div className="flex items-center justify-between gap-3">
             <CollecToolsBrand href="/" subtitle="PokeMatch · collect & trade" size="sm" />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={social.openFriends}
-                aria-label={`Find traders and friends (${social.friendCount} friends)`}
-                className="relative flex size-9 items-center justify-center rounded-xl border border-border bg-secondary/60 text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-              >
-                <Users className="size-4" aria-hidden="true" />
-                {social.friendCount > 0 && (
-                  <span className="absolute -right-1.5 -top-1.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold leading-none text-primary-foreground">
-                    {social.friendCount}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => social.openProfile(social.currentUser.id)}
-                aria-label="View your profile"
-                className="rounded-xl transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <UserAvatar user={social.currentUser} size="sm" />
-              </button>
-            </div>
+            <SiteAuthButton />
           </div>
 
           {activeTab === "binder" && user && cards.length > 0 && (
@@ -302,16 +327,26 @@ export function MyBinder() {
       </header>
 
       <main className="flex-1 px-4 pb-8 pt-4 sm:px-6">
-        {activeTab === "search" ? (
+        {activeTab === "matches" ? (
+          <MatchesPanel />
+        ) : activeTab === "search" ? (
           <>
             <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
             <div className="mt-4">
-              {!user ? (
-                <EmptyState
-                  title="Sign in to search"
-                  message="Search any English or Japanese Pokémon card and add it to your binder."
-                />
-              ) : query.trim().length < 2 ? (
+              {!user && (
+                <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border bg-card/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-muted-foreground text-pretty">
+                    Sign in to save cards to your binder.
+                  </p>
+                  <Link
+                    href="/sign-in?next=/binder"
+                    className="shrink-0 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-110"
+                  >
+                    Sign in
+                  </Link>
+                </div>
+              )}
+              {query.trim().length < 2 ? (
                 <EmptyState
                   title="Find any card"
                   message="Type a Pokémon name, set, or card number to search the full catalog."
@@ -326,11 +361,11 @@ export function MyBinder() {
                     {searchTotal.toLocaleString()} result{searchTotal === 1 ? "" : "s"}
                   </p>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {searchResults.map((card) => {
+                    {searchResults.map((card, index) => {
                       const ownedStatus = ownedById.get(card.id) ?? null
                       return (
                         <SearchResultTile
-                          key={card.id}
+                          key={`${card.id}-${index}`}
                           card={card}
                           ownedStatus={ownedStatus}
                           onAdd={(status) => addCard(card, status)}
@@ -367,7 +402,7 @@ export function MyBinder() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {gridCards.map((card) => (
                 <CardTile
-                  key={card.id}
+                  key={binderCardKey(card)}
                   card={card}
                   onSetStatus={setCardStatus}
                   onRemove={removeCard}
@@ -399,7 +434,14 @@ export function MyBinder() {
                 >
                   Go to Search
                 </button>
-              ) : undefined
+              ) : (
+                <Link
+                  href="/sign-in?next=/binder"
+                  className="mt-2 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                >
+                  Sign in
+                </Link>
+              )
             }
           />
         )}

@@ -47,9 +47,59 @@ export function toCatalogCard(card: PokemonApiCard): CatalogCard {
   }
 }
 
-export function buildPokemonSearchQuery(q: string): string {
+export function parseBinderSearchTokens(q: string): { name: string; number?: string } {
   const trimmed = q.trim()
-  if (!trimmed) return ""
-  const escaped = trimmed.replace(/[+\-&|!(){}[\]^"~*?:\\\/]/g, "\\$&")
-  return `(name:*${escaped}* OR set.name:*${escaped}*)`
+  if (!trimmed) return { name: "" }
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean)
+  const numberIndex = tokens.findIndex((token) => /^#?\d{1,4}$/.test(token))
+
+  if (numberIndex >= 0) {
+    const number = tokens[numberIndex].replace(/^#/, "")
+    const name = tokens.filter((_, index) => index !== numberIndex).join(" ").trim()
+    return { name, number }
+  }
+
+  return { name: trimmed }
+}
+
+export function cardNumberMatches(cardNumber: string | undefined, target: string): boolean {
+  if (!target) return true
+  if (!cardNumber) return false
+
+  const prefix =
+    cardNumber
+      .split("/")[0]
+      ?.replace(/^#/, "")
+      .replace(/^0+/, "") || "0"
+  const normalizedTarget = target.replace(/^#/, "").replace(/^0+/, "") || "0"
+  return prefix === normalizedTarget
+}
+
+export function buildPokemonSearchQueries(q: string): string[] {
+  const { name, number } = parseBinderSearchTokens(q)
+  if (!name && number) {
+    const padded = number.padStart(3, "0")
+    return [`number:${number}`, ...(padded !== number ? [`number:${padded}`] : [])]
+  }
+  if (!name) return []
+
+  const escaped = name.replace(/[+\-&|!(){}[\]^"~*?:\\\/]/g, "\\$&")
+
+  if (number) {
+    const padded = number.padStart(3, "0")
+    const queries = [
+      `name:"${escaped}" number:${number}`,
+      `name:"${escaped}" number:${padded}`,
+      `name:${escaped} number:${number}`,
+    ]
+    if (padded !== number) queries.push(`name:"${escaped}" number:${padded}`)
+    return queries
+  }
+
+  return [`(name:*${escaped}* OR set.name:*${escaped}*)`]
+}
+
+export function buildPokemonSearchQuery(q: string): string {
+  return buildPokemonSearchQueries(q)[0] ?? ""
 }

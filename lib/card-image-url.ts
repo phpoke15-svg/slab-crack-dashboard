@@ -38,12 +38,16 @@ export function upgradeCardImageUrlSync(url: string): string {
 
   const pcMatch = url.match(/images\.pricecharting\.com\/([a-z0-9]+)\/(\d+)\.jpg/i)
   if (pcMatch) {
-    const [, hash, size] = pcMatch
-    const n = Number(size)
-    if (n < 400) {
-      return `https://storage.googleapis.com/images.pricecharting.com/${hash}/400.jpg`
-    }
-    if (n < 1600) {
+    const [, hash] = pcMatch
+    return `https://storage.googleapis.com/images.pricecharting.com/${hash}/1600.jpg`
+  }
+
+  const gcsPcMatch = url.match(
+    /storage\.googleapis\.com\/images\.pricecharting\.com\/([a-z0-9]+)\/(\d+)\.jpg/i,
+  )
+  if (gcsPcMatch) {
+    const [, hash, size] = gcsPcMatch
+    if (Number(size) < 1600) {
       return `https://storage.googleapis.com/images.pricecharting.com/${hash}/1600.jpg`
     }
   }
@@ -57,8 +61,12 @@ export function upgradeCardImageUrlSync(url: string): string {
 }
 
 /** Always show the stored URL when we have one — never hide low-res art. */
-export function bestDisplayCardImageUrl(url?: string | null): string {
+export function bestDisplayCardImageUrl(url?: string | null, options?: { upgrade?: boolean }): string {
   if (!url?.trim() || isPlaceholderCardImage(url)) return "/placeholder.svg"
+  if (options?.upgrade !== false) {
+    const upgraded = upgradeCardImageUrlSync(url)
+    if (upgraded && upgraded !== url) return upgraded
+  }
   return url
 }
 

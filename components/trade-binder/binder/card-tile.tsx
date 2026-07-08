@@ -3,6 +3,7 @@
 import { Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CardStatus, TcgCard } from "@/lib/trade-binder/cards"
+import { binderCardKey } from "@/lib/trade-binder/binder"
 import { FolderSwitcher } from "./folder-switcher"
 import { CardImage } from "./card-image"
 
@@ -42,7 +43,10 @@ export function CardTile({
         {showRemove && onRemove && (
           <button
             type="button"
-            onClick={() => onRemove(card.id)}
+            onClick={(event) => {
+              event.stopPropagation()
+              onRemove(binderCardKey(card))
+            }}
             aria-label={`Remove ${card.name} from binder`}
             className="absolute right-1.5 top-1.5 flex size-7 items-center justify-center rounded-lg border border-border bg-background/90 text-muted-foreground transition-colors hover:border-destructive/50 hover:text-destructive"
           >

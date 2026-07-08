@@ -12,7 +12,6 @@ import {
 } from "react"
 import type { SupabaseClient, User } from "@supabase/supabase-js"
 import { createClient, isSupabaseConfigured } from "@/lib/trade-binder/supabase/client"
-import { SignInModal } from "./sign-in-modal"
 
 type AuthContextValue = {
   user: User | null
@@ -100,11 +99,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signIn: async (email, password) => {
         if (!isConfigured) return { error: "Supabase is not configured." }
         const { error } = await getSupabase().auth.signInWithPassword({ email, password })
+        if (!error) {
+          void fetch("/api/profile").catch(() => {})
+        }
         return { error: error?.message ?? null }
       },
       signUp: async (email, password) => {
         if (!isConfigured) return { error: "Supabase is not configured." }
         const { error } = await getSupabase().auth.signUp({ email, password })
+        if (!error) {
+          void fetch("/api/profile").catch(() => {})
+        }
         return { error: error?.message ?? null }
       },
       signOut: async () => {
@@ -124,10 +129,5 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user, isLoading, isConfigured, authModalOpen, getSupabase],
   )
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-      <SignInModal />
-    </AuthContext.Provider>
-  )
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

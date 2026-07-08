@@ -13,7 +13,7 @@ const inflight = new Map<string, Promise<string | null>>()
 let activeRequests = 0
 const requestQueue: Array<() => void> = []
 
-const MAX_CONCURRENT = 3
+const MAX_CONCURRENT = 6
 
 function runWithQueue<T>(task: () => Promise<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -44,12 +44,14 @@ function parseNumberFromName(name: string): string {
   return name.match(/#(\d+[a-zA-Z/-]*)/)?.[1] ?? ""
 }
 
-function hashDelay(id: string): number {
-  let hash = 0
-  for (let i = 0; i < id.length; i += 1) {
-    hash = (hash * 31 + id.charCodeAt(i)) >>> 0
-  }
-  return hash % 1200
+function cardNumberFromId(id: string): string {
+  if (id.startsWith("pc-") || id.startsWith("poke-")) return ""
+  const match = id.match(/-(\d+[a-z]?)$/i)
+  return match?.[1] ?? ""
+}
+
+function resolveDisplayImage(image: string): string {
+  return bestDisplayCardImageUrl(image)
 }
 
 async function fetchCardImage(input: {
@@ -66,14 +68,12 @@ async function fetchCardImage(input: {
   if (pending) return pending
 
   const promise = runWithQueue(async () => {
-    await new Promise((resolve) => setTimeout(resolve, hashDelay(input.id)))
-
     const params = new URLSearchParams({
       id: input.id,
       name: input.name,
       set: input.set,
     })
-    const number = input.cardNumber || parseNumberFromName(input.name)
+    const number = input.cardNumber || parseNumberFromName(input.name) || cardNumberFromId(input.id)
     if (number) params.set("number", number)
     if (input.image && !isPlaceholderCardImage(input.image)) {
       params.set("imageUrl", input.image)
@@ -84,8 +84,9 @@ async function fetchCardImage(input: {
 
     const data = (await res.json()) as { image?: string | null }
     if (data.image) {
-      imageCache.set(input.id, data.image)
-      return data.image
+      const upgraded = upgradeCardImageUrlSync(data.image)
+      imageCache.set(input.id, upgraded)
+      return upgraded
     }
     return null
   })
@@ -109,18 +110,21 @@ export function useCardImage(
   options?: { upgrade?: boolean },
 ): string {
   const upgrade = options?.upgrade ?? true
-  const fallbackSrc = bestDisplayCardImageUrl(card.image)
+  const fallbackSrc = resolveDisplayImage(card.image)
   const [src, setSrc] = useState(fallbackSrc)
 
   useEffect(() => {
-    setSrc(fallbackSrc)
+    const display = resolveDisplayImage(card.image)
+    setSrc(display)
 
-    if (!upgrade || !cardImageNeedsUpgrade(card.image)) return
+    if (!upgrade) return
 
-    const synced = upgradeCardImageUrlSync(card.image)
-    if (synced !== card.image) {
-      setSrc(synced)
-    }
+    const needsFetch =
+      cardImageNeedsUpgrade(display) ||
+      card.id.startsWith("pc-") ||
+      (card.id.includes("-") && !card.id.startsWith("pc-") && !card.id.startsWith("poke-"))
+
+    if (!needsFetch) return
 
     const cached = imageCache.get(card.id)
     if (cached) {
@@ -144,7 +148,7 @@ export function useCardImage(
     return () => {
       cancelled = true
     }
-  }, [card.id, card.name, card.set, card.image, card.cardNumber, fallbackSrc, upgrade])
+  }, [card.id, card.name, card.set, card.image, card.cardNumber, upgrade])
 
   return src
 }

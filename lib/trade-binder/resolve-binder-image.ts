@@ -11,6 +11,18 @@ function parseNumberFromName(name: string): string {
   return name.match(/#(\d+[a-zA-Z/-]*)/)?.[1] ?? ""
 }
 
+function cardNumberFromPokemonId(id: string): string {
+  if (id.startsWith("pc-") || id.startsWith("poke-")) return ""
+  const match = id.match(/-(\d+[a-z]?)$/i)
+  return match?.[1] ?? ""
+}
+
+function resolvePokemonTcgId(id: string): string | undefined {
+  if (id.startsWith("pc-")) return undefined
+  if (id.startsWith("poke-")) return id.slice("poke-".length)
+  return id
+}
+
 function existingImageUrl(imageUrl?: string): string | null {
   if (!imageUrl || isPlaceholderImage(imageUrl)) return null
   if (isPlaceholderCardImage(imageUrl)) return null
@@ -25,24 +37,25 @@ export async function resolveBinderCardImage(input: {
   cardNumber?: string
   imageUrl?: string
 }): Promise<string | null> {
-  const cardNumber = input.cardNumber || parseNumberFromName(input.name)
-  const pokemonTcgId = input.id.startsWith("poke-") ? input.id.replace(/^poke-/, "") : undefined
+  const cardNumber =
+    input.cardNumber ||
+    parseNumberFromName(input.name) ||
+    cardNumberFromPokemonId(input.id)
+  const pokemonTcgId = resolvePokemonTcgId(input.id)
   const pricechartingId = input.id.startsWith("pc-") ? input.id.replace(/^pc-/, "") : undefined
 
-  if (pokemonTcgId || !pricechartingId) {
-    const catalog = await resolvePokemonCardImage({
-      cardName: input.name,
-      setName: input.set,
-      cardNumber,
-      pokemonTcgId,
-    })
-    const pokemonImage = catalog?.imageLarge ?? catalog?.imageSmall
-    if (pokemonImage) {
-      const url = upgradeCardImageUrlSync(pokemonImage)
-      if (!cardImageNeedsUpgrade(url)) return url
-      if (catalog?.imageLarge) return catalog.imageLarge
-      return pokemonImage
-    }
+  const catalog = await resolvePokemonCardImage({
+    cardName: input.name,
+    setName: input.set,
+    cardNumber,
+    pokemonTcgId,
+  })
+  const pokemonImage = catalog?.imageLarge ?? catalog?.imageSmall
+  if (pokemonImage) {
+    const url = upgradeCardImageUrlSync(pokemonImage)
+    if (catalog?.imageLarge) return upgradeCardImageUrlSync(catalog.imageLarge)
+    if (!cardImageNeedsUpgrade(url)) return url
+    return pokemonImage
   }
 
   const artwork = await resolveCardArtwork({
@@ -52,9 +65,10 @@ export async function resolveBinderCardImage(input: {
     imageUrl: input.imageUrl,
     pricechartingId,
   })
-  if (artwork) return artwork
+  if (artwork) return upgradeCardImageUrlSync(artwork)
 
-  return existingImageUrl(input.imageUrl)
+  const existing = existingImageUrl(input.imageUrl)
+  return existing ? upgradeCardImageUrlSync(existing) : null
 }
 
 export function cardNeedsImage(image?: string): boolean {

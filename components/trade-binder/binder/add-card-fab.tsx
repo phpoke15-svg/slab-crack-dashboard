@@ -144,8 +144,8 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
                   <PickerEmpty message="Type at least 2 characters to search the catalog." />
                 ) : availableResults.length > 0 ? (
                   <ul className="flex flex-col gap-1.5">
-                    {availableResults.map((card) => (
-                      <li key={card.id}>
+                    {availableResults.map((card, index) => (
+                      <li key={`${card.id}-${index}`}>
                         <button
                           type="button"
                           onClick={() => pick(card)}

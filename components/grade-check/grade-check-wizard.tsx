@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, ArrowRight, Check, Loader2, Search, ShieldCheck } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { SiteAuthButton } from "@/components/site-auth-button"
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
 import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
@@ -121,23 +122,8 @@ export function GradeCheckWizard() {
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="px-4 pt-5 pb-3 sm:px-6">
           <div className="flex items-center justify-between gap-3">
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ArrowLeft className="size-4" />
-              Tools
-            </Link>
-            <div className="flex items-center gap-2">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <ShieldCheck className="size-4" />
-              </span>
-              <div>
-                <h1 className="text-base font-bold text-foreground">Grade Check</h1>
-                <p className="text-[10px] text-muted-foreground">Pre-submission estimator</p>
-              </div>
-            </div>
-            <CollecToolsBrand href="/" size="sm" className="opacity-80" />
+            <CollecToolsBrand href="/" subtitle="Grade Check · pre-submission estimator" size="sm" />
+            <SiteAuthButton className="shrink-0" />
           </div>
 
           <div className="mt-4 flex gap-1">

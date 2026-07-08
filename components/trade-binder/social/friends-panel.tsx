@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Search, UserPlus, UserCheck, UserX, Users } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { CURRENT_USER_ID } from "@/lib/trade-binder/users"
+import type { User } from "@/lib/trade-binder/users"
+import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
 import { PanelShell } from "./panel-shell"
 import { UserAvatar } from "./user-avatar"
@@ -13,25 +14,45 @@ type Tab = "search" | "friends"
 
 export function FriendsPanel() {
   const social = useSocial()
+  const { user } = useAuth()
   const [tab, setTab] = useState<Tab>("search")
   const [query, setQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<User[]>([])
+  const [searching, setSearching] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     searchRef.current?.focus()
   }, [])
 
-  const searchResults = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    const others = social.users.filter((u) => u.id !== CURRENT_USER_ID)
-    if (q === "") return others
-    return others.filter(
-      (u) => u.name.toLowerCase().includes(q) || u.handle.toLowerCase().includes(q),
-    )
-  }, [social.users, query])
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 1) {
+      setSearchResults([])
+      return
+    }
+
+    setSearching(true)
+    const timer = window.setTimeout(() => {
+      fetch(`/api/profile/search?q=${encodeURIComponent(q)}`)
+        .then((res) => (res.ok ? res.json() : { profiles: [] }))
+        .then((data: { profiles?: User[] }) => {
+          const profiles = data.profiles ?? []
+          for (const p of profiles) social.cacheProfile(p)
+          setSearchResults(profiles)
+        })
+        .catch(() => setSearchResults([]))
+        .finally(() => setSearching(false))
+    }, 300)
+
+    return () => window.clearTimeout(timer)
+  }, [query, social.cacheProfile])
 
   const friends = useMemo(
-    () => social.friendIds.map((id) => social.getUser(id)).filter((u) => u !== undefined),
+    () =>
+      social.friendIds
+        .map((id) => social.getCachedProfile(id))
+        .filter((u): u is User => u !== undefined),
     [social],
   )
 
@@ -46,10 +67,17 @@ export function FriendsPanel() {
         </TabButton>
       </div>
 
-      {tab === "search" && (
+      {!user && (
+        <p className="p-4 text-sm text-muted-foreground">Sign in to find and add traders.</p>
+      )}
+
+      {tab === "search" && user && (
         <div className="p-4">
           <div className="relative mb-3">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+            <Search
+              className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
             <input
               ref={searchRef}
               value={query}
@@ -59,24 +87,28 @@ export function FriendsPanel() {
               className="h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-3 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/50 focus:bg-secondary"
             />
           </div>
-          {searchResults.length > 0 ? (
+          {searching ? (
+            <p className="text-sm text-muted-foreground">Searching…</p>
+          ) : searchResults.length > 0 ? (
             <ul className="flex flex-col gap-2">
               {searchResults.map((u) => (
-                <TraderRow key={u.id} userId={u.id} />
+                <TraderRow key={u.id} user={u} />
               ))}
             </ul>
-          ) : (
+          ) : query.trim() ? (
             <EmptyState label="No traders match your search." />
+          ) : (
+            <EmptyState label="Search by handle or display name to find collectors." />
           )}
         </div>
       )}
 
-      {tab === "friends" && (
+      {tab === "friends" && user && (
         <div className="p-4">
           {friends.length > 0 ? (
             <ul className="flex flex-col gap-2">
               {friends.map((u) => (
-                <TraderRow key={u.id} userId={u.id} />
+                <TraderRow key={u.id} user={u} />
               ))}
             </ul>
           ) : (
@@ -88,20 +120,18 @@ export function FriendsPanel() {
   )
 }
 
-function TraderRow({ userId }: { userId: string }) {
+function TraderRow({ user }: { user: User }) {
   const social = useSocial()
-  const user = social.getUser(userId)
-  if (!user) return null
-  const isFriend = social.isFriend(userId)
-  const rating = social.ratingFor(userId)
-  const reviewCount = social.reviewsFor(userId).length
+  const isFriend = social.isFriend(user.id)
+  const rating = social.ratingFor(user.id)
+  const reviewCount = social.reviewsFor(user.id).length
 
   return (
     <li>
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card/60 p-2.5">
         <button
           type="button"
-          onClick={() => social.openProfile(userId)}
+          onClick={() => social.openProfile(user.id)}
           className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <UserAvatar user={user} size="md" />
@@ -118,7 +148,7 @@ function TraderRow({ userId }: { userId: string }) {
         </button>
         <button
           type="button"
-          onClick={() => (isFriend ? social.removeFriend(userId) : social.addFriend(userId))}
+          onClick={() => (isFriend ? social.removeFriend(user.id) : social.addFriend(user.id))}
           aria-label={isFriend ? `Remove ${user.name} from friends` : `Add ${user.name} as a friend`}
           className={cn(
             "group flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

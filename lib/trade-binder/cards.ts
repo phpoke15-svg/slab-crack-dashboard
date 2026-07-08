@@ -15,4 +15,9 @@ export type CatalogCard = {
 export type TcgCard = CatalogCard & {
   status: CardStatus
   rawPrice?: number
+  cardNumber?: string
+  /** Primary key from user_binders — used for single-row delete. */
+  entryId?: string
+  /** Stable unique key for React lists — never reuse catalog ids. */
+  clientKey: string
 }

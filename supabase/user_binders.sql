@@ -18,6 +18,7 @@ alter table public.user_binders add column if not exists card_name text;
 alter table public.user_binders add column if not exists card_set text;
 alter table public.user_binders add column if not exists card_image text;
 alter table public.user_binders add column if not exists card_rarity text;
+alter table public.user_binders add column if not exists card_number text;
 
 alter table public.user_binders enable row level security;
 

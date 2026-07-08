@@ -366,6 +366,9 @@ async function fetchCardsForHints(
 
   for (const hint of normalizedHints) {
     if (/^\d+$/.test(hint) && !resolveSetIdForHint(hint)) {
+      const padded = hint.padStart(3, "0")
+      addQuery(`name:"${escapedName}" number:${hint}`)
+      if (padded !== hint) addQuery(`name:"${escapedName}" number:${padded}`)
       addQuery(`name:${escapedName} number:${hint}`)
     }
   }
@@ -483,9 +486,12 @@ function buildPriceChartingCatalogQueries(query: string, parsed: ParsedSearch): 
 
     for (const num of numbers) {
       out.add(`${name} #${num}`)
+      out.add(`${name} #${num.padStart(3, "0")}`)
       out.add(`${name} #${num}/s-p`)
       out.add(`${name} ${num} pokemon`)
       out.add(`${name} ${num} pokemon japanese`)
+      out.add(`${name} ${num} black star promo`)
+      out.add(`pokemon ${name} #${num}`)
       out.add(`${name} stamp box ${num}`)
       if (words.length > 0) {
         out.add(`${name} #${num} ${words.join(" ")}`)
@@ -844,8 +850,12 @@ async function runSearchCatalogCards(query: string, limit: number): Promise<Card
   return merged
 }
 
-export async function searchCatalogCards(query: string, limit = 12): Promise<CardSearchHit[]> {
-  return withTimeout(runSearchCatalogCards(query, limit), SEARCH_BUDGET_MS, [])
+export async function searchCatalogCards(
+  query: string,
+  limit = 12,
+  budgetMs = SEARCH_BUDGET_MS,
+): Promise<CardSearchHit[]> {
+  return withTimeout(runSearchCatalogCards(query, limit), budgetMs, [])
 }
 
 function formatCardName(name: string, rarity: string | null): string {
