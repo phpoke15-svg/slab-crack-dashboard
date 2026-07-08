@@ -22,15 +22,28 @@ export function PanelShell({
     }
   }, [])
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [onClose])
+
   return (
-    <div className="fixed inset-0 z-40">
-      <button
-        type="button"
-        aria-label="Close"
-        onClick={onClose}
-        className="absolute inset-0 bg-background/70 backdrop-blur-sm"
-      />
-      <div className="absolute inset-x-0 bottom-0 top-0 z-10 mx-auto flex w-full max-w-3xl flex-col border-x border-border bg-background">
+    <div
+      className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className="mx-auto flex h-full w-full max-w-3xl flex-col border-x border-border bg-background shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+      >
         <header className="shrink-0 border-b border-border bg-background/80 backdrop-blur-xl">
           <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
             <h2 className="text-lg font-semibold text-foreground text-balance">{title}</h2>
@@ -47,7 +60,7 @@ export function PanelShell({
             </div>
           </div>
         </header>
-        <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto">{children}</div>
       </div>
     </div>
   )
