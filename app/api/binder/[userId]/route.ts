@@ -6,6 +6,8 @@ import { listFriendIds } from "@/lib/trade-binder/friends"
 import { ensureProfile, fetchProfile } from "@/lib/trade-binder/profile-db"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
+export const maxDuration = 30
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ userId: string }> },

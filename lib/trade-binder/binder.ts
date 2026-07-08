@@ -139,11 +139,13 @@ export async function loadBinderCards(supabase: SupabaseClient, userId: string):
   const missingMeta = rows.filter((r) => !r.card_name)
 
   let cards: TcgCard[]
-  if (missingMeta.length === 0) {
+  // Server-side API routes must not use relative fetch() in enrichBinderCards — it hangs.
+  if (missingMeta.length === 0 || typeof window === "undefined") {
     cards = fromDb
   } else {
     const enriched = await enrichBinderCards(missingMeta)
-    cards = [...fromDb, ...enriched]
+    const enrichedIds = new Set(enriched.map((c) => c.id))
+    cards = [...fromDb.filter((c) => !enrichedIds.has(c.id) || c.name !== "Unknown card"), ...enriched]
   }
 
   return dedupeBinderCards(withSyncedImages(cards))

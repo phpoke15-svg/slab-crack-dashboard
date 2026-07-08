@@ -62,7 +62,9 @@ export function ProfilePanel({ userId }: { userId: string }) {
     return () => {
       cancelled = true
     }
-  }, [userId, social])
+  }, [userId, social.cacheProfile, social.loadReviews])
+
+  const friendIdsKey = social.friendIds.join(",")
 
   useEffect(() => {
     let cancelled = false
@@ -71,6 +73,7 @@ export function ProfilePanel({ userId }: { userId: string }) {
       setBinderWishlist([])
       setBinderAccess(null)
       setBinderMessage(null)
+      setBinderLoading(false)
       return
     }
 
@@ -78,10 +81,14 @@ export function ProfilePanel({ userId }: { userId: string }) {
     const cachedProfile = social.getCachedProfile(userId)
 
     setBinderLoading(true)
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 20000)
+
     void (async () => {
       try {
         const res = await fetch(`/api/binder/${encodeURIComponent(userId)}`, {
           credentials: "same-origin",
+          signal: controller.signal,
         })
         if (cancelled) return
 
@@ -121,22 +128,29 @@ export function ProfilePanel({ userId }: { userId: string }) {
 
         setBinderTrade(trade)
         setBinderWishlist(wishlist)
-      } catch {
+      } catch (err) {
         if (!cancelled) {
           setBinderTrade([])
           setBinderWishlist([])
           setBinderAccess("empty")
-          setBinderMessage("Could not load this binder. Check that both accounts are signed in.")
+          setBinderMessage(
+            err instanceof DOMException && err.name === "AbortError"
+              ? "Binder load timed out. Try again."
+              : "Could not load this binder. Check that both accounts are signed in.",
+          )
         }
       } finally {
+        window.clearTimeout(timeout)
         if (!cancelled) setBinderLoading(false)
       }
     })()
 
     return () => {
       cancelled = true
+      controller.abort()
+      window.clearTimeout(timeout)
     }
-  }, [userId, authUser, social.friendIds, social, profile])
+  }, [userId, authUser?.id, friendIdsKey, profile?.id])
 
   if (loading && !profile) {
     return (

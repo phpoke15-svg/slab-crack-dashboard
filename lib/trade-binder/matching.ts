@@ -135,12 +135,36 @@ async function fetchByCardIds(
   cardIds: string[],
 ) {
   if (cardIds.length === 0) return { data: [] as BinderRow[], error: null }
-  return supabase
-    .from("user_binders")
-    .select(BINDER_SELECT)
-    .eq("status", status)
-    .neq("user_id", userId)
-    .in("card_id", cardIds)
+
+  const uniqueIds = [...new Set(cardIds)]
+  const chunkSize = 80
+  const merged: BinderRow[] = []
+  const seen = new Set<string>()
+  let lastError: { message: string } | null = null
+
+  for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+    const chunk = uniqueIds.slice(i, i + chunkSize)
+    const { data, error } = await supabase
+      .from("user_binders")
+      .select(BINDER_SELECT)
+      .eq("status", status)
+      .neq("user_id", userId)
+      .in("card_id", chunk)
+
+    if (error) {
+      lastError = error
+      continue
+    }
+
+    for (const row of (data ?? []) as BinderRow[]) {
+      const key = rowKey(row)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(row)
+    }
+  }
+
+  return { data: merged, error: lastError }
 }
 
 async function fetchByNameSet(

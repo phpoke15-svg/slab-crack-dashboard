@@ -40,8 +40,8 @@ async function fetchMatchCardPrices(cards: MatchCard[]): Promise<Map<string, num
     const cachedPrices = await getRawPriceByCardId()
     const prices = await attachBinderCardPrices(inputs, {
       cachedPrices,
-      limit: inputs.length,
-      concurrency: 3,
+      limit: Math.min(inputs.length, 48),
+      concurrency: 4,
     })
     for (const [id, price] of prices) registerPrice(priceById, id, price)
     return priceById

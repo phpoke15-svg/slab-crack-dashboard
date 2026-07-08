@@ -241,7 +241,6 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       openProfile: (id) => {
         setPanel({ type: "profile", userId: id })
         void loadReviews(id)
-        void refreshFriends()
       },
       openTrades: () => setPanel({ type: "trades" }),
       close: () => setPanel(null),
