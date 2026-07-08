@@ -33,6 +33,8 @@ export function ProfilePanel({ userId }: { userId: string }) {
   const [tradeSending, setTradeSending] = useState(false)
   const [tradeError, setTradeError] = useState<string | null>(null)
   const [tradeSuccess, setTradeSuccess] = useState(false)
+  const [friendBusy, setFriendBusy] = useState(false)
+  const [friendError, setFriendError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false

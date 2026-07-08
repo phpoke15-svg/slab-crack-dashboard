@@ -125,9 +125,20 @@ function TraderRow({ user }: { user: User }) {
   const isFriend = social.isFriend(user.id)
   const rating = social.ratingFor(user.id)
   const reviewCount = social.reviewsFor(user.id).length
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const toggleFriend = async () => {
+    setBusy(true)
+    setError(null)
+    const err = isFriend ? await social.removeFriend(user.id) : await social.addFriend(user.id)
+    if (err) setError(err)
+    setBusy(false)
+  }
 
   return (
     <li>
+      <div className="flex flex-col gap-1">
       <div className="flex items-center gap-3 rounded-xl border border-border bg-card/60 p-2.5">
         <button
           type="button"
@@ -148,7 +159,8 @@ function TraderRow({ user }: { user: User }) {
         </button>
         <button
           type="button"
-          onClick={() => (isFriend ? social.removeFriend(user.id) : social.addFriend(user.id))}
+          disabled={busy}
+          onClick={() => void toggleFriend()}
           aria-label={isFriend ? `Remove ${user.name} from friends` : `Add ${user.name} as a friend`}
           className={cn(
             "group flex size-10 shrink-0 items-center justify-center rounded-xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -166,6 +178,8 @@ function TraderRow({ user }: { user: User }) {
             <UserPlus className="size-4" aria-hidden="true" />
           )}
         </button>
+      </div>
+      {error && <p className="px-1 text-[11px] text-destructive">{error}</p>}
       </div>
     </li>
   )

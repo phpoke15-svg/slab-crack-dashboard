@@ -25,8 +25,8 @@ type SocialContextValue = {
   friendIds: string[]
   friendCount: number
   isFriend: (id: string) => boolean
-  addFriend: (id: string) => Promise<void>
-  removeFriend: (id: string) => Promise<void>
+  addFriend: (id: string) => Promise<string | null>
+  removeFriend: (id: string) => Promise<string | null>
   hasTradedWith: (id: string) => boolean
   reviewsFor: (id: string) => Review[]
   ratingFor: (id: string) => number
@@ -155,12 +155,22 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId: id }),
+          credentials: "same-origin",
         })
-        if (res.ok) await refreshFriends()
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) return data.error ?? "Could not add friend"
+        await refreshFriends()
+        return null
       },
       removeFriend: async (id) => {
-        const res = await fetch(`/api/friends?userId=${encodeURIComponent(id)}`, { method: "DELETE" })
-        if (res.ok) await refreshFriends()
+        const res = await fetch(`/api/friends?userId=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) return data.error ?? "Could not remove friend"
+        await refreshFriends()
+        return null
       },
       hasTradedWith: (id) => tradePartnerIds.includes(id),
       reviewsFor,

@@ -8,6 +8,27 @@ type FriendshipRow = {
   status: "pending" | "accepted"
 }
 
+async function findFriendshipBetween(
+  supabase: SupabaseClient,
+  userId: string,
+  otherId: string,
+): Promise<FriendshipRow | null> {
+  const { data, error } = await supabase
+    .from("friendships")
+    .select("id, requester_id, addressee_id, status")
+    .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`)
+
+  if (error || !data) return null
+
+  return (
+    data.find(
+      (row) =>
+        (row.requester_id === userId && row.addressee_id === otherId) ||
+        (row.requester_id === otherId && row.addressee_id === userId),
+    ) ?? null
+  )
+}
+
 export async function listFriendIds(supabase: SupabaseClient, userId: string): Promise<string[]> {
   const { data, error } = await supabase
     .from("friendships")
@@ -24,17 +45,10 @@ export async function getFriendshipStatus(
   userId: string,
   otherId: string,
 ): Promise<FriendshipStatus> {
-  const { data } = await supabase
-    .from("friendships")
-    .select("requester_id, addressee_id, status")
-    .or(
-      `and(requester_id.eq.${userId},addressee_id.eq.${otherId}),and(requester_id.eq.${otherId},addressee_id.eq.${userId})`,
-    )
-    .maybeSingle()
-
-  if (!data) return "none"
-  if (data.status === "accepted") return "accepted"
-  if (data.requester_id === userId) return "pending_outgoing"
+  const row = await findFriendshipBetween(supabase, userId, otherId)
+  if (!row) return "none"
+  if (row.status === "accepted") return "accepted"
+  if (row.requester_id === userId) return "pending_outgoing"
   return "pending_incoming"
 }
 
@@ -43,24 +57,21 @@ export async function sendFriendRequest(
   requesterId: string,
   addresseeId: string,
 ): Promise<{ error: string | null }> {
-  const status = await getFriendshipStatus(supabase, requesterId, addresseeId)
-  if (status === "accepted") return { error: "Already friends" }
-  if (status === "pending_outgoing") return { error: "Request already sent" }
+  const existing = await findFriendshipBetween(supabase, requesterId, addresseeId)
+  if (existing?.status === "accepted") return { error: "Already friends" }
 
-  if (status === "pending_incoming") {
+  if (existing) {
     const { error } = await supabase
       .from("friendships")
       .update({ status: "accepted" })
-      .or(
-        `and(requester_id.eq.${addresseeId},addressee_id.eq.${requesterId}),and(requester_id.eq.${requesterId},addressee_id.eq.${addresseeId})`,
-      )
+      .eq("id", existing.id)
     return { error: error?.message ?? null }
   }
 
   const { error } = await supabase.from("friendships").insert({
     requester_id: requesterId,
     addressee_id: addresseeId,
-    status: "pending",
+    status: "accepted",
   })
   return { error: error?.message ?? null }
 }
@@ -70,12 +81,10 @@ export async function removeFriendship(
   userId: string,
   otherId: string,
 ): Promise<{ error: string | null }> {
-  const { error } = await supabase
-    .from("friendships")
-    .delete()
-    .or(
-      `and(requester_id.eq.${userId},addressee_id.eq.${otherId}),and(requester_id.eq.${otherId},addressee_id.eq.${userId})`,
-    )
+  const existing = await findFriendshipBetween(supabase, userId, otherId)
+  if (!existing) return { error: null }
+
+  const { error } = await supabase.from("friendships").delete().eq("id", existing.id)
   return { error: error?.message ?? null }
 }
 
