@@ -54,6 +54,7 @@ export function MyBinder() {
   const [activeTab, setActiveTab] = useState<BinderTab>("search")
   const [clearing, setClearing] = useState(false)
   const [showClearConfirm, setShowClearConfirm] = useState(false)
+  const [matchCount, setMatchCount] = useState(0)
   const loadIdRef = useRef(0)
 
   const isSearchActive = activeTab === "search"
@@ -214,6 +215,7 @@ export function MyBinder() {
     if (tab === "binder") return cards.length
     if (tab === "have") return tradeCount
     if (tab === "want") return wishlistCount
+    if (tab === "matches") return matchCount
     return null
   }
 
@@ -328,7 +330,7 @@ export function MyBinder() {
 
       <main className="flex-1 px-4 pb-8 pt-4 sm:px-6">
         {activeTab === "matches" ? (
-          <MatchesPanel />
+          <MatchesPanel active={activeTab === "matches"} onCountChange={setMatchCount} />
         ) : activeTab === "search" ? (
           <>
             <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />

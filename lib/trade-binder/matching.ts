@@ -13,6 +13,9 @@ type BinderRow = {
   card_number: string | null
 }
 
+const BINDER_SELECT =
+  "user_id, card_id, status, card_name, card_set, card_image, card_number"
+
 function rowToMatchCard(row: BinderRow): MatchCard {
   return {
     cardId: row.card_id,
@@ -23,54 +26,96 @@ function rowToMatchCard(row: BinderRow): MatchCard {
   }
 }
 
+function mergeMatchRows(
+  byUser: Map<string, { theyHaveYouWant: MatchCard[]; youHaveTheyWant: MatchCard[] }>,
+  rows: BinderRow[],
+  direction: "theyHaveYouWant" | "youHaveTheyWant",
+) {
+  for (const row of rows) {
+    if (!byUser.has(row.user_id)) {
+      byUser.set(row.user_id, { theyHaveYouWant: [], youHaveTheyWant: [] })
+    }
+    byUser.get(row.user_id)![direction].push(rowToMatchCard(row))
+  }
+}
+
+export type MatchResult = {
+  suggestions: MatchSuggestion[]
+  error: string | null
+  myHaveCount: number
+  myWantCount: number
+}
+
 export async function computeMatchSuggestions(
   supabase: SupabaseClient,
   userId: string,
-): Promise<MatchSuggestion[]> {
-  const [{ data: myRows }, friendIds] = await Promise.all([
-    supabase
-      .from("user_binders")
-      .select("user_id, card_id, status, card_name, card_set, card_image, card_number")
-      .eq("user_id", userId),
+): Promise<MatchResult> {
+  const [{ data: myRows, error: myError }, friendIds] = await Promise.all([
+    supabase.from("user_binders").select(BINDER_SELECT).eq("user_id", userId),
     listFriendIds(supabase, userId),
   ])
 
+  if (myError) {
+    return {
+      suggestions: [],
+      error: myError.message,
+      myHaveCount: 0,
+      myWantCount: 0,
+    }
+  }
+
   const mine = (myRows ?? []) as BinderRow[]
-  if (mine.length === 0) return []
+  const myWant = [...new Set(mine.filter((r) => r.status === "wishlist").map((r) => r.card_id))]
+  const myHave = [...new Set(mine.filter((r) => r.status === "trade").map((r) => r.card_id))]
 
-  const myWant = new Set(mine.filter((r) => r.status === "wishlist").map((r) => r.card_id))
-  const myHave = new Set(mine.filter((r) => r.status === "trade").map((r) => r.card_id))
-  const cardIds = [...new Set(mine.map((r) => r.card_id))]
-  if (cardIds.length === 0) return []
+  if (myWant.length === 0 && myHave.length === 0) {
+    return {
+      suggestions: [],
+      error: null,
+      myHaveCount: 0,
+      myWantCount: 0,
+    }
+  }
 
-  const { data: otherRows } = await supabase
-    .from("user_binders")
-    .select("user_id, card_id, status, card_name, card_set, card_image, card_number")
-    .neq("user_id", userId)
-    .in("card_id", cardIds)
+  const [theyHaveRes, theyWantRes] = await Promise.all([
+    myWant.length > 0
+      ? supabase
+          .from("user_binders")
+          .select(BINDER_SELECT)
+          .eq("status", "trade")
+          .neq("user_id", userId)
+          .in("card_id", myWant)
+      : Promise.resolve({ data: [], error: null }),
+    myHave.length > 0
+      ? supabase
+          .from("user_binders")
+          .select(BINDER_SELECT)
+          .eq("status", "wishlist")
+          .neq("user_id", userId)
+          .in("card_id", myHave)
+      : Promise.resolve({ data: [], error: null }),
+  ])
 
-  const others = (otherRows ?? []) as BinderRow[]
-  const friendSet = new Set(friendIds)
+  if (theyHaveRes.error || theyWantRes.error) {
+    return {
+      suggestions: [],
+      error: theyHaveRes.error?.message ?? theyWantRes.error?.message ?? "Could not load matches",
+      myHaveCount: myHave.length,
+      myWantCount: myWant.length,
+    }
+  }
 
   const byUser = new Map<
     string,
     { theyHaveYouWant: MatchCard[]; youHaveTheyWant: MatchCard[] }
   >()
 
-  for (const row of others) {
-    if (!byUser.has(row.user_id)) {
-      byUser.set(row.user_id, { theyHaveYouWant: [], youHaveTheyWant: [] })
-    }
-    const bucket = byUser.get(row.user_id)!
-    if (row.status === "trade" && myWant.has(row.card_id)) {
-      bucket.theyHaveYouWant.push(rowToMatchCard(row))
-    }
-    if (row.status === "wishlist" && myHave.has(row.card_id)) {
-      bucket.youHaveTheyWant.push(rowToMatchCard(row))
-    }
-  }
+  mergeMatchRows(byUser, (theyHaveRes.data ?? []) as BinderRow[], "theyHaveYouWant")
+  mergeMatchRows(byUser, (theyWantRes.data ?? []) as BinderRow[], "youHaveTheyWant")
 
+  const friendSet = new Set(friendIds)
   const suggestions: MatchSuggestion[] = []
+
   for (const [otherId, match] of byUser) {
     if (match.theyHaveYouWant.length === 0 && match.youHaveTheyWant.length === 0) continue
     const profile = await fetchProfile(supabase, otherId)
@@ -91,5 +136,10 @@ export async function computeMatchSuggestions(
     return b.score - a.score
   })
 
-  return suggestions
+  return {
+    suggestions,
+    error: null,
+    myHaveCount: myHave.length,
+    myWantCount: myWant.length,
+  }
 }

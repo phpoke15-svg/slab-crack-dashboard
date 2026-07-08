@@ -7,5 +7,5 @@ export async function GET() {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const suggestions = await computeMatchSuggestions(auth.supabase, auth.user.id)
-  return NextResponse.json({ suggestions })
+  return NextResponse.json(suggestions)
 }
