@@ -298,8 +298,6 @@ export function SlabDashboard() {
           )}
         </div>
 
-        <AdSlot variant="banner" slotIndex={0} className="mb-4" compact />
-
         {showCatalogSearch && (
           <CardSearchResults
             hits={searchHits}
