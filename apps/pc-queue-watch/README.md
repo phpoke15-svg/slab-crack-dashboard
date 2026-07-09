@@ -1,25 +1,24 @@
 # CollecTools Mobile App
 
-Installable **Android APK** with **Queue Watch** built in natively.
+Installable **Android APK** that loads your live **CollecTools website** — same hub, tools, and PokeMatch experience as [slab-crack-dashboard.vercel.app](https://slab-crack-dashboard.vercel.app).
 
-## Queue Watch (native)
+## CollecTools tab (default)
 
-- Polls `pokemoncenter.com` from your **phone's network** every **10 seconds**
-- **Push notification** the moment the virtual queue goes live
-- Keeps monitoring when you switch to other tabs
-- **Background checks** on Android (~every 5 min) while monitoring is on
-- Tap the notification → opens Pokemon Center
-- **Auto-start** on app launch (toggle in Queue tab)
+Opens the full website inside the app:
 
-No bookmarklet, ntfy, or Pokemon Center browser tab required.
+- Hub with SlabCrack, Grade Check, PokeMatch, and Queue Watch
+- Sign in, binder, trades, messages — everything on the site
+- In-app navigation stays on your CollecTools domain; external links open in the browser
 
-## App tabs
+## Queue tab (optional native bonus)
 
-| Tab | What it does |
-|-----|----------------|
-| **Home** | Hub + live queue status |
-| **Queue** | Native queue monitor |
-| **Tools** | SlabCrack, Grade Check, PokeMatch (WebView) |
+Native Pokemon Center monitor with push notifications (runs separately from the web Queue Watch page):
+
+- Polls `pokemoncenter.com` from your phone every **10 seconds**
+- Push notification when the virtual queue goes live
+- Background checks on Android while monitoring is on
+
+Use this tab if you want phone alerts without keeping a browser tab open.
 
 ## Build the APK
 
@@ -27,7 +26,6 @@ No bookmarklet, ntfy, or Pokemon Center browser tab required.
 cd apps/pc-queue-watch
 npm install
 npx eas-cli login
-npx eas-cli init
 npm run build:apk
 ```
 
@@ -49,9 +47,4 @@ Create `.env`:
 EXPO_PUBLIC_COLLECTOOLS_URL=https://slab-crack-dashboard.vercel.app
 ```
 
-## During a drop
-
-1. Open CollecTools
-2. Queue Watch auto-starts (or tap **Start monitoring**)
-3. Switch to other apps if needed — you'll get a push when queue goes live
-4. Tap notification → join on Pokemon Center
+Point this at your production URL if it differs from the default.

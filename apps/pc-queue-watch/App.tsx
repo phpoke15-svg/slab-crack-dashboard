@@ -1,20 +1,16 @@
 import "./lib/queue-watch/background"
 import { NavigationContainer, DarkTheme } from "@react-navigation/native"
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
-import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import { StatusBar } from "expo-status-bar"
 import { Text, View } from "react-native"
-import type { RootTabParamList, ToolsStackParamList } from "./lib/navigation"
+import type { RootTabParamList } from "./lib/navigation"
 import { QueueWatchProvider, useQueueWatch } from "./lib/queue-watch"
-import HomeScreen from "./screens/HomeScreen"
 import QueueWatchScreen from "./screens/QueueWatchScreen"
-import ToolsHomeScreen from "./screens/ToolsHomeScreen"
-import ToolWebScreen from "./screens/ToolWebScreen"
+import SiteWebScreen from "./screens/SiteWebScreen"
 
-export type { RootTabParamList, ToolsStackParamList } from "./lib/navigation"
+export type { RootTabParamList } from "./lib/navigation"
 
 const Tab = createBottomTabNavigator<RootTabParamList>()
-const ToolsStack = createNativeStackNavigator<ToolsStackParamList>()
 
 const theme = {
   ...DarkTheme,
@@ -26,25 +22,6 @@ const theme = {
     text: "#f9fafb",
     border: "#1f2937",
   },
-}
-
-function ToolsNavigator() {
-  return (
-    <ToolsStack.Navigator
-      screenOptions={{
-        headerStyle: { backgroundColor: "#111827" },
-        headerTintColor: "#f9fafb",
-        contentStyle: { backgroundColor: "#0b0e14" },
-      }}
-    >
-      <ToolsStack.Screen name="ToolsHome" component={ToolsHomeScreen} options={{ title: "Tools" }} />
-      <ToolsStack.Screen
-        name="Tool"
-        component={ToolWebScreen}
-        options={({ route }) => ({ title: route.params.name })}
-      />
-    </ToolsStack.Navigator>
-  )
 }
 
 function TabLabel({ label, focused, live }: { label: string; focused: boolean; live?: boolean }) {
@@ -71,6 +48,7 @@ function AppTabs() {
 
   return (
     <Tab.Navigator
+      initialRouteName="CollecTools"
       screenOptions={{
         headerStyle: { backgroundColor: "#111827" },
         headerTintColor: "#f9fafb",
@@ -83,11 +61,12 @@ function AppTabs() {
       }}
     >
       <Tab.Screen
-        name="Home"
-        component={HomeScreen}
+        name="CollecTools"
+        component={SiteWebScreen}
         options={{
           title: "CollecTools",
-          tabBarLabel: ({ focused }) => <TabLabel label="Home" focused={focused} />,
+          headerShown: false,
+          tabBarLabel: ({ focused }) => <TabLabel label="CollecTools" focused={focused} />,
         }}
       />
       <Tab.Screen
@@ -100,14 +79,6 @@ function AppTabs() {
             ? { backgroundColor: "#059669", color: "#fff", fontSize: 9, minWidth: 28 }
             : undefined,
           tabBarLabel: ({ focused }) => <TabLabel label="Queue" focused={focused} live={queueLive} />,
-        }}
-      />
-      <Tab.Screen
-        name="Tools"
-        component={ToolsNavigator}
-        options={{
-          headerShown: false,
-          tabBarLabel: ({ focused }) => <TabLabel label="Tools" focused={focused} />,
         }}
       />
     </Tab.Navigator>
