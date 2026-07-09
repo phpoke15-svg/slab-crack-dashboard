@@ -2,25 +2,16 @@ import "./lib/queue-watch/background"
 import { NavigationContainer, DarkTheme } from "@react-navigation/native"
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
-import type { NavigatorScreenParams } from "@react-navigation/native"
 import { StatusBar } from "expo-status-bar"
 import { Text, View } from "react-native"
+import type { RootTabParamList, ToolsStackParamList } from "./lib/navigation"
 import { QueueWatchProvider, useQueueWatch } from "./lib/queue-watch"
 import HomeScreen from "./screens/HomeScreen"
 import QueueWatchScreen from "./screens/QueueWatchScreen"
 import ToolsHomeScreen from "./screens/ToolsHomeScreen"
 import ToolWebScreen from "./screens/ToolWebScreen"
 
-export type ToolsStackParamList = {
-  ToolsHome: undefined
-  Tool: { path: string; name: string }
-}
-
-export type RootTabParamList = {
-  Home: undefined
-  Queue: undefined
-  Tools: NavigatorScreenParams<ToolsStackParamList>
-}
+export type { RootTabParamList, ToolsStackParamList } from "./lib/navigation"
 
 const Tab = createBottomTabNavigator<RootTabParamList>()
 const ToolsStack = createNativeStackNavigator<ToolsStackParamList>()

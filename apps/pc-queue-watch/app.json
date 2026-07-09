@@ -18,8 +18,6 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
-          "remote-notification",
-          "fetch",
           "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -37,10 +35,7 @@
         "VIBRATE",
         "POST_NOTIFICATIONS",
         "WAKE_LOCK",
-        "INTERNET",
-        "FOREGROUND_SERVICE",
-        "android.permission.RECEIVE_BOOT_COMPLETED",
-        "android.permission.WAKE_LOCK"
+        "INTERNET"
       ]
     },
     "plugins": [
@@ -51,7 +46,8 @@
           "icon": "./assets/notification-icon.png",
           "color": "#2563eb"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "extra": {
       "eas": {

@@ -36,9 +36,3 @@ const styles = StyleSheet.create({
   web: { flex: 1, backgroundColor: "#0b0e14" },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0b0e14" },
 })
-
-const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0b0e14" },
-  web: { flex: 1, backgroundColor: "#0b0e14" },
-  loading: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#0b0e14" },
-})
