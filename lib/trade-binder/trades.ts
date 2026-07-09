@@ -10,6 +10,8 @@ type TradeRow = {
   created_at: string
   updated_at: string
   completed_at: string | null
+  initiator_accepted_at: string | null
+  recipient_accepted_at: string | null
 }
 
 type TradeItemRow = {
@@ -32,6 +34,8 @@ function mapTrade(row: TradeRow, items: TradeItemRow[]): Trade {
     createdAt: row.created_at,
     updatedAt: row.updated_at ?? row.created_at,
     completedAt: row.completed_at,
+    initiatorAcceptedAt: row.initiator_accepted_at ?? null,
+    recipientAcceptedAt: row.recipient_accepted_at ?? null,
     items: items.map(
       (item): TradeItem => ({
         id: item.id,
@@ -69,6 +73,30 @@ export async function listTradesForUser(supabase: SupabaseClient, userId: string
 
 export function tradePartnerId(trade: Trade, userId: string): string {
   return trade.initiatorId === userId ? trade.recipientId : trade.initiatorId
+}
+
+export function userHasAcceptedTrade(trade: Trade, userId: string): boolean {
+  if (trade.initiatorId === userId) return Boolean(trade.initiatorAcceptedAt)
+  if (trade.recipientId === userId) return Boolean(trade.recipientAcceptedAt)
+  return false
+}
+
+export function partnerHasAcceptedTrade(trade: Trade, userId: string): boolean {
+  if (trade.initiatorId === userId) return Boolean(trade.recipientAcceptedAt)
+  if (trade.recipientId === userId) return Boolean(trade.initiatorAcceptedAt)
+  return false
+}
+
+export function tradeHasActiveOffer(trade: Trade): boolean {
+  return trade.items.length > 0
+}
+
+export function tradeNeedsMyAcceptance(trade: Trade, userId: string): boolean {
+  return (
+    trade.status === "pending" &&
+    tradeHasActiveOffer(trade) &&
+    !userHasAcceptedTrade(trade, userId)
+  )
 }
 
 function tradeActivityTime(trade: Trade): string {
@@ -227,6 +255,8 @@ export async function createOrUpdateTradeProposal(
         status: "pending",
         message: message.trim(),
         updated_at: new Date().toISOString(),
+        initiator_accepted_at: null,
+        recipient_accepted_at: null,
       })
       .eq("id", existing.id)
 
@@ -343,13 +373,74 @@ export async function replaceTradeItems(
   return { error: null }
 }
 
+export async function recordTradeAcceptance(
+  supabase: SupabaseClient,
+  tradeId: string,
+  userId: string,
+): Promise<{ trade: Trade | null; bothAccepted: boolean; error: string | null }> {
+  const trade = await getTradeById(supabase, tradeId, userId)
+  if (!trade) return { trade: null, bothAccepted: false, error: "Trade not found" }
+  if (trade.status !== "pending") {
+    return { trade: null, bothAccepted: false, error: "Trade is not open for acceptance" }
+  }
+  if (!tradeHasActiveOffer(trade)) {
+    return { trade: null, bothAccepted: false, error: "No active offer to accept" }
+  }
+  if (userHasAcceptedTrade(trade, userId)) {
+    return { trade, bothAccepted: trade.status === "accepted", error: null }
+  }
+
+  const isInitiator = trade.initiatorId === userId
+  const partnerAccepted = partnerHasAcceptedTrade(trade, userId)
+  const now = new Date().toISOString()
+  const patch: Record<string, unknown> = {
+    updated_at: now,
+    ...(isInitiator ? { initiator_accepted_at: now } : { recipient_accepted_at: now }),
+  }
+
+  if (partnerAccepted) {
+    patch.status = "accepted"
+  }
+
+  const { error } = await supabase.from("trades").update(patch).eq("id", tradeId)
+  if (error) return { trade: null, bothAccepted: false, error: error.message }
+
+  const updated = await getTradeById(supabase, tradeId, userId)
+  return {
+    trade: updated,
+    bothAccepted: updated?.status === "accepted",
+    error: null,
+  }
+}
+
 export async function updateTradeStatus(
   supabase: SupabaseClient,
   tradeId: string,
   userId: string,
   status: TradeStatus,
 ): Promise<{ error: string | null }> {
-  const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() }
+  if (status === "accepted") {
+    const { error } = await recordTradeAcceptance(supabase, tradeId, userId)
+    return { error }
+  }
+
+  const trade = await getTradeById(supabase, tradeId, userId)
+  if (!trade) return { error: "Trade not found" }
+
+  if (status === "completed" && trade.status !== "accepted") {
+    return { error: "Both parties must accept before completing the trade" }
+  }
+
+  if (status === "cancelled" && trade.initiatorId !== userId) {
+    return { error: "Only the offer sender can cancel" }
+  }
+
+  const patch: Record<string, unknown> = {
+    status,
+    updated_at: new Date().toISOString(),
+    initiator_accepted_at: null,
+    recipient_accepted_at: null,
+  }
   if (status === "completed") patch.completed_at = new Date().toISOString()
 
   const { error } = await supabase

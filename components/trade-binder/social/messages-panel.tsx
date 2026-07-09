@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeftRight, Loader2, MessageSquarePlus } from "lucide-react"
 import type { Trade, TradeMessage, User } from "@/lib/trade-binder/users"
-import { tradePartnerId } from "@/lib/trade-binder/trades"
+import { tradePartnerId, tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
 import { PanelShell } from "./panel-shell"
@@ -197,8 +197,7 @@ function ConversationRow({
   const other = getProfile(otherId)
   const when = lastMessage?.createdAt ?? trade.updatedAt ?? trade.createdAt
   const systemLabel = lastMessage ? messageLabel(lastMessage.messageType) : null
-  const needsAction =
-    trade.status === "pending" && trade.recipientId === userId && trade.initiatorId !== userId
+  const needsAction = userId ? tradeNeedsMyAcceptance(trade, userId) : false
 
   return (
     <li>

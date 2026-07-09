@@ -64,6 +64,8 @@ export type Trade = {
   createdAt: string
   updatedAt: string
   completedAt: string | null
+  initiatorAcceptedAt: string | null
+  recipientAcceptedAt: string | null
   items: TradeItem[]
 }
 

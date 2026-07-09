@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { listFriendIds, removeFriendship, sendFriendRequest } from "@/lib/trade-binder/friends"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
+import { tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
 import {
   averageRating,
   type Review,
@@ -251,7 +252,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       cacheProfile,
       trades,
       pendingTradeCount: trades.filter(
-        (t) => t.status === "pending" && t.recipientId === currentUser?.id,
+        (t) => currentUser && tradeNeedsMyAcceptance(t, currentUser.id),
       ).length,
       refreshTrades,
       refreshFriends,

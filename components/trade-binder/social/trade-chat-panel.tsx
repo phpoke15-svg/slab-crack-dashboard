@@ -13,6 +13,12 @@ import {
 } from "lucide-react"
 import type { TcgCard } from "@/lib/trade-binder/cards"
 import type { Trade, TradeMessage } from "@/lib/trade-binder/users"
+import {
+  partnerHasAcceptedTrade,
+  tradeHasActiveOffer,
+  tradeNeedsMyAcceptance,
+  userHasAcceptedTrade,
+} from "@/lib/trade-binder/trades"
 import { isMessageReadByPartner } from "@/lib/trade-binder/chat-reads"
 import { loadBinderCards } from "@/lib/trade-binder/binder"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -77,6 +83,10 @@ export function TradeChatPanel({
 
   const activeTradeId = trade?.id ?? initialTradeId
   const isInitiator = trade?.initiatorId === user?.id
+  const hasActiveOffer = trade ? tradeHasActiveOffer(trade) : false
+  const iAccepted = trade && user ? userHasAcceptedTrade(trade, user.id) : false
+  const partnerAccepted = trade && user ? partnerHasAcceptedTrade(trade, user.id) : false
+  const needsMyAcceptance = trade && user ? tradeNeedsMyAcceptance(trade, user.id) : false
   const myItems = trade?.items.filter((i) => i.userId === user?.id) ?? []
   const theirItems = trade?.items.filter((i) => i.userId !== user?.id) ?? []
 
@@ -359,10 +369,20 @@ export function TradeChatPanel({
 
   const footer = (
     <div className="p-3 sm:p-4">
-      {trade?.status === "pending" && (
-        <div className="mb-2 flex flex-wrap gap-2">
-          {!isInitiator && (
-            <>
+      {trade?.status === "pending" && hasActiveOffer && (
+        <div className="mb-2 space-y-2">
+          {iAccepted && !partnerAccepted && (
+            <p className="rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary">
+              You accepted — waiting for {other?.name ?? "them"} to accept.
+            </p>
+          )}
+          {partnerAccepted && !iAccepted && (
+            <p className="rounded-lg bg-trade/10 px-3 py-2 text-xs text-trade">
+              {other?.name ?? "They"} accepted — tap Accept to confirm the trade.
+            </p>
+          )}
+          <div className="flex flex-wrap gap-2">
+            {needsMyAcceptance && (
               <button
                 type="button"
                 disabled={actionId === activeTradeId}
@@ -371,6 +391,8 @@ export function TradeChatPanel({
               >
                 <Check className="size-3" /> Accept offer
               </button>
+            )}
+            {hasActiveOffer && (needsMyAcceptance || (iAccepted && !partnerAccepted)) && (
               <button
                 type="button"
                 disabled={actionId === activeTradeId}
@@ -379,18 +401,18 @@ export function TradeChatPanel({
               >
                 <X className="size-3" /> Decline
               </button>
-            </>
-          )}
-          {isInitiator && (
-            <button
-              type="button"
-              disabled={actionId === activeTradeId}
-              onClick={() => void updateStatus("cancelled")}
-              className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground"
-            >
-              Cancel offer
-            </button>
-          )}
+            )}
+            {isInitiator && (
+              <button
+                type="button"
+                disabled={actionId === activeTradeId}
+                onClick={() => void updateStatus("cancelled")}
+                className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground"
+              >
+                Cancel offer
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -591,9 +613,17 @@ export function TradeChatPanel({
         </div>
       ) : (
         <div className="flex min-h-full flex-col p-4">
-          {trade && (myItems.length > 0 || theirItems.length > 0) && (
+          {trade && hasActiveOffer && (myItems.length > 0 || theirItems.length > 0) && (
             <div className="mb-4 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 text-xs">
-              <p className="font-semibold text-foreground">Current offer · {trade.status}</p>
+              <p className="font-semibold text-foreground">
+                Current offer · {trade.status}
+                {trade.status === "pending" && iAccepted && !partnerAccepted
+                  ? " · you accepted"
+                  : ""}
+                {trade.status === "pending" && partnerAccepted && !iAccepted
+                  ? " · they accepted"
+                  : ""}
+              </p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 <OfferSummary title="You give" items={myItems} />
                 <OfferSummary title="You get" items={theirItems} />
