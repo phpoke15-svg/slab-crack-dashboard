@@ -6,13 +6,16 @@ import {
   type QueueWatchReport,
 } from "@/lib/pokemon-center/queue-alerts"
 import type { QueueSignal } from "@/lib/pokemon-center/queue-detector"
+import { requireQueueWatchAccess } from "@/lib/billing/stripe"
+import { verifyQueueWatchToken } from "@/lib/billing/queue-watch-token"
+import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Queue-Watch-Token",
 }
 
 export async function OPTIONS() {
@@ -27,6 +30,30 @@ type ReportBody = {
   pageUrl?: string
   ntfyTopic?: string
   source?: QueueWatchReport["source"]
+  token?: string
+}
+
+async function resolveProUserId(request: Request, bodyToken?: string): Promise<string | null> {
+  const headerToken =
+    request.headers.get("x-queue-watch-token") ||
+    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
+    bodyToken
+  const fromToken = verifyQueueWatchToken(headerToken)
+  if (fromToken) {
+    const allowed = await requireQueueWatchAccess(fromToken)
+    return allowed ? fromToken : null
+  }
+
+  try {
+    const auth = await requireUser()
+    if (auth.ok) {
+      const allowed = await requireQueueWatchAccess(auth.user.id)
+      return allowed ? auth.user.id : null
+    }
+  } catch {
+    // unauthenticated
+  }
+  return null
 }
 
 export async function POST(request: Request) {
@@ -35,6 +62,14 @@ export async function POST(request: Request) {
     body = (await request.json()) as ReportBody
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS })
+  }
+
+  const proUserId = await resolveProUserId(request, body.token)
+  if (!proUserId) {
+    return NextResponse.json(
+      { error: "Queue Watch requires a Pro subscription.", upgradeUrl: "/pricing" },
+      { status: 403, headers: CORS_HEADERS },
+    )
   }
 
   const sessionId = body.sessionId?.trim()

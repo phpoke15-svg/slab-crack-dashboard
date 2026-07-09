@@ -7,6 +7,7 @@ import {
   getAdSenseSlotId,
   type AdSenseSlotVariant,
 } from "@/lib/adsense-config"
+import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 
 type AdSlotProps = {
   variant?: AdSenseSlotVariant
@@ -28,10 +29,11 @@ export function AdSlot({
   className,
   compact = false,
 }: AdSlotProps) {
+  const entitlements = useOptionalEntitlements()
   const pushed = useRef(false)
   const clientId = getAdSenseClientId()
   const slotId = getAdSenseSlotId(variant)
-  const adsEnabled = Boolean(clientId && slotId)
+  const adsEnabled = Boolean(clientId && slotId) && !entitlements?.adFree
 
   useEffect(() => {
     if (!adsEnabled || pushed.current) return
@@ -43,6 +45,8 @@ export function AdSlot({
       /* ad blockers */
     }
   }, [adsEnabled, slotId])
+
+  if (entitlements?.adFree) return null
 
   if (!adsEnabled) {
     return (

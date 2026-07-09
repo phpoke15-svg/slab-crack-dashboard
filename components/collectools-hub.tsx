@@ -71,6 +71,13 @@ export function CollecToolsHub() {
       </div>
 
       <FooterAd className="mt-10" />
+      <p className="mt-8 text-center text-sm text-muted-foreground">
+        <Link href="/pricing" className="font-medium text-primary hover:underline">
+          Premium & Pro plans
+        </Link>
+        {" · "}
+        ad-free from $1.99/mo · Queue Watch with Pro
+      </p>
       <SiteFooter className="mt-auto pt-8" />
     </div>
   )

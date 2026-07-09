@@ -48,9 +48,9 @@ export const COLLECTOOLS: CollecTool[] = [
     id: "queue-watch",
     href: "/queue-watch",
     name: "Queue Watch",
-    tagline: "Pokemon Center alerts",
+    tagline: "Pro · Pokemon Center alerts",
     description:
-      "Instant browser and Discord alerts when the Pokemon Center virtual queue goes live.",
+      "Instant browser and Discord alerts when the Pokemon Center virtual queue goes live. Included with CollecTools Pro.",
     icon: Bell,
   },
 ]

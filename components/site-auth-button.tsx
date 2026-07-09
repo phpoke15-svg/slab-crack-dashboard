@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState, type ReactNode } from "react"
 import {
   BookOpen,
+  CreditCard,
   LogOut,
   MessageSquare,
   Package,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
+import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { useOptionalSocial } from "@/components/trade-binder/social/social-provider"
 
 type SiteAuthButtonProps = {
@@ -60,6 +62,7 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
   const pathname = usePathname()
   const { user, isLoading, signOut } = useAuth()
   const social = useOptionalSocial()
+  const entitlements = useOptionalEntitlements()
   const [menuOpen, setMenuOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -185,6 +188,18 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
           >
             <BookOpen className="size-4 text-muted-foreground" aria-hidden="true" />
             My binder
+          </Link>
+
+          <Link
+            href="/pricing"
+            role="menuitem"
+            onClick={() => setMenuOpen(false)}
+            className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-accent"
+          >
+            <CreditCard className="size-4 text-muted-foreground" aria-hidden="true" />
+            {entitlements && entitlements.plan !== "free"
+              ? `Plan: ${entitlements.plan}`
+              : "Upgrade"}
           </Link>
 
           {social && (

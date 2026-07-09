@@ -25,6 +25,7 @@ import { SiteFooter } from "@/components/legal/site-footer"
 import { FooterAd } from "@/components/footer-ad"
 import { AdSlot } from "@/components/ad-slot"
 import { getGridAdInterval, interleaveWithAds } from "@/lib/feed-ads"
+import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { SearchBar } from "./search-bar"
 import { CardTile } from "./card-tile"
 import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
@@ -50,6 +51,7 @@ function tabToStatus(tab: BinderTab): CardStatus | null {
 }
 
 export function MyBinder() {
+  const entitlements = useOptionalEntitlements()
   const { user, isLoading: authLoading, runWithAuth, getSupabase } = useAuth()
 
   const [cards, setCards] = useState<TcgCard[]>([])
@@ -69,8 +71,12 @@ export function MyBinder() {
   const ownedById = useMemo(() => new Map(cards.map((c) => [c.id, c.status])), [cards])
 
   const searchGridItems = useMemo(
-    () => interleaveWithAds(searchResults, getGridAdInterval()),
-    [searchResults],
+    () =>
+      interleaveWithAds(
+        searchResults,
+        entitlements?.adFree ? 0 : getGridAdInterval(),
+      ),
+    [searchResults, entitlements?.adFree],
   )
 
   const loadBinder = useCallback(async () => {

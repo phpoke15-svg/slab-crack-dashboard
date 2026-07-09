@@ -70,6 +70,13 @@ const PROBES: Probe[] = [
   { id: "trade_chat_reads", label: "Chat read receipts", table: "trade_chat_reads" },
   { id: "reviews", label: "Reviews", table: "reviews" },
   { id: "binder_card_prices", label: "Price cache", table: "binder_card_prices" },
+  {
+    id: "profiles_plan",
+    label: "Billing plans",
+    table: "profiles",
+    columns: "plan,stripe_customer_id",
+  },
+  { id: "subscriptions", label: "Subscriptions", table: "subscriptions" },
 ]
 
 function isMissingSchemaError(message: string): boolean {

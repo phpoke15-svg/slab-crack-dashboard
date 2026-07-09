@@ -18,6 +18,7 @@ import { SlabDrawer } from "@/components/slab-drawer"
 import { FeedAdSlot } from "@/components/feed-ad-slot"
 import { AdSlot } from "@/components/ad-slot"
 import { interleaveFeedAds } from "@/lib/feed-ads"
+import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
 import {
@@ -35,6 +36,7 @@ const FALLBACK_FEED: MockCardEntry[] = []
 const SLABCRACK = COLLECTOOLS.find((tool) => tool.id === "slabcrack")!
 
 export function SlabDashboard() {
+  const entitlements = useOptionalEntitlements()
   const [arbitrageFeed, setArbitrageFeed] = useState<MockCardEntry[]>(FALLBACK_FEED)
   const [feedLoading, setFeedLoading] = useState(true)
   const [query, setQuery] = useState("")
@@ -208,7 +210,10 @@ export function SlabDashboard() {
     [results],
   )
 
-  const feedItems = useMemo(() => interleaveFeedAds(results), [results])
+  const feedItems = useMemo(
+    () => interleaveFeedAds(results, entitlements?.adFree ? 0 : undefined),
+    [results, entitlements?.adFree],
+  )
   const showCatalogSearch = query.trim().length >= 2 && feed !== "watchlist"
 
   return (

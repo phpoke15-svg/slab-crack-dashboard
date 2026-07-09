@@ -15,6 +15,7 @@ import { useOptionalSocial } from "./social-provider"
 import { UserAvatar } from "./user-avatar"
 import { cn } from "@/lib/utils"
 import { AdSlot } from "@/components/ad-slot"
+import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { getMatchAdInterval, interleaveWithAds } from "@/lib/feed-ads"
 
 type MatchesPanelProps = {
@@ -34,6 +35,7 @@ const TOLERANCE_OPTIONS = [
 export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps) {
   const { user } = useAuth()
   const social = useOptionalSocial()
+  const entitlements = useOptionalEntitlements()
   const [suggestions, setSuggestions] = useState<MatchSuggestion[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -97,8 +99,12 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
   }, [active, user, loadMatches])
 
   const matchListItems = useMemo(
-    () => interleaveWithAds(suggestions, getMatchAdInterval()),
-    [suggestions],
+    () =>
+      interleaveWithAds(
+        suggestions,
+        entitlements?.adFree ? 0 : getMatchAdInterval(),
+      ),
+    [suggestions, entitlements?.adFree],
   )
 
   if (!user) {

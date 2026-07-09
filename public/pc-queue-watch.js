@@ -4,6 +4,7 @@
 
   var params = new URL(document.currentScript.src).searchParams
   var sessionId = params.get("sid") || "anonymous"
+  var watchToken = params.get("tok") || ""
   var reportUrl = new URL("/api/pokemon-center/report", document.currentScript.src).toString()
   var lastLive = false
   var signals = []
@@ -57,6 +58,7 @@
         confidence: state.confidence,
         signals: state.signals,
         pageUrl: location.href,
+        token: watchToken || undefined,
       }),
       keepalive: true,
     }).catch(function () {})
