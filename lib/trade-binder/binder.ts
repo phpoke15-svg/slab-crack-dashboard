@@ -300,6 +300,18 @@ export async function addCardToBinder(
 
   // Row already exists — update status (and refresh cached card data).
   if (insertError.code === "23505") {
+    const { data: existing, error: existingError } = await supabase
+      .from("user_binders")
+      .select("status, pending_trade_id")
+      .eq("user_id", userId)
+      .eq("card_id", card.id)
+      .maybeSingle()
+
+    if (existingError) throw existingError
+    if (existing?.status === "pending" && existing.pending_trade_id) {
+      throw new Error("This card is locked in an accepted trade.")
+    }
+
     const { error: updateError } = await supabase
       .from("user_binders")
       .update({
@@ -352,6 +364,20 @@ export async function updateBinderStatus(
   cardId: string,
   status: CardStatus,
 ): Promise<void> {
+  if (status !== "pending") {
+    const { data: existing, error: existingError } = await supabase
+      .from("user_binders")
+      .select("status, pending_trade_id")
+      .eq("user_id", userId)
+      .eq("card_id", cardId)
+      .maybeSingle()
+
+    if (existingError) throwBinderError(existingError)
+    if (existing?.status === "pending" && existing.pending_trade_id) {
+      throw new Error("This card is locked in an accepted trade.")
+    }
+  }
+
   const { error } = await supabase
     .from("user_binders")
     .update({ status })

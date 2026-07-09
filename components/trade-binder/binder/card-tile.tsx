@@ -1,6 +1,6 @@
 "use client"
 
-import { Trash2 } from "lucide-react"
+import { Clock, Trash2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { CardStatus, TcgCard } from "@/lib/trade-binder/cards"
 import { binderCardKey } from "@/lib/trade-binder/binder"
@@ -67,9 +67,16 @@ export function CardTile({
         </div>
 
         <FolderSwitcher
-          status={card.status}
+          status={card.status === "pending" ? null : card.status}
           onSelect={(status) => onSetStatus(card.id, status)}
+          disabled={card.status === "pending"}
         />
+        {card.status === "pending" && (
+          <p className="flex items-center justify-center gap-1 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-[10px] font-medium text-amber-700 dark:text-amber-400">
+            <Clock className="size-3" aria-hidden="true" />
+            Locked in accepted trade
+          </p>
+        )}
       </div>
     </article>
   )

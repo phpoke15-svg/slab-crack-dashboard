@@ -27,18 +27,20 @@ import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
 import { MatchesPanel } from "@/components/trade-binder/social/matches-panel"
 import { SiteAuthButton } from "@/components/site-auth-button"
 
-type BinderTab = "search" | "have" | "want" | "matches"
+type BinderTab = "search" | "have" | "want" | "pending" | "matches"
 
 const tabs: { key: BinderTab; label: string }[] = [
   { key: "search", label: "Search" },
   { key: "have", label: "I have" },
   { key: "want", label: "I want" },
+  { key: "pending", label: "Pending" },
   { key: "matches", label: "Matches" },
 ]
 
 function tabToStatus(tab: BinderTab): CardStatus | null {
   if (tab === "have") return "trade"
   if (tab === "want") return "wishlist"
+  if (tab === "pending") return "pending"
   return null
 }
 
@@ -107,6 +109,10 @@ export function MyBinder() {
 
     const card = cards.find((c) => c.id === id)
     if (!card || card.status === status) return
+    if (card.status === "pending") {
+      setSaveError("This card is locked in an accepted trade.")
+      return
+    }
 
     const previousStatus = card.status
     setCards((prev) =>
@@ -176,6 +182,10 @@ export function MyBinder() {
 
     const card = cards.find((c) => c.clientKey === key)
     if (!card) return
+    if (card.status === "pending") {
+      setSaveError("This card is locked in an accepted trade. Cancel or complete the trade first.")
+      return
+    }
 
     const confirmed = window.confirm(`Remove ${card.name} from your binder?`)
     if (!confirmed) return
@@ -204,15 +214,17 @@ export function MyBinder() {
 
   const tradeCount = cards.filter((c) => c.status === "trade").length
   const wishlistCount = cards.filter((c) => c.status === "wishlist").length
+  const pendingCount = cards.filter((c) => c.status === "pending").length
 
   const tabCount = (tab: BinderTab) => {
     if (tab === "have") return tradeCount
     if (tab === "want") return wishlistCount
+    if (tab === "pending") return pendingCount
     if (tab === "matches") return matchCount
     return null
   }
 
-  const isListTab = activeTab === "have" || activeTab === "want"
+  const isListTab = activeTab === "have" || activeTab === "want" || activeTab === "pending"
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -346,11 +358,17 @@ export function MyBinder() {
                 Showing {gridCards.length.toLocaleString()} of {filteredCount.toLocaleString()} cards.
               </p>
             )}
-            {isListTab && (
+            {isListTab && activeTab !== "pending" && (
               <p className="mb-3 text-xs text-muted-foreground">
                 Tap the trash icon to remove a card, or use{" "}
                 <span className="text-trade">I have</span> / <span className="text-wishlist">I want</span> to move it
                 between lists.
+              </p>
+            )}
+            {activeTab === "pending" && (
+              <p className="mb-3 text-xs text-muted-foreground text-pretty">
+                These cards are locked in accepted trades and hidden from matching until the trade completes or is
+                cancelled.
               </p>
             )}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -368,12 +386,18 @@ export function MyBinder() {
         ) : (
           <EmptyState
             title={
-              activeTab === "have" ? "Nothing listed to trade" : "Nothing on your want list"
+              activeTab === "have"
+                ? "Nothing listed to trade"
+                : activeTab === "want"
+                  ? "Nothing on your want list"
+                  : "No pending trades"
             }
             message={
-              user
-                ? "Use the Search tab to find cards, then add them to I have or I want."
-                : "Sign in to build your binder."
+              activeTab === "pending"
+                ? "When you and another trader both accept a trade, those cards appear here and are removed from matching."
+                : user
+                  ? "Use the Search tab to find cards, then add them to I have or I want."
+                  : "Sign in to build your binder."
             }
             action={
               user ? (

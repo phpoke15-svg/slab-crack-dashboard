@@ -1,4 +1,6 @@
-export type CardStatus = "trade" | "wishlist"
+export type CardStatus = "trade" | "wishlist" | "pending"
+
+export const ACTIVE_MATCH_STATUSES: CardStatus[] = ["trade", "wishlist"]
 
 export type Rarity = "Common" | "Rare" | "Epic" | "Legendary"
 

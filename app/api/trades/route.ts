@@ -10,6 +10,8 @@ import {
   recordTradeCancellation,
   updateTradeStatus,
 } from "@/lib/trade-binder/trades"
+import { syncLocksForAcceptedTrades } from "@/lib/trade-binder/trade-binder-lock"
+import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export async function GET() {
@@ -17,6 +19,10 @@ export async function GET() {
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   const allTrades = await listTradesForUser(auth.supabase, auth.user.id)
+  const locker = createCrossUserReader()
+  if (locker) {
+    await syncLocksForAcceptedTrades(locker, allTrades)
+  }
   const threads = listTradeThreadsForUser(allTrades, auth.user.id)
   const lastMessages = await listLatestMessagesForTrades(
     auth.supabase,

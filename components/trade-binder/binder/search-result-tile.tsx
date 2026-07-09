@@ -62,7 +62,11 @@ export function SearchResultTile({
           )}
         </div>
 
-        {owned && ownedStatus && onSetStatus ? (
+        {owned && ownedStatus === "pending" ? (
+          <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-center text-[10px] font-medium text-amber-700 dark:text-amber-400">
+            Locked in accepted trade
+          </p>
+        ) : owned && ownedStatus && onSetStatus ? (
           <FolderSwitcher status={ownedStatus} onSelect={onSetStatus} size="sm" />
         ) : (
           <>

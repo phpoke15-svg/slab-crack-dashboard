@@ -6,7 +6,7 @@ create table if not exists public.user_binders (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references auth.users(id) on delete cascade not null,
   card_id text not null,
-  status text not null check (status in ('trade', 'wishlist')),
+  status text not null check (status in ('trade', 'wishlist', 'pending')),
   card_name text,
   card_set text,
   card_image text,
@@ -21,6 +21,9 @@ alter table public.user_binders add column if not exists card_set text;
 alter table public.user_binders add column if not exists card_image text;
 alter table public.user_binders add column if not exists card_rarity text;
 alter table public.user_binders add column if not exists card_number text;
+alter table public.user_binders add column if not exists pending_trade_id uuid references public.trades(id) on delete set null;
+alter table public.user_binders add column if not exists pending_restore_status text
+  check (pending_restore_status is null or pending_restore_status in ('trade', 'wishlist'));
 
 alter table public.user_binders enable row level security;
 

@@ -7,7 +7,12 @@ import {
   userHasRequestedCancel,
 } from "@/lib/trade-binder/trade-cancellation"
 import { SHIPPING_CLEAR_PATCH, mapShippingFromRow } from "@/lib/trade-binder/trade-shipping"
-import { binderErrorMessage } from "@/lib/trade-binder/errors"
+import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
+import {
+  finalizeCardsForCompletedTrade,
+  lockCardsForAcceptedTrade,
+  unlockCardsForCancelledTrade,
+} from "@/lib/trade-binder/trade-binder-lock"
 import type { Trade, TradeItem, TradeStatus, TradeFulfillmentItem } from "@/lib/trade-binder/users"
 
 type TradeRow = {
@@ -458,9 +463,22 @@ export async function recordTradeAcceptance(
   if (error) return { trade: null, bothAccepted: false, error: error.message }
 
   const updated = await getTradeById(supabase, tradeId, userId)
+  const bothAccepted = updated?.status === "accepted" || isTradeFullyAccepted(updated)
+
+  if (bothAccepted && updated) {
+    const locker = createCrossUserReader()
+    if (locker) {
+      try {
+        await lockCardsForAcceptedTrade(locker, updated)
+      } catch {
+        // pending columns may not exist until binder-pending-trade.sql is run
+      }
+    }
+  }
+
   return {
     trade: updated,
-    bothAccepted: updated?.status === "accepted",
+    bothAccepted,
     error: null,
   }
 }
@@ -505,9 +523,22 @@ export async function recordTradeCancellation(
   }
 
   const updated = await getTradeById(supabase, tradeId, userId)
+  const bothCancelled = updated?.status === "cancelled"
+
+  if (bothCancelled) {
+    const locker = createCrossUserReader()
+    if (locker) {
+      try {
+        await unlockCardsForCancelledTrade(locker, tradeId)
+      } catch {
+        // ignore until migration applied
+      }
+    }
+  }
+
   return {
     trade: updated,
-    bothCancelled: updated?.status === "cancelled",
+    bothCancelled,
     error: null,
   }
 }
@@ -551,6 +582,17 @@ export async function updateTradeStatus(
     .update(patch)
     .eq("id", tradeId)
     .or(`initiator_id.eq.${userId},recipient_id.eq.${userId}`)
+
+  if (!error && status === "completed") {
+    const locker = createCrossUserReader()
+    if (locker) {
+      try {
+        await finalizeCardsForCompletedTrade(locker, tradeId)
+      } catch {
+        // ignore until migration applied
+      }
+    }
+  }
 
   return { error: error?.message ?? null }
 }
