@@ -1,24 +1,24 @@
 import type { MockCardEntry } from "@/lib/slab-data"
 
-export const DEFAULT_FEED_AD_INTERVAL = 5
-export const DEFAULT_GRID_AD_INTERVAL = 8
-export const DEFAULT_MATCH_AD_INTERVAL = 3
+/** Hardcoded so Vercel env cannot silently keep ads at every 10 cards. */
+export const FEED_AD_INTERVAL = 5
+export const GRID_AD_INTERVAL = 8
+export const MATCH_AD_INTERVAL = 3
 
-function parseInterval(raw: string | undefined, fallback: number): number {
-  const fromEnv = Number(raw)
-  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : fallback
-}
+export const DEFAULT_FEED_AD_INTERVAL = FEED_AD_INTERVAL
+export const DEFAULT_GRID_AD_INTERVAL = GRID_AD_INTERVAL
+export const DEFAULT_MATCH_AD_INTERVAL = MATCH_AD_INTERVAL
 
 export function getFeedAdInterval(): number {
-  return parseInterval(process.env.NEXT_PUBLIC_FEED_AD_INTERVAL, DEFAULT_FEED_AD_INTERVAL)
+  return FEED_AD_INTERVAL
 }
 
 export function getGridAdInterval(): number {
-  return parseInterval(process.env.NEXT_PUBLIC_GRID_AD_INTERVAL, DEFAULT_GRID_AD_INTERVAL)
+  return GRID_AD_INTERVAL
 }
 
 export function getMatchAdInterval(): number {
-  return parseInterval(process.env.NEXT_PUBLIC_MATCH_AD_INTERVAL, DEFAULT_MATCH_AD_INTERVAL)
+  return MATCH_AD_INTERVAL
 }
 
 export type InterleavedItem<T> =
