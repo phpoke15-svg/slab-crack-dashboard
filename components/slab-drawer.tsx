@@ -11,17 +11,14 @@ import {
   getPopReport,
   getConfidence,
   mockEntryToSlabCard,
-  PSA_GRADE_NUMBERS,
   type MockCardEntry,
   type PsaGradeNumber,
-  type RecentSale,
 } from "@/lib/slab-data"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { DeficitSparkline } from "@/components/deficit-sparkline"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RegradeCalculator } from "@/components/regrade-calculator"
-import { RecentSalesList } from "@/components/recent-sales-list"
 import { DEFAULT_CONDITION, type ConditionKey, type ConditionState } from "@/components/condition-log"
 
 interface SlabDrawerProps {
@@ -34,9 +31,6 @@ interface SlabDrawerProps {
 export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: SlabDrawerProps) {
   const [showLog, setShowLog] = useState(false)
   const [condition, setCondition] = useState<ConditionState>(DEFAULT_CONDITION)
-  const [recentRawSales, setRecentRawSales] = useState<RecentSale[]>([])
-  const [recentSlabSales, setRecentSlabSales] = useState<RecentSale[]>([])
-  const [salesLoading, setSalesLoading] = useState(false)
   const [salesGrade, setSalesGrade] = useState<PsaGradeNumber>(9)
 
   useEffect(() => {
@@ -53,57 +47,12 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   }, [selectedCard])
 
   useEffect(() => {
-    if (!selectedCard) {
-      setRecentRawSales([])
-      setRecentSlabSales([])
-      return
-    }
+    if (!selectedCard) return
 
     const gradeQuotes = getGradeQuotes(selectedCard)
     const best = getBestGradeQuote(gradeQuotes)
     setSalesGrade(best?.grade ?? 9)
   }, [selectedCard])
-
-  useEffect(() => {
-    if (!selectedCard) {
-      setRecentRawSales([])
-      setRecentSlabSales([])
-      return
-    }
-
-    const gradeQuotes = getGradeQuotes(selectedCard)
-    const quote = gradeQuotes.find((item) => item.grade === salesGrade)
-
-    if (selectedCard.recentRawSales?.length || quote?.recentSlabSales?.length) {
-      setRecentRawSales(selectedCard.recentRawSales ?? [])
-      setRecentSlabSales(quote?.recentSlabSales ?? [])
-      return
-    }
-
-    let cancelled = false
-    setSalesLoading(true)
-
-    fetch(`/api/card-sales?id=${selectedCard.id}&grade=${salesGrade}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { recentRawSales?: RecentSale[]; recentSlabSales?: RecentSale[] } | null) => {
-        if (cancelled || !data) return
-        setRecentRawSales(data.recentRawSales ?? [])
-        setRecentSlabSales(data.recentSlabSales ?? [])
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setRecentRawSales([])
-          setRecentSlabSales([])
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setSalesLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [selectedCard, salesGrade])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -238,46 +187,17 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
 
           {/* Recent eBay sold comps */}
           <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Receipt className="size-4 text-primary" />
-                <h4 className="font-semibold text-foreground">Recent eBay Sales</h4>
-              </div>
-              <div className="flex gap-1">
-                {PSA_GRADE_NUMBERS.map((grade) => (
-                  <button
-                    key={grade}
-                    type="button"
-                    onClick={() => setSalesGrade(grade)}
-                    className={cn(
-                      "rounded-md border px-2 py-1 font-mono text-[10px] font-semibold transition-colors",
-                      salesGrade === grade
-                        ? "border-primary/50 bg-primary/15 text-primary"
-                        : "border-border bg-secondary/60 text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {grade}
-                  </button>
-                ))}
-              </div>
+            <div className="mb-3 flex items-center gap-2">
+              <Receipt className="size-4 text-primary" />
+              <h4 className="font-semibold text-foreground">Recent eBay Sales</h4>
             </div>
 
-            {salesLoading ? (
-              <p className="text-xs text-muted-foreground">Loading sold comps…</p>
-            ) : (
-              <div className="flex flex-col gap-4">
-                <RecentSalesList
-                  title={`PSA ${salesGrade} — last 5 sold`}
-                  sales={recentSlabSales}
-                  emptyMessage="Run price sync or add EBAY_SOLD_API_KEY to load live comps."
-                />
-                <RecentSalesList
-                  title="Raw NM — last 5 sold"
-                  sales={recentRawSales}
-                  emptyMessage="No raw sold comps matched this search."
-                />
-              </div>
-            )}
+            <div className="flex flex-col items-center rounded-xl border border-dashed border-border/80 bg-card/40 px-4 py-8 text-center">
+              <p className="text-sm font-semibold text-foreground">Coming soon</p>
+              <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-muted-foreground">
+                Live sold comps for raw and PSA slabs will show here once our eBay sales API is connected.
+              </p>
+            </div>
           </div>
 
           {/* Deal intelligence */}

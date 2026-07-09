@@ -22,6 +22,9 @@ import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteFooter } from "@/components/legal/site-footer"
+import { FooterAd } from "@/components/footer-ad"
+import { AdSlot } from "@/components/ad-slot"
+import { getGridAdInterval, interleaveWithAds } from "@/lib/feed-ads"
 import { SearchBar } from "./search-bar"
 import { CardTile } from "./card-tile"
 import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
@@ -64,6 +67,11 @@ export function MyBinder() {
     usePokemonSearch(query, searchEnabled)
 
   const ownedById = useMemo(() => new Map(cards.map((c) => [c.id, c.status])), [cards])
+
+  const searchGridItems = useMemo(
+    () => interleaveWithAds(searchResults, getGridAdInterval()),
+    [searchResults],
+  )
 
   const loadBinder = useCallback(async () => {
     if (!user) {
@@ -324,7 +332,18 @@ export function MyBinder() {
                       : `${searchTotal.toLocaleString()} result${searchTotal === 1 ? "" : "s"}`}
                   </p>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                    {searchResults.map((card, index) => {
+                    {searchGridItems.map((item, index) => {
+                      if (item.kind === "ad") {
+                        return (
+                          <div
+                            key={`search-ad-${item.slotIndex}`}
+                            className="col-span-2 sm:col-span-3"
+                          >
+                            <AdSlot variant="grid" slotIndex={item.slotIndex} compact />
+                          </div>
+                        )
+                      }
+                      const card = item.value
                       const ownedStatus = ownedById.get(card.id) ?? null
                       return (
                         <SearchResultTile
@@ -424,6 +443,7 @@ export function MyBinder() {
         )}
       </main>
 
+      <FooterAd className="mx-4 mb-4 sm:mx-6" />
       <SiteFooter className="border-t border-border px-4 py-6 sm:px-6" />
     </div>
   )

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteFooter } from "@/components/legal/site-footer"
+import { FooterAd } from "@/components/footer-ad"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { COLLECTOOLS } from "@/lib/collectools-tools"
 import { cn } from "@/lib/utils"
@@ -69,7 +70,8 @@ export function CollecToolsHub() {
         })}
       </div>
 
-      <SiteFooter className="mt-auto pt-12" />
+      <FooterAd className="mt-10" />
+      <SiteFooter className="mt-auto pt-8" />
     </div>
   )
 }

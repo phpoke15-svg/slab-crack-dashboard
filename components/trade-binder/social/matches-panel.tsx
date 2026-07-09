@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ArrowLeftRight, Loader2, RefreshCw, Sparkles, User } from "lucide-react"
 import {
@@ -14,6 +14,8 @@ import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useOptionalSocial } from "./social-provider"
 import { UserAvatar } from "./user-avatar"
 import { cn } from "@/lib/utils"
+import { AdSlot } from "@/components/ad-slot"
+import { getMatchAdInterval, interleaveWithAds } from "@/lib/feed-ads"
 
 type MatchesPanelProps = {
   active?: boolean
@@ -93,6 +95,11 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
   useEffect(() => {
     if (active && user) void loadMatches()
   }, [active, user, loadMatches])
+
+  const matchListItems = useMemo(
+    () => interleaveWithAds(suggestions, getMatchAdInterval()),
+    [suggestions],
+  )
 
   if (!user) {
     return (
@@ -196,7 +203,19 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
             {suggestions.length} fair match{suggestions.length === 1 ? "" : "es"} within{" "}
             {Math.round(valueTolerance * 100)}% value
           </p>
-          {suggestions.map((match) => (
+          {matchListItems.map((item) => {
+            if (item.kind === "ad") {
+              return (
+                <AdSlot
+                  key={`match-ad-${item.slotIndex}`}
+                  variant="grid"
+                  slotIndex={item.slotIndex}
+                  compact
+                />
+              )
+            }
+            const match = item.value
+            return (
             <article
               key={match.userId}
               className="rounded-2xl border border-border bg-card/60 p-4"
@@ -324,7 +343,8 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                 </button>
               </div>
             </article>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

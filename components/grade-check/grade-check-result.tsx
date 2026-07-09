@@ -19,6 +19,7 @@ import {
   estimateGradeBand,
   type ExtendedGradeCondition,
 } from "@/lib/grade-estimate"
+import { AdSlot } from "@/components/ad-slot"
 
 type GradeCheckResultProps = {
   card: MockCardEntry
@@ -101,6 +102,8 @@ export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResu
           </p>
         </div>
       )}
+
+      <AdSlot variant="result" slotIndex={1} />
 
       <div className="rounded-2xl border border-border bg-secondary/30 p-4">
         <h3 className="mb-3 font-semibold text-foreground">Submit for grading?</h3>

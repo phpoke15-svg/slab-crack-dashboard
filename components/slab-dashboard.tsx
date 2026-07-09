@@ -16,6 +16,7 @@ import {
 import { SlabRow } from "@/components/slab-row"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { FeedAdSlot } from "@/components/feed-ad-slot"
+import { AdSlot } from "@/components/ad-slot"
 import { interleaveFeedAds } from "@/lib/feed-ads"
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
@@ -297,6 +298,8 @@ export function SlabDashboard() {
           )}
         </div>
 
+        <AdSlot variant="banner" slotIndex={0} className="mb-4" compact />
+
         {showCatalogSearch && (
           <CardSearchResults
             hits={searchHits}
@@ -381,6 +384,7 @@ export function SlabDashboard() {
                 ? "Search any card above and tap the star to add it here."
                 : "Try a card name, set (151), number (#173), or both (151 173)."}
             </p>
+            <AdSlot variant="banner" slotIndex={0} className="mt-8 max-w-md" compact />
           </div>
         ) : (
           <div className="flex flex-col gap-2.5">
