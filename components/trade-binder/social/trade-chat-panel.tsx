@@ -100,9 +100,20 @@ export function TradeChatPanel({
     if (data.messages) {
       setMessages((prev) => {
         const pending = prev.filter((m) => m.id.startsWith("temp-"))
-        const serverIds = new Set(data.messages!.map((m) => m.id))
-        const stillPending = pending.filter((p) => !serverIds.has(p.id))
-        return [...data.messages!, ...stillPending]
+        const server = data.messages!
+        if (pending.length === 0) return server
+
+        // Temp ids never appear on the server — match optimistic rows by sender/body/type.
+        const stillPending = pending.filter(
+          (p) =>
+            !server.some(
+              (m) =>
+                m.senderId === p.senderId &&
+                m.body === p.body &&
+                m.messageType === p.messageType,
+            ),
+        )
+        return [...server, ...stillPending]
       })
     }
     if (data.readState) setPartnerLastReadAt(data.readState.partnerLastReadAt)
@@ -243,7 +254,16 @@ export function TradeChatPanel({
         setText(savedText)
         return
       }
-      await loadChat(threadId)
+      const data = (await res.json()) as { message?: TradeMessage }
+      if (data.message) {
+        setMessages((prev) => {
+          const without = prev.filter((m) => m.id !== tempId)
+          if (without.some((m) => m.id === data.message!.id)) return without
+          return [...without, data.message!]
+        })
+      } else {
+        await loadChat(threadId)
+      }
     } finally {
       setSending(false)
     }
