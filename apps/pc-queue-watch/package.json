@@ -5,8 +5,10 @@
   "main": "expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "android": "expo start",
+    "android:run": "expo run:android",
+    "ios": "expo start --ios",
+    "ios:run": "expo run:ios",
     "build:apk": "npx eas-cli build -p android --profile apk",
     "build:preview": "npx eas-cli build -p android --profile preview",
     "build:ios": "npx eas-cli build -p ios --profile preview"
