@@ -112,9 +112,7 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
           <span
             className={cn(
               "font-mono text-sm font-medium tabular-nums",
-              card.rawPrice > 0
-                ? "text-foreground/90 line-through decoration-destructive/60"
-                : "text-muted-foreground",
+              card.rawPrice > 0 ? "text-foreground/90" : "text-muted-foreground",
             )}
           >
             {card.rawPrice > 0 ? `$${card.rawPrice.toFixed(0)}` : "—"}
