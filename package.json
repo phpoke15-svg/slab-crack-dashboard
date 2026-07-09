@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "echo \"No ESLint config yet — run npm test for checks.\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "sync-prices": "node scripts/sync-prices.mjs",

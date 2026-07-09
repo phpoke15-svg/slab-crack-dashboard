@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server"
+import { requireCronAuth } from "@/lib/cron-auth"
 import { syncAnomalies } from "@/lib/sync-anomalies"
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
 
   try {
     const result = await syncAnomalies()

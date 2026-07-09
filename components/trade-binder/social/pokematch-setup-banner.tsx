@@ -30,8 +30,10 @@ export function PokeMatchSetupBanner() {
         <div className="min-w-0 flex-1">
           <p className="font-medium text-foreground">PokeMatch database setup incomplete</p>
           <p className="mt-1 text-xs text-muted-foreground text-pretty">
-            Run <code className="rounded bg-background/80 px-1 py-0.5">{health.setupSql}</code> in
-            your Supabase SQL Editor, then wait ~30 seconds and refresh.
+            Run <code className="rounded bg-background/80 px-1 py-0.5">{health.setupSql}</code>{" "}
+            (or <code className="rounded bg-background/80 px-1 py-0.5">supabase/pokematch-missing-pieces.sql</code>{" "}
+            if only card numbers / price cache are missing) in your Supabase SQL Editor, then wait
+            ~30 seconds and refresh.
           </p>
           <button
             type="button"

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { type ReportReason, submitUserReport } from "@/lib/trade-binder/blocks"
+import { notifyUserReport } from "@/lib/ops/report-alert"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 const VALID_REASONS = new Set<ReportReason>([
@@ -33,6 +34,13 @@ export async function POST(request: NextRequest) {
     details,
   )
   if (error) return NextResponse.json({ error }, { status: 400 })
+
+  void notifyUserReport({
+    reporterId: auth.user.id,
+    reportedId: userId,
+    reason,
+    details,
+  })
 
   return NextResponse.json({ ok: true })
 }

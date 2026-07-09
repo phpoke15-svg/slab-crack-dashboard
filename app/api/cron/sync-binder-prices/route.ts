@@ -1,15 +1,13 @@
 import { NextResponse } from "next/server"
+import { requireCronAuth } from "@/lib/cron-auth"
 import { syncBinderCardPrices } from "@/lib/sync-binder-prices"
 
 export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get("authorization")
-  const cronSecret = process.env.CRON_SECRET
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const denied = requireCronAuth(request)
+  if (denied) return denied
 
   try {
     const result = await syncBinderCardPrices()
