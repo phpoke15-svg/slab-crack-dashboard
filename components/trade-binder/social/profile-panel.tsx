@@ -5,12 +5,16 @@ import {
   MapPin,
   UserPlus,
   UserCheck,
+  UserX,
+  Check,
+  Clock,
   MessageSquarePlus,
   Lock,
   Star,
   ArrowLeftRight,
   Loader2,
 } from "lucide-react"
+import type { FriendshipStatus } from "@/lib/trade-binder/users"
 import { cn } from "@/lib/utils"
 import type { TcgCard } from "@/lib/trade-binder/cards"
 import {
@@ -35,8 +39,6 @@ export function ProfilePanel({ userId }: { userId: string }) {
   const [binderLoading, setBinderLoading] = useState(false)
   const [binderAccess, setBinderAccess] = useState<BinderAccessReason | null>(null)
   const [binderMessage, setBinderMessage] = useState<string | null>(null)
-  const [friendBusy, setFriendBusy] = useState(false)
-  const [friendError, setFriendError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -166,7 +168,7 @@ export function ProfilePanel({ userId }: { userId: string }) {
   }
 
   const isSelf = authUser?.id === userId
-  const isFriend = social.isFriend(userId)
+  const friendStatus = social.friendshipStatus(userId)
   const hasTraded = social.hasTradedWith(userId)
   const reviews = social.reviewsFor(userId)
   const rating = social.ratingFor(userId)
@@ -213,44 +215,7 @@ export function ProfilePanel({ userId }: { userId: string }) {
               </div>
             </div>
 
-            <button
-              type="button"
-              disabled={friendBusy}
-              onClick={(event) => {
-                event.stopPropagation()
-                setFriendBusy(true)
-                setFriendError(null)
-                void (async () => {
-                  try {
-                    const err = isFriend
-                      ? await social.removeFriend(userId)
-                      : await social.addFriend(userId)
-                    if (err) setFriendError(err)
-                  } catch {
-                    setFriendError("Something went wrong")
-                  } finally {
-                    setFriendBusy(false)
-                  }
-                })()
-              }}
-              className={cn(
-                "mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
-                isFriend
-                  ? "border border-trade/50 bg-trade/15 text-trade"
-                  : "bg-primary text-primary-foreground",
-              )}
-            >
-              {isFriend ? (
-                <>
-                  <UserCheck className="size-4" aria-hidden="true" /> Friends
-                </>
-              ) : (
-                <>
-                  <UserPlus className="size-4" aria-hidden="true" /> Add friend
-                </>
-              )}
-            </button>
-            {friendError && <p className="mt-2 text-sm text-destructive">{friendError}</p>}
+            <ProfileFriendButton userId={userId} status={friendStatus} />
           </>
         )}
       </section>
@@ -286,11 +251,11 @@ export function ProfilePanel({ userId }: { userId: string }) {
               )}
               <button
                 type="button"
-                onClick={() => social.openTradeWithUser(userId)}
+                onClick={() => social.openTradeComposer(userId)}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
               >
                 <ArrowLeftRight className="size-4" />
-                Start trade chat
+                Start trade
               </button>
             </div>
           )}
@@ -368,6 +333,102 @@ function BinderList({
   )
 }
 
+function ProfileFriendButton({ userId, status }: { userId: string; status: FriendshipStatus }) {
+  const social = useSocial()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const run = async (action: () => Promise<string | null>) => {
+    setBusy(true)
+    setError(null)
+    try {
+      const err = await action()
+      if (err) setError(err)
+    } catch {
+      setError("Something went wrong")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (status === "pending_incoming") {
+    return (
+      <div className="mt-3 space-y-2">
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(() => social.acceptFriendRequest(userId))}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
+            Accept request
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run(() => social.declineFriendRequest(userId))}
+            className="flex items-center justify-center rounded-xl border border-border px-4 py-2.5 text-sm disabled:opacity-50"
+          >
+            <UserX className="size-4" />
+          </button>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+    )
+  }
+
+  if (status === "pending_outgoing") {
+    return (
+      <div className="mt-3 space-y-2">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => run(() => social.declineFriendRequest(userId))}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-secondary/40 px-4 py-2.5 text-sm font-medium text-muted-foreground disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <Clock className="size-4" />}
+          Request sent — cancel
+        </button>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+    )
+  }
+
+  const isFriend = status === "accepted"
+
+  return (
+    <div className="mt-3 space-y-2">
+      <button
+        type="button"
+        disabled={busy}
+        onClick={() =>
+          run(() => (isFriend ? social.removeFriend(userId) : social.addFriend(userId)))
+        }
+        className={cn(
+          "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+          isFriend
+            ? "border border-trade/50 bg-trade/15 text-trade"
+            : "bg-primary text-primary-foreground",
+        )}
+      >
+        {busy ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : isFriend ? (
+          <>
+            <UserCheck className="size-4" aria-hidden="true" /> Friends
+          </>
+        ) : (
+          <>
+            <UserPlus className="size-4" aria-hidden="true" /> Add friend
+          </>
+        )}
+      </button>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </div>
+  )
+}
+
 function ReviewComposer({ userId, hasTraded }: { userId: string; hasTraded: boolean }) {
   const social = useSocial()
   const alreadyReviewed = social.hasReviewed(userId)
@@ -375,6 +436,7 @@ function ReviewComposer({ userId, hasTraded }: { userId: string; hasTraded: bool
   const [rating, setRating] = useState(0)
   const [comment, setComment] = useState("")
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (!hasTraded) {
     return (
@@ -403,8 +465,13 @@ function ReviewComposer({ userId, hasTraded }: { userId: string; hasTraded: bool
   const submit = async () => {
     if (rating < 1) return
     setSaving(true)
+    setError(null)
     try {
-      await social.addReview(userId, rating, comment)
+      const err = await social.addReview(userId, rating, comment)
+      if (err) {
+        setError(err)
+        return
+      }
       setOpen(false)
       setRating(0)
       setComment("")
@@ -428,7 +495,7 @@ function ReviewComposer({ userId, hasTraded }: { userId: string; hasTraded: bool
       <div className="mt-2 flex items-center gap-2">
         <button
           type="button"
-          onClick={submit}
+          onClick={() => void submit()}
           disabled={rating < 1 || saving}
           className="flex-1 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
         >
@@ -442,6 +509,7 @@ function ReviewComposer({ userId, hasTraded }: { userId: string; hasTraded: bool
           Cancel
         </button>
       </div>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
     </div>
   )
 }

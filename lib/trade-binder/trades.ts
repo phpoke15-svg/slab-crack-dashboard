@@ -15,6 +15,15 @@ import {
 } from "@/lib/trade-binder/trade-binder-lock"
 import type { Trade, TradeItem, TradeStatus, TradeFulfillmentItem } from "@/lib/trade-binder/users"
 
+export const TRADE_PROPOSAL_RESET_PATCH = {
+  status: "pending" as const,
+  initiator_accepted_at: null,
+  recipient_accepted_at: null,
+  ...FULFILLMENT_CLEAR_PATCH,
+  ...SHIPPING_CLEAR_PATCH,
+  ...CANCEL_CLEAR_PATCH,
+}
+
 type TradeRow = {
   id: string
   initiator_id: string
@@ -313,14 +322,9 @@ export async function createOrUpdateTradeProposal(
     const { error: updateError } = await supabase
       .from("trades")
       .update({
-        status: "pending",
+        ...TRADE_PROPOSAL_RESET_PATCH,
         message: message.trim(),
         updated_at: new Date().toISOString(),
-        initiator_accepted_at: null,
-        recipient_accepted_at: null,
-        ...FULFILLMENT_CLEAR_PATCH,
-        ...SHIPPING_CLEAR_PATCH,
-        ...CANCEL_CLEAR_PATCH,
       })
       .eq("id", existing.id)
 

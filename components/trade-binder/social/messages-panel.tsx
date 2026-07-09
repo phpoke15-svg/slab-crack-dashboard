@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { ArrowLeftRight, Loader2, MessageSquarePlus } from "lucide-react"
 import type { Trade, TradeMessage, User } from "@/lib/trade-binder/users"
 import { isTradeAcceptedForDisplay, tradePartnerId, tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
@@ -61,31 +61,42 @@ export function MessagesPanel() {
   const [allTrades, setAllTrades] = useState<Trade[]>(social.trades)
   const [lastMessages, setLastMessages] = useState<Record<string, TradeMessage>>({})
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  const loadThreads = useCallback(() => {
+    setLoading(true)
+    setLoadError(null)
+    return fetch("/api/trades", { credentials: "same-origin" })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string }
+          throw new Error(data.error ?? "Could not load messages")
+        }
+        return res.json() as Promise<{
+          trades?: Trade[]
+          allTrades?: Trade[]
+          lastMessages?: Record<string, TradeMessage>
+        }>
+      })
+      .then((data) => {
+        if (data?.trades) setThreads(data.trades)
+        if (data?.allTrades) setAllTrades(data.allTrades)
+        else if (data?.trades) setAllTrades(data.trades)
+        if (data?.lastMessages) setLastMessages(data.lastMessages)
+      })
+      .catch((err: unknown) => {
+        setLoadError(err instanceof Error ? err.message : "Could not load messages")
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
   useEffect(() => {
     setThreads(social.trades)
   }, [social.trades])
 
   useEffect(() => {
-    setLoading(true)
-    void fetch("/api/trades", { credentials: "same-origin" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then(
-        (
-          data: {
-            trades?: Trade[]
-            allTrades?: Trade[]
-            lastMessages?: Record<string, TradeMessage>
-          } | null,
-        ) => {
-          if (data?.trades) setThreads(data.trades)
-          if (data?.allTrades) setAllTrades(data.allTrades)
-          else if (data?.trades) setAllTrades(data.trades)
-          if (data?.lastMessages) setLastMessages(data.lastMessages)
-        },
-      )
-      .finally(() => setLoading(false))
-  }, [])
+    void loadThreads()
+  }, [loadThreads])
 
   const sortedThreads = useMemo(() => {
     if (!user) return threads
@@ -112,7 +123,18 @@ export function MessagesPanel() {
   return (
     <PanelShell title="Messages" onClose={social.close}>
       <div className="p-4 sm:p-6">
-        {loading && threads.length === 0 ? (
+        {loadError ? (
+          <div className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-6 text-center">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <button
+              type="button"
+              onClick={() => void loadThreads()}
+              className="mt-3 rounded-lg border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Retry
+            </button>
+          </div>
+        ) : loading && threads.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
           </div>

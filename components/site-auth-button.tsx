@@ -122,9 +122,17 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
           <SocialNavTab
             label="Friends"
             icon={<Users className="size-4" aria-hidden="true" />}
-            badge={social.friendCount}
+            badge={
+              social.pendingFriendRequestCount > 0
+                ? social.pendingFriendRequestCount
+                : social.friendCount
+            }
             onClick={() => social.openFriends()}
-            ariaLabel={`Friends (${social.friendCount})`}
+            ariaLabel={
+              social.pendingFriendRequestCount > 0
+                ? `Friends (${social.pendingFriendRequestCount} pending requests)`
+                : `Friends (${social.friendCount})`
+            }
           />
           <SocialNavTab
             label="Messages"

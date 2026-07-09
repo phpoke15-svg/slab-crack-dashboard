@@ -2,11 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
-import { listFriendIds, removeFriendship, sendFriendRequest } from "@/lib/trade-binder/friends"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
 import { isTradeAcceptedForDisplay, tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
 import {
   averageRating,
+  type FriendshipStatus,
   type Review,
   type Trade,
   type User,
@@ -16,7 +16,6 @@ import { AcceptedTradesPanel } from "./accepted-trades-panel"
 import { FriendsPanel } from "./friends-panel"
 import { MessagesPanel } from "./messages-panel"
 import { ProfilePanel } from "./profile-panel"
-import { TradesPanel } from "./trades-panel"
 import { TradeChatPanel } from "./trade-chat-panel"
 import { TradeComposerPanel } from "./trade-composer-panel"
 
@@ -24,7 +23,6 @@ type Panel =
   | { type: "friends" }
   | { type: "messages" }
   | { type: "profile"; userId: string }
-  | { type: "trades" }
   | { type: "accepted-trades" }
   | { type: "trade-composer"; userId: string; prefillMyIds?: string[]; prefillTheirIds?: string[] }
   | { type: "trade-chat"; otherUserId: string; tradeId?: string; prefillMyIds?: string[]; prefillTheirIds?: string[]; returnTo?: "messages" | "accepted-trades" }
@@ -35,14 +33,20 @@ type SocialContextValue = {
   profileLoading: boolean
   friendIds: string[]
   friendCount: number
+  incomingRequestIds: string[]
+  outgoingRequestIds: string[]
+  pendingFriendRequestCount: number
+  friendshipStatus: (id: string) => FriendshipStatus
   isFriend: (id: string) => boolean
   addFriend: (id: string) => Promise<string | null>
+  acceptFriendRequest: (id: string) => Promise<string | null>
+  declineFriendRequest: (id: string) => Promise<string | null>
   removeFriend: (id: string) => Promise<string | null>
   hasTradedWith: (id: string) => boolean
   reviewsFor: (id: string) => Review[]
   ratingFor: (id: string) => number
   hasReviewed: (id: string) => boolean
-  addReview: (userId: string, rating: number, comment: string) => Promise<void>
+  addReview: (userId: string, rating: number, comment: string) => Promise<string | null>
   loadReviews: (userId: string) => Promise<void>
   getCachedProfile: (id: string) => User | undefined
   cacheProfile: (profile: TraderProfile) => void
@@ -57,7 +61,6 @@ type SocialContextValue = {
   openMessages: () => void
   openAcceptedTrades: () => void
   openProfile: (id: string) => void
-  openTrades: () => void
   openTradeComposer: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
   openTradeWithUser: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
   findTradeWithUser: (userId: string) => Trade | undefined
@@ -82,6 +85,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [friendIds, setFriendIds] = useState<string[]>([])
+  const [incomingRequestIds, setIncomingRequestIds] = useState<string[]>([])
+  const [outgoingRequestIds, setOutgoingRequestIds] = useState<string[]>([])
   const [tradePartnerIds, setTradePartnerIds] = useState<string[]>([])
   const [reviewsByUser, setReviewsByUser] = useState<Record<string, Review[]>>({})
   const [profileCache, setProfileCache] = useState<Record<string, User>>({})
@@ -118,34 +123,29 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const refreshFriends = useCallback(async () => {
     if (!user) {
       setFriendIds([])
+      setIncomingRequestIds([])
+      setOutgoingRequestIds([])
       return
     }
     const res = await fetch("/api/friends", { credentials: "same-origin" })
-    if (res.ok) {
-      const data = (await res.json()) as { friendIds?: string[]; profiles?: User[] }
-      setFriendIds(data.friendIds ?? [])
-      if (data.profiles?.length) {
-        setProfileCache((prev) => {
-          const next = { ...prev }
-          for (const p of data.profiles!) next[p.id] = p
-          return next
-        })
-      }
-      return
+    if (!res.ok) return
+    const data = (await res.json()) as {
+      friendIds?: string[]
+      profiles?: User[]
+      incomingRequestIds?: string[]
+      outgoingRequestIds?: string[]
     }
-    const ids = await listFriendIds(getSupabase(), user.id)
-    setFriendIds(ids)
-    const profiles = (
-      await Promise.all(ids.map((id) => fetchProfile(getSupabase(), id)))
-    ).filter((p): p is User => p !== null)
-    if (profiles.length > 0) {
+    setFriendIds(data.friendIds ?? [])
+    setIncomingRequestIds(data.incomingRequestIds ?? [])
+    setOutgoingRequestIds(data.outgoingRequestIds ?? [])
+    if (data.profiles?.length) {
       setProfileCache((prev) => {
         const next = { ...prev }
-        for (const p of profiles) next[p.id] = p
+        for (const p of data.profiles!) next[p.id] = p
         return next
       })
     }
-  }, [user, getSupabase])
+  }, [user])
 
   const refreshTrades = useCallback(async () => {
     if (!user) {
@@ -198,34 +198,82 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       if (!user) return "Sign in to add friends"
       if (id === user.id) return "You cannot add yourself"
       try {
-        const { error } = await sendFriendRequest(getSupabase(), user.id, id)
-        if (error) return error
-        setFriendIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
-        const profile = await fetchProfile(getSupabase(), id)
-        if (profile) {
-          setProfileCache((prev) => ({ ...prev, [id]: profile }))
-        }
+        const res = await fetch("/api/friends", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ userId: id }),
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) return data.error ?? "Could not send friend request"
+        await refreshFriends()
         return null
       } catch {
-        return "Could not add friend"
+        return "Could not send friend request"
       }
     },
-    [user, getSupabase],
+    [user, refreshFriends],
+  )
+
+  const acceptFriendRequest = useCallback(
+    async (id: string): Promise<string | null> => {
+      if (!user) return "Sign in required"
+      try {
+        const res = await fetch("/api/friends", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ userId: id, action: "accept" }),
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) return data.error ?? "Could not accept request"
+        await refreshFriends()
+        return null
+      } catch {
+        return "Could not accept request"
+      }
+    },
+    [user, refreshFriends],
+  )
+
+  const declineFriendRequest = useCallback(
+    async (id: string): Promise<string | null> => {
+      if (!user) return "Sign in required"
+      try {
+        const res = await fetch("/api/friends", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ userId: id, action: "decline" }),
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) return data.error ?? "Could not decline request"
+        await refreshFriends()
+        return null
+      } catch {
+        return "Could not decline request"
+      }
+    },
+    [user, refreshFriends],
   )
 
   const removeFriend = useCallback(
     async (id: string): Promise<string | null> => {
       if (!user) return "Sign in required"
       try {
-        const { error } = await removeFriendship(getSupabase(), user.id, id)
-        if (error) return error
-        setFriendIds((prev) => prev.filter((f) => f !== id))
+        const res = await fetch(`/api/friends?userId=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) return data.error ?? "Could not remove friend"
+        await refreshFriends()
         return null
       } catch {
         return "Could not remove friend"
       }
     },
-    [user, getSupabase],
+    [user, refreshFriends],
   )
 
   const value = useMemo<SocialContextValue>(() => {
@@ -241,8 +289,19 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       profileLoading,
       friendIds,
       friendCount: friendIds.length,
+      incomingRequestIds,
+      outgoingRequestIds,
+      pendingFriendRequestCount: incomingRequestIds.length,
+      friendshipStatus: (id: string): FriendshipStatus => {
+        if (friendIds.includes(id)) return "accepted"
+        if (incomingRequestIds.includes(id)) return "pending_incoming"
+        if (outgoingRequestIds.includes(id)) return "pending_outgoing"
+        return "none"
+      },
       isFriend: (id) => friendIds.includes(id),
       addFriend,
+      acceptFriendRequest,
+      declineFriendRequest,
       removeFriend,
       hasTradedWith: (id) => tradePartnerIds.includes(id),
       reviewsFor,
@@ -256,7 +315,12 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ revieweeId: userId, rating, comment }),
           credentials: "same-origin",
         })
-        if (res.ok) await loadReviews(userId)
+        if (!res.ok) {
+          const data = (await res.json().catch(() => ({}))) as { error?: string }
+          return data.error ?? "Could not save review"
+        }
+        await loadReviews(userId)
+        return null
       },
       loadReviews,
       getCachedProfile,
@@ -277,7 +341,6 @@ export function SocialProvider({ children }: { children: ReactNode }) {
         setPanel({ type: "profile", userId: id })
         void loadReviews(id)
       },
-      openTrades: () => setPanel({ type: "messages" }),
       openTradeComposer: (userId, prefill) =>
         setPanel({
           type: "trade-composer",
@@ -312,12 +375,16 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     currentUser,
     profileLoading,
     friendIds,
+    incomingRequestIds,
+    outgoingRequestIds,
     tradePartnerIds,
     reviewsByUser,
     profileCache,
     trades,
     allTrades,
     addFriend,
+    acceptFriendRequest,
+    declineFriendRequest,
     removeFriend,
     refreshFriends,
     refreshTrades,
@@ -334,7 +401,6 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       {panel?.type === "messages" && <MessagesPanel />}
       {panel?.type === "accepted-trades" && <AcceptedTradesPanel />}
       {panel?.type === "profile" && <ProfilePanel userId={panel.userId} />}
-      {panel?.type === "trades" && <TradesPanel />}
       {panel?.type === "trade-composer" && (
         <TradeComposerPanel
           userId={panel.userId}

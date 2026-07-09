@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { addTradeMessage } from "@/lib/trade-binder/trade-messages"
 import { encodeOfferMessage } from "@/lib/trade-binder/offer-message"
-import { getTradeById, replaceTradeItems } from "@/lib/trade-binder/trades"
+import {
+  getTradeById,
+  replaceTradeItems,
+  TRADE_PROPOSAL_RESET_PATCH,
+} from "@/lib/trade-binder/trades"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export async function PATCH(
@@ -29,6 +33,16 @@ export async function PATCH(
   const isInitiator = trade.initiatorId === auth.user.id
   const initiatorItems = isInitiator ? myItems : theirItems
   const recipientItems = isInitiator ? theirItems : myItems
+
+  const { error: updateError } = await auth.supabase
+    .from("trades")
+    .update({
+      ...TRADE_PROPOSAL_RESET_PATCH,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", tradeId)
+
+  if (updateError) return NextResponse.json({ error: updateError.message }, { status: 400 })
 
   const { error: replaceError } = await replaceTradeItems(
     auth.supabase,

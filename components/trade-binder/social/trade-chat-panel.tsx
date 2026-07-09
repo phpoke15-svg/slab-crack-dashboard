@@ -109,7 +109,11 @@ export function TradeChatPanel({
     const res = await fetch(`/api/trades/${encodeURIComponent(id)}`, {
       credentials: "same-origin",
     })
-    if (!res.ok) return
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      setError(data.error ?? "Could not load conversation.")
+      return
+    }
     const data = (await res.json()) as {
       trade?: Trade
       messages?: TradeMessage[]
@@ -288,6 +292,9 @@ export function TradeChatPanel({
     }
   }
 
+  const isCounterOffer =
+    trade?.status === "pending" && hasActiveOffer && Boolean(trade?.id ?? activeTradeId)
+
   const sendOffer = async () => {
     if (!hasOfferSelection) {
       setError("Select cards you are offering and/or cards you want from them.")
@@ -300,6 +307,35 @@ export function TradeChatPanel({
       const give = cardsToDraft(myOffer)
       const get = cardsToDraft(theirOffer)
       const note = text.trim()
+
+      if (isCounterOffer) {
+        const threadId = trade?.id ?? activeTradeId
+        if (!threadId) {
+          setError("Could not find trade thread.")
+          return
+        }
+        const res = await fetch(`/api/trades/${encodeURIComponent(threadId)}/counter`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            myItems: give,
+            theirItems: get,
+            message: note,
+          }),
+        })
+        const data = (await res.json().catch(() => ({}))) as { trade?: Trade; error?: string }
+        if (!res.ok || !data.trade) {
+          setError(data.error ?? "Could not send counter offer.")
+          return
+        }
+        setTrade(data.trade)
+        setText("")
+        await social.refreshTrades()
+        await loadChat(data.trade.id)
+        return
+      }
+
       const res = await fetch("/api/trades", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -575,7 +611,7 @@ export function TradeChatPanel({
         ) : (
           <ArrowLeftRight className="size-4" />
         )}
-        Send trade offer
+        {isCounterOffer ? "Send counter offer" : "Send trade offer"}
       </button>
       )}
     </div>
