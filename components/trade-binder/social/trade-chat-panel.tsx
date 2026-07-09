@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowLeftRight,
+  Camera,
   Check,
   ChevronLeft,
   ChevronUp,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react"
 import type { TcgCard } from "@/lib/trade-binder/cards"
 import type { Trade, TradeMessage } from "@/lib/trade-binder/users"
+import { isMessageReadByPartner } from "@/lib/trade-binder/chat-reads"
 import { loadBinderCards } from "@/lib/trade-binder/binder"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
@@ -22,7 +24,13 @@ import {
   selectedCards,
   toggleCardInSet,
 } from "./trade-card-picker"
-import { ChatMessageBubble, shouldShowDayDivider } from "./chat-message-bubble"
+import {
+  ChatMessageBubble,
+  shouldGroupWithPrev,
+  shouldShowDayDivider,
+} from "./chat-message-bubble"
+import { PhotoPreviewModal } from "./photo-preview-modal"
+import { useTradeChatChannel } from "./use-trade-chat-channel"
 import { UserAvatar } from "./user-avatar"
 
 type TradeChatPanelProps = {
@@ -45,6 +53,7 @@ export function TradeChatPanel({
   const closePanel = returnTo === "messages" ? social.openMessages : social.close
   const other = social.getCachedProfile(otherUserId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [trade, setTrade] = useState<Trade | null>(null)
   const [messages, setMessages] = useState<TradeMessage[]>([])
@@ -52,7 +61,8 @@ export function TradeChatPanel({
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
   const [actionId, setActionId] = useState<string | null>(null)
-  const [offerOpen, setOfferOpen] = useState(true)
+  const [offerOpen, setOfferOpen] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [myCards, setMyCards] = useState<TcgCard[]>([])
   const [theirCards, setTheirCards] = useState<TcgCard[]>([])
   const [bindersLoading, setBindersLoading] = useState(true)
@@ -61,6 +71,9 @@ export function TradeChatPanel({
     () => new Set(prefillTheirIds ?? []),
   )
   const [error, setError] = useState<string | null>(null)
+  const [partnerLastReadAt, setPartnerLastReadAt] = useState<string | null>(null)
+  const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
+  const [photoCaption, setPhotoCaption] = useState("")
 
   const activeTradeId = trade?.id ?? initialTradeId
   const isInitiator = trade?.initiatorId === user?.id
@@ -78,10 +91,46 @@ export function TradeChatPanel({
       credentials: "same-origin",
     })
     if (!res.ok) return
-    const data = (await res.json()) as { trade?: Trade; messages?: TradeMessage[] }
+    const data = (await res.json()) as {
+      trade?: Trade
+      messages?: TradeMessage[]
+      readState?: { partnerLastReadAt: string | null }
+    }
     if (data.trade) setTrade(data.trade)
-    if (data.messages) setMessages(data.messages)
+    if (data.messages) {
+      setMessages((prev) => {
+        const pending = prev.filter((m) => m.id.startsWith("temp-"))
+        const serverIds = new Set(data.messages!.map((m) => m.id))
+        const stillPending = pending.filter((p) => !serverIds.has(p.id))
+        return [...data.messages!, ...stillPending]
+      })
+    }
+    if (data.readState) setPartnerLastReadAt(data.readState.partnerLastReadAt)
+    void fetch(`/api/trades/${encodeURIComponent(id)}/read`, {
+      method: "POST",
+      credentials: "same-origin",
+    })
   }, [activeTradeId])
+
+  const loadChatRef = useRef(loadChat)
+  loadChatRef.current = loadChat
+
+  const { partnerTyping, notifyTyping } = useTradeChatChannel(
+    getSupabase,
+    activeTradeId,
+    user?.id,
+    () => {
+      void loadChatRef.current()
+    },
+  )
+
+  const lastMyMessageId = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i]
+      if (msg.senderId === user?.id && !msg.id.startsWith("temp-")) return msg.id
+    }
+    return null
+  }, [messages, user?.id])
 
   useEffect(() => {
     let cancelled = false
@@ -116,7 +165,7 @@ export function TradeChatPanel({
     setLoading(true)
     if (activeTradeId) {
       void loadChat().finally(() => setLoading(false))
-      const timer = window.setInterval(() => void loadChat(), 8000)
+      const timer = window.setInterval(() => void loadChat(), 30000)
       return () => window.clearInterval(timer)
     }
     setLoading(false)
@@ -158,12 +207,29 @@ export function TradeChatPanel({
 
   const sendMessage = async () => {
     const body = text.trim()
-    if (!body) return
+    if (!body || !user) return
     setSending(true)
     setError(null)
+    const tempId = `temp-${Date.now()}`
+    const optimistic: TradeMessage = {
+      id: tempId,
+      tradeId: activeTradeId ?? "",
+      senderId: user.id,
+      body,
+      messageType: "text",
+      imageUrl: "",
+      createdAt: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, optimistic])
+    const savedText = text
+    setText("")
     try {
       const threadId = await ensureThread()
-      if (!threadId) return
+      if (!threadId) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempId))
+        setText(savedText)
+        return
+      }
       const res = await fetch(`/api/trades/${encodeURIComponent(threadId)}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -173,9 +239,10 @@ export function TradeChatPanel({
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string }
         setError(data.error ?? "Could not send message.")
+        setMessages((prev) => prev.filter((m) => m.id !== tempId))
+        setText(savedText)
         return
       }
-      setText("")
       await loadChat(threadId)
     } finally {
       setSending(false)
@@ -216,6 +283,36 @@ export function TradeChatPanel({
       await loadChat(data.trade.id)
     } finally {
       setSending(false)
+    }
+  }
+
+  const sendPhoto = async (file: File, caption: string) => {
+    setUploadingPhoto(true)
+    setError(null)
+    try {
+      const threadId = await ensureThread()
+      if (!threadId) return
+
+      const form = new FormData()
+      form.append("file", file)
+      if (caption.trim()) form.append("caption", caption.trim())
+
+      const res = await fetch(`/api/trades/${encodeURIComponent(threadId)}/images`, {
+        method: "POST",
+        credentials: "same-origin",
+        body: form,
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) {
+        setError(data.error ?? "Could not upload photo.")
+        return
+      }
+      setPendingPhoto(null)
+      setPhotoCaption("")
+      await loadChat(threadId)
+    } finally {
+      setUploadingPhoto(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
     }
   }
 
@@ -308,7 +405,18 @@ export function TradeChatPanel({
       </button>
 
       {offerOpen && (
-        <div className="mb-3 max-h-[40vh] space-y-2 overflow-y-auto rounded-xl border border-border bg-secondary/20 p-2">
+        <div className="fixed inset-x-0 bottom-0 z-[55] mx-auto max-w-3xl border-t border-border bg-background p-3 shadow-2xl sm:p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">Build trade offer</p>
+            <button
+              type="button"
+              onClick={() => setOfferOpen(false)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Done
+            </button>
+          </div>
+          <div className="max-h-[50vh] space-y-2 overflow-y-auto">
           {bindersLoading ? (
             <div className="flex items-center justify-center py-6">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -335,15 +443,47 @@ export function TradeChatPanel({
               />
             </>
           )}
+          </div>
         </div>
       )}
 
       {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) {
+            setPhotoCaption(text)
+            setPendingPhoto(file)
+          }
+        }}
+      />
+
       <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={uploadingPhoto || sending}
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="Send card photo"
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-foreground disabled:opacity-40"
+        >
+          {uploadingPhoto ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : (
+            <Camera className="size-4" />
+          )}
+        </button>
         <input
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            notifyTyping()
+          }}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault()
@@ -381,7 +521,22 @@ export function TradeChatPanel({
   )
 
   return (
-    <PanelShell
+    <>
+      {pendingPhoto && (
+        <PhotoPreviewModal
+          file={pendingPhoto}
+          caption={photoCaption}
+          onCaptionChange={setPhotoCaption}
+          onCancel={() => {
+            setPendingPhoto(null)
+            setPhotoCaption("")
+          }}
+          onSend={() => void sendPhoto(pendingPhoto, photoCaption)}
+          sending={uploadingPhoto}
+        />
+      )}
+
+      <PanelShell
       title={title}
       onClose={closePanel}
       footer={footer}
@@ -432,13 +587,22 @@ export function TradeChatPanel({
                 Chat with {other?.name ?? "this trader"}
               </p>
               <p className="mt-1 max-w-xs text-sm text-muted-foreground text-pretty">
-                Send a message, or pick cards below to offer and request what you want.
+                Send messages and card photos, or tap the camera to share condition shots.
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-1 pb-2">
               {messages.map((msg, index) => {
                 const day = shouldShowDayDivider(messages, index)
+                const mine = msg.senderId === user?.id
+                const compact = shouldGroupWithPrev(messages, index)
+                const isLastMine = msg.id === lastMyMessageId
+                const readLabel =
+                  mine && isLastMine && !msg.id.startsWith("temp-")
+                    ? isMessageReadByPartner(msg.createdAt, partnerLastReadAt)
+                      ? "Read"
+                      : "Sent"
+                    : null
                 return (
                   <div key={msg.id}>
                     {day && (
@@ -446,16 +610,27 @@ export function TradeChatPanel({
                         {day}
                       </p>
                     )}
-                    <ChatMessageBubble msg={msg} mine={msg.senderId === user?.id} />
+                    <ChatMessageBubble
+                      msg={msg}
+                      mine={mine}
+                      compact={compact}
+                      readLabel={readLabel}
+                    />
                   </div>
                 )
               })}
+              {partnerTyping && (
+                <p className="text-xs text-muted-foreground animate-pulse">
+                  {other?.name ?? "Trader"} is typing…
+                </p>
+              )}
             </div>
           )}
           <div ref={messagesEndRef} />
         </div>
       )}
     </PanelShell>
+    </>
   )
 }
 

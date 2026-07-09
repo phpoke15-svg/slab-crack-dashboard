@@ -74,7 +74,7 @@ export type TradeCardDraft = {
   cardImage: string
 }
 
-export type TradeMessageType = "text" | "proposal" | "counter" | "status"
+export type TradeMessageType = "text" | "proposal" | "counter" | "status" | "image"
 
 export type TradeMessage = {
   id: string
@@ -82,5 +82,6 @@ export type TradeMessage = {
   senderId: string
   body: string
   messageType: TradeMessageType
+  imageUrl: string
   createdAt: string
 }

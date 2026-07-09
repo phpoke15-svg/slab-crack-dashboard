@@ -23,6 +23,7 @@ function formatWhen(iso: string): string {
 }
 
 function previewText(message: TradeMessage | null, trade: Trade): string {
+  if (message?.messageType === "image") return message.body || "Photo"
   if (message?.body) return message.body
   if (trade.message) return trade.message
   return "Trade conversation"
@@ -30,8 +31,9 @@ function previewText(message: TradeMessage | null, trade: Trade): string {
 
 function messageLabel(type: TradeMessage["messageType"]): string | null {
   if (type === "proposal") return "Trade proposal"
-  if (type === "counter") return "Counter-offer"
+  if (type === "counter") return "Updated offer"
   if (type === "status") return "Status update"
+  if (type === "image") return "Photo"
   return null
 }
 

@@ -5,7 +5,8 @@ import {
   listTradeIdsBetweenUsers,
   tradePartnerId,
 } from "@/lib/trade-binder/trades"
-import { listMessagesForTradeIds } from "@/lib/trade-binder/trade-messages"
+import { getChatReadState } from "@/lib/trade-binder/chat-reads"
+import { listMessagesForTradeIds, resolveMessageImageUrls } from "@/lib/trade-binder/trade-messages"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export async function GET(
@@ -22,7 +23,9 @@ export async function GET(
   const otherId = tradePartnerId(trade, auth.user.id)
   const thread = (await findTradeThreadBetweenUsers(auth.supabase, auth.user.id, otherId)) ?? trade
   const tradeIds = await listTradeIdsBetweenUsers(auth.supabase, auth.user.id, otherId)
-  const messages = await listMessagesForTradeIds(auth.supabase, tradeIds)
+  const rawMessages = await listMessagesForTradeIds(auth.supabase, tradeIds)
+  const messages = await resolveMessageImageUrls(auth.supabase, rawMessages)
+  const readState = await getChatReadState(auth.supabase, thread.id, auth.user.id, otherId)
 
-  return NextResponse.json({ trade: thread, messages })
+  return NextResponse.json({ trade: thread, messages, readState })
 }
