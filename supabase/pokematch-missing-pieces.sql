@@ -1,11 +1,9 @@
--- Minimal patch for the two setup-health gaps most often left after a partial pokematch-setup run.
--- Safe to re-run. Prefer full supabase/pokematch-setup.sql for a fresh project.
+-- Fixes the remaining setup-health gaps:
+--   - Price cache (binder_card_prices)
+--   - Chat read receipts (trade_chat_reads)
+-- Safe to re-run.
 
--- 1) Binder card numbers (needed for matching identity)
-alter table public.user_binders
-  add column if not exists card_number text;
-
--- 2) Daily price cache for matching / binder enrichment
+-- 1) Daily price cache for matching / binder enrichment
 create table if not exists public.binder_card_prices (
   card_id text primary key,
   raw_price numeric(10, 2) not null check (raw_price > 0),
@@ -29,5 +27,45 @@ create policy "binder_card_prices_public_read"
   to anon, authenticated
   using (true);
 
--- Optional: reload PostgREST schema cache if the health banner still shows after ~30s
+-- 2) Chat read receipts
+create table if not exists public.trade_chat_reads (
+  trade_id uuid not null references public.trades(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  last_read_at timestamptz not null default now(),
+  primary key (trade_id, user_id)
+);
+
+create index if not exists trade_chat_reads_trade_idx on public.trade_chat_reads (trade_id);
+
+alter table public.trade_chat_reads enable row level security;
+
+drop policy if exists "Trade participants can view read state" on public.trade_chat_reads;
+drop policy if exists "Users can upsert own read state" on public.trade_chat_reads;
+
+create policy "Trade participants can view read state"
+  on public.trade_chat_reads for select to authenticated
+  using (
+    exists (
+      select 1 from public.trades t
+      where t.id = trade_id
+        and (t.initiator_id = auth.uid() or t.recipient_id = auth.uid())
+    )
+  );
+
+create policy "Users can upsert own read state"
+  on public.trade_chat_reads for all to authenticated
+  using (auth.uid() = user_id)
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1 from public.trades t
+      where t.id = trade_id
+        and (t.initiator_id = auth.uid() or t.recipient_id = auth.uid())
+    )
+  );
+
+grant select, insert, update, delete on public.trade_chat_reads to authenticated;
+grant all on public.trade_chat_reads to service_role;
+
+-- Optional: reload PostgREST schema if the health banner still shows after ~30s
 -- notify pgrst, 'reload schema';
