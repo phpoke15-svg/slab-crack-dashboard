@@ -25,6 +25,7 @@ import { SearchBar } from "./search-bar"
 import { CardTile } from "./card-tile"
 import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
 import { MatchesPanel } from "@/components/trade-binder/social/matches-panel"
+import { PokeMatchSetupBanner } from "@/components/trade-binder/social/pokematch-setup-banner"
 import { SiteAuthButton } from "@/components/site-auth-button"
 
 type BinderTab = "search" | "have" | "want" | "pending" | "matches"
@@ -283,6 +284,7 @@ export function MyBinder() {
       </header>
 
       <main className="flex-1 px-4 pb-8 pt-4 sm:px-6">
+        <PokeMatchSetupBanner />
         {activeTab === "matches" ? (
           <MatchesPanel active={activeTab === "matches"} onCountChange={setMatchCount} />
         ) : activeTab === "search" ? (
