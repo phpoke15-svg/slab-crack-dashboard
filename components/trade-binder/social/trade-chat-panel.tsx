@@ -404,49 +404,6 @@ export function TradeChatPanel({
         </span>
       </button>
 
-      {offerOpen && (
-        <div className="fixed inset-x-0 bottom-0 z-[55] mx-auto max-w-3xl border-t border-border bg-background p-3 shadow-2xl sm:p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-sm font-semibold text-foreground">Build trade offer</p>
-            <button
-              type="button"
-              onClick={() => setOfferOpen(false)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
-              Done
-            </button>
-          </div>
-          <div className="max-h-[50vh] space-y-2 overflow-y-auto">
-          {bindersLoading ? (
-            <div className="flex items-center justify-center py-6">
-              <Loader2 className="size-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : (
-            <>
-              <TradeCardPicker
-                title="You offer"
-                subtitle="From your I have list"
-                cards={myCards}
-                selectedIds={mySelected}
-                onToggle={(c) => setMySelected((p) => toggleCardInSet(c, p))}
-                variant="offer"
-                emptyLabel="Add cards to I have on your binder to offer them."
-              />
-              <TradeCardPicker
-                title="You want"
-                subtitle="From their I have list"
-                cards={theirCards}
-                selectedIds={theirSelected}
-                onToggle={(c) => setTheirSelected((p) => toggleCardInSet(c, p))}
-                variant="request"
-                emptyLabel="They have no cards listed for trade yet."
-              />
-            </>
-          )}
-          </div>
-        </div>
-      )}
-
       {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
 
       <input
@@ -491,7 +448,7 @@ export function TradeChatPanel({
             }
           }}
           placeholder="Type a message…"
-          className="min-w-0 flex-1 rounded-xl border border-border bg-secondary/60 px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+          className="min-w-0 flex-1 rounded-xl border border-border bg-secondary px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50"
         />
         <button
           type="button"
@@ -534,6 +491,49 @@ export function TradeChatPanel({
           onSend={() => void sendPhoto(pendingPhoto, photoCaption)}
           sending={uploadingPhoto}
         />
+      )}
+
+      {offerOpen && (
+        <div className="fixed inset-x-0 bottom-0 z-[60] mx-auto max-w-3xl border-t border-border bg-background p-3 shadow-2xl sm:p-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-sm font-semibold text-foreground">Build trade offer</p>
+            <button
+              type="button"
+              onClick={() => setOfferOpen(false)}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Done
+            </button>
+          </div>
+          <div className="max-h-[45vh] space-y-2 overflow-y-auto">
+            {bindersLoading ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <>
+                <TradeCardPicker
+                  title="You offer"
+                  subtitle="From your I have list"
+                  cards={myCards}
+                  selectedIds={mySelected}
+                  onToggle={(c) => setMySelected((p) => toggleCardInSet(c, p))}
+                  variant="offer"
+                  emptyLabel="Add cards to I have on your binder to offer them."
+                />
+                <TradeCardPicker
+                  title="You want"
+                  subtitle="From their I have list"
+                  cards={theirCards}
+                  selectedIds={theirSelected}
+                  onToggle={(c) => setTheirSelected((p) => toggleCardInSet(c, p))}
+                  variant="request"
+                  emptyLabel="They have no cards listed for trade yet."
+                />
+              </>
+            )}
+          </div>
+        </div>
       )}
 
       <PanelShell

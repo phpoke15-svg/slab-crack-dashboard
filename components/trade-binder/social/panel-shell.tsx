@@ -62,7 +62,12 @@ export function PanelShell({
             </div>
           </div>
         </header>
-        <div className="relative z-10 min-h-0 flex-1 overflow-y-auto">{children}</div>
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col">
+          <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
+          {footer ? (
+            <div className="shrink-0 border-t border-border bg-background">{footer}</div>
+          ) : null}
+        </div>
       </div>
     </div>
   )
