@@ -20,16 +20,11 @@ async function loadProfiles(supabase: SupabaseClient, ids: string[]) {
   return profiles
 }
 
-export async function GET() {
-  const auth = await requireUser()
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-
-  const relations = await listBlockRelations(auth.supabase, auth.user.id)
+async function friendStateForUser(supabase: SupabaseClient, userId: string) {
+  const relations = await listBlockRelations(supabase, userId)
   const exclude = blockExclusionSet(relations)
-  const friendIds = (await listFriendIds(auth.supabase, auth.user.id)).filter(
-    (id) => !exclude.has(id),
-  )
-  const requests = (await listFriendRequests(auth.supabase, auth.user.id)).filter(
+  const friendIds = (await listFriendIds(supabase, userId)).filter((id) => !exclude.has(id))
+  const requests = (await listFriendRequests(supabase, userId)).filter(
     (r) => !exclude.has(r.userId),
   )
   const incomingRequestIds = requests
@@ -38,17 +33,23 @@ export async function GET() {
   const outgoingRequestIds = requests
     .filter((r) => r.direction === "outgoing")
     .map((r) => r.userId)
-
   const allIds = [...new Set([...friendIds, ...incomingRequestIds, ...outgoingRequestIds])]
-  const profiles = await loadProfiles(auth.supabase, allIds)
+  const profiles = await loadProfiles(supabase, allIds)
 
-  return NextResponse.json({
+  return {
     friendIds,
     profiles,
     incomingRequestIds,
     outgoingRequestIds,
     requests,
-  })
+  }
+}
+
+export async function GET() {
+  const auth = await requireUser()
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
+  return NextResponse.json(await friendStateForUser(auth.supabase, auth.user.id))
 }
 
 export async function POST(request: NextRequest) {
@@ -64,7 +65,8 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error }, { status: 400 })
 
   const status = await getFriendshipStatus(auth.supabase, auth.user.id, otherId)
-  return NextResponse.json({ status })
+  const state = await friendStateForUser(auth.supabase, auth.user.id)
+  return NextResponse.json({ status, ...state })
 }
 
 export async function PATCH(request: NextRequest) {
@@ -85,7 +87,8 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error }, { status: 400 })
 
   const status = await getFriendshipStatus(auth.supabase, auth.user.id, otherId)
-  return NextResponse.json({ status })
+  const state = await friendStateForUser(auth.supabase, auth.user.id)
+  return NextResponse.json({ status, ...state })
 }
 
 export async function DELETE(request: NextRequest) {
@@ -97,5 +100,6 @@ export async function DELETE(request: NextRequest) {
 
   const { error } = await removeFriendship(auth.supabase, auth.user.id, otherId)
   if (error) return NextResponse.json({ error }, { status: 400 })
-  return NextResponse.json({ ok: true })
+  const state = await friendStateForUser(auth.supabase, auth.user.id)
+  return NextResponse.json({ ok: true, ...state })
 }

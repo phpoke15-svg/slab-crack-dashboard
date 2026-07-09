@@ -94,11 +94,9 @@ export async function sendFriendRequest(
     if (existing.requester_id === requesterId) {
       return { error: "Friend request already sent" }
     }
-    const { error } = await supabase
-      .from("friendships")
-      .update({ status: "accepted" })
-      .eq("id", existing.id)
-    return { error: error?.message ?? null }
+    return {
+      error: "This trader already sent you a request — open Friends → Requests to accept",
+    }
   }
 
   const { error } = await supabase.from("friendships").insert({

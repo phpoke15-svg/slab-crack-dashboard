@@ -146,11 +146,16 @@ create policy "Users can view own friendships"
   using (auth.uid() = requester_id or auth.uid() = addressee_id);
 
 create policy "Users can create friend requests"
-  on public.friendships for insert to authenticated with check (auth.uid() = requester_id);
+  on public.friendships for insert to authenticated
+  with check (auth.uid() = requester_id and status = 'pending');
 
-create policy "Users can update friendships they are part of"
+drop policy if exists "Users can update friendships they are part of" on public.friendships;
+drop policy if exists "Addressee can accept pending requests" on public.friendships;
+
+create policy "Addressee can accept pending requests"
   on public.friendships for update to authenticated
-  using (auth.uid() = requester_id or auth.uid() = addressee_id);
+  using (auth.uid() = addressee_id and status = 'pending')
+  with check (status = 'accepted');
 
 create policy "Users can delete friendships they are part of"
   on public.friendships for delete to authenticated

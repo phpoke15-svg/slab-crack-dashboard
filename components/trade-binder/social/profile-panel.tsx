@@ -170,10 +170,15 @@ export function ProfilePanel({ userId }: { userId: string }) {
   }
 
   if (!profile && unavailable) {
+    const cached = social.getCachedProfile(userId)
+    const displayName = cached?.name ?? "this trader"
     return (
       <PanelShell title="Profile" onClose={social.close}>
-        <div className="p-6 text-sm text-muted-foreground text-pretty">
-          This profile is unavailable.
+        <div className="space-y-4 p-4 sm:p-6">
+          <p className="text-sm text-muted-foreground text-pretty">
+            This profile is unavailable.
+          </p>
+          <ProfileSafetyControls userId={userId} userName={displayName} />
         </div>
       </PanelShell>
     )
@@ -238,7 +243,6 @@ export function ProfilePanel({ userId }: { userId: string }) {
             </div>
 
             <ProfileFriendButton userId={userId} status={friendStatus} hidden={cannotInteract} />
-            <ProfileSafetyControls userId={userId} userName={profile.name} className="mt-3" />
           </>
         )}
       </section>
@@ -290,6 +294,13 @@ export function ProfilePanel({ userId }: { userId: string }) {
           <p className="text-sm text-muted-foreground text-pretty">
             You blocked this trader. Unblock below to view their binder and trade again.
           </p>
+        </section>
+      )}
+
+      {!isSelf && (
+        <section className="border-b border-border p-4 sm:px-6">
+          <h4 className="mb-3 text-sm font-semibold text-foreground">Safety</h4>
+          <ProfileSafetyControls userId={userId} userName={profile.name} />
         </section>
       )}
 

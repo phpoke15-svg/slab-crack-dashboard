@@ -106,6 +106,27 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [allTrades, setAllTrades] = useState<Trade[]>([])
   const [panel, setPanel] = useState<Panel>(null)
 
+  const applyFriendsPayload = useCallback(
+    (data: {
+      friendIds?: string[]
+      profiles?: User[]
+      incomingRequestIds?: string[]
+      outgoingRequestIds?: string[]
+    }) => {
+      if (data.friendIds) setFriendIds(data.friendIds)
+      if (data.incomingRequestIds) setIncomingRequestIds(data.incomingRequestIds)
+      if (data.outgoingRequestIds) setOutgoingRequestIds(data.outgoingRequestIds)
+      if (data.profiles?.length) {
+        setProfileCache((prev) => {
+          const next = { ...prev }
+          for (const p of data.profiles!) next[p.id] = p
+          return next
+        })
+      }
+    },
+    [],
+  )
+
   const refreshProfile = useCallback(async () => {
     if (!user) {
       setCurrentUser(null)
@@ -147,17 +168,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       incomingRequestIds?: string[]
       outgoingRequestIds?: string[]
     }
-    setFriendIds(data.friendIds ?? [])
-    setIncomingRequestIds(data.incomingRequestIds ?? [])
-    setOutgoingRequestIds(data.outgoingRequestIds ?? [])
-    if (data.profiles?.length) {
-      setProfileCache((prev) => {
-        const next = { ...prev }
-        for (const p of data.profiles!) next[p.id] = p
-        return next
-      })
-    }
-  }, [user])
+    applyFriendsPayload(data)
+  }, [user, applyFriendsPayload])
 
   const refreshBlocks = useCallback(async () => {
     if (!user) {
@@ -230,15 +242,21 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           credentials: "same-origin",
           body: JSON.stringify({ userId: id }),
         })
-        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          friendIds?: string[]
+          profiles?: User[]
+          incomingRequestIds?: string[]
+          outgoingRequestIds?: string[]
+        }
         if (!res.ok) return data.error ?? "Could not send friend request"
-        await refreshFriends()
+        applyFriendsPayload(data)
         return null
       } catch {
         return "Could not send friend request"
       }
     },
-    [user, refreshFriends],
+    [user, applyFriendsPayload],
   )
 
   const acceptFriendRequest = useCallback(
@@ -251,15 +269,21 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           credentials: "same-origin",
           body: JSON.stringify({ userId: id, action: "accept" }),
         })
-        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          friendIds?: string[]
+          profiles?: User[]
+          incomingRequestIds?: string[]
+          outgoingRequestIds?: string[]
+        }
         if (!res.ok) return data.error ?? "Could not accept request"
-        await refreshFriends()
+        applyFriendsPayload(data)
         return null
       } catch {
         return "Could not accept request"
       }
     },
-    [user, refreshFriends],
+    [user, applyFriendsPayload],
   )
 
   const declineFriendRequest = useCallback(
@@ -272,15 +296,21 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           credentials: "same-origin",
           body: JSON.stringify({ userId: id, action: "decline" }),
         })
-        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          friendIds?: string[]
+          profiles?: User[]
+          incomingRequestIds?: string[]
+          outgoingRequestIds?: string[]
+        }
         if (!res.ok) return data.error ?? "Could not decline request"
-        await refreshFriends()
+        applyFriendsPayload(data)
         return null
       } catch {
         return "Could not decline request"
       }
     },
-    [user, refreshFriends],
+    [user, applyFriendsPayload],
   )
 
   const removeFriend = useCallback(
@@ -291,15 +321,21 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           method: "DELETE",
           credentials: "same-origin",
         })
-        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          friendIds?: string[]
+          profiles?: User[]
+          incomingRequestIds?: string[]
+          outgoingRequestIds?: string[]
+        }
         if (!res.ok) return data.error ?? "Could not remove friend"
-        await refreshFriends()
+        applyFriendsPayload(data)
         return null
       } catch {
         return "Could not remove friend"
       }
     },
-    [user, refreshFriends],
+    [user, applyFriendsPayload],
   )
 
   const blockUser = useCallback(
