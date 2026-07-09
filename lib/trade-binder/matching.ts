@@ -4,9 +4,11 @@ import { listFriendIds } from "@/lib/trade-binder/friends"
 import {
   cardIdsEquivalent,
   cardIdVariants,
-  cardsMatchByNameSet,
+  cardsMatchIdentity,
+  cardNumberKeys,
   expandCardIdList,
-  nameSetKey,
+  cardIdentityKey,
+  normalizeSetName,
 } from "@/lib/trade-binder/card-id-match"
 import { catalogCardsByStoredId, lookupCatalogCardsByIds } from "@/lib/trade-binder/catalog-batch"
 import {
@@ -76,28 +78,32 @@ async function enrichRowsMissingMeta(rows: BinderRow[]): Promise<BinderRow[]> {
 function filterTheyHaveYouWant(rows: BinderRow[], myWantRows: BinderRow[]): BinderRow[] {
   const wantIds = myWantRows.map((r) => r.card_id)
   const wantKeys = new Set(
-    myWantRows.map((r) => nameSetKey(r.card_name, r.card_set)).filter(Boolean) as string[],
+    myWantRows
+      .map((r) => cardIdentityKey(r.card_name, r.card_set, r.card_number))
+      .filter(Boolean) as string[],
   )
 
   return rows.filter((row) => {
     if (wantIds.some((id) => cardIdsEquivalent(id, row.card_id))) return true
-    const key = nameSetKey(row.card_name, row.card_set)
+    const key = cardIdentityKey(row.card_name, row.card_set, row.card_number)
     if (key && wantKeys.has(key)) return true
-    return myWantRows.some((want) => cardsMatchByNameSet(rowToMatchCard(want), row))
+    return myWantRows.some((want) => cardsMatchIdentity(want, row))
   })
 }
 
 function filterYouHaveTheyWant(rows: BinderRow[], myHaveRows: BinderRow[]): BinderRow[] {
   const haveIds = myHaveRows.map((r) => r.card_id)
   const haveKeys = new Set(
-    myHaveRows.map((r) => nameSetKey(r.card_name, r.card_set)).filter(Boolean) as string[],
+    myHaveRows
+      .map((r) => cardIdentityKey(r.card_name, r.card_set, r.card_number))
+      .filter(Boolean) as string[],
   )
 
   return rows.filter((row) => {
     if (haveIds.some((id) => cardIdsEquivalent(id, row.card_id))) return true
-    const key = nameSetKey(row.card_name, row.card_set)
+    const key = cardIdentityKey(row.card_name, row.card_set, row.card_number)
     if (key && haveKeys.has(key)) return true
-    return myHaveRows.some((have) => cardsMatchByNameSet(rowToMatchCard(have), row))
+    return myHaveRows.some((have) => cardsMatchIdentity(have, row))
   })
 }
 
@@ -113,7 +119,7 @@ function mergeMatchRows(
     const bucket = byUser.get(row.user_id)!
     const card = rowToMatchCard(row)
     const list = bucket[direction]
-    if (!list.some((c) => cardIdsEquivalent(c.cardId, card.cardId))) {
+    if (!list.some((c) => cardIdsEquivalent(c.cardId, card.cardId) || cardsMatchIdentity(c, card))) {
       list.push(card)
     }
   }
@@ -128,7 +134,7 @@ function attachPrices(cards: MatchCard[], priced: MatchCard[]): MatchCard[] {
     for (const variant of cardIdVariants(card.cardId)) {
       if (!priceById.has(variant)) priceById.set(variant, card.rawPrice)
     }
-    const key = nameSetKey(card.cardName, card.cardSet)
+    const key = cardIdentityKey(card.cardName, card.cardSet, card.cardNumber)
     if (key && !priceByNameSet.has(key)) priceByNameSet.set(key, card.rawPrice)
   }
 
@@ -138,7 +144,7 @@ function attachPrices(cards: MatchCard[], priced: MatchCard[]): MatchCard[] {
       const rawPrice = priceById.get(variant)
       if (rawPrice && rawPrice > 0) return { ...card, rawPrice }
     }
-    const key = nameSetKey(card.cardName, card.cardSet)
+    const key = cardIdentityKey(card.cardName, card.cardSet, card.cardNumber)
     const byName = key ? priceByNameSet.get(key) : undefined
     return byName ? { ...card, rawPrice: byName } : card
   })
@@ -202,15 +208,26 @@ async function fetchByNameSet(
   if (withMeta.length === 0) return [] as BinderRow[]
 
   const batches = await Promise.all(
-    withMeta.map((row) =>
-      supabase
-        .from("user_binders")
-        .select(BINDER_SELECT)
-        .eq("status", status)
-        .neq("user_id", userId)
-        .ilike("card_name", row.card_name!.trim())
-        .ilike("card_set", row.card_set!.trim()),
-    ),
+    withMeta.flatMap((row) => {
+      const name = row.card_name!.trim()
+      const set = row.card_set!.trim()
+      const setCore = normalizeSetName(set)
+      const queries = [
+        supabase
+          .from("user_binders")
+          .select(BINDER_SELECT)
+          .eq("status", status)
+          .neq("user_id", userId)
+          .ilike("card_name", name),
+        supabase
+          .from("user_binders")
+          .select(BINDER_SELECT)
+          .eq("status", status)
+          .neq("user_id", userId)
+          .ilike("card_set", `%${setCore}%`),
+      ]
+      return queries
+    }),
   )
 
   const merged: BinderRow[] = []
@@ -223,7 +240,50 @@ async function fetchByNameSet(
       merged.push(row)
     }
   }
-  return merged
+
+  return merged.filter((row) =>
+    withMeta.some((source) => cardsMatchIdentity(source, row)),
+  )
+}
+
+async function fetchByCardNumbers(
+  supabase: SupabaseClient,
+  userId: string,
+  status: "trade" | "wishlist",
+  sourceRows: BinderRow[],
+) {
+  const numbers = [
+    ...new Set(
+      sourceRows.flatMap((row) => cardNumberKeys(row.card_number, row.card_name)),
+    ),
+  ].filter((n) => !n.includes("%"))
+
+  if (numbers.length === 0) return [] as BinderRow[]
+
+  const chunkSize = 40
+  const merged: BinderRow[] = []
+  const seen = new Set<string>()
+
+  for (let i = 0; i < numbers.length; i += chunkSize) {
+    const chunk = numbers.slice(i, i + chunkSize)
+    const { data } = await supabase
+      .from("user_binders")
+      .select(BINDER_SELECT)
+      .eq("status", status)
+      .neq("user_id", userId)
+      .or(chunk.map((num) => `card_number.ilike.${num}/%,card_number.eq.${num}`).join(","))
+
+    for (const row of (data ?? []) as BinderRow[]) {
+      const key = rowKey(row)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(row)
+    }
+  }
+
+  return merged.filter((row) =>
+    sourceRows.some((source) => cardsMatchIdentity(source, row)),
+  )
 }
 
 export async function computeMatchSuggestions(
@@ -270,11 +330,14 @@ export async function computeMatchSuggestions(
 
   const crossUserReader = createCrossUserReader() ?? supabase
 
-  const [theyHaveRes, theyWantRes, theyHaveByName, theyWantByName] = await Promise.all([
+  const [theyHaveRes, theyWantRes, theyHaveByName, theyWantByName, theyHaveByNumber, theyWantByNumber] =
+    await Promise.all([
     fetchByCardIds(crossUserReader, userId, "trade", myWant),
     fetchByCardIds(crossUserReader, userId, "wishlist", myHave),
     fetchByNameSet(crossUserReader, userId, "trade", enrichedWantRows),
     fetchByNameSet(crossUserReader, userId, "wishlist", enrichedHaveRows),
+    fetchByCardNumbers(crossUserReader, userId, "trade", enrichedWantRows),
+    fetchByCardNumbers(crossUserReader, userId, "wishlist", enrichedHaveRows),
   ])
 
   if (theyHaveRes.error || theyWantRes.error) {
@@ -292,6 +355,7 @@ export async function computeMatchSuggestions(
     await enrichRowsMissingMeta([
       ...((theyHaveRes.data ?? []) as BinderRow[]),
       ...theyHaveByName,
+      ...theyHaveByNumber,
     ]),
     enrichedWantRows,
   )
@@ -299,6 +363,7 @@ export async function computeMatchSuggestions(
     await enrichRowsMissingMeta([
       ...((theyWantRes.data ?? []) as BinderRow[]),
       ...theyWantByName,
+      ...theyWantByNumber,
     ]),
     enrichedHaveRows,
   )

@@ -40,6 +40,14 @@ export function binderErrorMessage(error: unknown, fallback: string): string {
 
     if (
       code === "42P01" ||
+      message.includes("initiator_cancelled_at") ||
+      message.includes("recipient_cancelled_at")
+    ) {
+      return "Dual trade cancellation is not set up. Run supabase/trade-dual-cancel.sql in your Supabase SQL editor, then try again."
+    }
+
+    if (
+      code === "42P01" ||
       message.includes("initiator_accepted_at") ||
       message.includes("recipient_accepted_at")
     ) {

@@ -1,6 +1,6 @@
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import { attachBinderCardPrices } from "@/lib/trade-binder/binder-prices"
-import { cardIdVariants, nameSetKey } from "@/lib/trade-binder/card-id-match"
+import { cardIdVariants, cardIdentityKey } from "@/lib/trade-binder/card-id-match"
 import type { FairTradePair, MatchCard } from "@/lib/trade-binder/users"
 
 export const MATCH_VALUE_TOLERANCE_MIN = 0.05
@@ -116,7 +116,7 @@ export async function enrichMatchCardsWithPrices(cards: MatchCard[]): Promise<Ma
   for (const card of cards) {
     const price = resolveCardPrice(card, priceById)
     if (!price) continue
-    const key = nameSetKey(card.cardName, card.cardSet)
+    const key = cardIdentityKey(card.cardName, card.cardSet, card.cardNumber)
     if (key && !priceByNameSet.has(key)) priceByNameSet.set(key, price)
   }
 
@@ -126,7 +126,7 @@ export async function enrichMatchCardsWithPrices(cards: MatchCard[]): Promise<Ma
       card.rawPrice = direct
       continue
     }
-    const key = nameSetKey(card.cardName, card.cardSet)
+    const key = cardIdentityKey(card.cardName, card.cardSet, card.cardNumber)
     const byName = key ? priceByNameSet.get(key) : undefined
     if (byName) card.rawPrice = byName
   }

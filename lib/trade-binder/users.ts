@@ -75,6 +75,11 @@ export type TradeShipping = {
   recipientAddress: string
 }
 
+export type TradeCancellation = {
+  initiatorCancelledAt: string | null
+  recipientCancelledAt: string | null
+}
+
 export type Trade = {
   id: string
   initiatorId: string
@@ -88,6 +93,7 @@ export type Trade = {
   recipientAcceptedAt: string | null
   fulfillment: TradeFulfillment
   shipping: TradeShipping
+  cancellation: TradeCancellation
   items: TradeItem[]
 }
 

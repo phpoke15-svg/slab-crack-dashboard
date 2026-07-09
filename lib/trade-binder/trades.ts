@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { FULFILLMENT_CLEAR_PATCH, mapFulfillmentFromRow } from "@/lib/trade-binder/trade-fulfillment"
+import {
+  CANCEL_CLEAR_PATCH,
+  mapCancellationFromRow,
+  partnerHasRequestedCancel,
+  userHasRequestedCancel,
+} from "@/lib/trade-binder/trade-cancellation"
 import { SHIPPING_CLEAR_PATCH, mapShippingFromRow } from "@/lib/trade-binder/trade-shipping"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
 import type { Trade, TradeItem, TradeStatus, TradeFulfillmentItem } from "@/lib/trade-binder/users"
@@ -18,9 +24,12 @@ type TradeRow = {
   fulfillment_addresses_at?: string | null
   fulfillment_tracking_at?: string | null
   fulfillment_received_at?: string | null
+  initiator_cancelled_at?: string | null
+  recipient_cancelled_at?: string | null
   initiator_tracking?: string | null
   recipient_tracking?: string | null
   initiator_carrier?: string | null
+  recipient_carrier?: string | null
   initiator_shipping_address?: string | null
   recipient_shipping_address?: string | null
 }
@@ -49,6 +58,7 @@ function mapTrade(row: TradeRow, items: TradeItemRow[]): Trade {
     recipientAcceptedAt: row.recipient_accepted_at ?? null,
     fulfillment: mapFulfillmentFromRow(row),
     shipping: mapShippingFromRow(row),
+    cancellation: mapCancellationFromRow(row),
     items: items.map(
       (item): TradeItem => ({
         id: item.id,
@@ -272,6 +282,7 @@ export async function createOrUpdateTradeProposal(
         recipient_accepted_at: null,
         ...FULFILLMENT_CLEAR_PATCH,
         ...SHIPPING_CLEAR_PATCH,
+        ...CANCEL_CLEAR_PATCH,
       })
       .eq("id", existing.id)
 
@@ -428,6 +439,53 @@ export async function recordTradeAcceptance(
   }
 }
 
+export async function recordTradeCancellation(
+  supabase: SupabaseClient,
+  tradeId: string,
+  userId: string,
+): Promise<{ trade: Trade | null; bothCancelled: boolean; error: string | null }> {
+  const trade = await getTradeById(supabase, tradeId, userId)
+  if (!trade) return { trade: null, bothCancelled: false, error: "Trade not found" }
+  if (trade.status !== "pending" && trade.status !== "accepted") {
+    return { trade: null, bothCancelled: false, error: "Trade cannot be cancelled" }
+  }
+  if (trade.status === "pending" && !tradeHasActiveOffer(trade)) {
+    return { trade: null, bothCancelled: false, error: "No active offer to cancel" }
+  }
+  if (userHasRequestedCancel(trade, userId)) {
+    return { trade, bothCancelled: trade.status === "cancelled", error: null }
+  }
+
+  const isInitiator = trade.initiatorId === userId
+  const partnerRequested = partnerHasRequestedCancel(trade, userId)
+  const now = new Date().toISOString()
+  const patch: Record<string, unknown> = {
+    updated_at: now,
+    ...(isInitiator ? { initiator_cancelled_at: now } : { recipient_cancelled_at: now }),
+  }
+
+  if (partnerRequested) {
+    patch.status = "cancelled"
+    patch.initiator_accepted_at = null
+    patch.recipient_accepted_at = null
+    patch.initiator_cancelled_at = null
+    patch.recipient_cancelled_at = null
+    Object.assign(patch, FULFILLMENT_CLEAR_PATCH, SHIPPING_CLEAR_PATCH)
+  }
+
+  const { error } = await supabase.from("trades").update(patch).eq("id", tradeId)
+  if (error) {
+    return { trade: null, bothCancelled: false, error: binderErrorMessage(error, "Could not cancel trade") }
+  }
+
+  const updated = await getTradeById(supabase, tradeId, userId)
+  return {
+    trade: updated,
+    bothCancelled: updated?.status === "cancelled",
+    error: null,
+  }
+}
+
 export async function updateTradeStatus(
   supabase: SupabaseClient,
   tradeId: string,
@@ -439,6 +497,11 @@ export async function updateTradeStatus(
     return { error }
   }
 
+  if (status === "cancelled") {
+    const { error } = await recordTradeCancellation(supabase, tradeId, userId)
+    return { error }
+  }
+
   const trade = await getTradeById(supabase, tradeId, userId)
   if (!trade) return { error: "Trade not found" }
 
@@ -446,16 +509,14 @@ export async function updateTradeStatus(
     return { error: "Both parties must accept before completing the trade" }
   }
 
-  if (status === "cancelled" && trade.initiatorId !== userId) {
-    return { error: "Only the offer sender can cancel" }
-  }
-
   const patch: Record<string, unknown> = {
     status,
     updated_at: new Date().toISOString(),
     initiator_accepted_at: null,
     recipient_accepted_at: null,
+    ...CANCEL_CLEAR_PATCH,
     ...(status === "completed" ? {} : FULFILLMENT_CLEAR_PATCH),
+    ...(status === "completed" ? {} : SHIPPING_CLEAR_PATCH),
   }
   if (status === "completed") patch.completed_at = new Date().toISOString()
 

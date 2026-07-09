@@ -7,6 +7,7 @@ import {
   listTradeThreadsForUser,
   listTradesForUser,
   recordTradeAcceptance,
+  recordTradeCancellation,
   updateTradeStatus,
 } from "@/lib/trade-binder/trades"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
@@ -96,13 +97,32 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ ok: true })
   }
 
+  if (status === "cancelled") {
+    const { error, bothCancelled } = await recordTradeCancellation(
+      auth.supabase,
+      tradeId,
+      auth.user.id,
+    )
+    if (error) return NextResponse.json({ error }, { status: 400 })
+
+    await addTradeMessage(
+      auth.supabase,
+      tradeId,
+      auth.user.id,
+      bothCancelled
+        ? "Trade cancelled — both parties agreed."
+        : "Requested to cancel this trade.",
+      "status",
+    )
+    return NextResponse.json({ ok: true })
+  }
+
   const { error } = await updateTradeStatus(auth.supabase, tradeId, auth.user.id, status)
   if (error) return NextResponse.json({ error }, { status: 400 })
 
   const labels: Record<string, string> = {
     declined: "Declined the trade offer.",
     completed: "Marked the trade as completed.",
-    cancelled: "Cancelled the trade offer.",
   }
   if (labels[status]) {
     await addTradeMessage(auth.supabase, tradeId, auth.user.id, labels[status], "status")
