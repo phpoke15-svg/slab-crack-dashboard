@@ -1,3 +1,0 @@
-Ship PokeMatch popular search, daily prices, trade addresses, and SlabCrack copy.
-
-Populate empty search with top PriceCharting cards, sync binder prices daily via cron, add mailing address fields on accepted trades, and expand SlabCrack best-use descriptions.
