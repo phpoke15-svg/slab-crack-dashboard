@@ -100,7 +100,10 @@ export function TradeComposerPanel({ userId, prefillMyIds, prefillTheirIds }: Tr
         return
       }
       await social.refreshTrades()
-      social.openTradeChat(data.trade.id, "messages")
+      social.openTradeChat(userId, {
+        tradeId: data.trade.id,
+        returnTo: "messages",
+      })
     } finally {
       setSending(false)
     }

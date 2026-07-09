@@ -309,7 +309,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                   type="button"
                   onClick={() => {
                     const pair = match.fairPairs[0]
-                    social?.openTradeWithUser(match.userId, {
+                    social?.openTradeComposer(match.userId, {
                       myIds: pair
                         ? [pair.youOffer.cardId]
                         : match.youHaveTheyWant.slice(0, 1).map((c) => c.cardId),

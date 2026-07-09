@@ -18,6 +18,7 @@ import { MessagesPanel } from "./messages-panel"
 import { ProfilePanel } from "./profile-panel"
 import { TradesPanel } from "./trades-panel"
 import { TradeChatPanel } from "./trade-chat-panel"
+import { TradeComposerPanel } from "./trade-composer-panel"
 
 type Panel =
   | { type: "friends" }
@@ -25,6 +26,7 @@ type Panel =
   | { type: "profile"; userId: string }
   | { type: "trades" }
   | { type: "accepted-trades" }
+  | { type: "trade-composer"; userId: string; prefillMyIds?: string[]; prefillTheirIds?: string[] }
   | { type: "trade-chat"; otherUserId: string; tradeId?: string; prefillMyIds?: string[]; prefillTheirIds?: string[]; returnTo?: "messages" | "accepted-trades" }
   | null
 
@@ -278,11 +280,10 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       openTrades: () => setPanel({ type: "messages" }),
       openTradeComposer: (userId, prefill) =>
         setPanel({
-          type: "trade-chat",
-          otherUserId: userId,
+          type: "trade-composer",
+          userId,
           prefillMyIds: prefill?.myIds,
           prefillTheirIds: prefill?.theirIds,
-          returnTo: "messages",
         }),
       openTradeWithUser: (userId, prefill) => {
         const thread = findTradeWithUser(userId)
@@ -334,6 +335,13 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       {panel?.type === "accepted-trades" && <AcceptedTradesPanel />}
       {panel?.type === "profile" && <ProfilePanel userId={panel.userId} />}
       {panel?.type === "trades" && <TradesPanel />}
+      {panel?.type === "trade-composer" && (
+        <TradeComposerPanel
+          userId={panel.userId}
+          prefillMyIds={panel.prefillMyIds}
+          prefillTheirIds={panel.prefillTheirIds}
+        />
+      )}
       {panel?.type === "trade-chat" && (
         <TradeChatPanel
           otherUserId={panel.otherUserId}
