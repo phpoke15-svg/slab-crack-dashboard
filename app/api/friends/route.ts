@@ -9,6 +9,7 @@ import {
   removeFriendship,
   sendFriendRequest,
 } from "@/lib/trade-binder/friends"
+import { blockExclusionSet, listBlockRelations } from "@/lib/trade-binder/blocks"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
@@ -23,8 +24,14 @@ export async function GET() {
   const auth = await requireUser()
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const friendIds = await listFriendIds(auth.supabase, auth.user.id)
-  const requests = await listFriendRequests(auth.supabase, auth.user.id)
+  const relations = await listBlockRelations(auth.supabase, auth.user.id)
+  const exclude = blockExclusionSet(relations)
+  const friendIds = (await listFriendIds(auth.supabase, auth.user.id)).filter(
+    (id) => !exclude.has(id),
+  )
+  const requests = (await listFriendRequests(auth.supabase, auth.user.id)).filter(
+    (r) => !exclude.has(r.userId),
+  )
   const incomingRequestIds = requests
     .filter((r) => r.direction === "incoming")
     .map((r) => r.userId)

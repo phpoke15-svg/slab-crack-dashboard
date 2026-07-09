@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { blockExclusionSet } from "@/lib/trade-binder/blocks"
 import { encodeOfferMessage, parseOfferMessage } from "@/lib/trade-binder/offer-message"
 import {
   partnerHasAcceptedTrade,
@@ -41,6 +42,15 @@ function sampleTrade(overrides: Partial<Trade> = {}): Trade {
     ...overrides,
   }
 }
+
+describe("block helpers", () => {
+  it("merges blocked and blocked-by ids", () => {
+    const set = blockExclusionSet({ blockedIds: ["a"], blockedByIds: ["b"] })
+    expect(set.has("a")).toBe(true)
+    expect(set.has("b")).toBe(true)
+    expect(set.has("c")).toBe(false)
+  })
+})
 
 describe("offer-message", () => {
   it("round-trips offer payloads", () => {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { usersAreBlockedEitherWay } from "@/lib/trade-binder/blocks"
 import { addTradeMessage } from "@/lib/trade-binder/trade-messages"
 import { encodeOfferMessage } from "@/lib/trade-binder/offer-message"
 import {
@@ -18,6 +19,10 @@ export async function PATCH(
   const { tradeId } = await params
   const trade = await getTradeById(auth.supabase, tradeId, auth.user.id)
   if (!trade) return NextResponse.json({ error: "Trade not found" }, { status: 404 })
+  const partnerId = trade.initiatorId === auth.user.id ? trade.recipientId : trade.initiatorId
+  if (await usersAreBlockedEitherWay(auth.supabase, auth.user.id, partnerId)) {
+    return NextResponse.json({ error: "You cannot trade with this user" }, { status: 403 })
+  }
   if (trade.status !== "pending") {
     return NextResponse.json({ error: "Trade is not open for counter-offers" }, { status: 400 })
   }

@@ -28,6 +28,7 @@ import { PanelShell } from "./panel-shell"
 import { UserAvatar } from "./user-avatar"
 import { StarRating, StarInput } from "./star-rating"
 import { ProfileEditor } from "./profile-editor"
+import { ProfileSafetyControls } from "./profile-safety-controls"
 
 export function ProfilePanel({ userId }: { userId: string }) {
   const social = useSocial()
@@ -39,12 +40,21 @@ export function ProfilePanel({ userId }: { userId: string }) {
   const [binderLoading, setBinderLoading] = useState(false)
   const [binderAccess, setBinderAccess] = useState<BinderAccessReason | null>(null)
   const [binderMessage, setBinderMessage] = useState<string | null>(null)
+  const [unavailable, setUnavailable] = useState(false)
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setUnavailable(false)
     fetch(`/api/profile/${encodeURIComponent(userId)}`)
-      .then((res) => (res.ok ? res.json() : null))
+      .then(async (res) => {
+        if (res.status === 403) {
+          const data = (await res.json().catch(() => ({}))) as { blocked?: boolean }
+          if (!cancelled && data.blocked) setUnavailable(true)
+          return null
+        }
+        return res.ok ? res.json() : null
+      })
       .then((data) => {
         if (cancelled || !data?.profile) return
         setProfile(data.profile)
@@ -65,7 +75,7 @@ export function ProfilePanel({ userId }: { userId: string }) {
 
   useEffect(() => {
     let cancelled = false
-    if (!authUser || authUser.id === userId) {
+    if (!authUser || authUser.id === userId || social.cannotInteract(userId)) {
       setBinderTrade([])
       setBinderWishlist([])
       setBinderAccess(null)
@@ -159,6 +169,16 @@ export function ProfilePanel({ userId }: { userId: string }) {
     )
   }
 
+  if (!profile && unavailable) {
+    return (
+      <PanelShell title="Profile" onClose={social.close}>
+        <div className="p-6 text-sm text-muted-foreground text-pretty">
+          This profile is unavailable.
+        </div>
+      </PanelShell>
+    )
+  }
+
   if (!profile) {
     return (
       <PanelShell title="Profile" onClose={social.close}>
@@ -168,6 +188,8 @@ export function ProfilePanel({ userId }: { userId: string }) {
   }
 
   const isSelf = authUser?.id === userId
+  const iBlocked = social.isBlocked(userId)
+  const cannotInteract = social.cannotInteract(userId)
   const friendStatus = social.friendshipStatus(userId)
   const hasTraded = social.hasTradedWith(userId)
   const reviews = social.reviewsFor(userId)
@@ -215,12 +237,13 @@ export function ProfilePanel({ userId }: { userId: string }) {
               </div>
             </div>
 
-            <ProfileFriendButton userId={userId} status={friendStatus} />
+            <ProfileFriendButton userId={userId} status={friendStatus} hidden={cannotInteract} />
+            <ProfileSafetyControls userId={userId} userName={profile.name} className="mt-3" />
           </>
         )}
       </section>
 
-      {!isSelf && (
+      {!isSelf && !cannotInteract && (
         <section className="border-b border-border p-4 sm:px-6">
           <div className="mb-3 flex items-center justify-between gap-2">
             <h4 className="text-sm font-semibold text-foreground">Binder</h4>
@@ -262,9 +285,17 @@ export function ProfilePanel({ userId }: { userId: string }) {
         </section>
       )}
 
+      {!isSelf && cannotInteract && iBlocked && (
+        <section className="border-b border-border p-4 sm:px-6">
+          <p className="text-sm text-muted-foreground text-pretty">
+            You blocked this trader. Unblock below to view their binder and trade again.
+          </p>
+        </section>
+      )}
+
       <section className="p-4 sm:px-6">
         <h4 className="mb-3 text-sm font-semibold text-foreground">Reviews</h4>
-        {!isSelf && <ReviewComposer userId={userId} hasTraded={hasTraded} />}
+        {!isSelf && !cannotInteract && <ReviewComposer userId={userId} hasTraded={hasTraded} />}
         {reviews.length > 0 ? (
           <ul className="mt-4 flex flex-col gap-2">
             {reviews.map((r) => {
@@ -333,10 +364,20 @@ function BinderList({
   )
 }
 
-function ProfileFriendButton({ userId, status }: { userId: string; status: FriendshipStatus }) {
+function ProfileFriendButton({
+  userId,
+  status,
+  hidden = false,
+}: {
+  userId: string
+  status: FriendshipStatus
+  hidden?: boolean
+}) {
   const social = useSocial()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  if (hidden) return null
 
   const run = async (action: () => Promise<string | null>) => {
     setBusy(true)

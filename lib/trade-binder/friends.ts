@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import type { FriendshipStatus } from "@/lib/trade-binder/users"
+import { usersAreBlockedEitherWay } from "@/lib/trade-binder/blocks"
 
 type FriendshipRow = {
   id: string
@@ -82,6 +83,10 @@ export async function sendFriendRequest(
   requesterId: string,
   addresseeId: string,
 ): Promise<{ error: string | null }> {
+  if (await usersAreBlockedEitherWay(supabase, requesterId, addresseeId)) {
+    return { error: "You cannot connect with this trader" }
+  }
+
   const existing = await findFriendshipBetween(supabase, requesterId, addresseeId)
   if (existing?.status === "accepted") return { error: "Already friends" }
 

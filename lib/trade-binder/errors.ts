@@ -51,7 +51,9 @@ export function binderErrorMessage(error: unknown, fallback: string): string {
       message.includes("trade_messages") ||
       message.includes("trade_chat_reads") ||
       message.includes("profiles") ||
-      message.includes("friendships")
+      message.includes("friendships") ||
+      message.includes("user_blocks") ||
+      message.includes("user_reports")
     ) {
       return `PokeMatch database setup is incomplete. ${POKEMATCH_SETUP_HINT}`
     }

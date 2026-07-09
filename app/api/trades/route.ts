@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { usersAreBlockedEitherWay, blockExclusionSet, listBlockRelations } from "@/lib/trade-binder/blocks"
 import { addTradeMessage, listLatestMessagesForTrades } from "@/lib/trade-binder/trade-messages"
 import { encodeOfferMessage } from "@/lib/trade-binder/offer-message"
 import {
@@ -8,6 +9,7 @@ import {
   listTradesForUser,
   recordTradeAcceptance,
   recordTradeCancellation,
+  tradePartnerId,
   updateTradeStatus,
 } from "@/lib/trade-binder/trades"
 import { syncLocksForAcceptedTrades } from "@/lib/trade-binder/trade-binder-lock"
@@ -23,12 +25,17 @@ export async function GET() {
   if (locker) {
     await syncLocksForAcceptedTrades(locker, allTrades)
   }
-  const threads = listTradeThreadsForUser(allTrades, auth.user.id)
+  const relations = await listBlockRelations(auth.supabase, auth.user.id)
+  const exclude = blockExclusionSet(relations)
+  const visibleTrades = allTrades.filter(
+    (trade) => !exclude.has(tradePartnerId(trade, auth.user.id)),
+  )
+  const threads = listTradeThreadsForUser(visibleTrades, auth.user.id)
   const lastMessages = await listLatestMessagesForTrades(
     auth.supabase,
-    allTrades.map((t) => t.id),
+    visibleTrades.map((t) => t.id),
   )
-  return NextResponse.json({ trades: threads, allTrades, lastMessages })
+  return NextResponse.json({ trades: threads, allTrades: visibleTrades, lastMessages })
 }
 
 export async function POST(request: NextRequest) {
@@ -38,6 +45,9 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
   const recipientId = body.recipientId as string | undefined
   if (!recipientId) return NextResponse.json({ error: "recipientId required" }, { status: 400 })
+  if (await usersAreBlockedEitherWay(auth.supabase, auth.user.id, recipientId)) {
+    return NextResponse.json({ error: "You cannot trade with this user" }, { status: 403 })
+  }
 
   const myItems = body.myItems ?? []
   const theirItems = body.theirItems ?? []

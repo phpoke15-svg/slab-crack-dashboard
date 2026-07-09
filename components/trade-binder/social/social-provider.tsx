@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
+import type { ReportReason } from "@/lib/trade-binder/blocks"
 import { isTradeAcceptedForDisplay, tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
 import {
   averageRating,
@@ -42,6 +43,15 @@ type SocialContextValue = {
   acceptFriendRequest: (id: string) => Promise<string | null>
   declineFriendRequest: (id: string) => Promise<string | null>
   removeFriend: (id: string) => Promise<string | null>
+  blockedIds: string[]
+  blockedByIds: string[]
+  isBlocked: (id: string) => boolean
+  isBlockedBy: (id: string) => boolean
+  cannotInteract: (id: string) => boolean
+  blockUser: (id: string) => Promise<string | null>
+  unblockUser: (id: string) => Promise<string | null>
+  reportUser: (id: string, reason: ReportReason, details: string) => Promise<string | null>
+  refreshBlocks: () => Promise<void>
   hasTradedWith: (id: string) => boolean
   reviewsFor: (id: string) => Review[]
   ratingFor: (id: string) => number
@@ -87,6 +97,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [friendIds, setFriendIds] = useState<string[]>([])
   const [incomingRequestIds, setIncomingRequestIds] = useState<string[]>([])
   const [outgoingRequestIds, setOutgoingRequestIds] = useState<string[]>([])
+  const [blockedIds, setBlockedIds] = useState<string[]>([])
+  const [blockedByIds, setBlockedByIds] = useState<string[]>([])
   const [tradePartnerIds, setTradePartnerIds] = useState<string[]>([])
   const [reviewsByUser, setReviewsByUser] = useState<Record<string, Review[]>>({})
   const [profileCache, setProfileCache] = useState<Record<string, User>>({})
@@ -147,6 +159,19 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     }
   }, [user])
 
+  const refreshBlocks = useCallback(async () => {
+    if (!user) {
+      setBlockedIds([])
+      setBlockedByIds([])
+      return
+    }
+    const res = await fetch("/api/blocks", { credentials: "same-origin" })
+    if (!res.ok) return
+    const data = (await res.json()) as { blockedIds?: string[]; blockedByIds?: string[] }
+    setBlockedIds(data.blockedIds ?? [])
+    setBlockedByIds(data.blockedByIds ?? [])
+  }, [user])
+
   const refreshTrades = useCallback(async () => {
     if (!user) {
       setTrades([])
@@ -172,8 +197,9 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     if (authLoading) return
     void refreshProfile()
     void refreshFriends()
+    void refreshBlocks()
     void refreshTrades()
-  }, [authLoading, refreshProfile, refreshFriends, refreshTrades])
+  }, [authLoading, refreshProfile, refreshFriends, refreshBlocks, refreshTrades])
 
   const loadReviews = useCallback(async (userId: string) => {
     const res = await fetch(`/api/reviews?userId=${encodeURIComponent(userId)}`, {
@@ -276,6 +302,77 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     [user, refreshFriends],
   )
 
+  const blockUser = useCallback(
+    async (id: string): Promise<string | null> => {
+      if (!user) return "Sign in required"
+      try {
+        const res = await fetch("/api/blocks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ userId: id }),
+        })
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          blockedIds?: string[]
+          blockedByIds?: string[]
+        }
+        if (!res.ok) return data.error ?? "Could not block user"
+        setBlockedIds(data.blockedIds ?? [])
+        setBlockedByIds(data.blockedByIds ?? [])
+        await Promise.all([refreshFriends(), refreshTrades()])
+        return null
+      } catch {
+        return "Could not block user"
+      }
+    },
+    [user, refreshFriends, refreshTrades],
+  )
+
+  const unblockUser = useCallback(
+    async (id: string): Promise<string | null> => {
+      if (!user) return "Sign in required"
+      try {
+        const res = await fetch(`/api/blocks?userId=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          credentials: "same-origin",
+        })
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string
+          blockedIds?: string[]
+          blockedByIds?: string[]
+        }
+        if (!res.ok) return data.error ?? "Could not unblock user"
+        setBlockedIds(data.blockedIds ?? [])
+        setBlockedByIds(data.blockedByIds ?? [])
+        return null
+      } catch {
+        return "Could not unblock user"
+      }
+    },
+    [user],
+  )
+
+  const reportUser = useCallback(
+    async (id: string, reason: ReportReason, details: string): Promise<string | null> => {
+      if (!user) return "Sign in required"
+      try {
+        const res = await fetch("/api/reports/user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({ userId: id, reason, details }),
+        })
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        if (!res.ok) return data.error ?? "Could not submit report"
+        return null
+      } catch {
+        return "Could not submit report"
+      }
+    },
+    [user],
+  )
+
   const value = useMemo<SocialContextValue>(() => {
     const reviewsFor = (id: string) => reviewsByUser[id] ?? []
     const findTradeWithUser = (otherUserId: string) =>
@@ -303,6 +400,15 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       acceptFriendRequest,
       declineFriendRequest,
       removeFriend,
+      blockedIds,
+      blockedByIds,
+      isBlocked: (id) => blockedIds.includes(id),
+      isBlockedBy: (id) => blockedByIds.includes(id),
+      cannotInteract: (id) => blockedIds.includes(id) || blockedByIds.includes(id),
+      blockUser,
+      unblockUser,
+      reportUser,
+      refreshBlocks,
       hasTradedWith: (id) => tradePartnerIds.includes(id),
       reviewsFor,
       ratingFor: (id) => averageRating(reviewsFor(id)),
@@ -377,6 +483,8 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     friendIds,
     incomingRequestIds,
     outgoingRequestIds,
+    blockedIds,
+    blockedByIds,
     tradePartnerIds,
     reviewsByUser,
     profileCache,
@@ -386,6 +494,10 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     acceptFriendRequest,
     declineFriendRequest,
     removeFriend,
+    blockUser,
+    unblockUser,
+    reportUser,
+    refreshBlocks,
     refreshFriends,
     refreshTrades,
     refreshProfile,

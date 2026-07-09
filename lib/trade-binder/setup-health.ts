@@ -38,6 +38,8 @@ const PROBES: Probe[] = [
   },
   { id: "profiles", label: "Profiles", table: "profiles" },
   { id: "friendships", label: "Friends", table: "friendships" },
+  { id: "user_blocks", label: "User blocks", table: "user_blocks" },
+  { id: "user_reports", label: "User reports", table: "user_reports" },
   { id: "trades", label: "Trades", table: "trades" },
   {
     id: "trades_dual_accept",

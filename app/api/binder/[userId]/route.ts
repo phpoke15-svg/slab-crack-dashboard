@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { usersAreBlockedEitherWay } from "@/lib/trade-binder/blocks"
 import { binderAccessMessage, canViewBinderByPolicy, resolveBinderAccess } from "@/lib/trade-binder/binder-access"
 import { loadBinderCards } from "@/lib/trade-binder/binder"
 import { readerForBinderLoad } from "@/lib/trade-binder/cross-user-client"
@@ -17,6 +18,10 @@ export async function GET(
 
   const { userId } = await params
   const isSelf = auth.user.id === userId
+  if (!isSelf && (await usersAreBlockedEitherWay(auth.supabase, auth.user.id, userId))) {
+    return NextResponse.json({ error: "Binder unavailable", blocked: true }, { status: 403 })
+  }
+
   const readClient = readerForBinderLoad(auth.user.id, userId, auth.supabase)
 
   let profile = await fetchProfile(readClient, userId)

@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { blockExclusionSet, listBlockRelations } from "@/lib/trade-binder/blocks"
 import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
 import { listFriendIds } from "@/lib/trade-binder/friends"
 import {
@@ -208,10 +209,12 @@ export async function computeMatchSuggestions(
   userId: string,
   valueTolerance = MATCH_VALUE_TOLERANCE_DEFAULT,
 ): Promise<MatchResult> {
-  const [{ data: myRows, error: myError }, friendIds] = await Promise.all([
+  const [{ data: myRows, error: myError }, friendIds, blockRelations] = await Promise.all([
     supabase.from("user_binders").select(BINDER_SELECT).eq("user_id", userId),
     listFriendIds(supabase, userId),
+    listBlockRelations(supabase, userId),
   ])
+  const blockedUsers = blockExclusionSet(blockRelations)
 
   if (myError) {
     return {
@@ -267,13 +270,13 @@ export async function computeMatchSuggestions(
   )
 
   const visibleTheyHaveRows = filterRowsByBinderVisibility(
-    theyHaveRows,
+    theyHaveRows.filter((row) => !blockedUsers.has(row.user_id)),
     userId,
     friendSet,
     profilesByUser,
   )
   const visibleTheyWantRows = filterRowsByBinderVisibility(
-    theyWantRows,
+    theyWantRows.filter((row) => !blockedUsers.has(row.user_id)),
     userId,
     friendSet,
     profilesByUser,
@@ -309,6 +312,7 @@ export async function computeMatchSuggestions(
   const suggestions: MatchSuggestion[] = []
 
   for (const [otherId, match] of byUser) {
+    if (blockedUsers.has(otherId)) continue
     if (match.theyHaveYouWant.length === 0 || match.youHaveTheyWant.length === 0) continue
 
     const theyHaveYouWant = attachPrices(match.theyHaveYouWant, pricedCards)
