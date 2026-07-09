@@ -21,6 +21,8 @@ export function cardIdsEquivalent(a: string, b: string): boolean {
   return cardIdVariants(b).some((v) => aSet.has(v))
 }
 
+const STOP_WORDS = new Set(["the", "and", "with", "a", "an", "of", "pokemon", "card"])
+
 /** Lowercase name for matching — strips rarity, #, and set number suffixes. */
 export function normalizeCardName(name: string | null | undefined): string {
   return (name ?? "")
@@ -56,6 +58,12 @@ export function parseCardNumber(
   return fromName?.toLowerCase() ?? ""
 }
 
+export function significantNameTokens(name: string | null | undefined): string[] {
+  return normalizeCardName(name)
+    .split(" ")
+    .filter((token) => token.length > 1 && !STOP_WORDS.has(token))
+}
+
 export function nameSetKey(name: string | null | undefined, set: string | null | undefined): string | null {
   const n = normalizeCardName(name)
   const s = normalizeSetName(set)
@@ -70,11 +78,17 @@ export function cardIdentityKey(
 ): string | null {
   const n = normalizeCardName(name)
   const s = normalizeSetName(set)
-  if (!n || !s) return null
+  if (!n) return null
 
   const num = parseCardNumber(cardNumber, name)
-  if (num) return `${n}::${s}::${num}`
-  return `${n}::${s}`
+  if (num) {
+    const base = n
+      .replace(new RegExp(`\\b${num}\\b`, "g"), "")
+      .replace(/\s+/g, " ")
+      .trim()
+    return s ? `${base}::${s}::${num}` : `${base}::${num}`
+  }
+  return s ? `${n}::${s}` : n
 }
 
 type CardLike = {
@@ -94,6 +108,26 @@ function readCardFields(card: CardLike) {
   }
 }
 
+function setsCompatible(setA: string, setB: string): boolean {
+  if (!setA || !setB) return true
+  if (setA === setB) return true
+  return setA.includes(setB) || setB.includes(setA)
+}
+
+function namesOverlapEnough(nameA: string, nameB: string): boolean {
+  if (!nameA || !nameB) return false
+  if (nameA === nameB) return true
+  if (nameA.includes(nameB) || nameB.includes(nameA)) return true
+
+  const tokensA = significantNameTokens(nameA)
+  const tokensB = significantNameTokens(nameB)
+  if (tokensA.length === 0 || tokensB.length === 0) return false
+
+  const overlap = tokensA.filter((token) => tokensB.includes(token))
+  const minSize = Math.min(tokensA.length, tokensB.length)
+  return overlap.length >= Math.max(2, minSize - 1)
+}
+
 export function cardsMatchByNameSet(a: CardLike, b: CardLike): boolean {
   return cardsMatchIdentity(a, b)
 }
@@ -109,33 +143,20 @@ export function cardsMatchIdentity(a: CardLike, b: CardLike): boolean {
 
   const setA = normalizeSetName(aFields.set)
   const setB = normalizeSetName(bFields.set)
-  if (!setA || !setB || setA !== setB) {
-    // Allow partial set overlap (e.g. "Paldean Fates" inside full set title)
-    const setsOverlap = setA.includes(setB) || setB.includes(setA)
-    if (!setsOverlap) return false
-  }
+  if (!setsCompatible(setA, setB)) return false
 
   const numA = parseCardNumber(aFields.number, aFields.name)
   const numB = parseCardNumber(bFields.number, bFields.name)
-  if (numA && numB && numA === numB) {
-    const baseA = normalizeCardName(aFields.name)
-      .replace(new RegExp(`\\b${numA}\\b`, "g"), "")
-      .replace(/\s+/g, " ")
-      .trim()
-    const baseB = normalizeCardName(bFields.name)
-      .replace(new RegExp(`\\b${numB}\\b`, "g"), "")
-      .replace(/\s+/g, " ")
-      .trim()
-    if (baseA && baseB && (baseA === baseB || baseA.includes(baseB) || baseB.includes(baseA))) {
-      return true
-    }
-  }
-
   const nameA = normalizeCardName(aFields.name)
   const nameB = normalizeCardName(bFields.name)
-  if (!nameA || !nameB) return false
 
-  return nameA === nameB
+  if (numA && numB && numA === numB) {
+    const baseA = nameA.replace(new RegExp(`\\b${numA}\\b`, "g"), "").replace(/\s+/g, " ").trim()
+    const baseB = nameB.replace(new RegExp(`\\b${numB}\\b`, "g"), "").replace(/\s+/g, " ").trim()
+    if (baseA && baseB && namesOverlapEnough(baseA, baseB)) return true
+  }
+
+  return namesOverlapEnough(nameA, nameB)
 }
 
 export function cardNumberKeys(cardNumber: string | null | undefined, cardName?: string | null): string[] {

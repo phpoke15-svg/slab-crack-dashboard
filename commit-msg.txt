@@ -1,3 +1,0 @@
-Fix PokeMatch matching for same cards with different names/IDs.
-
-Normalize card names and numbers so Mew ex #232 matches Mew ex 232, broaden binder overlap queries, and add dual-party trade cancellation.

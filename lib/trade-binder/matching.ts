@@ -5,10 +5,7 @@ import {
   cardIdsEquivalent,
   cardIdVariants,
   cardsMatchIdentity,
-  cardNumberKeys,
-  expandCardIdList,
   cardIdentityKey,
-  normalizeSetName,
 } from "@/lib/trade-binder/card-id-match"
 import { catalogCardsByStoredId, lookupCatalogCardsByIds } from "@/lib/trade-binder/catalog-batch"
 import {
@@ -18,6 +15,7 @@ import {
   MATCH_VALUE_TOLERANCE_DEFAULT,
 } from "@/lib/trade-binder/match-value"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
+import type { TraderProfile } from "@/lib/trade-binder/profile"
 import type { MatchCard, MatchSuggestion } from "@/lib/trade-binder/users"
 import {
   filterRowsByBinderVisibility,
@@ -127,27 +125,43 @@ function mergeMatchRows(
 
 function attachPrices(cards: MatchCard[], priced: MatchCard[]): MatchCard[] {
   const priceById = new Map<string, number>()
-  const priceByNameSet = new Map<string, number>()
 
   for (const card of priced) {
     if (!card.rawPrice || card.rawPrice <= 0) continue
-    for (const variant of cardIdVariants(card.cardId)) {
-      if (!priceById.has(variant)) priceById.set(variant, card.rawPrice)
-    }
-    const key = cardIdentityKey(card.cardName, card.cardSet, card.cardNumber)
-    if (key && !priceByNameSet.has(key)) priceByNameSet.set(key, card.rawPrice)
+    registerPriceFromCard(card, priceById)
   }
 
   return cards.map((card) => {
     if (card.rawPrice && card.rawPrice > 0) return card
+    for (const other of priced) {
+      if (!other.rawPrice || other.rawPrice <= 0) continue
+      if (cardsMatchIdentity(card, other)) return { ...card, rawPrice: other.rawPrice }
+    }
     for (const variant of cardIdVariants(card.cardId)) {
       const rawPrice = priceById.get(variant)
       if (rawPrice && rawPrice > 0) return { ...card, rawPrice }
     }
-    const key = cardIdentityKey(card.cardName, card.cardSet, card.cardNumber)
-    const byName = key ? priceByNameSet.get(key) : undefined
-    return byName ? { ...card, rawPrice: byName } : card
+    return card
   })
+}
+
+function registerPriceFromCard(card: MatchCard, priceById: Map<string, number>) {
+  if (!card.rawPrice || card.rawPrice <= 0) return
+  for (const variant of cardIdVariants(card.cardId)) {
+    if (!priceById.has(variant)) priceById.set(variant, card.rawPrice)
+  }
+}
+
+function fallbackProfile(userId: string): TraderProfile {
+  return {
+    id: userId,
+    name: "Trader",
+    handle: "@trader",
+    avatar: "",
+    location: "",
+    bio: "",
+    binderVisibility: "public",
+  }
 }
 
 export type MatchResult = {
@@ -159,131 +173,34 @@ export type MatchResult = {
   overlapUsers: number
 }
 
-async function fetchByCardIds(
+async function fetchAllOtherBinderRows(
   supabase: SupabaseClient,
   userId: string,
   status: "trade" | "wishlist",
-  cardIds: string[],
-) {
-  if (cardIds.length === 0) return { data: [] as BinderRow[], error: null }
+): Promise<BinderRow[]> {
+  const pageSize = 1000
+  let from = 0
+  const all: BinderRow[] = []
 
-  const uniqueIds = [...new Set(cardIds)]
-  const chunkSize = 80
-  const merged: BinderRow[] = []
-  const seen = new Set<string>()
-  let lastError: { message: string } | null = null
-
-  for (let i = 0; i < uniqueIds.length; i += chunkSize) {
-    const chunk = uniqueIds.slice(i, i + chunkSize)
+  while (true) {
     const { data, error } = await supabase
       .from("user_binders")
       .select(BINDER_SELECT)
       .eq("status", status)
       .neq("user_id", userId)
-      .in("card_id", chunk)
+      .order("user_id")
+      .order("card_id")
+      .range(from, from + pageSize - 1)
 
-    if (error) {
-      lastError = error
-      continue
-    }
+    if (error) return all
+    if (!data?.length) break
 
-    for (const row of (data ?? []) as BinderRow[]) {
-      const key = rowKey(row)
-      if (seen.has(key)) continue
-      seen.add(key)
-      merged.push(row)
-    }
+    all.push(...(data as BinderRow[]))
+    if (data.length < pageSize) break
+    from += pageSize
   }
 
-  return { data: merged, error: lastError }
-}
-
-async function fetchByNameSet(
-  supabase: SupabaseClient,
-  userId: string,
-  status: "trade" | "wishlist",
-  sourceRows: BinderRow[],
-) {
-  const withMeta = sourceRows.filter((r) => r.card_name?.trim() && r.card_set?.trim())
-  if (withMeta.length === 0) return [] as BinderRow[]
-
-  const batches = await Promise.all(
-    withMeta.flatMap((row) => {
-      const name = row.card_name!.trim()
-      const set = row.card_set!.trim()
-      const setCore = normalizeSetName(set)
-      const queries = [
-        supabase
-          .from("user_binders")
-          .select(BINDER_SELECT)
-          .eq("status", status)
-          .neq("user_id", userId)
-          .ilike("card_name", name),
-        supabase
-          .from("user_binders")
-          .select(BINDER_SELECT)
-          .eq("status", status)
-          .neq("user_id", userId)
-          .ilike("card_set", `%${setCore}%`),
-      ]
-      return queries
-    }),
-  )
-
-  const merged: BinderRow[] = []
-  const seen = new Set<string>()
-  for (const batch of batches) {
-    for (const row of (batch.data ?? []) as BinderRow[]) {
-      const key = rowKey(row)
-      if (seen.has(key)) continue
-      seen.add(key)
-      merged.push(row)
-    }
-  }
-
-  return merged.filter((row) =>
-    withMeta.some((source) => cardsMatchIdentity(source, row)),
-  )
-}
-
-async function fetchByCardNumbers(
-  supabase: SupabaseClient,
-  userId: string,
-  status: "trade" | "wishlist",
-  sourceRows: BinderRow[],
-) {
-  const numbers = [
-    ...new Set(
-      sourceRows.flatMap((row) => cardNumberKeys(row.card_number, row.card_name)),
-    ),
-  ].filter((n) => !n.includes("%"))
-
-  if (numbers.length === 0) return [] as BinderRow[]
-
-  const chunkSize = 40
-  const merged: BinderRow[] = []
-  const seen = new Set<string>()
-
-  for (let i = 0; i < numbers.length; i += chunkSize) {
-    const chunk = numbers.slice(i, i + chunkSize)
-    const { data } = await supabase
-      .from("user_binders")
-      .select(BINDER_SELECT)
-      .eq("status", status)
-      .neq("user_id", userId)
-      .or(chunk.map((num) => `card_number.ilike.${num}/%,card_number.eq.${num}`).join(","))
-
-    for (const row of (data ?? []) as BinderRow[]) {
-      const key = rowKey(row)
-      if (seen.has(key)) continue
-      seen.add(key)
-      merged.push(row)
-    }
-  }
-
-  return merged.filter((row) =>
-    sourceRows.some((source) => cardsMatchIdentity(source, row)),
-  )
+  return all
 }
 
 export async function computeMatchSuggestions(
@@ -314,10 +231,7 @@ export async function computeMatchSuggestions(
     enrichRowsMissingMeta(myWantRows),
     enrichRowsMissingMeta(myHaveRows),
   ])
-  const myWant = expandCardIdList(enrichedWantRows.map((r) => r.card_id))
-  const myHave = expandCardIdList(enrichedHaveRows.map((r) => r.card_id))
-
-  if (myWant.length === 0 && myHave.length === 0) {
+  if (myWantRows.length === 0 && myHaveRows.length === 0) {
     return {
       suggestions: [],
       error: null,
@@ -330,41 +244,17 @@ export async function computeMatchSuggestions(
 
   const crossUserReader = createCrossUserReader() ?? supabase
 
-  const [theyHaveRes, theyWantRes, theyHaveByName, theyWantByName, theyHaveByNumber, theyWantByNumber] =
-    await Promise.all([
-    fetchByCardIds(crossUserReader, userId, "trade", myWant),
-    fetchByCardIds(crossUserReader, userId, "wishlist", myHave),
-    fetchByNameSet(crossUserReader, userId, "trade", enrichedWantRows),
-    fetchByNameSet(crossUserReader, userId, "wishlist", enrichedHaveRows),
-    fetchByCardNumbers(crossUserReader, userId, "trade", enrichedWantRows),
-    fetchByCardNumbers(crossUserReader, userId, "wishlist", enrichedHaveRows),
+  const [allTheyHave, allTheyWant] = await Promise.all([
+    fetchAllOtherBinderRows(crossUserReader, userId, "trade"),
+    fetchAllOtherBinderRows(crossUserReader, userId, "wishlist"),
   ])
 
-  if (theyHaveRes.error || theyWantRes.error) {
-    return {
-      suggestions: [],
-      error: theyHaveRes.error?.message ?? theyWantRes.error?.message ?? "Could not load matches",
-      myHaveCount: myHaveRows.length,
-      myWantCount: myWantRows.length,
-      pricesLoaded: false,
-      overlapUsers: 0,
-    }
-  }
-
   const theyHaveRows = filterTheyHaveYouWant(
-    await enrichRowsMissingMeta([
-      ...((theyHaveRes.data ?? []) as BinderRow[]),
-      ...theyHaveByName,
-      ...theyHaveByNumber,
-    ]),
+    await enrichRowsMissingMeta(allTheyHave),
     enrichedWantRows,
   )
   const theyWantRows = filterYouHaveTheyWant(
-    await enrichRowsMissingMeta([
-      ...((theyWantRes.data ?? []) as BinderRow[]),
-      ...theyWantByName,
-      ...theyWantByNumber,
-    ]),
+    await enrichRowsMissingMeta(allTheyWant),
     enrichedHaveRows,
   )
 
@@ -406,7 +296,12 @@ export async function computeMatchSuggestions(
     allCards.push(...match.theyHaveYouWant, ...match.youHaveTheyWant)
   }
 
-  const uniqueCards = [...new Map(allCards.map((c) => [c.cardId, c])).values()]
+  const myCards = [...enrichedWantRows, ...enrichedHaveRows].map(rowToMatchCard)
+  const uniqueCards = [
+    ...new Map(
+      [...allCards, ...myCards].map((c) => [c.cardId, c]),
+    ).values(),
+  ]
   const pricedCards = await enrichMatchCardsWithPrices(uniqueCards)
   const pricesLoaded = pricedCards.some((c) => c.rawPrice && c.rawPrice > 0)
 
@@ -426,9 +321,9 @@ export async function computeMatchSuggestions(
       : { theyHaveYouWant, youHaveTheyWant }
 
     const profile =
-      profilesByUser.get(otherId) ?? (await fetchProfile(crossUserReader, otherId))
-    if (!profile) continue
-
+      profilesByUser.get(otherId) ??
+      (await fetchProfile(crossUserReader, otherId)) ??
+      fallbackProfile(otherId)
     suggestions.push({
       userId: otherId,
       profile,

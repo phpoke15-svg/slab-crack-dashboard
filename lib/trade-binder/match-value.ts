@@ -1,6 +1,10 @@
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import { attachBinderCardPrices } from "@/lib/trade-binder/binder-prices"
-import { cardIdVariants, cardIdentityKey } from "@/lib/trade-binder/card-id-match"
+import {
+  cardIdVariants,
+  cardIdentityKey,
+  cardsMatchIdentity,
+} from "@/lib/trade-binder/card-id-match"
 import type { FairTradePair, MatchCard } from "@/lib/trade-binder/users"
 
 export const MATCH_VALUE_TOLERANCE_MIN = 0.05
@@ -25,6 +29,25 @@ function resolveCardPrice(card: MatchCard, priceById: Map<string, number>): numb
   return undefined
 }
 
+export function resolveMatchCardPrice(
+  card: MatchCard,
+  pricedCards: MatchCard[],
+  priceById: Map<string, number>,
+): number | undefined {
+  const direct = resolveCardPrice(card, priceById)
+  if (direct && direct > 0) return direct
+
+  for (const other of pricedCards) {
+    if (!other.rawPrice || other.rawPrice <= 0) continue
+    if (cardIdVariants(card.cardId).some((id) => cardIdVariants(other.cardId).includes(id))) {
+      return other.rawPrice
+    }
+    if (cardsMatchIdentity(card, other)) return other.rawPrice
+  }
+
+  return undefined
+}
+
 async function fetchMatchCardPrices(cards: MatchCard[]): Promise<Map<string, number>> {
   const priceById = new Map<string, number>()
   if (cards.length === 0) return priceById
@@ -40,7 +63,7 @@ async function fetchMatchCardPrices(cards: MatchCard[]): Promise<Map<string, num
     const cachedPrices = await getRawPriceByCardId()
     const prices = await attachBinderCardPrices(inputs, {
       cachedPrices,
-      limit: Math.min(inputs.length, 48),
+      limit: Math.min(inputs.length, 80),
       concurrency: 4,
     })
     for (const [id, price] of prices) registerPrice(priceById, id, price)
@@ -112,26 +135,13 @@ export async function enrichMatchCardsWithPrices(cards: MatchCard[]): Promise<Ma
     return [...byId.values()]
   }
 
-  const priceByNameSet = new Map<string, number>()
-  for (const card of cards) {
-    const price = resolveCardPrice(card, priceById)
-    if (!price) continue
-    const key = cardIdentityKey(card.cardName, card.cardSet, card.cardNumber)
-    if (key && !priceByNameSet.has(key)) priceByNameSet.set(key, price)
+  const pricedList = [...byId.values()]
+  for (const card of pricedList) {
+    const price = resolveMatchCardPrice(card, pricedList, priceById)
+    if (price) card.rawPrice = price
   }
 
-  for (const card of byId.values()) {
-    const direct = resolveCardPrice(card, priceById)
-    if (direct) {
-      card.rawPrice = direct
-      continue
-    }
-    const key = cardIdentityKey(card.cardName, card.cardSet, card.cardNumber)
-    const byName = key ? priceByNameSet.get(key) : undefined
-    if (byName) card.rawPrice = byName
-  }
-
-  return [...byId.values()]
+  return pricedList
 }
 
 export function buildFairTradePairs(
@@ -140,16 +150,25 @@ export function buildFairTradePairs(
   tolerance = MATCH_VALUE_TOLERANCE_DEFAULT,
 ): FairTradePair[] {
   const pairs: FairTradePair[] = []
+  const priced = [...theyHaveYouWant, ...youHaveTheyWant]
+  const priceById = new Map<string, number>()
+  for (const card of priced) {
+    if (card.rawPrice && card.rawPrice > 0) registerPrice(priceById, card.cardId, card.rawPrice)
+  }
 
   for (const theyCard of theyHaveYouWant) {
-    if (!theyCard.rawPrice || theyCard.rawPrice <= 0) continue
+    const theyPrice = resolveMatchCardPrice(theyCard, priced, priceById)
+    if (!theyPrice || theyPrice <= 0) continue
+
     for (const youCard of youHaveTheyWant) {
-      if (!youCard.rawPrice || youCard.rawPrice <= 0) continue
-      const diff = valueDiffPercent(theyCard.rawPrice, youCard.rawPrice)
+      const youPrice = resolveMatchCardPrice(youCard, priced, priceById)
+      if (!youPrice || youPrice <= 0) continue
+
+      const diff = valueDiffPercent(theyPrice, youPrice)
       if (diff <= tolerance * 100) {
         pairs.push({
-          theyOffer: theyCard,
-          youOffer: youCard,
+          theyOffer: { ...theyCard, rawPrice: theyPrice },
+          youOffer: { ...youCard, rawPrice: youPrice },
           valueDiffPercent: diff,
         })
       }
@@ -165,11 +184,13 @@ export function filterCardsToFairPairs(
   youHaveTheyWant: MatchCard[],
   fairPairs: FairTradePair[],
 ): { theyHaveYouWant: MatchCard[]; youHaveTheyWant: MatchCard[] } {
-  const theyIds = new Set(fairPairs.map((p) => p.theyOffer.cardId))
-  const youIds = new Set(fairPairs.map((p) => p.youOffer.cardId))
   return {
-    theyHaveYouWant: theyHaveYouWant.filter((c) => theyIds.has(c.cardId)),
-    youHaveTheyWant: youHaveTheyWant.filter((c) => youIds.has(c.cardId)),
+    theyHaveYouWant: theyHaveYouWant.filter((card) =>
+      fairPairs.some((pair) => cardsMatchIdentity(pair.theyOffer, card)),
+    ),
+    youHaveTheyWant: youHaveTheyWant.filter((card) =>
+      fairPairs.some((pair) => cardsMatchIdentity(pair.youOffer, card)),
+    ),
   }
 }
 
