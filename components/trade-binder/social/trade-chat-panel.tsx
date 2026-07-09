@@ -14,6 +14,7 @@ import {
 import type { TcgCard } from "@/lib/trade-binder/cards"
 import type { Trade, TradeMessage, TradeFulfillmentItem } from "@/lib/trade-binder/users"
 import {
+  isTradeFullyAccepted,
   partnerHasAcceptedTrade,
   tradeHasActiveOffer,
   tradeNeedsMyAcceptance,
@@ -514,6 +515,7 @@ export function TradeChatPanel({
           </div>
         </div>
       )}
+      {trade?.status !== "accepted" && !isTradeFullyAccepted(trade) && (
       <button
         type="button"
         onClick={() => setOfferOpen((v) => !v)}
@@ -532,6 +534,7 @@ export function TradeChatPanel({
           <ChevronUp className={`size-4 transition-transform ${offerOpen ? "rotate-180" : ""}`} />
         </span>
       </button>
+      )}
 
       {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
 
@@ -579,17 +582,18 @@ export function TradeChatPanel({
           placeholder="Type a message…"
           className="min-w-0 flex-1 rounded-xl border border-border bg-secondary px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary/50"
         />
-        <button
-          type="button"
-          disabled={sending || !text.trim()}
-          onClick={() => void sendMessage()}
-          aria-label="Send message"
-          className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-foreground disabled:opacity-40"
-        >
-          {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-        </button>
+      <button
+        type="button"
+        disabled={sending || !text.trim()}
+        onClick={() => void sendMessage()}
+        aria-label="Send message"
+        className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-foreground disabled:opacity-40"
+      >
+        {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+      </button>
       </div>
 
+      {trade?.status !== "accepted" && !isTradeFullyAccepted(trade) && (
       <button
         type="button"
         disabled={sending || !hasOfferSelection}
@@ -603,6 +607,7 @@ export function TradeChatPanel({
         )}
         Send trade offer
       </button>
+      )}
     </div>
   )
 

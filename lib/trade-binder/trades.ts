@@ -110,6 +110,17 @@ export function partnerHasAcceptedTrade(trade: Trade, userId: string): boolean {
   return false
 }
 
+export function isTradeFullyAccepted(trade: Trade | null | undefined): boolean {
+  if (!trade) return false
+  return Boolean(trade.initiatorAcceptedAt && trade.recipientAcceptedAt)
+}
+
+/** Accepted tab + badges — includes trades both parties confirmed even if status was reset. */
+export function isTradeAcceptedForDisplay(trade: Trade | null | undefined): boolean {
+  if (!trade) return false
+  return trade.status === "accepted" || isTradeFullyAccepted(trade)
+}
+
 export function tradeHasActiveOffer(trade: Trade): boolean {
   return trade.items.length > 0
 }
@@ -268,6 +279,21 @@ export async function createOrUpdateTradeProposal(
   const existing = await findTradeThreadBetweenUsers(supabase, actorId, recipientId)
 
   if (existing) {
+    if (isTradeAcceptedForDisplay(existing)) {
+      return {
+        trade: null,
+        error: "This trade is already accepted. Mark it completed or cancel before sending a new offer.",
+        created: false,
+      }
+    }
+    if (existing.status !== "pending") {
+      return {
+        trade: null,
+        error: "This trade is no longer open for new offers.",
+        created: false,
+      }
+    }
+
     const actorIsInitiator = actorId === existing.initiatorId
     const initiatorItems = actorIsInitiator ? myItems : theirItems
     const recipientItems = actorIsInitiator ? theirItems : myItems

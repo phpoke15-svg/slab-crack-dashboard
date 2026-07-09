@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeftRight, Loader2, MessageSquarePlus } from "lucide-react"
 import type { Trade, TradeMessage, User } from "@/lib/trade-binder/users"
-import { tradePartnerId, tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
+import { isTradeAcceptedForDisplay, tradePartnerId, tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
 import { PanelShell } from "./panel-shell"
@@ -103,10 +103,10 @@ export function MessagesPanel() {
   }, [threads, allTrades, lastMessages, user])
 
   const activeThreads = sortedThreads.filter(
-    (t) => t.status === "pending" || t.status === "accepted",
+    (t) => t.status === "pending" || isTradeAcceptedForDisplay(t),
   )
   const otherThreads = sortedThreads.filter(
-    (t) => t.status !== "pending" && t.status !== "accepted",
+    (t) => t.status !== "pending" && !isTradeAcceptedForDisplay(t),
   )
 
   return (

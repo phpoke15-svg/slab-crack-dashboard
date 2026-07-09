@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { listFriendIds, removeFriendship, sendFriendRequest } from "@/lib/trade-binder/friends"
 import { fetchProfile } from "@/lib/trade-binder/profile-db"
-import { tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
+import { isTradeAcceptedForDisplay, tradeNeedsMyAcceptance } from "@/lib/trade-binder/trades"
 import {
   averageRating,
   type Review,
@@ -45,6 +45,7 @@ type SocialContextValue = {
   getCachedProfile: (id: string) => User | undefined
   cacheProfile: (profile: TraderProfile) => void
   trades: Trade[]
+  allTrades: Trade[]
   pendingTradeCount: number
   acceptedTradeCount: number
   refreshTrades: () => Promise<void>
@@ -83,6 +84,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const [reviewsByUser, setReviewsByUser] = useState<Record<string, Review[]>>({})
   const [profileCache, setProfileCache] = useState<Record<string, User>>({})
   const [trades, setTrades] = useState<Trade[]>([])
+  const [allTrades, setAllTrades] = useState<Trade[]>([])
   const [panel, setPanel] = useState<Panel>(null)
 
   const refreshProfile = useCallback(async () => {
@@ -146,15 +148,18 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const refreshTrades = useCallback(async () => {
     if (!user) {
       setTrades([])
+      setAllTrades([])
       setTradePartnerIds([])
       return
     }
     const res = await fetch("/api/trades", { credentials: "same-origin" })
     if (!res.ok) return
     const data = (await res.json()) as { trades: Trade[]; allTrades?: Trade[] }
+    const everyTrade = data.allTrades ?? data.trades
     setTrades(data.trades)
+    setAllTrades(everyTrade)
     const partners = new Set<string>()
-    for (const t of data.allTrades ?? data.trades) {
+    for (const t of everyTrade) {
       if (t.status !== "completed") continue
       partners.add(t.initiatorId === user.id ? t.recipientId : t.initiatorId)
     }
@@ -255,10 +260,11 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       getCachedProfile,
       cacheProfile,
       trades,
+      allTrades,
       pendingTradeCount: trades.filter(
         (t) => currentUser && tradeNeedsMyAcceptance(t, currentUser.id),
       ).length,
-      acceptedTradeCount: trades.filter((t) => t.status === "accepted").length,
+      acceptedTradeCount: allTrades.filter(isTradeAcceptedForDisplay).length,
       refreshTrades,
       refreshFriends,
       refreshProfile,
@@ -309,6 +315,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     reviewsByUser,
     profileCache,
     trades,
+    allTrades,
     addFriend,
     removeFriend,
     refreshFriends,

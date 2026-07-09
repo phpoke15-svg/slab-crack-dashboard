@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { Loader2, MessageSquare, Package } from "lucide-react"
 import type { Trade } from "@/lib/trade-binder/users"
-import { tradePartnerId } from "@/lib/trade-binder/trades"
+import { isTradeAcceptedForDisplay, tradePartnerId } from "@/lib/trade-binder/trades"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
 import { PanelShell } from "./panel-shell"
@@ -23,17 +23,36 @@ export function AcceptedTradesPanel() {
   const { user } = useAuth()
   const [trades, setTrades] = useState<Trade[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadAccepted = () => {
     setLoading(true)
+    setLoadError(null)
     void fetch("/api/trades", { credentials: "same-origin" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { allTrades?: Trade[]; trades?: Trade[] } | null) => {
-        const rows = data?.allTrades ?? data?.trades ?? social.trades
-        setTrades(rows.filter((t) => t.status === "accepted"))
+      .then(async (res) => {
+        const data = (await res.json().catch(() => ({}))) as {
+          allTrades?: Trade[]
+          trades?: Trade[]
+          error?: string
+        }
+        if (!res.ok) {
+          setLoadError(data.error ?? "Could not load accepted trades.")
+          setTrades([])
+          return
+        }
+        const rows = data.allTrades ?? data.trades ?? social.allTrades
+        setTrades(rows.filter(isTradeAcceptedForDisplay))
+      })
+      .catch(() => {
+        setLoadError("Could not load accepted trades.")
+        setTrades([])
       })
       .finally(() => setLoading(false))
-  }, [social.trades])
+  }
+
+  useEffect(() => {
+    loadAccepted()
+  }, [])
 
   const sorted = useMemo(
     () =>
@@ -46,6 +65,7 @@ export function AcceptedTradesPanel() {
   const onTradeUpdated = (updated: Trade) => {
     setTrades((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
     void social.refreshTrades()
+    loadAccepted()
   }
 
   return (
@@ -56,7 +76,18 @@ export function AcceptedTradesPanel() {
           coordinate in chat.
         </p>
 
-        {loading && sorted.length === 0 ? (
+        {loadError ? (
+          <div className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-6 text-center">
+            <p className="text-sm text-destructive">{loadError}</p>
+            <button
+              type="button"
+              onClick={loadAccepted}
+              className="mt-3 rounded-lg border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Retry
+            </button>
+          </div>
+        ) : loading && sorted.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
           </div>
