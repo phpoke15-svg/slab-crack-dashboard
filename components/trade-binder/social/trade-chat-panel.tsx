@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react"
 import type { TcgCard } from "@/lib/trade-binder/cards"
-import type { Trade, TradeMessage } from "@/lib/trade-binder/users"
+import type { Trade, TradeMessage, TradeFulfillmentItem } from "@/lib/trade-binder/users"
 import {
   partnerHasAcceptedTrade,
   tradeHasActiveOffer,
@@ -36,6 +36,7 @@ import {
   shouldShowDayDivider,
 } from "./chat-message-bubble"
 import { PhotoPreviewModal } from "./photo-preview-modal"
+import { TradeFulfillmentChecklist } from "./trade-fulfillment-checklist"
 import { useTradeChatChannel } from "./use-trade-chat-channel"
 import { UserAvatar } from "./user-avatar"
 
@@ -80,6 +81,7 @@ export function TradeChatPanel({
   const [partnerLastReadAt, setPartnerLastReadAt] = useState<string | null>(null)
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
   const [photoCaption, setPhotoCaption] = useState("")
+  const [checklistBusy, setChecklistBusy] = useState<TradeFulfillmentItem | null>(null)
 
   const activeTradeId = trade?.id ?? initialTradeId
   const isInitiator = trade?.initiatorId === user?.id
@@ -365,6 +367,29 @@ export function TradeChatPanel({
     }
   }
 
+  const toggleChecklistItem = async (item: TradeFulfillmentItem, checked: boolean) => {
+    const threadId = activeTradeId
+    if (!threadId) return
+    setChecklistBusy(item)
+    setError(null)
+    try {
+      const res = await fetch(`/api/trades/${encodeURIComponent(threadId)}/checklist`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ item, checked }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { trade?: Trade; error?: string }
+      if (!res.ok || !data.trade) {
+        setError(data.error ?? "Could not update checklist.")
+        return
+      }
+      setTrade(data.trade)
+    } finally {
+      setChecklistBusy(null)
+    }
+  }
+
   const title = other?.name ?? "Chat"
 
   const footer = (
@@ -629,6 +654,14 @@ export function TradeChatPanel({
                 <OfferSummary title="You get" items={theirItems} />
               </div>
             </div>
+          )}
+
+          {trade?.status === "accepted" && (
+            <TradeFulfillmentChecklist
+              trade={trade}
+              busyItem={checklistBusy}
+              onToggle={(item, checked) => void toggleChecklistItem(item, checked)}
+            />
           )}
 
           {messages.length === 0 ? (

@@ -55,6 +55,17 @@ export type TradeItem = {
   cardImage: string
 }
 
+export type TradeFulfillmentItem =
+  | "addresses_exchanged"
+  | "tracking_shared"
+  | "cards_received"
+
+export type TradeFulfillment = {
+  addressesExchangedAt: string | null
+  trackingSharedAt: string | null
+  cardsReceivedAt: string | null
+}
+
 export type Trade = {
   id: string
   initiatorId: string
@@ -66,6 +77,7 @@ export type Trade = {
   completedAt: string | null
   initiatorAcceptedAt: string | null
   recipientAcceptedAt: string | null
+  fulfillment: TradeFulfillment
   items: TradeItem[]
 }
 

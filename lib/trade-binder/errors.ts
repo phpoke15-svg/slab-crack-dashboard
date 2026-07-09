@@ -17,6 +17,15 @@ export function binderErrorMessage(error: unknown, fallback: string): string {
 
     if (
       code === "42P01" ||
+      message.includes("fulfillment_addresses_at") ||
+      message.includes("fulfillment_tracking_at") ||
+      message.includes("fulfillment_received_at")
+    ) {
+      return "Trade fulfillment checklist is not set up. Run supabase/trade-fulfillment-checklist.sql in your Supabase SQL editor, then try again."
+    }
+
+    if (
+      code === "42P01" ||
       message.includes("initiator_accepted_at") ||
       message.includes("recipient_accepted_at")
     ) {

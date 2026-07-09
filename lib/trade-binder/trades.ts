@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import type { Trade, TradeItem, TradeStatus } from "@/lib/trade-binder/users"
+import { FULFILLMENT_CLEAR_PATCH, mapFulfillmentFromRow } from "@/lib/trade-binder/trade-fulfillment"
+import { binderErrorMessage } from "@/lib/trade-binder/errors"
+import type { Trade, TradeItem, TradeStatus, TradeFulfillmentItem } from "@/lib/trade-binder/users"
 
 type TradeRow = {
   id: string
@@ -12,6 +14,9 @@ type TradeRow = {
   completed_at: string | null
   initiator_accepted_at: string | null
   recipient_accepted_at: string | null
+  fulfillment_addresses_at?: string | null
+  fulfillment_tracking_at?: string | null
+  fulfillment_received_at?: string | null
 }
 
 type TradeItemRow = {
@@ -36,6 +41,7 @@ function mapTrade(row: TradeRow, items: TradeItemRow[]): Trade {
     completedAt: row.completed_at,
     initiatorAcceptedAt: row.initiator_accepted_at ?? null,
     recipientAcceptedAt: row.recipient_accepted_at ?? null,
+    fulfillment: mapFulfillmentFromRow(row),
     items: items.map(
       (item): TradeItem => ({
         id: item.id,
@@ -257,6 +263,7 @@ export async function createOrUpdateTradeProposal(
         updated_at: new Date().toISOString(),
         initiator_accepted_at: null,
         recipient_accepted_at: null,
+        ...FULFILLMENT_CLEAR_PATCH,
       })
       .eq("id", existing.id)
 
@@ -440,6 +447,7 @@ export async function updateTradeStatus(
     updated_at: new Date().toISOString(),
     initiator_accepted_at: null,
     recipient_accepted_at: null,
+    ...(status === "completed" ? {} : FULFILLMENT_CLEAR_PATCH),
   }
   if (status === "completed") patch.completed_at = new Date().toISOString()
 
@@ -450,4 +458,38 @@ export async function updateTradeStatus(
     .or(`initiator_id.eq.${userId},recipient_id.eq.${userId}`)
 
   return { error: error?.message ?? null }
+}
+
+const FULFILLMENT_COLUMN: Record<TradeFulfillmentItem, keyof TradeRow> = {
+  addresses_exchanged: "fulfillment_addresses_at",
+  tracking_shared: "fulfillment_tracking_at",
+  cards_received: "fulfillment_received_at",
+}
+
+export async function updateTradeFulfillmentItem(
+  supabase: SupabaseClient,
+  tradeId: string,
+  userId: string,
+  item: TradeFulfillmentItem,
+  checked: boolean,
+): Promise<{ trade: Trade | null; error: string | null }> {
+  const trade = await getTradeById(supabase, tradeId, userId)
+  if (!trade) return { trade: null, error: "Trade not found" }
+  if (trade.status !== "accepted") {
+    return { trade: null, error: "Checklist is only available after both parties accept" }
+  }
+
+  const column = FULFILLMENT_COLUMN[item]
+  const patch: Record<string, string | null> = {
+    updated_at: new Date().toISOString(),
+    [column]: checked ? new Date().toISOString() : null,
+  }
+
+  const { error } = await supabase.from("trades").update(patch).eq("id", tradeId)
+  if (error) {
+    return { trade: null, error: binderErrorMessage(error, "Could not update checklist") }
+  }
+
+  const updated = await getTradeById(supabase, tradeId, userId)
+  return { trade: updated, error: null }
 }
