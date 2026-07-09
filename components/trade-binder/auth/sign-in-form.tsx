@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -120,9 +121,22 @@ export function SignInForm({ onSuccess, className }: SignInFormProps) {
         </button>
 
         {mode === "sign-up" && (
-          <p className="text-center text-xs text-muted-foreground">
-            Check your email to confirm, then sign in.
-          </p>
+          <>
+            <p className="text-center text-xs text-muted-foreground text-pretty">
+              By creating an account, you agree to our{" "}
+              <Link href="/terms" className="text-primary underline underline-offset-2">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link href="/privacy" className="text-primary underline underline-offset-2">
+                Privacy Policy
+              </Link>
+              .
+            </p>
+            <p className="text-center text-xs text-muted-foreground">
+              Check your email to confirm, then sign in.
+            </p>
+          </>
         )}
       </form>
     </div>

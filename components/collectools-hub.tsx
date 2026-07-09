@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { SiteFooter } from "@/components/legal/site-footer"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { COLLECTOOLS } from "@/lib/collectools-tools"
 import { cn } from "@/lib/utils"
@@ -68,9 +69,7 @@ export function CollecToolsHub() {
         })}
       </div>
 
-      <footer className="mt-auto pt-12 text-center text-[11px] text-muted-foreground">
-        Prices and estimates are for research only — not financial advice.
-      </footer>
+      <SiteFooter className="mt-auto pt-12" />
     </div>
   )
 }

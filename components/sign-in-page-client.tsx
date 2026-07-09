@@ -4,6 +4,7 @@ import { Suspense, useEffect } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { SiteFooter } from "@/components/legal/site-footer"
 import { SignInForm } from "@/components/trade-binder/auth/sign-in-form"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 
@@ -37,6 +38,8 @@ function SignInPageContent() {
       <p className="mt-6 text-center text-xs text-muted-foreground text-pretty">
         Your account works across PokeMatch, SlabCrack, and Grade Check.
       </p>
+
+      <SiteFooter className="mt-8" />
     </div>
   )
 }

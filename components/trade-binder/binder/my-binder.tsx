@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils"
 import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { SiteFooter } from "@/components/legal/site-footer"
 import { SearchBar } from "./search-bar"
 import { CardTile } from "./card-tile"
 import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
@@ -422,6 +423,8 @@ export function MyBinder() {
           />
         )}
       </main>
+
+      <SiteFooter className="border-t border-border px-4 py-6 sm:px-6" />
     </div>
   )
 }
