@@ -12,6 +12,7 @@ import {
   type User,
 } from "@/lib/trade-binder/users"
 import type { TraderProfile } from "@/lib/trade-binder/profile"
+import { AcceptedTradesPanel } from "./accepted-trades-panel"
 import { FriendsPanel } from "./friends-panel"
 import { MessagesPanel } from "./messages-panel"
 import { ProfilePanel } from "./profile-panel"
@@ -23,7 +24,8 @@ type Panel =
   | { type: "messages" }
   | { type: "profile"; userId: string }
   | { type: "trades" }
-  | { type: "trade-chat"; otherUserId: string; tradeId?: string; prefillMyIds?: string[]; prefillTheirIds?: string[]; returnTo?: "messages" }
+  | { type: "accepted-trades" }
+  | { type: "trade-chat"; otherUserId: string; tradeId?: string; prefillMyIds?: string[]; prefillTheirIds?: string[]; returnTo?: "messages" | "accepted-trades" }
   | null
 
 type SocialContextValue = {
@@ -44,17 +46,19 @@ type SocialContextValue = {
   cacheProfile: (profile: TraderProfile) => void
   trades: Trade[]
   pendingTradeCount: number
+  acceptedTradeCount: number
   refreshTrades: () => Promise<void>
   refreshFriends: () => Promise<void>
   refreshProfile: () => Promise<void>
   openFriends: () => void
   openMessages: () => void
+  openAcceptedTrades: () => void
   openProfile: (id: string) => void
   openTrades: () => void
   openTradeComposer: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
   openTradeWithUser: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
   findTradeWithUser: (userId: string) => Trade | undefined
-  openTradeChat: (otherUserId: string, options?: { tradeId?: string; returnTo?: "messages"; prefillMyIds?: string[]; prefillTheirIds?: string[] }) => void
+  openTradeChat: (otherUserId: string, options?: { tradeId?: string; returnTo?: "messages" | "accepted-trades"; prefillMyIds?: string[]; prefillTheirIds?: string[] }) => void
   close: () => void
 }
 
@@ -254,11 +258,13 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       pendingTradeCount: trades.filter(
         (t) => currentUser && tradeNeedsMyAcceptance(t, currentUser.id),
       ).length,
+      acceptedTradeCount: trades.filter((t) => t.status === "accepted").length,
       refreshTrades,
       refreshFriends,
       refreshProfile,
       openFriends: () => setPanel({ type: "friends" }),
       openMessages: () => setPanel({ type: "messages" }),
+      openAcceptedTrades: () => setPanel({ type: "accepted-trades" }),
       openProfile: (id) => {
         setPanel({ type: "profile", userId: id })
         void loadReviews(id)
@@ -318,6 +324,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       {children}
       {panel?.type === "friends" && <FriendsPanel />}
       {panel?.type === "messages" && <MessagesPanel />}
+      {panel?.type === "accepted-trades" && <AcceptedTradesPanel />}
       {panel?.type === "profile" && <ProfilePanel userId={panel.userId} />}
       {panel?.type === "trades" && <TradesPanel />}
       {panel?.type === "trade-chat" && (

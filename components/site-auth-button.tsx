@@ -7,6 +7,7 @@ import {
   BookOpen,
   LogOut,
   MessageSquare,
+  Package,
   User,
   Users,
 } from "lucide-react"
@@ -132,6 +133,13 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
             onClick={() => social.openMessages()}
             ariaLabel={`Messages (${social.pendingTradeCount} pending)`}
           />
+          <SocialNavTab
+            label="Trades"
+            icon={<Package className="size-4" aria-hidden="true" />}
+            badge={social.acceptedTradeCount}
+            onClick={() => social.openAcceptedTrades()}
+            ariaLabel={`Accepted trades (${social.acceptedTradeCount})`}
+          />
         </nav>
       )}
 
@@ -170,6 +178,21 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
             <BookOpen className="size-4 text-muted-foreground" aria-hidden="true" />
             My binder
           </Link>
+
+          {social && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false)
+                social.openAcceptedTrades()
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-accent"
+            >
+              <Package className="size-4 text-muted-foreground" aria-hidden="true" />
+              Accepted trades
+            </button>
+          )}
 
           {social && (
             <button

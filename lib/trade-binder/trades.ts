@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { FULFILLMENT_CLEAR_PATCH, mapFulfillmentFromRow } from "@/lib/trade-binder/trade-fulfillment"
+import { mapShippingFromRow } from "@/lib/trade-binder/trade-shipping"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
 import type { Trade, TradeItem, TradeStatus, TradeFulfillmentItem } from "@/lib/trade-binder/users"
 
@@ -17,6 +18,10 @@ type TradeRow = {
   fulfillment_addresses_at?: string | null
   fulfillment_tracking_at?: string | null
   fulfillment_received_at?: string | null
+  initiator_tracking?: string | null
+  recipient_tracking?: string | null
+  initiator_carrier?: string | null
+  recipient_carrier?: string | null
 }
 
 type TradeItemRow = {
@@ -42,6 +47,7 @@ function mapTrade(row: TradeRow, items: TradeItemRow[]): Trade {
     initiatorAcceptedAt: row.initiator_accepted_at ?? null,
     recipientAcceptedAt: row.recipient_accepted_at ?? null,
     fulfillment: mapFulfillmentFromRow(row),
+    shipping: mapShippingFromRow(row),
     items: items.map(
       (item): TradeItem => ({
         id: item.id,
@@ -488,6 +494,36 @@ export async function updateTradeFulfillmentItem(
   const { error } = await supabase.from("trades").update(patch).eq("id", tradeId)
   if (error) {
     return { trade: null, error: binderErrorMessage(error, "Could not update checklist") }
+  }
+
+  const updated = await getTradeById(supabase, tradeId, userId)
+  return { trade: updated, error: null }
+}
+
+export async function updateTradeShipping(
+  supabase: SupabaseClient,
+  tradeId: string,
+  userId: string,
+  tracking: string,
+  carrier: string,
+): Promise<{ trade: Trade | null; error: string | null }> {
+  const trade = await getTradeById(supabase, tradeId, userId)
+  if (!trade) return { trade: null, error: "Trade not found" }
+  if (trade.status !== "accepted") {
+    return { trade: null, error: "Shipping details are only editable on accepted trades" }
+  }
+
+  const isInitiator = trade.initiatorId === userId
+  const patch: Record<string, string> = {
+    updated_at: new Date().toISOString(),
+    ...(isInitiator
+      ? { initiator_tracking: tracking.trim(), initiator_carrier: carrier.trim() }
+      : { recipient_tracking: tracking.trim(), recipient_carrier: carrier.trim() }),
+  }
+
+  const { error } = await supabase.from("trades").update(patch).eq("id", tradeId)
+  if (error) {
+    return { trade: null, error: binderErrorMessage(error, "Could not save tracking") }
   }
 
   const updated = await getTradeById(supabase, tradeId, userId)

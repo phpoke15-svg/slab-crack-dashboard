@@ -17,6 +17,14 @@ export function binderErrorMessage(error: unknown, fallback: string): string {
 
     if (
       code === "42P01" ||
+      message.includes("initiator_tracking") ||
+      message.includes("recipient_tracking")
+    ) {
+      return "Trade shipping fields are not set up. Run supabase/trade-shipping.sql in your Supabase SQL editor, then try again."
+    }
+
+    if (
+      code === "42P01" ||
       message.includes("fulfillment_addresses_at") ||
       message.includes("fulfillment_tracking_at") ||
       message.includes("fulfillment_received_at")

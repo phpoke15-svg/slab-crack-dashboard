@@ -66,6 +66,13 @@ export type TradeFulfillment = {
   cardsReceivedAt: string | null
 }
 
+export type TradeShipping = {
+  initiatorTracking: string
+  recipientTracking: string
+  initiatorCarrier: string
+  recipientCarrier: string
+}
+
 export type Trade = {
   id: string
   initiatorId: string
@@ -78,6 +85,7 @@ export type Trade = {
   initiatorAcceptedAt: string | null
   recipientAcceptedAt: string | null
   fulfillment: TradeFulfillment
+  shipping: TradeShipping
   items: TradeItem[]
 }
 

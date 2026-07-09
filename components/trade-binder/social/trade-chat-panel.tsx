@@ -37,6 +37,7 @@ import {
 } from "./chat-message-bubble"
 import { PhotoPreviewModal } from "./photo-preview-modal"
 import { TradeFulfillmentChecklist } from "./trade-fulfillment-checklist"
+import { TradeShippingFields } from "./trade-shipping-fields"
 import { useTradeChatChannel } from "./use-trade-chat-channel"
 import { UserAvatar } from "./user-avatar"
 
@@ -45,7 +46,7 @@ type TradeChatPanelProps = {
   tradeId?: string
   prefillMyIds?: string[]
   prefillTheirIds?: string[]
-  returnTo?: "messages"
+  returnTo?: "messages" | "accepted-trades"
 }
 
 export function TradeChatPanel({
@@ -57,7 +58,12 @@ export function TradeChatPanel({
 }: TradeChatPanelProps) {
   const social = useSocial()
   const { user, getSupabase } = useAuth()
-  const closePanel = returnTo === "messages" ? social.openMessages : social.close
+  const closePanel =
+    returnTo === "messages"
+      ? social.openMessages
+      : returnTo === "accepted-trades"
+        ? social.openAcceptedTrades
+        : social.close
   const other = social.getCachedProfile(otherUserId)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -609,11 +615,11 @@ export function TradeChatPanel({
       footer={footer}
       headerAccessory={
         <>
-          {returnTo === "messages" && (
+          {(returnTo === "messages" || returnTo === "accepted-trades") && (
             <button
               type="button"
-              onClick={social.openMessages}
-              aria-label="Back to messages"
+              onClick={closePanel}
+              aria-label={returnTo === "accepted-trades" ? "Back to accepted trades" : "Back to messages"}
               className="flex size-9 items-center justify-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               <ChevronLeft className="size-4" />
@@ -657,11 +663,25 @@ export function TradeChatPanel({
           )}
 
           {trade?.status === "accepted" && (
-            <TradeFulfillmentChecklist
-              trade={trade}
-              busyItem={checklistBusy}
-              onToggle={(item, checked) => void toggleChecklistItem(item, checked)}
-            />
+            <>
+              <TradeFulfillmentChecklist
+                trade={trade}
+                busyItem={checklistBusy}
+                onToggle={(item, checked) => void toggleChecklistItem(item, checked)}
+              />
+              {user && (
+                <div className="mb-4 rounded-xl border border-border bg-card/60 p-3">
+                  <p className="text-xs font-semibold text-foreground">Shipping & tracking</p>
+                  <TradeShippingFields
+                    trade={trade}
+                    userId={user.id}
+                    partnerName={other?.name ?? "Trader"}
+                    compact
+                    onSaved={(updated) => setTrade(updated)}
+                  />
+                </div>
+              )}
+            </>
           )}
 
           {messages.length === 0 ? (
