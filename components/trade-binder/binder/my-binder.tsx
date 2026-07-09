@@ -54,8 +54,9 @@ export function MyBinder() {
   const loadIdRef = useRef(0)
 
   const isSearchActive = activeTab === "search"
-  const searchEnabled = isSearchActive && query.trim().length >= 2
-  const { results: searchResults, isLoading: searchLoading, error: searchError, total: searchTotal } =
+  const searchEnabled = isSearchActive
+  const isBrowsingPopular = isSearchActive && query.trim().length < 2
+  const { results: searchResults, isLoading: searchLoading, error: searchError, total: searchTotal, featured: searchFeatured } =
     usePokemonSearch(query, searchEnabled)
 
   const ownedById = useMemo(() => new Map(cards.map((c) => [c.id, c.status])), [cards])
@@ -289,19 +290,23 @@ export function MyBinder() {
                   </Link>
                 </div>
               )}
-              {query.trim().length < 2 ? (
-                <EmptyState
-                  title="Find any card"
-                  message="Type a Pokémon name, set, or card number to search the full catalog."
-                />
-              ) : searchError ? (
+              {searchError ? (
                 <EmptyState title="Search unavailable" message={searchError} />
               ) : searchLoading && searchResults.length === 0 ? (
-                <EmptyState title="Searching…" message="Looking through the catalog." />
+                <EmptyState
+                  title={isBrowsingPopular ? "Loading popular cards…" : "Searching…"}
+                  message={
+                    isBrowsingPopular
+                      ? "Pulling top chase cards from PriceCharting."
+                      : "Looking through the catalog."
+                  }
+                />
               ) : searchResults.length > 0 ? (
                 <>
                   <p className="mb-3 text-xs text-muted-foreground">
-                    {searchTotal.toLocaleString()} result{searchTotal === 1 ? "" : "s"}
+                    {searchFeatured || isBrowsingPopular
+                      ? "Popular cards by market value"
+                      : `${searchTotal.toLocaleString()} result${searchTotal === 1 ? "" : "s"}`}
                   </p>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                     {searchResults.map((card, index) => {
@@ -322,8 +327,13 @@ export function MyBinder() {
                     })}
                   </div>
                 </>
-              ) : (
+              ) : query.trim().length >= 2 ? (
                 <EmptyState title="No cards found" message="Try a different name or set." />
+              ) : (
+                <EmptyState
+                  title="Find any card"
+                  message="Type a Pokémon name, set, or card number to search the full catalog."
+                />
               )}
             </div>
           </>

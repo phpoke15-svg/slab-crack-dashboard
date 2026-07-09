@@ -11,6 +11,7 @@ import {
   pokemonApiToBinderCard,
   searchPokemonCatalog,
 } from "@/lib/trade-binder/pokemon-catalog"
+import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
 
 export const maxDuration = 30
 
@@ -84,6 +85,18 @@ export async function GET(request: NextRequest) {
     }
 
     const rawPriceByCardId = await getRawPriceByCardId()
+
+    if (page === 1) {
+      const cards = await fetchPopularBinderCards(Math.min(pageSize, 30))
+      return NextResponse.json({
+        cards,
+        totalCount: cards.length,
+        page: 1,
+        hasMore: false,
+        featured: true,
+        languageFilter: "english-japanese",
+      })
+    }
 
     const { cards: apiCards, totalCount, pageSize: apiPageSize } = await fetchPokemonCatalogPage(
       page,

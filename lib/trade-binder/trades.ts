@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { FULFILLMENT_CLEAR_PATCH, mapFulfillmentFromRow } from "@/lib/trade-binder/trade-fulfillment"
-import { mapShippingFromRow } from "@/lib/trade-binder/trade-shipping"
+import { SHIPPING_CLEAR_PATCH, mapShippingFromRow } from "@/lib/trade-binder/trade-shipping"
 import { binderErrorMessage } from "@/lib/trade-binder/errors"
 import type { Trade, TradeItem, TradeStatus, TradeFulfillmentItem } from "@/lib/trade-binder/users"
 
@@ -21,7 +21,8 @@ type TradeRow = {
   initiator_tracking?: string | null
   recipient_tracking?: string | null
   initiator_carrier?: string | null
-  recipient_carrier?: string | null
+  initiator_shipping_address?: string | null
+  recipient_shipping_address?: string | null
 }
 
 type TradeItemRow = {
@@ -270,6 +271,7 @@ export async function createOrUpdateTradeProposal(
         initiator_accepted_at: null,
         recipient_accepted_at: null,
         ...FULFILLMENT_CLEAR_PATCH,
+        ...SHIPPING_CLEAR_PATCH,
       })
       .eq("id", existing.id)
 
@@ -506,6 +508,7 @@ export async function updateTradeShipping(
   userId: string,
   tracking: string,
   carrier: string,
+  address: string,
 ): Promise<{ trade: Trade | null; error: string | null }> {
   const trade = await getTradeById(supabase, tradeId, userId)
   if (!trade) return { trade: null, error: "Trade not found" }
@@ -517,13 +520,21 @@ export async function updateTradeShipping(
   const patch: Record<string, string> = {
     updated_at: new Date().toISOString(),
     ...(isInitiator
-      ? { initiator_tracking: tracking.trim(), initiator_carrier: carrier.trim() }
-      : { recipient_tracking: tracking.trim(), recipient_carrier: carrier.trim() }),
+      ? {
+          initiator_tracking: tracking.trim(),
+          initiator_carrier: carrier.trim(),
+          initiator_shipping_address: address.trim(),
+        }
+      : {
+          recipient_tracking: tracking.trim(),
+          recipient_carrier: carrier.trim(),
+          recipient_shipping_address: address.trim(),
+        }),
   }
 
   const { error } = await supabase.from("trades").update(patch).eq("id", tradeId)
   if (error) {
-    return { trade: null, error: binderErrorMessage(error, "Could not save tracking") }
+    return { trade: null, error: binderErrorMessage(error, "Could not save shipping details") }
   }
 
   const updated = await getTradeById(supabase, tradeId, userId)

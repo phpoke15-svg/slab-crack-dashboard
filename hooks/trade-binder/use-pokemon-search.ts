@@ -8,6 +8,7 @@ export type BinderSearchResult = CatalogCard & { rawPrice?: number; cardNumber?:
 type SearchResponse = {
   cards?: BinderSearchResult[]
   totalCount?: number
+  featured?: boolean
 }
 
 function dedupeSearchResults<T extends { id: string }>(cards: T[]): T[] {
@@ -60,6 +61,7 @@ export function usePokemonSearch(query: string, enabled = true) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [total, setTotal] = useState(0)
+  const [featured, setFeatured] = useState(false)
 
   useEffect(() => {
     if (!enabled) {
@@ -67,6 +69,7 @@ export function usePokemonSearch(query: string, enabled = true) {
       setIsLoading(false)
       setError(null)
       setTotal(0)
+      setFeatured(false)
       return
     }
 
@@ -77,8 +80,8 @@ export function usePokemonSearch(query: string, enabled = true) {
     const timer = setTimeout(async () => {
       try {
         const q = query.trim()
-        const params = new URLSearchParams({ pageSize: "40" })
-        if (q) params.set("q", q)
+        const params = new URLSearchParams({ pageSize: q.length >= 2 ? "40" : "30" })
+        if (q.length >= 2) params.set("q", q)
 
         const res = await fetch(`/api/binder/search?${params.toString()}`, {
           signal: controller.signal,
@@ -91,6 +94,7 @@ export function usePokemonSearch(query: string, enabled = true) {
 
         setResults(cards)
         setTotal(data.totalCount ?? cards.length)
+        setFeatured(Boolean(data.featured))
 
         void fetchMissingPrices(cards).then((priced) => {
           if (!controller.signal.aborted) setResults(dedupeSearchResults(priced))
@@ -101,6 +105,7 @@ export function usePokemonSearch(query: string, enabled = true) {
           setError(message === "Search failed" ? "Could not load cards. Try again." : message)
           setResults([])
           setTotal(0)
+          setFeatured(false)
         }
       } finally {
         if (!controller.signal.aborted) setIsLoading(false)
@@ -113,5 +118,5 @@ export function usePokemonSearch(query: string, enabled = true) {
     }
   }, [query, enabled])
 
-  return { results, isLoading, error, total }
+  return { results, isLoading, error, total, featured }
 }

@@ -45,6 +45,27 @@ export async function POST(request: NextRequest) {
       pricesObj[id] = price
     }
 
+    if (prices.size > 0) {
+      const { upsertBinderCardPrices } = await import("@/lib/db/binder-card-prices")
+      await upsertBinderCardPrices(
+        cards
+          .map((card) => {
+            const rawPrice = prices.get(card.id) ?? 0
+            if (rawPrice <= 0) return null
+            return {
+              cardId: card.id,
+              rawPrice,
+              cardName: card.name,
+              cardSet: card.set,
+              cardNumber: card.cardNumber,
+            }
+          })
+          .filter((row): row is NonNullable<typeof row> => row !== null),
+      ).catch((error) => {
+        console.warn("[binder/prices] cache upsert failed:", error)
+      })
+    }
+
     return NextResponse.json(
       { prices: pricesObj },
       { headers: { "Cache-Control": "private, max-age=900" } },

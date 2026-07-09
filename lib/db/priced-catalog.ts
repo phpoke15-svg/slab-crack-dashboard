@@ -1,4 +1,5 @@
 import mockData from "@/lib/mockData.json"
+import { getBinderCardPriceById } from "@/lib/db/binder-card-prices"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import {
   type PricedCatalogCard,
@@ -87,7 +88,14 @@ async function fetchAllSlabCards(): Promise<SlabCardRow[]> {
 }
 
 export async function getRawPriceByCardId(): Promise<Map<string, number>> {
-  if (!isSupabaseConfigured()) return new Map()
+  const priceByCardId = new Map<string, number>()
+
+  const binderPrices = await getBinderCardPriceById()
+  for (const [cardId, rawPrice] of binderPrices) {
+    priceByCardId.set(cardId, rawPrice)
+  }
+
+  if (!isSupabaseConfigured()) return priceByCardId
 
   try {
     const supabase = createAdminClient()
@@ -104,7 +112,6 @@ export async function getRawPriceByCardId(): Promise<Map<string, number>> {
       ((anomalyRows ?? []) as AnomalyRow[]).map((row) => [row.watchlist_id, Number(row.raw_price)]),
     )
 
-    const priceByCardId = new Map<string, number>()
     for (const row of (watchlistRows ?? []) as { id: string; card_id: string | null }[]) {
       const rawPrice = rawByWatchlist.get(row.id)
       if (!rawPrice || !row.card_id) continue
@@ -117,7 +124,7 @@ export async function getRawPriceByCardId(): Promise<Map<string, number>> {
     return priceByCardId
   } catch (error) {
     console.error("[priced-catalog] raw price map failed:", error)
-    return new Map()
+    return priceByCardId
   }
 }
 

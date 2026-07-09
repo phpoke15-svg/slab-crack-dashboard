@@ -7,6 +7,7 @@ export type CollecTool = {
   name: string
   tagline: string
   description: string
+  highlights?: string[]
   icon: LucideIcon
 }
 
@@ -17,7 +18,12 @@ export const COLLECTOOLS: CollecTool[] = [
     name: "SlabCrack",
     tagline: "Graded slab arbitrage",
     description:
-      "Find PSA slabs selling for less than a raw Near-Mint copy. Live deficit feed and card lookup.",
+      "Find PSA slabs selling for less than a raw Near-Mint copy. Live deficit feed, card lookup, and watchlists.",
+    highlights: [
+      "Buy, crack, and sell — spot slabs where cracking and selling raw beats the market price",
+      "Buy high-end cards under market for your personal collection",
+      "Market awareness — track graded vs raw pricing gaps and stay ahead of the market",
+    ],
     icon: Layers,
   },
   {

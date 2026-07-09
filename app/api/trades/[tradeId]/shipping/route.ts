@@ -13,6 +13,7 @@ export async function PATCH(
   const body = await request.json().catch(() => ({}))
   const tracking = typeof body.tracking === "string" ? body.tracking : ""
   const carrier = typeof body.carrier === "string" ? body.carrier : ""
+  const address = typeof body.address === "string" ? body.address : ""
 
   const { trade, error } = await updateTradeShipping(
     auth.supabase,
@@ -20,6 +21,7 @@ export async function PATCH(
     auth.user.id,
     tracking,
     carrier,
+    address,
   )
 
   if (error) return NextResponse.json({ error }, { status: 400 })

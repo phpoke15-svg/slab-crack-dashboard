@@ -48,6 +48,18 @@ export function CollecToolsHub() {
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {tool.description}
                   </p>
+                  {tool.highlights && tool.highlights.length > 0 && (
+                    <ul className="mt-2.5 space-y-1 text-xs leading-relaxed text-muted-foreground">
+                      {tool.highlights.map((item) => (
+                        <li key={item} className="flex gap-2">
+                          <span className="text-primary" aria-hidden>
+                            ·
+                          </span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <ArrowRight className="mt-1 size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
               </div>

@@ -71,6 +71,8 @@ export type TradeShipping = {
   recipientTracking: string
   initiatorCarrier: string
   recipientCarrier: string
+  initiatorAddress: string
+  recipientAddress: string
 }
 
 export type Trade = {

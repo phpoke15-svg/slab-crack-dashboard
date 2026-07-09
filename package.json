@@ -10,6 +10,7 @@
     "sync-prices": "node scripts/sync-prices.mjs",
     "resolve-pricecharting-ids": "node scripts/resolve-pricecharting-ids.mjs",
     "discover-arbitrage": "npx tsx scripts/discover-arbitrage.ts",
+    "sync-binder-prices": "npx tsx scripts/sync-binder-prices.ts",
     "enrich-images": "npx tsx scripts/enrich-images.ts",
     "seed-catalog": "node scripts/seed-catalog.mjs",
     "seed-top-200": "node scripts/seed-top-200.mjs"

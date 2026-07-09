@@ -11,6 +11,10 @@ export function binderErrorMessage(error: unknown, fallback: string): string {
     const message = String((error as PostgrestLikeError).message ?? "")
     const code = (error as PostgrestLikeError).code
 
+    if (code === "42P01" || message.includes("binder_card_prices")) {
+      return "PokeMatch price cache is not set up. Run supabase/binder-card-prices.sql in your Supabase SQL editor, then try again."
+    }
+
     if (code === "42P01" || message.includes("user_binders")) {
       return "PokeMatch storage is not set up. Run supabase/user_binders.sql in your Supabase SQL editor, then try again."
     }
@@ -18,9 +22,11 @@ export function binderErrorMessage(error: unknown, fallback: string): string {
     if (
       code === "42P01" ||
       message.includes("initiator_tracking") ||
-      message.includes("recipient_tracking")
+      message.includes("recipient_tracking") ||
+      message.includes("initiator_shipping_address") ||
+      message.includes("recipient_shipping_address")
     ) {
-      return "Trade shipping fields are not set up. Run supabase/trade-shipping.sql in your Supabase SQL editor, then try again."
+      return "Trade shipping fields are not set up. Run supabase/trade-shipping.sql and supabase/trade-shipping-addresses.sql in your Supabase SQL editor, then try again."
     }
 
     if (

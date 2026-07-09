@@ -5,6 +5,7 @@ import { Search, Zap, TrendingDown, DollarSign, Percent } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
+import { COLLECTOOLS } from "@/lib/collectools-tools"
 import mockData from "@/lib/mockData.json"
 import {
   FEEDS,
@@ -29,6 +30,8 @@ import {
 } from "@/lib/watchlist-storage"
 
 const FALLBACK_FEED: MockCardEntry[] = []
+
+const SLABCRACK = COLLECTOOLS.find((tool) => tool.id === "slabcrack")!
 
 export function SlabDashboard() {
   const [arbitrageFeed, setArbitrageFeed] = useState<MockCardEntry[]>(FALLBACK_FEED)
@@ -273,6 +276,27 @@ export function SlabDashboard() {
 
       {/* Feed */}
       <main className="flex-1 px-4 py-4 sm:px-6">
+        <div className="mb-4 rounded-xl border border-border bg-card/40 p-3.5 sm:p-4">
+          <p className="text-sm leading-relaxed text-muted-foreground">{SLABCRACK.description}</p>
+          {SLABCRACK.highlights && (
+            <>
+              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Best uses
+              </p>
+              <ol className="mt-2 space-y-1.5 text-sm leading-relaxed text-foreground">
+                {SLABCRACK.highlights.map((item, index) => (
+                  <li key={item} className="flex gap-2.5">
+                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">
+                      {index + 1}
+                    </span>
+                    <span className="text-pretty text-muted-foreground">{item}</span>
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </div>
+
         {showCatalogSearch && (
           <CardSearchResults
             hits={searchHits}

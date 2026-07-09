@@ -671,7 +671,7 @@ export function TradeChatPanel({
               />
               {user && (
                 <div className="mb-4 rounded-xl border border-border bg-card/60 p-3">
-                  <p className="text-xs font-semibold text-foreground">Shipping & tracking</p>
+                  <p className="text-xs font-semibold text-foreground">Shipping details</p>
                   <TradeShippingFields
                     trade={trade}
                     userId={user.id}

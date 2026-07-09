@@ -52,8 +52,8 @@ export function AcceptedTradesPanel() {
     <PanelShell title="Accepted trades" onClose={social.close}>
       <div className="p-4 sm:p-6">
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
-          Trades both parties have agreed to. Add your tracking number and coordinate shipping in
-          chat.
+          Trades both parties have agreed to. Add your mailing address and tracking number, or
+          coordinate in chat.
         </p>
 
         {loading && sorted.length === 0 ? (

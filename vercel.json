@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/discover-arbitrage",
       "schedule": "0 6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-binder-prices",
+      "schedule": "0 7 * * *"
     }
   ]
 }

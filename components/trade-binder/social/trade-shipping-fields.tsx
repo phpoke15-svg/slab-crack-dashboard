@@ -30,6 +30,7 @@ export function TradeShippingFields({
 }: TradeShippingFieldsProps) {
   const mine = myOutgoingShipping(trade, userId)
   const theirs = partnerOutgoingShipping(trade, userId)
+  const [address, setAddress] = useState(mine.address)
   const [tracking, setTracking] = useState(mine.tracking)
   const [carrier, setCarrier] = useState(mine.carrier || "USPS")
   const [saving, setSaving] = useState(false)
@@ -37,9 +38,10 @@ export function TradeShippingFields({
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
+    setAddress(mine.address)
     setTracking(mine.tracking)
     setCarrier(mine.carrier || "USPS")
-  }, [mine.tracking, mine.carrier, trade.id])
+  }, [mine.address, mine.tracking, mine.carrier, trade.id])
 
   const save = async () => {
     setSaving(true)
@@ -50,11 +52,11 @@ export function TradeShippingFields({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ tracking, carrier }),
+        body: JSON.stringify({ address, tracking, carrier }),
       })
       const data = (await res.json().catch(() => ({}))) as { trade?: Trade; error?: string }
       if (!res.ok || !data.trade) {
-        setError(data.error ?? "Could not save tracking.")
+        setError(data.error ?? "Could not save shipping details.")
         return
       }
       setSaved(true)
@@ -65,10 +67,35 @@ export function TradeShippingFields({
   }
 
   return (
-    <div className={compact ? "space-y-2" : "mt-3 space-y-3 border-t border-border/60 pt-3"}>
+    <div className={compact ? "space-y-3" : "mt-3 space-y-4 border-t border-border/60 pt-3"}>
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Your shipment
+          Your mailing address
+        </p>
+        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+          Share where {partnerName} should ship your cards.
+        </p>
+        <textarea
+          value={address}
+          onChange={(e) => setAddress(e.target.value)}
+          placeholder={"Full name\nStreet address\nCity, State ZIP"}
+          rows={compact ? 3 : 4}
+          className="mt-2 w-full resize-y rounded-lg border border-border bg-background px-2.5 py-2 text-xs leading-relaxed text-foreground outline-none focus:border-primary/50"
+        />
+      </div>
+
+      <div className="rounded-lg border border-border bg-background/50 px-3 py-2 text-xs">
+        <p className="font-medium text-muted-foreground">{partnerName}&apos;s mailing address</p>
+        {theirs.address ? (
+          <p className="mt-1 whitespace-pre-wrap text-foreground">{theirs.address}</p>
+        ) : (
+          <p className="mt-1 text-muted-foreground">Not added yet</p>
+        )}
+      </div>
+
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Your tracking
         </p>
         <div className={`mt-2 grid gap-2 ${compact ? "" : "sm:grid-cols-[7rem_1fr]"}`}>
           <select
@@ -89,19 +116,6 @@ export function TradeShippingFields({
             className="rounded-lg border border-border bg-background px-2.5 py-2 text-xs text-foreground outline-none focus:border-primary/50"
           />
         </div>
-        <div className="mt-2 flex items-center gap-2">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void save()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
-            Save tracking
-          </button>
-          {saved && <span className="text-xs text-trade">Saved</span>}
-          {error && <span className="text-xs text-destructive">{error}</span>}
-        </div>
       </div>
 
       <div className="rounded-lg border border-border bg-background/50 px-3 py-2 text-xs">
@@ -114,6 +128,20 @@ export function TradeShippingFields({
         ) : (
           <p className="mt-1 text-muted-foreground">Not added yet</p>
         )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save()}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="size-3 animate-spin" /> : <Save className="size-3" />}
+          Save shipping details
+        </button>
+        {saved && <span className="text-xs text-trade">Saved</span>}
+        {error && <span className="text-xs text-destructive">{error}</span>}
       </div>
     </div>
   )
