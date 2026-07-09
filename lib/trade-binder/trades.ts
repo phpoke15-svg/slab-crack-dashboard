@@ -291,7 +291,14 @@ export async function createOrUpdateTradeProposal(
         created: false,
       }
     }
-    if (existing.status !== "pending") {
+
+    const canReopen =
+      existing.status === "pending" ||
+      existing.status === "cancelled" ||
+      existing.status === "declined" ||
+      existing.status === "completed"
+
+    if (!canReopen) {
       return {
         trade: null,
         error: "This trade is no longer open for new offers.",
