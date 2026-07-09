@@ -40,6 +40,7 @@ export function TradeChatPanel({
   const [theirSelected, setTheirSelected] = useState<Set<string>>(new Set())
   const [counterNote, setCounterNote] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const activeTradeId = trade?.id ?? tradeId
 
   const loadChat = useCallback(async () => {
     const res = await fetch(`/api/trades/${encodeURIComponent(tradeId)}`, {
@@ -96,7 +97,7 @@ export function TradeChatPanel({
     if (!body) return
     setSending(true)
     try {
-      const res = await fetch(`/api/trades/${encodeURIComponent(tradeId)}/messages`, {
+      const res = await fetch(`/api/trades/${encodeURIComponent(activeTradeId)}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -112,12 +113,12 @@ export function TradeChatPanel({
   }
 
   const updateStatus = async (status: Trade["status"]) => {
-    setActionId(tradeId)
+    setActionId(activeTradeId)
     try {
       const res = await fetch("/api/trades", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tradeId, status }),
+        body: JSON.stringify({ tradeId: activeTradeId, status }),
       })
       if (res.ok) {
         await social.refreshTrades()
@@ -138,7 +139,7 @@ export function TradeChatPanel({
     setSending(true)
     setError(null)
     try {
-      const res = await fetch(`/api/trades/${encodeURIComponent(tradeId)}/counter`, {
+      const res = await fetch(`/api/trades/${encodeURIComponent(activeTradeId)}/counter`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
@@ -223,7 +224,7 @@ export function TradeChatPanel({
                 <>
                   <button
                     type="button"
-                    disabled={actionId === tradeId}
+                    disabled={actionId === activeTradeId}
                     onClick={() => void updateStatus("accepted")}
                     className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
                   >
@@ -231,7 +232,7 @@ export function TradeChatPanel({
                   </button>
                   <button
                     type="button"
-                    disabled={actionId === tradeId}
+                    disabled={actionId === activeTradeId}
                     onClick={() => void updateStatus("declined")}
                     className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs"
                   >
@@ -248,7 +249,7 @@ export function TradeChatPanel({
               </button>
               <button
                 type="button"
-                disabled={actionId === tradeId}
+                disabled={actionId === activeTradeId}
                 onClick={() => void updateStatus("cancelled")}
                 className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground"
               >
@@ -260,7 +261,7 @@ export function TradeChatPanel({
           {trade.status === "accepted" && (
             <button
               type="button"
-              disabled={actionId === tradeId}
+              disabled={actionId === activeTradeId}
               onClick={() => void updateStatus("completed")}
               className="mt-3 w-full rounded-lg bg-trade px-3 py-2 text-xs font-medium text-white"
             >

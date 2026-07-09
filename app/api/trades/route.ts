@@ -1,18 +1,24 @@
 import { NextRequest, NextResponse } from "next/server"
 import { addTradeMessage, listLatestMessagesForTrades } from "@/lib/trade-binder/trade-messages"
-import { createTrade, listTradesForUser, updateTradeStatus } from "@/lib/trade-binder/trades"
+import {
+  createOrUpdateTradeProposal,
+  listTradeThreadsForUser,
+  listTradesForUser,
+  updateTradeStatus,
+} from "@/lib/trade-binder/trades"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export async function GET() {
   const auth = await requireUser()
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const trades = await listTradesForUser(auth.supabase, auth.user.id)
+  const allTrades = await listTradesForUser(auth.supabase, auth.user.id)
+  const threads = listTradeThreadsForUser(allTrades, auth.user.id)
   const lastMessages = await listLatestMessagesForTrades(
     auth.supabase,
-    trades.map((t) => t.id),
+    allTrades.map((t) => t.id),
   )
-  return NextResponse.json({ trades, lastMessages })
+  return NextResponse.json({ trades: threads, allTrades, lastMessages })
 }
 
 export async function POST(request: NextRequest) {
@@ -23,7 +29,7 @@ export async function POST(request: NextRequest) {
   const recipientId = body.recipientId as string | undefined
   if (!recipientId) return NextResponse.json({ error: "recipientId required" }, { status: 400 })
 
-  const { trade, error } = await createTrade(
+  const { trade, error } = await createOrUpdateTradeProposal(
     auth.supabase,
     auth.user.id,
     recipientId,

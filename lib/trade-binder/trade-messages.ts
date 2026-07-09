@@ -35,6 +35,22 @@ export async function listTradeMessages(
   return (data as MessageRow[]).map(mapMessage)
 }
 
+export async function listMessagesForTradeIds(
+  supabase: SupabaseClient,
+  tradeIds: string[],
+): Promise<TradeMessage[]> {
+  if (tradeIds.length === 0) return []
+
+  const { data, error } = await supabase
+    .from("trade_messages")
+    .select("*")
+    .in("trade_id", tradeIds)
+    .order("created_at", { ascending: true })
+
+  if (error || !data) return []
+  return (data as MessageRow[]).map(mapMessage)
+}
+
 export async function listLatestMessagesForTrades(
   supabase: SupabaseClient,
   tradeIds: string[],

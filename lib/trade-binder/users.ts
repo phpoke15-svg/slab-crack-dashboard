@@ -62,6 +62,7 @@ export type Trade = {
   status: TradeStatus
   message: string
   createdAt: string
+  updatedAt: string
   completedAt: string | null
   items: TradeItem[]
 }

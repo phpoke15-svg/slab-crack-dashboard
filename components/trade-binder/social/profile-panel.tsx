@@ -286,7 +286,7 @@ export function ProfilePanel({ userId }: { userId: string }) {
               )}
               <button
                 type="button"
-                onClick={() => social.openTradeComposer(userId)}
+                onClick={() => social.openTradeWithUser(userId)}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground"
               >
                 <ArrowLeftRight className="size-4" />

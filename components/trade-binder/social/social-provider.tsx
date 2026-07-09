@@ -53,6 +53,8 @@ type SocialContextValue = {
   openProfile: (id: string) => void
   openTrades: () => void
   openTradeComposer: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
+  openTradeWithUser: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
+  findTradeWithUser: (userId: string) => Trade | undefined
   openTradeChat: (tradeId: string, returnTo?: "messages") => void
   close: () => void
 }
@@ -146,10 +148,10 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     }
     const res = await fetch("/api/trades", { credentials: "same-origin" })
     if (!res.ok) return
-    const data = (await res.json()) as { trades: Trade[] }
+    const data = (await res.json()) as { trades: Trade[]; allTrades?: Trade[] }
     setTrades(data.trades)
     const partners = new Set<string>()
-    for (const t of data.trades) {
+    for (const t of data.allTrades ?? data.trades) {
       if (t.status !== "completed") continue
       partners.add(t.initiatorId === user.id ? t.recipientId : t.initiatorId)
     }
@@ -218,6 +220,12 @@ export function SocialProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<SocialContextValue>(() => {
     const reviewsFor = (id: string) => reviewsByUser[id] ?? []
+    const findTradeWithUser = (otherUserId: string) =>
+      trades.find(
+        (t) =>
+          (t.initiatorId === currentUser?.id && t.recipientId === otherUserId) ||
+          (t.recipientId === currentUser?.id && t.initiatorId === otherUserId),
+      )
     return {
       currentUser,
       profileLoading,
@@ -264,6 +272,18 @@ export function SocialProvider({ children }: { children: ReactNode }) {
           prefillMyIds: prefill?.myIds,
           prefillTheirIds: prefill?.theirIds,
         }),
+      openTradeWithUser: (userId, prefill) => {
+        const thread = findTradeWithUser(userId)
+        if (thread) setPanel({ type: "trade-chat", tradeId: thread.id, returnTo: "messages" })
+        else
+          setPanel({
+            type: "trade-composer",
+            userId,
+            prefillMyIds: prefill?.myIds,
+            prefillTheirIds: prefill?.theirIds,
+          })
+      },
+      findTradeWithUser,
       openTradeChat: (tradeId, returnTo) => setPanel({ type: "trade-chat", tradeId, returnTo }),
       close: () => setPanel(null),
     }

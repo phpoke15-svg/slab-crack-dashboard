@@ -8,6 +8,7 @@ type TradeRow = {
   status: TradeStatus
   message: string
   created_at: string
+  updated_at: string
   completed_at: string | null
 }
 
@@ -29,6 +30,7 @@ function mapTrade(row: TradeRow, items: TradeItemRow[]): Trade {
     status: row.status,
     message: row.message,
     createdAt: row.created_at,
+    updatedAt: row.updated_at ?? row.created_at,
     completedAt: row.completed_at,
     items: items.map(
       (item): TradeItem => ({
@@ -63,6 +65,65 @@ export async function listTradesForUser(supabase: SupabaseClient, userId: string
   }
 
   return (tradeRows as TradeRow[]).map((row) => mapTrade(row, itemsByTrade.get(row.id) ?? []))
+}
+
+export function tradePartnerId(trade: Trade, userId: string): string {
+  return trade.initiatorId === userId ? trade.recipientId : trade.initiatorId
+}
+
+function tradeActivityTime(trade: Trade): string {
+  return trade.updatedAt || trade.createdAt
+}
+
+export function listTradeThreadsForUser(trades: Trade[], userId: string): Trade[] {
+  const byPartner = new Map<string, Trade>()
+  for (const trade of trades) {
+    const partnerId = tradePartnerId(trade, userId)
+    const existing = byPartner.get(partnerId)
+    if (!existing || tradeActivityTime(trade) > tradeActivityTime(existing)) {
+      byPartner.set(partnerId, trade)
+    }
+  }
+  return [...byPartner.values()].sort((a, b) =>
+    tradeActivityTime(b).localeCompare(tradeActivityTime(a)),
+  )
+}
+
+export async function listTradeIdsBetweenUsers(
+  supabase: SupabaseClient,
+  userId: string,
+  otherId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("trades")
+    .select("id")
+    .or(
+      `and(initiator_id.eq.${userId},recipient_id.eq.${otherId}),and(initiator_id.eq.${otherId},recipient_id.eq.${userId})`,
+    )
+
+  if (error || !data) return []
+  return data.map((row) => row.id as string)
+}
+
+export async function findTradeThreadBetweenUsers(
+  supabase: SupabaseClient,
+  userId: string,
+  otherId: string,
+): Promise<Trade | null> {
+  const { data: tradeRows, error } = await supabase
+    .from("trades")
+    .select("*")
+    .or(
+      `and(initiator_id.eq.${userId},recipient_id.eq.${otherId}),and(initiator_id.eq.${otherId},recipient_id.eq.${userId})`,
+    )
+    .order("updated_at", { ascending: false })
+    .limit(1)
+
+  if (error || !tradeRows?.length) return null
+
+  const tradeRow = tradeRows[0] as TradeRow
+  const { data: items } = await supabase.from("trade_items").select("*").eq("trade_id", tradeRow.id)
+  return mapTrade(tradeRow, (items ?? []) as TradeItemRow[])
 }
 
 export async function hasCompletedTradeWith(
@@ -143,6 +204,58 @@ export async function createTrade(
 
   const { data: items } = await supabase.from("trade_items").select("*").eq("trade_id", tradeId)
   return { trade: mapTrade(tradeRow as TradeRow, (items ?? []) as TradeItemRow[]), error: null }
+}
+
+export async function createOrUpdateTradeProposal(
+  supabase: SupabaseClient,
+  actorId: string,
+  recipientId: string,
+  message: string,
+  myItems: { cardId: string; cardName: string; cardSet: string; cardImage: string }[],
+  theirItems: { cardId: string; cardName: string; cardSet: string; cardImage: string }[],
+): Promise<{ trade: Trade | null; error: string | null; created: boolean }> {
+  const existing = await findTradeThreadBetweenUsers(supabase, actorId, recipientId)
+
+  if (existing) {
+    const actorIsInitiator = actorId === existing.initiatorId
+    const initiatorItems = actorIsInitiator ? myItems : theirItems
+    const recipientItems = actorIsInitiator ? theirItems : myItems
+
+    const { error: updateError } = await supabase
+      .from("trades")
+      .update({
+        status: "pending",
+        message: message.trim(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id)
+
+    if (updateError) return { trade: null, error: updateError.message, created: false }
+
+    const { error: replaceError } = await replaceTradeItems(
+      supabase,
+      existing.id,
+      actorId,
+      existing.initiatorId,
+      existing.recipientId,
+      initiatorItems,
+      recipientItems,
+    )
+    if (replaceError) return { trade: null, error: replaceError, created: false }
+
+    const trade = await getTradeById(supabase, existing.id, actorId)
+    return { trade, error: null, created: false }
+  }
+
+  const { trade, error } = await createTrade(
+    supabase,
+    actorId,
+    recipientId,
+    message,
+    myItems,
+    theirItems,
+  )
+  return { trade, error, created: true }
 }
 
 export async function getTradeById(

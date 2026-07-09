@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getTradeById } from "@/lib/trade-binder/trades"
-import { listTradeMessages } from "@/lib/trade-binder/trade-messages"
+import {
+  findTradeThreadBetweenUsers,
+  getTradeById,
+  listTradeIdsBetweenUsers,
+  tradePartnerId,
+} from "@/lib/trade-binder/trades"
+import { listMessagesForTradeIds } from "@/lib/trade-binder/trade-messages"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export async function GET(
@@ -14,6 +19,10 @@ export async function GET(
   const trade = await getTradeById(auth.supabase, tradeId, auth.user.id)
   if (!trade) return NextResponse.json({ error: "Trade not found" }, { status: 404 })
 
-  const messages = await listTradeMessages(auth.supabase, tradeId)
-  return NextResponse.json({ trade, messages })
+  const otherId = tradePartnerId(trade, auth.user.id)
+  const thread = (await findTradeThreadBetweenUsers(auth.supabase, auth.user.id, otherId)) ?? trade
+  const tradeIds = await listTradeIdsBetweenUsers(auth.supabase, auth.user.id, otherId)
+  const messages = await listMessagesForTradeIds(auth.supabase, tradeIds)
+
+  return NextResponse.json({ trade: thread, messages })
 }

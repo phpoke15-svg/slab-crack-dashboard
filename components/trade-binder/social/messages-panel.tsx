@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeftRight, Loader2, MessageSquarePlus } from "lucide-react"
 import type { Trade, TradeMessage, User } from "@/lib/trade-binder/users"
+import { tradePartnerId } from "@/lib/trade-binder/trades"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
 import { PanelShell } from "./panel-shell"
@@ -34,51 +35,86 @@ function messageLabel(type: TradeMessage["messageType"]): string | null {
   return null
 }
 
+function lastMessageForThread(
+  trade: Trade,
+  userId: string,
+  allTrades: Trade[],
+  lastMessages: Record<string, TradeMessage>,
+): TradeMessage | null {
+  const partnerId = tradePartnerId(trade, userId)
+  let best: TradeMessage | null = null
+  for (const row of allTrades) {
+    if (tradePartnerId(row, userId) !== partnerId) continue
+    const msg = lastMessages[row.id]
+    if (!msg) continue
+    if (!best || msg.createdAt > best.createdAt) best = msg
+  }
+  return best
+}
+
 export function MessagesPanel() {
   const social = useSocial()
   const { user } = useAuth()
-  const [trades, setTrades] = useState<Trade[]>(social.trades)
+  const [threads, setThreads] = useState<Trade[]>(social.trades)
+  const [allTrades, setAllTrades] = useState<Trade[]>(social.trades)
   const [lastMessages, setLastMessages] = useState<Record<string, TradeMessage>>({})
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    setTrades(social.trades)
+    setThreads(social.trades)
   }, [social.trades])
 
   useEffect(() => {
     setLoading(true)
     void fetch("/api/trades", { credentials: "same-origin" })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { trades?: Trade[]; lastMessages?: Record<string, TradeMessage> } | null) => {
-        if (data?.trades) setTrades(data.trades)
-        if (data?.lastMessages) setLastMessages(data.lastMessages)
-      })
+      .then(
+        (
+          data: {
+            trades?: Trade[]
+            allTrades?: Trade[]
+            lastMessages?: Record<string, TradeMessage>
+          } | null,
+        ) => {
+          if (data?.trades) setThreads(data.trades)
+          if (data?.allTrades) setAllTrades(data.allTrades)
+          else if (data?.trades) setAllTrades(data.trades)
+          if (data?.lastMessages) setLastMessages(data.lastMessages)
+        },
+      )
       .finally(() => setLoading(false))
   }, [])
 
-  const sortedTrades = useMemo(() => {
-    return [...trades].sort((a, b) => {
-      const aTime = lastMessages[a.id]?.createdAt ?? a.createdAt
-      const bTime = lastMessages[b.id]?.createdAt ?? b.createdAt
+  const sortedThreads = useMemo(() => {
+    if (!user) return threads
+    return [...threads].sort((a, b) => {
+      const aTime =
+        lastMessageForThread(a, user.id, allTrades, lastMessages)?.createdAt ??
+        a.updatedAt ??
+        a.createdAt
+      const bTime =
+        lastMessageForThread(b, user.id, allTrades, lastMessages)?.createdAt ??
+        b.updatedAt ??
+        b.createdAt
       return bTime.localeCompare(aTime)
     })
-  }, [trades, lastMessages])
+  }, [threads, allTrades, lastMessages, user])
 
-  const activeTrades = sortedTrades.filter(
+  const activeThreads = sortedThreads.filter(
     (t) => t.status === "pending" || t.status === "accepted",
   )
-  const otherTrades = sortedTrades.filter(
+  const otherThreads = sortedThreads.filter(
     (t) => t.status !== "pending" && t.status !== "accepted",
   )
 
   return (
     <PanelShell title="Messages" onClose={social.close}>
       <div className="p-4 sm:p-6">
-        {loading && trades.length === 0 ? (
+        {loading && threads.length === 0 ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
           </div>
-        ) : trades.length === 0 ? (
+        ) : threads.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border bg-card/40 px-4 py-10 text-center">
             <MessageSquarePlus className="mx-auto size-8 text-muted-foreground" />
             <p className="mt-3 text-sm font-medium text-foreground">No messages yet</p>
@@ -88,17 +124,21 @@ export function MessagesPanel() {
           </div>
         ) : (
           <div className="space-y-6">
-            {activeTrades.length > 0 && (
+            {activeThreads.length > 0 && (
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Active
                 </h3>
                 <ul className="flex flex-col gap-2">
-                  {activeTrades.map((trade) => (
+                  {activeThreads.map((trade) => (
                     <ConversationRow
-                      key={trade.id}
+                      key={tradePartnerId(trade, user!.id)}
                       trade={trade}
-                      lastMessage={lastMessages[trade.id] ?? null}
+                      lastMessage={
+                        user
+                          ? lastMessageForThread(trade, user.id, allTrades, lastMessages)
+                          : null
+                      }
                       userId={user?.id}
                       onOpen={() => social.openTradeChat(trade.id, "messages")}
                       getProfile={social.getCachedProfile}
@@ -108,17 +148,21 @@ export function MessagesPanel() {
               </section>
             )}
 
-            {otherTrades.length > 0 && (
+            {otherThreads.length > 0 && (
               <section>
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Earlier
                 </h3>
                 <ul className="flex flex-col gap-2">
-                  {otherTrades.map((trade) => (
+                  {otherThreads.map((trade) => (
                     <ConversationRow
-                      key={trade.id}
+                      key={tradePartnerId(trade, user!.id)}
                       trade={trade}
-                      lastMessage={lastMessages[trade.id] ?? null}
+                      lastMessage={
+                        user
+                          ? lastMessageForThread(trade, user.id, allTrades, lastMessages)
+                          : null
+                      }
                       userId={user?.id}
                       onOpen={() => social.openTradeChat(trade.id, "messages")}
                       getProfile={social.getCachedProfile}
@@ -149,7 +193,7 @@ function ConversationRow({
 }) {
   const otherId = trade.initiatorId === userId ? trade.recipientId : trade.initiatorId
   const other = getProfile(otherId)
-  const when = lastMessage?.createdAt ?? trade.createdAt
+  const when = lastMessage?.createdAt ?? trade.updatedAt ?? trade.createdAt
   const systemLabel = lastMessage ? messageLabel(lastMessage.messageType) : null
   const needsAction =
     trade.status === "pending" && trade.recipientId === userId && trade.initiatorId !== userId
