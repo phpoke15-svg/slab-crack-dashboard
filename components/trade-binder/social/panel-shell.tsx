@@ -8,11 +8,13 @@ export function PanelShell({
   onClose,
   children,
   headerAccessory,
+  footer,
 }: {
   title: string
   onClose: () => void
   children: ReactNode
   headerAccessory?: ReactNode
+  footer?: ReactNode
 }) {
   useEffect(() => {
     const prev = document.body.style.overflow

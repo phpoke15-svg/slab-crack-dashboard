@@ -45,7 +45,7 @@ export function TradesPanel() {
                 <li key={trade.id}>
                   <button
                     type="button"
-                    onClick={() => social.openTradeChat(trade.id, "messages")}
+                    onClick={() => social.openTradeWithUser(otherId)}
                     className="w-full rounded-xl border border-border bg-card/60 p-3 text-left transition-colors hover:border-primary/40"
                   >
                     <div className="flex items-center gap-2">

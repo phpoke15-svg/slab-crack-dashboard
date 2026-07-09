@@ -15,7 +15,6 @@ import { FriendsPanel } from "./friends-panel"
 import { MessagesPanel } from "./messages-panel"
 import { ProfilePanel } from "./profile-panel"
 import { TradesPanel } from "./trades-panel"
-import { TradeComposerPanel } from "./trade-composer-panel"
 import { TradeChatPanel } from "./trade-chat-panel"
 
 type Panel =
@@ -23,8 +22,7 @@ type Panel =
   | { type: "messages" }
   | { type: "profile"; userId: string }
   | { type: "trades" }
-  | { type: "trade-composer"; userId: string; prefillMyIds?: string[]; prefillTheirIds?: string[] }
-  | { type: "trade-chat"; tradeId: string; returnTo?: "messages" }
+  | { type: "trade-chat"; otherUserId: string; tradeId?: string; prefillMyIds?: string[]; prefillTheirIds?: string[]; returnTo?: "messages" }
   | null
 
 type SocialContextValue = {
@@ -55,7 +53,7 @@ type SocialContextValue = {
   openTradeComposer: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
   openTradeWithUser: (userId: string, prefill?: { myIds?: string[]; theirIds?: string[] }) => void
   findTradeWithUser: (userId: string) => Trade | undefined
-  openTradeChat: (tradeId: string, returnTo?: "messages") => void
+  openTradeChat: (otherUserId: string, options?: { tradeId?: string; returnTo?: "messages"; prefillMyIds?: string[]; prefillTheirIds?: string[] }) => void
   close: () => void
 }
 
@@ -267,24 +265,33 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       openTrades: () => setPanel({ type: "messages" }),
       openTradeComposer: (userId, prefill) =>
         setPanel({
-          type: "trade-composer",
-          userId,
+          type: "trade-chat",
+          otherUserId: userId,
           prefillMyIds: prefill?.myIds,
           prefillTheirIds: prefill?.theirIds,
+          returnTo: "messages",
         }),
       openTradeWithUser: (userId, prefill) => {
         const thread = findTradeWithUser(userId)
-        if (thread) setPanel({ type: "trade-chat", tradeId: thread.id, returnTo: "messages" })
-        else
-          setPanel({
-            type: "trade-composer",
-            userId,
-            prefillMyIds: prefill?.myIds,
-            prefillTheirIds: prefill?.theirIds,
-          })
+        setPanel({
+          type: "trade-chat",
+          otherUserId: userId,
+          tradeId: thread?.id,
+          prefillMyIds: prefill?.myIds,
+          prefillTheirIds: prefill?.theirIds,
+          returnTo: "messages",
+        })
       },
       findTradeWithUser,
-      openTradeChat: (tradeId, returnTo) => setPanel({ type: "trade-chat", tradeId, returnTo }),
+      openTradeChat: (otherUserId, options) =>
+        setPanel({
+          type: "trade-chat",
+          otherUserId,
+          tradeId: options?.tradeId,
+          prefillMyIds: options?.prefillMyIds,
+          prefillTheirIds: options?.prefillTheirIds,
+          returnTo: options?.returnTo,
+        }),
       close: () => setPanel(null),
     }
   }, [
@@ -312,15 +319,14 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       {panel?.type === "messages" && <MessagesPanel />}
       {panel?.type === "profile" && <ProfilePanel userId={panel.userId} />}
       {panel?.type === "trades" && <TradesPanel />}
-      {panel?.type === "trade-composer" && (
-        <TradeComposerPanel
-          userId={panel.userId}
+      {panel?.type === "trade-chat" && (
+        <TradeChatPanel
+          otherUserId={panel.otherUserId}
+          tradeId={panel.tradeId}
           prefillMyIds={panel.prefillMyIds}
           prefillTheirIds={panel.prefillTheirIds}
+          returnTo={panel.returnTo}
         />
-      )}
-      {panel?.type === "trade-chat" && (
-        <TradeChatPanel tradeId={panel.tradeId} returnTo={panel.returnTo} />
       )}
     </SocialContext.Provider>
   )

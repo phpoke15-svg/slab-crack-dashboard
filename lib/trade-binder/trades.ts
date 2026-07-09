@@ -258,6 +258,16 @@ export async function createOrUpdateTradeProposal(
   return { trade, error, created: true }
 }
 
+export async function ensureTradeThread(
+  supabase: SupabaseClient,
+  actorId: string,
+  recipientId: string,
+): Promise<{ trade: Trade | null; error: string | null }> {
+  const existing = await findTradeThreadBetweenUsers(supabase, actorId, recipientId)
+  if (existing) return { trade: existing, error: null }
+  return createTrade(supabase, actorId, recipientId, "", [], [])
+}
+
 export async function getTradeById(
   supabase: SupabaseClient,
   tradeId: string,

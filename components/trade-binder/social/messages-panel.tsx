@@ -140,7 +140,7 @@ export function MessagesPanel() {
                           : null
                       }
                       userId={user?.id}
-                      onOpen={() => social.openTradeChat(trade.id, "messages")}
+                      onOpen={() => social.openTradeWithUser(tradePartnerId(trade, user!.id))}
                       getProfile={social.getCachedProfile}
                     />
                   ))}
@@ -164,7 +164,7 @@ export function MessagesPanel() {
                           : null
                       }
                       userId={user?.id}
-                      onOpen={() => social.openTradeChat(trade.id, "messages")}
+                      onOpen={() => social.openTradeWithUser(tradePartnerId(trade, user!.id))}
                       getProfile={social.getCachedProfile}
                     />
                   ))}

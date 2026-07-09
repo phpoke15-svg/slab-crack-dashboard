@@ -42,7 +42,7 @@ export function TradeCardPicker({
       ) : (
         <ul className="flex max-h-56 flex-col gap-1.5 overflow-y-auto">
           {cards.map((card) => {
-            const selected = selectedIds.has(card.id)
+            const selected = [...selectedIds].some((id) => cardMatchesId(card, id))
             return (
               <li key={card.clientKey}>
                 <button
@@ -104,6 +104,10 @@ export function toggleCardInSet(card: TcgCard, set: Set<string>): Set<string> {
   return next
 }
 
+export function cardMatchesId(card: TcgCard, id: string): boolean {
+  return card.id === id || card.clientKey === id
+}
+
 export function selectedCards(cards: TcgCard[], selectedIds: Set<string>): TcgCard[] {
-  return cards.filter((c) => selectedIds.has(c.id))
+  return cards.filter((c) => [...selectedIds].some((id) => cardMatchesId(c, id)))
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { addTradeMessage } from "@/lib/trade-binder/trade-messages"
+import { encodeOfferMessage } from "@/lib/trade-binder/offer-message"
 import { getTradeById, replaceTradeItems } from "@/lib/trade-binder/trades"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
@@ -40,18 +41,18 @@ export async function PATCH(
   )
   if (replaceError) return NextResponse.json({ error: replaceError }, { status: 400 })
 
-  const note = (body.message as string | undefined)?.trim()
-  if (note) {
-    await addTradeMessage(auth.supabase, tradeId, auth.user.id, note, "counter")
-  } else {
-    await addTradeMessage(
-      auth.supabase,
-      tradeId,
-      auth.user.id,
-      "Updated the trade offer.",
-      "counter",
-    )
-  }
+  const note = (body.message as string | undefined)?.trim() ?? ""
+  await addTradeMessage(
+    auth.supabase,
+    tradeId,
+    auth.user.id,
+    encodeOfferMessage(
+      note,
+      isInitiator ? myItems : theirItems,
+      isInitiator ? theirItems : myItems,
+    ),
+    "counter",
+  )
 
   const updated = await getTradeById(auth.supabase, tradeId, auth.user.id)
   return NextResponse.json({ trade: updated })

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { addTradeMessage, listLatestMessagesForTrades } from "@/lib/trade-binder/trade-messages"
+import { encodeOfferMessage } from "@/lib/trade-binder/offer-message"
 import {
   createOrUpdateTradeProposal,
+  ensureTradeThread,
   listTradeThreadsForUser,
   listTradesForUser,
   updateTradeStatus,
@@ -29,26 +31,34 @@ export async function POST(request: NextRequest) {
   const recipientId = body.recipientId as string | undefined
   if (!recipientId) return NextResponse.json({ error: "recipientId required" }, { status: 400 })
 
-  const { trade, error } = await createOrUpdateTradeProposal(
-    auth.supabase,
-    auth.user.id,
-    recipientId,
-    body.message ?? "",
-    body.myItems ?? [],
-    body.theirItems ?? [],
-  )
+  const myItems = body.myItems ?? []
+  const theirItems = body.theirItems ?? []
+  const hasItems = myItems.length > 0 || theirItems.length > 0
+  const note = (body.message ?? "").trim()
+
+  const { trade, error } = hasItems || note
+    ? await createOrUpdateTradeProposal(
+        auth.supabase,
+        auth.user.id,
+        recipientId,
+        body.message ?? "",
+        myItems,
+        theirItems,
+      )
+    : await ensureTradeThread(auth.supabase, auth.user.id, recipientId)
 
   if (error) return NextResponse.json({ error }, { status: 400 })
 
   if (trade) {
-    const note = (body.message ?? "").trim()
-    await addTradeMessage(
-      auth.supabase,
-      trade.id,
-      auth.user.id,
-      note || "Sent a trade proposal.",
-      "proposal",
-    )
+    if (hasItems) {
+      await addTradeMessage(
+        auth.supabase,
+        trade.id,
+        auth.user.id,
+        encodeOfferMessage(note, myItems, theirItems),
+        "proposal",
+      )
+    }
   }
 
   return NextResponse.json({ trade })
@@ -67,5 +77,16 @@ export async function PATCH(request: NextRequest) {
 
   const { error } = await updateTradeStatus(auth.supabase, tradeId, auth.user.id, status)
   if (error) return NextResponse.json({ error }, { status: 400 })
+
+  const labels: Record<string, string> = {
+    accepted: "Accepted the trade offer.",
+    declined: "Declined the trade offer.",
+    completed: "Marked the trade as completed.",
+    cancelled: "Cancelled the trade offer.",
+  }
+  if (labels[status]) {
+    await addTradeMessage(auth.supabase, tradeId, auth.user.id, labels[status], "status")
+  }
+
   return NextResponse.json({ ok: true })
 }

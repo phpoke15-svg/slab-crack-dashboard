@@ -1,7 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { ArrowLeftRight, Check, ChevronLeft, Loader2, Send, X } from "lucide-react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  ArrowLeftRight,
+  Check,
+  ChevronLeft,
+  ChevronUp,
+  Loader2,
+  Send,
+  X,
+} from "lucide-react"
 import type { TcgCard } from "@/lib/trade-binder/cards"
 import type { Trade, TradeMessage } from "@/lib/trade-binder/users"
 import { loadBinderCards } from "@/lib/trade-binder/binder"
@@ -14,18 +22,29 @@ import {
   selectedCards,
   toggleCardInSet,
 } from "./trade-card-picker"
+import { ChatMessageBubble, shouldShowDayDivider } from "./chat-message-bubble"
 import { UserAvatar } from "./user-avatar"
 
-export function TradeChatPanel({
-  tradeId,
-  returnTo,
-}: {
-  tradeId: string
+type TradeChatPanelProps = {
+  otherUserId: string
+  tradeId?: string
+  prefillMyIds?: string[]
+  prefillTheirIds?: string[]
   returnTo?: "messages"
-}) {
+}
+
+export function TradeChatPanel({
+  otherUserId,
+  tradeId: initialTradeId,
+  prefillMyIds,
+  prefillTheirIds,
+  returnTo,
+}: TradeChatPanelProps) {
   const social = useSocial()
   const { user, getSupabase } = useAuth()
   const closePanel = returnTo === "messages" ? social.openMessages : social.close
+  const other = social.getCachedProfile(otherUserId)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const [trade, setTrade] = useState<Trade | null>(null)
   const [messages, setMessages] = useState<TradeMessage[]>([])
@@ -33,92 +52,182 @@ export function TradeChatPanel({
   const [text, setText] = useState("")
   const [sending, setSending] = useState(false)
   const [actionId, setActionId] = useState<string | null>(null)
-  const [counterOpen, setCounterOpen] = useState(false)
+  const [offerOpen, setOfferOpen] = useState(true)
   const [myCards, setMyCards] = useState<TcgCard[]>([])
   const [theirCards, setTheirCards] = useState<TcgCard[]>([])
-  const [mySelected, setMySelected] = useState<Set<string>>(new Set())
-  const [theirSelected, setTheirSelected] = useState<Set<string>>(new Set())
-  const [counterNote, setCounterNote] = useState("")
+  const [bindersLoading, setBindersLoading] = useState(true)
+  const [mySelected, setMySelected] = useState<Set<string>>(() => new Set(prefillMyIds ?? []))
+  const [theirSelected, setTheirSelected] = useState<Set<string>>(
+    () => new Set(prefillTheirIds ?? []),
+  )
   const [error, setError] = useState<string | null>(null)
-  const activeTradeId = trade?.id ?? tradeId
 
-  const loadChat = useCallback(async () => {
-    const res = await fetch(`/api/trades/${encodeURIComponent(tradeId)}`, {
+  const activeTradeId = trade?.id ?? initialTradeId
+  const isInitiator = trade?.initiatorId === user?.id
+  const myItems = trade?.items.filter((i) => i.userId === user?.id) ?? []
+  const theirItems = trade?.items.filter((i) => i.userId !== user?.id) ?? []
+
+  const myOffer = useMemo(() => selectedCards(myCards, mySelected), [myCards, mySelected])
+  const theirOffer = useMemo(() => selectedCards(theirCards, theirSelected), [theirCards, theirSelected])
+  const hasOfferSelection = myOffer.length > 0 || theirOffer.length > 0
+
+  const loadChat = useCallback(async (threadId?: string) => {
+    const id = threadId ?? activeTradeId
+    if (!id) return
+    const res = await fetch(`/api/trades/${encodeURIComponent(id)}`, {
       credentials: "same-origin",
     })
     if (!res.ok) return
     const data = (await res.json()) as { trade?: Trade; messages?: TradeMessage[] }
     if (data.trade) setTrade(data.trade)
     if (data.messages) setMessages(data.messages)
-  }, [tradeId])
+  }, [activeTradeId])
 
   useEffect(() => {
-    setLoading(true)
-    void loadChat().finally(() => setLoading(false))
-    const timer = window.setInterval(() => void loadChat(), 12000)
-    return () => window.clearInterval(timer)
-  }, [loadChat])
-
-  const otherId = useMemo(() => {
-    if (!trade || !user) return null
-    return trade.initiatorId === user.id ? trade.recipientId : trade.initiatorId
-  }, [trade, user])
-
-  const other = otherId ? social.getCachedProfile(otherId) : undefined
-  const isInitiator = trade?.initiatorId === user?.id
-
-  const myItems = trade?.items.filter((i) => i.userId === user?.id) ?? []
-  const theirItems = trade?.items.filter((i) => i.userId !== user?.id) ?? []
-
-  useEffect(() => {
-    if (!counterOpen || !user || !otherId || !trade) return
     let cancelled = false
+    if (!user) return
+
+    setBindersLoading(true)
     void (async () => {
-      const [mine, theirRes] = await Promise.all([
-        loadBinderCards(getSupabase(), user.id),
-        fetch(`/api/binder/${encodeURIComponent(otherId)}`, { credentials: "same-origin" }),
-      ])
-      if (cancelled) return
-      setMyCards(mine.filter((c) => c.status === "trade"))
-      if (theirRes.ok) {
-        const data = (await theirRes.json()) as { trade?: TcgCard[] }
-        setTheirCards((data.trade ?? []).map((c) => ({ ...c, status: "trade" as const })))
+      try {
+        const [mine, theirRes] = await Promise.all([
+          loadBinderCards(getSupabase(), user.id),
+          fetch(`/api/binder/${encodeURIComponent(otherUserId)}`, { credentials: "same-origin" }),
+        ])
+        if (cancelled) return
+        setMyCards(mine.filter((c) => c.status === "trade"))
+        if (theirRes.ok) {
+          const data = (await theirRes.json()) as { trade?: TcgCard[] }
+          setTheirCards((data.trade ?? []).map((c) => ({ ...c, status: "trade" as const })))
+        } else {
+          setTheirCards([])
+        }
+      } finally {
+        if (!cancelled) setBindersLoading(false)
       }
-      setMySelected(new Set(trade.items.filter((i) => i.userId === user.id).map((i) => i.cardId)))
-      setTheirSelected(new Set(trade.items.filter((i) => i.userId !== user.id).map((i) => i.cardId)))
     })()
+
     return () => {
       cancelled = true
     }
-  }, [counterOpen, user?.id, otherId, trade?.id, getSupabase])
+  }, [user, otherUserId, getSupabase])
+
+  useEffect(() => {
+    setLoading(true)
+    if (activeTradeId) {
+      void loadChat().finally(() => setLoading(false))
+      const timer = window.setInterval(() => void loadChat(), 8000)
+      return () => window.clearInterval(timer)
+    }
+    setLoading(false)
+    return undefined
+  }, [loadChat, activeTradeId])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages.length, offerOpen])
+
+  useEffect(() => {
+    if (!trade || prefillMyIds?.length || prefillTheirIds?.length) return
+    setMySelected(new Set(trade.items.filter((i) => i.userId === user?.id).map((i) => i.cardId)))
+    setTheirSelected(new Set(trade.items.filter((i) => i.userId !== user?.id).map((i) => i.cardId)))
+  }, [trade?.id, user?.id, prefillMyIds, prefillTheirIds, trade])
+
+  const ensureThread = async (): Promise<string | null> => {
+    if (activeTradeId) return activeTradeId
+    const res = await fetch("/api/trades", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        recipientId: otherUserId,
+        message: "",
+        myItems: [],
+        theirItems: [],
+      }),
+    })
+    const data = (await res.json().catch(() => ({}))) as { trade?: Trade; error?: string }
+    if (!res.ok || !data.trade) {
+      setError(data.error ?? "Could not start conversation.")
+      return null
+    }
+    setTrade(data.trade)
+    await social.refreshTrades()
+    return data.trade.id
+  }
 
   const sendMessage = async () => {
     const body = text.trim()
     if (!body) return
     setSending(true)
+    setError(null)
     try {
-      const res = await fetch(`/api/trades/${encodeURIComponent(activeTradeId)}/messages`, {
+      const threadId = await ensureThread()
+      if (!threadId) return
+      const res = await fetch(`/api/trades/${encodeURIComponent(threadId)}/messages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         body: JSON.stringify({ body }),
       })
-      if (res.ok) {
-        setText("")
-        await loadChat()
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        setError(data.error ?? "Could not send message.")
+        return
       }
+      setText("")
+      await loadChat(threadId)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const sendOffer = async () => {
+    if (!hasOfferSelection) {
+      setError("Select cards you are offering and/or cards you want from them.")
+      setOfferOpen(true)
+      return
+    }
+    setSending(true)
+    setError(null)
+    try {
+      const give = cardsToDraft(myOffer)
+      const get = cardsToDraft(theirOffer)
+      const note = text.trim()
+      const res = await fetch("/api/trades", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          recipientId: otherUserId,
+          message: note,
+          myItems: give,
+          theirItems: get,
+        }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { trade?: Trade; error?: string }
+      if (!res.ok || !data.trade) {
+        setError(data.error ?? "Could not send offer.")
+        return
+      }
+      setTrade(data.trade)
+      setText("")
+      await social.refreshTrades()
+      await loadChat(data.trade.id)
     } finally {
       setSending(false)
     }
   }
 
   const updateStatus = async (status: Trade["status"]) => {
-    setActionId(activeTradeId)
+    const threadId = await ensureThread()
+    if (!threadId) return
+    setActionId(threadId)
     try {
       const res = await fetch("/api/trades", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tradeId: activeTradeId, status }),
+        body: JSON.stringify({ tradeId: threadId, status }),
       })
       if (res.ok) {
         await social.refreshTrades()
@@ -129,62 +238,153 @@ export function TradeChatPanel({
     }
   }
 
-  const submitCounter = async () => {
-    const myOffer = selectedCards(myCards, mySelected)
-    const theirOffer = selectedCards(theirCards, theirSelected)
-    if (myOffer.length === 0 && theirOffer.length === 0) {
-      setError("Select at least one card.")
-      return
-    }
-    setSending(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/trades/${encodeURIComponent(activeTradeId)}/counter`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          message: counterNote,
-          myItems: cardsToDraft(myOffer),
-          theirItems: cardsToDraft(theirOffer),
-        }),
-      })
-      const data = (await res.json().catch(() => ({}))) as { trade?: Trade; error?: string }
-      if (!res.ok) {
-        setError(data.error ?? "Could not update offer.")
-        return
-      }
-      if (data.trade) setTrade(data.trade)
-      setCounterOpen(false)
-      await loadChat()
-      await social.refreshTrades()
-    } finally {
-      setSending(false)
-    }
-  }
+  const title = other?.name ?? "Chat"
 
-  if (loading && !trade) {
-    return (
-      <PanelShell title="Trade chat" onClose={closePanel}>
-        <div className="flex items-center justify-center p-12">
-          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+  const footer = (
+    <div className="p-3 sm:p-4">
+      {trade?.status === "pending" && (
+        <div className="mb-2 flex flex-wrap gap-2">
+          {!isInitiator && (
+            <>
+              <button
+                type="button"
+                disabled={actionId === activeTradeId}
+                onClick={() => void updateStatus("accepted")}
+                className="flex items-center gap-1 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+              >
+                <Check className="size-3" /> Accept offer
+              </button>
+              <button
+                type="button"
+                disabled={actionId === activeTradeId}
+                onClick={() => void updateStatus("declined")}
+                className="flex items-center gap-1 rounded-full border border-border px-3 py-1.5 text-xs"
+              >
+                <X className="size-3" /> Decline
+              </button>
+            </>
+          )}
+          {isInitiator && (
+            <button
+              type="button"
+              disabled={actionId === activeTradeId}
+              onClick={() => void updateStatus("cancelled")}
+              className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground"
+            >
+              Cancel offer
+            </button>
+          )}
         </div>
-      </PanelShell>
-    )
-  }
+      )}
 
-  if (!trade) {
-    return (
-      <PanelShell title="Trade chat" onClose={closePanel}>
-        <p className="p-6 text-sm text-muted-foreground">Trade not found.</p>
-      </PanelShell>
-    )
-  }
+      {trade?.status === "accepted" && (
+        <button
+          type="button"
+          disabled={actionId === activeTradeId}
+          onClick={() => void updateStatus("completed")}
+          className="mb-2 w-full rounded-xl bg-trade py-2 text-xs font-medium text-white"
+        >
+          Mark trade completed
+        </button>
+      )}
+
+      <button
+        type="button"
+        onClick={() => setOfferOpen((v) => !v)}
+        className="mb-2 flex w-full items-center justify-between rounded-xl border border-border bg-card/60 px-3 py-2 text-left text-xs font-medium text-foreground"
+      >
+        <span className="flex items-center gap-2">
+          <ArrowLeftRight className="size-3.5 text-primary" />
+          {offerOpen ? "Hide card picker" : "Select cards to offer / request"}
+        </span>
+        <span className="flex items-center gap-2 text-muted-foreground">
+          {hasOfferSelection ? (
+            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary">
+              {myOffer.length} offer · {theirOffer.length} want
+            </span>
+          ) : null}
+          <ChevronUp className={`size-4 transition-transform ${offerOpen ? "rotate-180" : ""}`} />
+        </span>
+      </button>
+
+      {offerOpen && (
+        <div className="mb-3 max-h-[40vh] space-y-2 overflow-y-auto rounded-xl border border-border bg-secondary/20 p-2">
+          {bindersLoading ? (
+            <div className="flex items-center justify-center py-6">
+              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <>
+              <TradeCardPicker
+                title="You offer"
+                subtitle="From your I have list"
+                cards={myCards}
+                selectedIds={mySelected}
+                onToggle={(c) => setMySelected((p) => toggleCardInSet(c, p))}
+                variant="offer"
+                emptyLabel="Add cards to I have on your binder to offer them."
+              />
+              <TradeCardPicker
+                title="You want"
+                subtitle="From their I have list"
+                cards={theirCards}
+                selectedIds={theirSelected}
+                onToggle={(c) => setTheirSelected((p) => toggleCardInSet(c, p))}
+                variant="request"
+                emptyLabel="They have no cards listed for trade yet."
+              />
+            </>
+          )}
+        </div>
+      )}
+
+      {error && <p className="mb-2 text-xs text-destructive">{error}</p>}
+
+      <div className="flex gap-2">
+        <input
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault()
+              void sendMessage()
+            }
+          }}
+          placeholder="Type a message…"
+          className="min-w-0 flex-1 rounded-xl border border-border bg-secondary/60 px-3 py-2.5 text-sm outline-none focus:border-primary/50"
+        />
+        <button
+          type="button"
+          disabled={sending || !text.trim()}
+          onClick={() => void sendMessage()}
+          aria-label="Send message"
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-border bg-background text-foreground disabled:opacity-40"
+        >
+          {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+        </button>
+      </div>
+
+      <button
+        type="button"
+        disabled={sending || !hasOfferSelection}
+        onClick={() => void sendOffer()}
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-40"
+      >
+        {sending ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <ArrowLeftRight className="size-4" />
+        )}
+        Send trade offer
+      </button>
+    </div>
+  )
 
   return (
     <PanelShell
-      title="Trade chat"
+      title={title}
       onClose={closePanel}
+      footer={footer}
       headerAccessory={
         <>
           {returnTo === "messages" && (
@@ -210,161 +410,56 @@ export function TradeChatPanel({
         </>
       }
     >
-      <div className="flex min-h-full flex-col">
-        <div className="border-b border-border p-4">
-          <p className="text-xs capitalize text-muted-foreground">Status: {trade.status}</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-            <CardSummary title="You give" items={myItems} />
-            <CardSummary title="You get" items={theirItems} />
-          </div>
-
-          {trade.status === "pending" && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {!isInitiator && (
-                <>
-                  <button
-                    type="button"
-                    disabled={actionId === activeTradeId}
-                    onClick={() => void updateStatus("accepted")}
-                    className="flex items-center gap-1 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
-                  >
-                    <Check className="size-3" /> Accept
-                  </button>
-                  <button
-                    type="button"
-                    disabled={actionId === activeTradeId}
-                    onClick={() => void updateStatus("declined")}
-                    className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs"
-                  >
-                    <X className="size-3" /> Decline
-                  </button>
-                </>
-              )}
-              <button
-                type="button"
-                onClick={() => setCounterOpen((v) => !v)}
-                className="flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs"
-              >
-                <ArrowLeftRight className="size-3" /> {counterOpen ? "Hide editor" : "Edit offer"}
-              </button>
-              <button
-                type="button"
-                disabled={actionId === activeTradeId}
-                onClick={() => void updateStatus("cancelled")}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground"
-              >
-                Cancel
-              </button>
+      {loading && !trade && !initialTradeId ? (
+        <div className="flex items-center justify-center p-12">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="flex min-h-full flex-col p-4">
+          {trade && (myItems.length > 0 || theirItems.length > 0) && (
+            <div className="mb-4 rounded-xl border border-dashed border-primary/30 bg-primary/5 p-3 text-xs">
+              <p className="font-semibold text-foreground">Current offer · {trade.status}</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                <OfferSummary title="You give" items={myItems} />
+                <OfferSummary title="You get" items={theirItems} />
+              </div>
             </div>
           )}
 
-          {trade.status === "accepted" && (
-            <button
-              type="button"
-              disabled={actionId === activeTradeId}
-              onClick={() => void updateStatus("completed")}
-              className="mt-3 w-full rounded-lg bg-trade px-3 py-2 text-xs font-medium text-white"
-            >
-              Mark completed
-            </button>
-          )}
-        </div>
-
-        {counterOpen && trade.status === "pending" && (
-          <div className="space-y-3 border-b border-border bg-secondary/20 p-4">
-            <TradeCardPicker
-              title="You offer"
-              cards={myCards}
-              selectedIds={mySelected}
-              onToggle={(c) => setMySelected((p) => toggleCardInSet(c, p))}
-              variant="offer"
-            />
-            <TradeCardPicker
-              title="You want"
-              cards={theirCards}
-              selectedIds={theirSelected}
-              onToggle={(c) => setTheirSelected((p) => toggleCardInSet(c, p))}
-              variant="request"
-            />
-            <textarea
-              value={counterNote}
-              onChange={(e) => setCounterNote(e.target.value)}
-              rows={2}
-              placeholder="Note about your updated offer…"
-              className="w-full resize-none rounded-xl border border-border bg-background p-2 text-sm"
-            />
-            {error && <p className="text-xs text-destructive">{error}</p>}
-            <button
-              type="button"
-              disabled={sending}
-              onClick={() => void submitCounter()}
-              className="w-full rounded-lg bg-primary py-2 text-xs font-medium text-primary-foreground"
-            >
-              Update offer
-            </button>
-          </div>
-        )}
-
-        <div className="flex-1 space-y-2 p-4">
           {messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No messages yet. Say hi!</p>
+            <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+              <p className="text-sm font-medium text-foreground">
+                Chat with {other?.name ?? "this trader"}
+              </p>
+              <p className="mt-1 max-w-xs text-sm text-muted-foreground text-pretty">
+                Send a message, or pick cards below to offer and request what you want.
+              </p>
+            </div>
           ) : (
-            messages.map((msg) => {
-              const mine = msg.senderId === user?.id
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex ${mine ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[85%] rounded-2xl px-3 py-2 text-sm ${
-                      mine ? "bg-primary text-primary-foreground" : "bg-secondary text-foreground"
-                    }`}
-                  >
-                    {msg.messageType !== "text" && (
-                      <p className="mb-0.5 text-[10px] uppercase opacity-70">{msg.messageType}</p>
+            <div className="space-y-3">
+              {messages.map((msg, index) => {
+                const day = shouldShowDayDivider(messages, index)
+                return (
+                  <div key={msg.id}>
+                    {day && (
+                      <p className="my-3 text-center text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {day}
+                      </p>
                     )}
-                    <p className="text-pretty">{msg.body}</p>
-                    <time className="mt-1 block text-[9px] opacity-60">
-                      {new Date(msg.createdAt).toLocaleString()}
-                    </time>
+                    <ChatMessageBubble msg={msg} mine={msg.senderId === user?.id} />
                   </div>
-                </div>
-              )
-            })
+                )
+              })}
+            </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
-
-        <div className="sticky bottom-0 border-t border-border bg-background p-4">
-          <div className="flex gap-2">
-            <input
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  void sendMessage()
-                }
-              }}
-              placeholder="Type a message…"
-              className="min-w-0 flex-1 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-sm outline-none focus:border-primary/50"
-            />
-            <button
-              type="button"
-              disabled={sending || !text.trim()}
-              onClick={() => void sendMessage()}
-              className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
-            >
-              {sending ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-            </button>
-          </div>
-        </div>
-      </div>
+      )}
     </PanelShell>
   )
 }
 
-function CardSummary({
+function OfferSummary({
   title,
   items,
 }: {
@@ -372,16 +467,15 @@ function CardSummary({
   items: { cardName: string; cardSet: string }[]
 }) {
   return (
-    <div className="rounded-lg bg-secondary/40 p-2 text-xs">
+    <div>
       <p className="font-medium text-muted-foreground">{title}</p>
       {items.length === 0 ? (
         <p className="text-muted-foreground">—</p>
       ) : (
-        <ul>
+        <ul className="mt-1 space-y-0.5">
           {items.map((item) => (
-            <li key={`${item.cardName}-${item.cardSet}`} className="truncate">
+            <li key={`${item.cardName}-${item.cardSet}`} className="truncate text-foreground">
               {item.cardName}
-              {item.cardSet ? <span className="text-muted-foreground"> · {item.cardSet}</span> : null}
             </li>
           ))}
         </ul>
