@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { binderErrorMessage } from "@/lib/trade-binder/errors"
 import type { TradeMessage, TradeMessageType } from "@/lib/trade-binder/users"
 
 type MessageRow = {
@@ -104,7 +105,9 @@ export async function addTradeMessage(
     .select("*")
     .single()
 
-  if (error || !data) return { message: null, error: error?.message ?? "Could not send message" }
+  if (error || !data) {
+    return { message: null, error: binderErrorMessage(error, "Could not send message") }
+  }
   return { message: mapMessage(data as MessageRow), error: null }
 }
 

@@ -17,6 +17,14 @@ export function binderErrorMessage(error: unknown, fallback: string): string {
 
     if (
       code === "42P01" ||
+      message.includes("trade_messages") ||
+      message.includes("trade_chat_reads")
+    ) {
+      return "Trade chat is not set up. Run supabase/setup-chat.sql in your Supabase SQL editor, then try again."
+    }
+
+    if (
+      code === "42P01" ||
       message.includes("profiles") ||
       message.includes("friendships") ||
       message.includes("does not exist")
