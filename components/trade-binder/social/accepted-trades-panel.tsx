@@ -9,6 +9,7 @@ import { useSocial } from "./social-provider"
 import { PanelShell } from "./panel-shell"
 import { UserAvatar } from "./user-avatar"
 import { FulfillmentStatusPills, TradeShippingFields } from "./trade-shipping-fields"
+import { TradeCancelControls } from "./trade-cancel-controls"
 
 function formatWhen(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
@@ -63,17 +64,31 @@ export function AcceptedTradesPanel() {
   )
 
   const onTradeUpdated = (updated: Trade) => {
-    setTrades((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+    if (updated.status === "cancelled") {
+      setTrades((prev) => prev.filter((t) => t.id !== updated.id))
+    } else if (!isTradeAcceptedForDisplay(updated)) {
+      setTrades((prev) => prev.filter((t) => t.id !== updated.id))
+    } else {
+      setTrades((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+    }
     void social.refreshTrades()
-    loadAccepted()
+  }
+
+  const onCancelUpdated = (tradeId: string, result: { trade: Trade | null; bothCancelled: boolean }) => {
+    if (result.bothCancelled) {
+      setTrades((prev) => prev.filter((t) => t.id !== tradeId))
+    } else if (result.trade) {
+      setTrades((prev) => prev.map((t) => (t.id === tradeId ? result.trade! : t)))
+    }
+    void social.refreshTrades()
   }
 
   return (
     <PanelShell title="Accepted trades" onClose={social.close}>
       <div className="p-4 sm:p-6">
         <p className="mb-4 text-sm text-muted-foreground text-pretty">
-          Trades both parties have agreed to. Add your mailing address and tracking number, or
-          coordinate in chat.
+          Trades both parties have agreed to. Add shipping details in chat or below. Either trader
+          can request cancel — both must confirm before cards return to matching.
         </p>
 
         {loadError ? (
@@ -160,6 +175,14 @@ export function AcceptedTradesPanel() {
                     userId={user.id}
                     partnerName={partner?.name ?? "Trader"}
                     onSaved={onTradeUpdated}
+                  />
+
+                  <TradeCancelControls
+                    trade={trade}
+                    userId={user.id}
+                    partnerName={partner?.name ?? "Trader"}
+                    className="mt-3 border-t border-border/60 pt-3"
+                    onUpdated={(result) => onCancelUpdated(trade.id, result)}
                   />
                 </li>
               )

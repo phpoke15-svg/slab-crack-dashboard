@@ -11,6 +11,7 @@ type BinderRow = {
   card_set: string | null
   card_number: string | null
   pending_trade_id: string | null
+  pending_restore_status: string | null
 }
 
 function tradePartnerId(trade: Trade, userId: string): string {
@@ -49,11 +50,30 @@ async function fetchUserBinderRows(
 ): Promise<BinderRow[]> {
   const { data, error } = await supabase
     .from("user_binders")
-    .select("id, user_id, card_id, status, card_name, card_set, card_number, pending_trade_id")
+    .select(
+      "id, user_id, card_id, status, card_name, card_set, card_number, pending_trade_id, pending_restore_status",
+    )
     .eq("user_id", userId)
 
   if (error || !data) return []
   return data as BinderRow[]
+}
+
+async function restoreBinderRow(
+  supabase: SupabaseClient,
+  rowId: string,
+  status: "trade" | "wishlist",
+): Promise<void> {
+  const { error } = await supabase
+    .from("user_binders")
+    .update({
+      status,
+      pending_trade_id: null,
+      pending_restore_status: null,
+    })
+    .eq("id", rowId)
+
+  if (error) throw new Error(error.message)
 }
 
 async function markRowsPending(
@@ -63,9 +83,7 @@ async function markRowsPending(
   restoreStatus: "trade" | "wishlist",
 ): Promise<void> {
   const toLock = rows.filter(
-    (row) =>
-      row.status !== "pending" ||
-      row.pending_trade_id !== tradeId,
+    (row) => row.status !== "pending" || row.pending_trade_id !== tradeId,
   )
   if (toLock.length === 0) return
 
@@ -114,31 +132,59 @@ export async function lockCardsForAcceptedTrade(
   }
 }
 
-/** Restore cards after both parties cancel an accepted trade. */
+async function restoreCardsFromTradeItems(
+  supabase: SupabaseClient,
+  trade: Trade,
+): Promise<void> {
+  const initiatorRows = await fetchUserBinderRows(supabase, trade.initiatorId)
+  const recipientRows = await fetchUserBinderRows(supabase, trade.recipientId)
+
+  for (const item of trade.items) {
+    const pool = item.userId === trade.initiatorId ? initiatorRows : recipientRows
+    const matches = pool.filter(
+      (row) =>
+        (row.status === "pending" || row.status === "trade") && matchesTarget(row, item),
+    )
+    for (const row of matches) {
+      await restoreBinderRow(supabase, row.id, "trade")
+    }
+  }
+
+  for (const userId of [trade.initiatorId, trade.recipientId]) {
+    const partnerId = tradePartnerId(trade, userId)
+    const pool = userId === trade.initiatorId ? initiatorRows : recipientRows
+    const receiving = trade.items.filter((item) => item.userId === partnerId)
+
+    for (const item of receiving) {
+      const matches = pool.filter(
+        (row) =>
+          (row.status === "pending" || row.status === "wishlist") && matchesTarget(row, item),
+      )
+      for (const row of matches) {
+        await restoreBinderRow(supabase, row.id, "wishlist")
+      }
+    }
+  }
+}
+
+/** Restore cards to I have / I want after both parties cancel an accepted trade. */
 export async function unlockCardsForCancelledTrade(
   supabase: SupabaseClient,
-  tradeId: string,
+  trade: Trade,
 ): Promise<void> {
   const { data, error } = await supabase
     .from("user_binders")
     .select("id, pending_restore_status")
-    .eq("pending_trade_id", tradeId)
+    .eq("pending_trade_id", trade.id)
 
-  if (error || !data?.length) return
+  if (!error && data?.length) {
+    for (const row of data as { id: string; pending_restore_status: "trade" | "wishlist" | null }[]) {
+      await restoreBinderRow(supabase, row.id, row.pending_restore_status ?? "trade")
+    }
+    return
+  }
 
-  await Promise.all(
-    (data as { id: string; pending_restore_status: "trade" | "wishlist" | null }[]).map(
-      (row) =>
-        supabase
-          .from("user_binders")
-          .update({
-            status: row.pending_restore_status ?? "trade",
-            pending_trade_id: null,
-            pending_restore_status: null,
-          })
-          .eq("id", row.id),
-    ),
-  )
+  await restoreCardsFromTradeItems(supabase, trade)
 }
 
 /** Remove locked cards after a trade is completed (sent / received). */
@@ -160,6 +206,7 @@ export async function syncLocksForAcceptedTrades(
 ): Promise<void> {
   for (const trade of trades) {
     if (!isAcceptedTrade(trade)) continue
+    if (trade.status === "cancelled") continue
     try {
       await lockCardsForAcceptedTrade(supabase, trade)
     } catch {

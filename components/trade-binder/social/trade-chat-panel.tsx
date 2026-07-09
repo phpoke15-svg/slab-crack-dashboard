@@ -20,11 +20,7 @@ import {
   tradeNeedsMyAcceptance,
   userHasAcceptedTrade,
 } from "@/lib/trade-binder/trades"
-import {
-  tradeAwaitingPartnerCancel,
-  tradeNeedsMyCancelConfirmation,
-  userHasRequestedCancel,
-} from "@/lib/trade-binder/trade-cancellation"
+import { TradeCancelControls } from "./trade-cancel-controls"
 import { isMessageReadByPartner } from "@/lib/trade-binder/chat-reads"
 import { loadBinderCards } from "@/lib/trade-binder/binder"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -100,10 +96,6 @@ export function TradeChatPanel({
   const iAccepted = trade && user ? userHasAcceptedTrade(trade, user.id) : false
   const partnerAccepted = trade && user ? partnerHasAcceptedTrade(trade, user.id) : false
   const needsMyAcceptance = trade && user ? tradeNeedsMyAcceptance(trade, user.id) : false
-  const needsMyCancelConfirmation =
-    trade && user ? tradeNeedsMyCancelConfirmation(trade, user.id) : false
-  const awaitingPartnerCancel = trade && user ? tradeAwaitingPartnerCancel(trade, user.id) : false
-  const iRequestedCancel = trade && user ? userHasRequestedCancel(trade, user.id) : false
   const myItems = trade?.items.filter((i) => i.userId === user?.id) ?? []
   const theirItems = trade?.items.filter((i) => i.userId !== user?.id) ?? []
 
@@ -367,16 +359,25 @@ export function TradeChatPanel({
     const threadId = await ensureThread()
     if (!threadId) return
     setActionId(threadId)
+    setError(null)
     try {
       const res = await fetch("/api/trades", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
         body: JSON.stringify({ tradeId: threadId, status }),
       })
-      if (res.ok) {
-        await social.refreshTrades()
-        await loadChat()
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string
+        trade?: Trade
       }
+      if (!res.ok) {
+        setError(data.error ?? "Could not update trade.")
+        return
+      }
+      if (data.trade) setTrade(data.trade)
+      await social.refreshTrades()
+      await loadChat(threadId)
     } finally {
       setActionId(null)
     }
@@ -442,68 +443,37 @@ export function TradeChatPanel({
                 <X className="size-3" /> Decline
               </button>
             )}
-            {hasActiveOffer && !iRequestedCancel && !needsMyCancelConfirmation && (
-              <button
-                type="button"
-                disabled={actionId === activeTradeId}
-                onClick={() => void updateStatus("cancelled")}
-                className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground"
-              >
-                Request cancel
-              </button>
-            )}
-            {needsMyCancelConfirmation && (
-              <button
-                type="button"
-                disabled={actionId === activeTradeId}
-                onClick={() => void updateStatus("cancelled")}
-                className="flex items-center gap-1 rounded-full border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-xs text-destructive"
-              >
-                <X className="size-3" /> Confirm cancel
-              </button>
-            )}
-            {awaitingPartnerCancel && (
-              <p className="w-full rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-                Cancel requested — waiting for {other?.name ?? "them"} to confirm.
-              </p>
-            )}
           </div>
+          {trade && user ? (
+            <TradeCancelControls
+              trade={trade}
+              userId={user.id}
+              partnerName={other?.name ?? "Trader"}
+              onUpdated={({ trade: updated, bothCancelled }) => {
+                if (updated) setTrade(updated)
+                void social.refreshTrades()
+                if (bothCancelled) void loadChat(trade.id)
+              }}
+            />
+          ) : null}
         </div>
       )}
 
-      {trade?.status === "accepted" && (
+      {(trade?.status === "accepted" || isTradeFullyAccepted(trade)) && (
         <div className="mb-2 space-y-2">
-          {needsMyCancelConfirmation && (
-            <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
-              {other?.name ?? "They"} requested to cancel this trade. Confirm to cancel together.
-            </p>
-          )}
-          {awaitingPartnerCancel && (
-            <p className="rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-              You requested cancel — waiting for {other?.name ?? "them"} to confirm.
-            </p>
-          )}
+          {trade && user ? (
+            <TradeCancelControls
+              trade={trade}
+              userId={user.id}
+              partnerName={other?.name ?? "Trader"}
+              onUpdated={({ trade: updated, bothCancelled }) => {
+                if (updated) setTrade(updated)
+                void social.refreshTrades()
+                if (bothCancelled) void loadChat(trade.id)
+              }}
+            />
+          ) : null}
           <div className="flex flex-wrap gap-2">
-            {!iRequestedCancel && !needsMyCancelConfirmation && (
-              <button
-                type="button"
-                disabled={actionId === activeTradeId}
-                onClick={() => void updateStatus("cancelled")}
-                className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground"
-              >
-                Request cancel
-              </button>
-            )}
-            {needsMyCancelConfirmation && (
-              <button
-                type="button"
-                disabled={actionId === activeTradeId}
-                onClick={() => void updateStatus("cancelled")}
-                className="flex items-center gap-1 rounded-full border border-destructive/50 bg-destructive/10 px-3 py-1.5 text-xs text-destructive"
-              >
-                <X className="size-3" /> Confirm cancel
-              </button>
-            )}
             <button
               type="button"
               disabled={actionId === activeTradeId}

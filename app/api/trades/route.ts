@@ -84,7 +84,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   if (status === "accepted") {
-    const { error, bothAccepted } = await recordTradeAcceptance(
+    const { error, bothAccepted, trade } = await recordTradeAcceptance(
       auth.supabase,
       tradeId,
       auth.user.id,
@@ -100,11 +100,11 @@ export async function PATCH(request: NextRequest) {
         : "Accepted the trade offer.",
       "status",
     )
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, bothAccepted, trade })
   }
 
   if (status === "cancelled") {
-    const { error, bothCancelled } = await recordTradeCancellation(
+    const { error, bothCancelled, trade } = await recordTradeCancellation(
       auth.supabase,
       tradeId,
       auth.user.id,
@@ -116,11 +116,11 @@ export async function PATCH(request: NextRequest) {
       tradeId,
       auth.user.id,
       bothCancelled
-        ? "Trade cancelled — both parties agreed."
+        ? "Trade cancelled — both parties agreed. Cards are back in your binder and match pool."
         : "Requested to cancel this trade.",
       "status",
     )
-    return NextResponse.json({ ok: true })
+    return NextResponse.json({ ok: true, bothCancelled, trade })
   }
 
   const { error } = await updateTradeStatus(auth.supabase, tradeId, auth.user.id, status)

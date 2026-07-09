@@ -536,7 +536,7 @@ export async function recordTradeCancellation(
     const locker = createCrossUserReader()
     if (locker) {
       try {
-        await unlockCardsForCancelledTrade(locker, tradeId)
+        await unlockCardsForCancelledTrade(locker, updated)
       } catch {
         // ignore until migration applied
       }
