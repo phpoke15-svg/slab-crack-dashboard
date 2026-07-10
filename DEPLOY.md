@@ -72,7 +72,21 @@ After changing env vars, **Redeploy**.
 - `/api/cron/discover-arbitrage` — daily 06:00 UTC
 - `/api/cron/sync-binder-prices` — daily 07:00 UTC
 - `/api/cron/sync-restocks` — every 15 minutes (Walmart Affiliate SKUs)
-- `/api/cron/walmart-wednesday-reminder` — Thu 01:00 & 02:00 UTC (Wed 9pm ET DST/STD); Discord ping
+- `/api/cron/walmart-wednesday-reminder` — Thu 01:00 & 02:00 UTC (Wed 9pm ET); Web Push + optional Discord
+
+## Web Push (phone alerts)
+
+1. Run [`supabase/web-push.sql`](./supabase/web-push.sql).
+2. Generate VAPID keys: `npx web-push generate-vapid-keys`
+3. Set Vercel env:
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+   - `VAPID_SUBJECT` (e.g. `mailto:support@collectools.app`)
+4. Redeploy. Users enable **Phone alerts** on `/queue-watch` or `/restocks`.
+5. Sends:
+   - Pokémon Center queue live (when a Pro monitor reports LIVE)
+   - Walmart Wednesday 9pm ET reminder
+6. **iOS:** Add to Home Screen first, then enable alerts from the home-screen icon.
 
 ## Restocks (Walmart auto-discovery)
 
@@ -120,4 +134,5 @@ curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/walmart
 ## 8. Deploy reliability
 
 - `package-lock.json` must include `vitest` (and match `package.json`)
-- Prefer `installCommand: "npm ci"` in `vercel.json` once the lockfile is healthy
+- Prefer `installCommand: "npm install"` (or keep lockfile in sync with `npm ci`)
+- After adding deps locally, commit an updated `package-lock.json` when possible

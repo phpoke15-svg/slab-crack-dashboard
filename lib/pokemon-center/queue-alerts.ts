@@ -1,5 +1,9 @@
 import type { QueueDetection } from "@/lib/pokemon-center/queue-detector"
 import { maybeSendNtfyAlert } from "@/lib/pokemon-center/ntfy-alerts"
+import {
+  claimPushAlertDedupe,
+  sendWebPushToTopic,
+} from "@/lib/push/web-push"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 
 export type QueueWatchReport = {
@@ -17,6 +21,7 @@ const memoryReports = new Map<string, QueueWatchReport>()
 const lastDiscordAt = new Map<string, number>()
 
 const DISCORD_COOLDOWN_MS = 5 * 60 * 1000
+const PUSH_COOLDOWN_MS = 5 * 60 * 1000
 
 export async function saveQueueWatchReport(report: QueueWatchReport) {
   memoryReports.set(report.sessionId, report)
@@ -102,15 +107,40 @@ export async function maybeSendDiscordAlert(report: QueueWatchReport): Promise<b
   return true
 }
 
+async function maybeSendQueueLiveWebPush(report: QueueWatchReport): Promise<boolean> {
+  if (!report.live) return false
+
+  const claimed = await claimPushAlertDedupe("queue_live_global", PUSH_COOLDOWN_MS)
+  if (!claimed) return false
+
+  const site =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/$/, "") ||
+    "https://slab-crack-dashboard.vercel.app"
+
+  const signalSummary =
+    report.signals.length > 0
+      ? report.signals.map((s) => s.label).join(", ")
+      : "Queue activity detected"
+
+  const result = await sendWebPushToTopic("queue_live", {
+    title: "Pokémon Center queue is LIVE",
+    body: signalSummary,
+    url: `${site}/queue-watch`,
+    tag: "pc-queue-live",
+  })
+
+  return result.sent > 0
+}
+
 export async function maybeSendMobileAlerts(
   report: QueueWatchReport,
   previous: QueueWatchReport | null,
-): Promise<{ discordSent: boolean; ntfySent: boolean }> {
+): Promise<{ discordSent: boolean; ntfySent: boolean; pushSent: boolean }> {
   if (!report.live || previous?.live) {
-    return { discordSent: false, ntfySent: false }
+    return { discordSent: false, ntfySent: false, pushSent: false }
   }
 
-  const [discordSent, ntfySent] = await Promise.all([
+  const [discordSent, ntfySent, pushSent] = await Promise.all([
     maybeSendDiscordAlert(report),
     report.ntfyTopic
       ? maybeSendNtfyAlert({
@@ -120,7 +150,8 @@ export async function maybeSendMobileAlerts(
           pageUrl: report.pageUrl,
         })
       : Promise.resolve(false),
+    maybeSendQueueLiveWebPush(report),
   ])
 
-  return { discordSent, ntfySent }
+  return { discordSent, ntfySent, pushSent }
 }

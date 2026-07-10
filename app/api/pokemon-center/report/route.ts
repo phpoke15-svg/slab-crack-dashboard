@@ -91,7 +91,7 @@ export async function POST(request: Request) {
 
   await saveQueueWatchReport(report)
 
-  const { discordSent, ntfySent } = await maybeSendMobileAlerts(report, previous)
+  const { discordSent, ntfySent, pushSent } = await maybeSendMobileAlerts(report, previous)
 
-  return NextResponse.json({ ok: true, discordSent, ntfySent }, { headers: CORS_HEADERS })
+  return NextResponse.json({ ok: true, discordSent, ntfySent, pushSent }, { headers: CORS_HEADERS })
 }

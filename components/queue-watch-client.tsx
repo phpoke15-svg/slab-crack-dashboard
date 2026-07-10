@@ -15,6 +15,7 @@ import {
   Zap,
 } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { PushAlertsOptIn } from "@/components/push-alerts-opt-in"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -499,15 +500,13 @@ export function QueueWatchClient() {
             </p>
           </section>
 
-          <section className="rounded-2xl border border-border bg-card/60 p-5">
-            <h2 className="text-base font-semibold text-foreground">2. Optional Discord alerts</h2>
+          <PushAlertsOptIn className="mt-6" defaultQueueLive defaultWalmartWednesday />
+
+          <section className="mt-6 rounded-2xl border border-border bg-card/40 p-5">
+            <h2 className="text-base font-semibold text-foreground">Desktop tab alerts</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Set{" "}
-              <code className="rounded bg-secondary px-1 py-0.5 text-xs">
-                POKEMON_CENTER_DISCORD_WEBHOOK
-              </code>{" "}
-              in Vercel env vars to ping a channel when your tab monitor detects the queue (5 min
-              cooldown).
+              The &quot;Desktop notifications&quot; button above only alerts while this page is open.
+              Phone alerts work in the background after you enable them once.
             </p>
           </section>
 

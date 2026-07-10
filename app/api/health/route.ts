@@ -3,6 +3,8 @@ import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
 import { checkPokeMatchSetup } from "@/lib/trade-binder/setup-health"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
 import { isWalmartAffiliateConfigured } from "@/lib/restocks/walmart"
+import { isWebPushConfigured } from "@/lib/push/web-push"
+import { isStripeConfigured } from "@/lib/billing/stripe"
 import { LEGAL_SITE_NAME, LEGAL_SITE_URL } from "@/lib/legal/config"
 
 export const dynamic = "force-dynamic"
@@ -16,6 +18,7 @@ export async function GET() {
   )
   const stripeConfigured = isStripeConfigured()
   const walmartAffiliateConfigured = isWalmartAffiliateConfigured()
+  const webPushConfigured = isWebPushConfigured()
 
   let pokematchReady: boolean | null = null
   if (supabaseConfigured) {
@@ -46,6 +49,7 @@ export async function GET() {
         adsenseConfigured,
         stripeConfigured,
         walmartAffiliateConfigured,
+        webPushConfigured,
         pokematchReady,
       },
       time: new Date().toISOString(),

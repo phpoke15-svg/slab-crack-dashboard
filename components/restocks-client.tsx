@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { ExternalLink, Loader2, Package, RefreshCw } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { PushAlertsOptIn } from "@/components/push-alerts-opt-in"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { cn } from "@/lib/utils"
@@ -86,6 +87,12 @@ export function RestocksClient() {
         </div>
         <SiteAuthButton className="shrink-0" />
       </header>
+
+      <PushAlertsOptIn
+        className="mb-6"
+        defaultQueueLive={false}
+        defaultWalmartWednesday
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         {(["all", "walmart", "pokemon_center"] as const).map((key) => (
@@ -239,8 +246,8 @@ export function RestocksClient() {
             availability every 15 minutes and can Discord-ping on restock.
           </li>
           <li>
-            <strong className="text-foreground">Wednesday 9pm ET</strong> — weekly Discord reminder
-            for the usual Walmart Pokémon sealed restock window.
+            <strong className="text-foreground">Wednesday 9pm ET</strong> — weekly phone push (and
+            optional Discord) for the usual Walmart Pokémon sealed restock window.
           </li>
           <li>
             <strong className="text-foreground">Pokémon Center</strong> — use{" "}
