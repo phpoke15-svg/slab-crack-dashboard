@@ -152,11 +152,13 @@ export function RestocksClient() {
         </div>
       ) : sorted.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-card/40 p-6 text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">No active products yet</p>
+          <p className="font-medium text-foreground">No products tracked yet</p>
           <p className="mt-2">
-            Run <code className="rounded bg-secondary px-1 text-xs">supabase/restocks.sql</code>, then
-            insert real Walmart item IDs and Pokémon Center product URLs with{" "}
-            <code className="rounded bg-secondary px-1 text-xs">active = true</code>.
+            Walmart sealed SKUs appear here after the next discovery sync. Check back soon, or use{" "}
+            <Link href="/queue-watch" className="text-primary hover:underline">
+              Queue Watch
+            </Link>{" "}
+            for Pokémon Center drops.
           </p>
         </div>
       ) : (
@@ -242,8 +244,8 @@ export function RestocksClient() {
             Pokémon TCG (ETBs, bundles, boxes, etc.) and adds matches automatically.
           </li>
           <li>
-            <strong className="text-foreground">Stock checks</strong> — same cron polls Affiliate
-            availability every 15 minutes and can Discord-ping on restock.
+            <strong className="text-foreground">Stock checks</strong> — daily Affiliate availability
+            sync on Hobby. Each product row shows when it was last checked.
           </li>
           <li>
             <strong className="text-foreground">Wednesday 9pm ET</strong> — weekly phone push (and

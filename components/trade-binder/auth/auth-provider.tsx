@@ -58,17 +58,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const supabase = getSupabase()
 
-    supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user)
-      setIsLoading(false)
-    })
+    supabase.auth
+      .getUser()
+      .then(({ data }) => {
+        setUser(data.user)
+        setIsLoading(false)
+      })
+      .catch(() => {
+        setUser(null)
+        setIsLoading(false)
+      })
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
       setIsLoading(false)
     })
 
-    return () => listener.subscription.unsubscribe()
+    const unlock = window.setTimeout(() => setIsLoading(false), 8_000)
+
+    return () => {
+      window.clearTimeout(unlock)
+      listener.subscription.unsubscribe()
+    }
   }, [getSupabase, isConfigured])
 
   const runPendingAction = useCallback(async (action: (() => void | Promise<void>) | null) => {

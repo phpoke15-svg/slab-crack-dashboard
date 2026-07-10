@@ -301,8 +301,9 @@ export function QueueWatchClient() {
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-semibold text-foreground">Pro feature</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Queue Watch (web monitoring, bookmarklet, and optional Discord alerts) is part of{" "}
-                <strong className="text-foreground">Pro</strong> — $9.99/mo or $99.99/yr.
+                Queue Watch (web monitoring, bookmarklet, and phone alerts) is part of{" "}
+                <strong className="text-foreground">Pro</strong> — $9.99/mo or $99.99/yr, with a
+                7-day free trial.
                 {entitlements.plan === "premium"
                   ? " You’re on Premium (full SlabCrack, ad-free) — upgrade to Pro to unlock Queue Watch."
                   : " Premium ($4.99/mo) unlocks full SlabCrack ad-free but does not include Queue Watch."}
@@ -329,7 +330,7 @@ export function QueueWatchClient() {
                   ) : !entitlements.stripeConfigured ? (
                     "Billing coming soon"
                   ) : (
-                    "Get Pro — $9.99/mo"
+                    "Start 7-day Pro trial — $9.99/mo"
                   )}
                 </button>
                 <button
@@ -338,7 +339,7 @@ export function QueueWatchClient() {
                   onClick={() => void upgradeToPro("pro_year")}
                   className="rounded-xl border border-border bg-card/60 px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
                 >
-                  {checkoutBusy ? "…" : "Pro yearly — $99.99"}
+                  {checkoutBusy ? "…" : "Start annual trial — $99.99/yr"}
                 </button>
                 <Link
                   href="/pricing"
@@ -600,7 +601,7 @@ export function QueueWatchClient() {
             <p className="mt-2 text-xs text-muted-foreground">
               Prefer an app?{" "}
               <Link href="/queue-watch/mobile" className="text-primary hover:underline">
-                Android APK
+                Android setup guide
               </Link>
             </p>
           </section>
@@ -616,7 +617,7 @@ export function QueueWatchClient() {
           </section>
 
           <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
-            <h2 className="text-base font-semibold text-foreground">Want a phone app (APK)?</h2>
+            <h2 className="text-base font-semibold text-foreground">Want a phone app?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               The Android app opens Pokemon Center in a WebView so you can pass Imperva, then watches
               Queue-it from that session — same approach as this bookmarklet, with native push. Keep the
@@ -626,7 +627,7 @@ export function QueueWatchClient() {
               href="/queue-watch/mobile"
               className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
             >
-              Build & install the APK
+              Android setup guide
             </Link>
           </section>
         </>

@@ -210,7 +210,9 @@ export function SlabDashboard() {
       })
   }, [arbitrageFeed, feed, fullSlabCrack, query, sortMode, watchedCards])
 
-  const showFreePreviewBanner = !fullSlabCrack && feed === "top" && !entitlements?.isLoading
+  const showFreePreviewBanner = !fullSlabCrack && !entitlements?.isLoading
+  const freeSearchBlocked =
+    !fullSlabCrack && query.trim().length >= 2 && feed !== "watchlist" && results.length === 0
 
   const pricedCount = useMemo(
     () => arbitrageFeed.filter((card) => card.hasPricing !== false).length,
@@ -392,11 +394,12 @@ export function SlabDashboard() {
           <div className="mb-4 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">Free SlabCrack preview</p>
             <p className="mt-1">
-              Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities).{" "}
+              Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities). Search and
+              the full feed need Premium.{" "}
               <Link href="/pricing" className="font-medium text-primary hover:underline">
-                Upgrade to Premium
-              </Link>{" "}
-              for the full feed, ad-free — from $4.99/mo.
+                Upgrade from $4.99/mo
+              </Link>
+              .
             </p>
           </div>
         )}
@@ -410,12 +413,30 @@ export function SlabDashboard() {
             <span className="flex size-14 items-center justify-center rounded-2xl border border-border bg-secondary/40 text-muted-foreground">
               <Search className="size-6" />
             </span>
-            <p className="mt-4 font-medium text-foreground">No slabs match your filters</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {feed === "watchlist"
-                ? "Search any card above and tap the star to add it here."
-                : "Try a card name, set (151), number (#173), or both (151 173)."}
-            </p>
+            {freeSearchBlocked ? (
+              <>
+                <p className="mt-4 font-medium text-foreground">Search is a Premium feature</p>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+                  Free shows a fixed 10-card mid-deficit preview. Upgrade to search any card and unlock
+                  the full deficit feed.
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-4 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+                >
+                  Start Premium trial
+                </Link>
+              </>
+            ) : (
+              <>
+                <p className="mt-4 font-medium text-foreground">No slabs match your filters</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {feed === "watchlist"
+                    ? "Search any card above and tap the star to add it here."
+                    : "Try a card name, set (151), number (#173), or both (151 173)."}
+                </p>
+              </>
+            )}
             <AdSlot variant="banner" slotIndex={0} className="mt-8 max-w-md" compact />
           </div>
         ) : (
