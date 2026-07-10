@@ -24,6 +24,14 @@ export async function GET() {
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load entitlements"
-    return NextResponse.json({ error: message }, { status: 500 })
+    return NextResponse.json(
+      {
+        ...entitlementsForPlan("free"),
+        signedIn: true,
+        stripeConfigured: isStripeConfigured(),
+        error: message,
+      },
+      { status: 500 },
+    )
   }
 }

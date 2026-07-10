@@ -16,7 +16,7 @@ type EntitlementsState = Entitlements & {
   signedIn: boolean
   stripeConfigured: boolean
   isLoading: boolean
-  refresh: () => Promise<void>
+  refresh: (opts?: { silent?: boolean }) => Promise<void>
   startCheckout: (priceKey: string) => Promise<string | null>
   openPortal: () => Promise<string | null>
 }
@@ -31,17 +31,26 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
   const [signedIn, setSignedIn] = useState(false)
   const [stripeConfigured, setStripeConfigured] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const userId = user?.id ?? null
 
-  const refresh = useCallback(async () => {
-    setIsLoading(true)
+  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setIsLoading(true)
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 10_000)
     try {
-      const res = await fetch("/api/billing/entitlements", { credentials: "same-origin" })
+      const res = await fetch("/api/billing/entitlements", {
+        credentials: "same-origin",
+        signal: controller.signal,
+      })
       const data = (await res.json().catch(() => null)) as
         | (Entitlements & { signedIn?: boolean; stripeConfigured?: boolean })
         | null
+      if (typeof data?.stripeConfigured === "boolean") {
+        setStripeConfigured(data.stripeConfigured)
+      }
       if (!data || !res.ok) {
         setEntitlements(defaultState)
-        setSignedIn(Boolean(user))
+        setSignedIn(Boolean(userId))
         return
       }
       setEntitlements({
@@ -59,15 +68,22 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
       setStripeConfigured(Boolean(data.stripeConfigured))
     } catch {
       setEntitlements(defaultState)
+      setSignedIn(Boolean(userId))
     } finally {
+      window.clearTimeout(timeout)
       setIsLoading(false)
     }
-  }, [user])
+  }, [userId])
 
   useEffect(() => {
-    if (authLoading) return
+    if (authLoading) {
+      const unlock = window.setTimeout(() => {
+        void refresh()
+      }, 8_000)
+      return () => window.clearTimeout(unlock)
+    }
     void refresh()
-  }, [authLoading, user?.id, refresh])
+  }, [authLoading, userId, refresh])
 
   const startCheckout = useCallback(async (priceKey: string) => {
     const res = await fetch("/api/billing/checkout", {

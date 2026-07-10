@@ -23,18 +23,20 @@ export function PricingClient() {
 
   const checkoutState = searchParams.get("checkout")
 
+  const refreshEntitlements = entitlements.refresh
+
   useEffect(() => {
     if (checkoutState !== "success") return
-    void entitlements.refresh()
+    void refreshEntitlements({ silent: true })
     const id = window.setInterval(() => {
-      void entitlements.refresh()
+      void refreshEntitlements({ silent: true })
     }, 2500)
     const stop = window.setTimeout(() => window.clearInterval(id), 30_000)
     return () => {
       window.clearInterval(id)
       window.clearTimeout(stop)
     }
-  }, [checkoutState, entitlements])
+  }, [checkoutState, refreshEntitlements])
 
   const start = async (priceKey: PriceKey) => {
     if (!user) {
@@ -217,7 +219,8 @@ export function PricingClient() {
           const price = interval === "month" ? tier.monthlyPrice : tier.yearlyPrice
           const isCurrent = entitlements.plan === tier.id
           const busy = busyKey === priceKey
-          const billingReady = entitlements.stripeConfigured && !entitlements.isLoading
+          const stillBooting = entitlements.isLoading && !entitlements.stripeConfigured
+          const billingReady = entitlements.stripeConfigured
 
           return (
             <article
@@ -250,7 +253,7 @@ export function PricingClient() {
               </ul>
               <button
                 type="button"
-                aria-busy={busy}
+                aria-busy={busy || stillBooting}
                 aria-disabled={isCurrent || !billingReady}
                 disabled={busy || isCurrent || !billingReady}
                 onClick={() => void start(priceKey)}
@@ -264,11 +267,11 @@ export function PricingClient() {
                 {busy ? <Loader2 className="size-4 animate-spin" /> : null}
                 {isCurrent
                   ? "Current plan"
-                  : entitlements.isLoading
+                  : stillBooting
                     ? "Loading…"
                     : !entitlements.stripeConfigured
                       ? "Subscriptions aren't open yet"
-                      : `Choose ${tier.name}`}
+                      : `Start ${tier.name} trial`}
               </button>
             </article>
           )
@@ -285,7 +288,8 @@ export function PricingClient() {
       )}
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Free forever includes SlabCrack and PokeMatch with ads.{" "}
+        Free includes a 10-card SlabCrack preview and PokeMatch with ads. Paid plans include a 7-day
+        trial.{" "}
         <Link href="/terms" className="hover:text-foreground">
           Terms
         </Link>

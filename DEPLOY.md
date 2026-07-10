@@ -19,6 +19,8 @@ This repo has historically deployed to **two** projects (`slabcrack` and `slab-c
 3. On the other: disconnect the Git repo **or** disable Production deployments so env/crons cannot diverge.
 4. Confirm Production domain points at the kept project.
 
+**Hobby cron limit:** Vercel Hobby only allows cron schedules that run **once per day**. More frequent expressions (e.g. `*/15 * * * *`) fail the entire deployment. Keep `vercel.json` crons daily on Hobby, or upgrade to Pro for frequent restock polling.
+
 ## 3. Environment variables (Production)
 
 Copy from [`.env.example`](./.env.example). Minimum for public:
