@@ -20,6 +20,7 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
+import { buildQueueWatchBookmarklet } from "@/lib/pokemon-center/bookmarklet"
 import { cn } from "@/lib/utils"
 
 const SESSION_KEY = "pc-queue-watch-session"
@@ -51,6 +52,7 @@ export function QueueWatchClient() {
   const entitlements = useEntitlements()
   const [sessionId, setSessionId] = useState("")
   const [watchToken, setWatchToken] = useState("")
+  const [tokenError, setTokenError] = useState<string | null>(null)
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [monitoring, setMonitoring] = useState(true)
@@ -107,17 +109,24 @@ export function QueueWatchClient() {
     }
 
     let cancelled = false
+    setTokenError(null)
     void fetch("/api/billing/queue-watch-token", {
       method: "POST",
       credentials: "same-origin",
     })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: { token?: string } | null) => {
-        if (cancelled || !data?.token) return
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as { token?: string; error?: string } | null
+        if (cancelled) return
+        if (!res.ok || !data?.token) {
+          setTokenError(data?.error || "Could not mint bookmarklet token. Is CRON_SECRET set on Vercel?")
+          return
+        }
         setWatchToken(data.token)
         localStorage.setItem(TOKEN_KEY, data.token)
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelled) setTokenError("Could not mint bookmarklet token.")
+      })
 
     return () => {
       cancelled = true
@@ -126,8 +135,11 @@ export function QueueWatchClient() {
 
   const bookmarkletHref = useMemo(() => {
     if (!sessionId || !watchToken || typeof window === "undefined") return ""
-    const origin = window.location.origin
-    return `javascript:(function(){var s=document.createElement('script');s.src='${origin}/pc-queue-watch.js?sid=${encodeURIComponent(sessionId)}&tok=${encodeURIComponent(watchToken)}&t='+Date.now();document.head.appendChild(s);})();`
+    return buildQueueWatchBookmarklet({
+      origin: window.location.origin,
+      sessionId,
+      token: watchToken,
+    })
   }, [sessionId, watchToken])
 
   const notifyLive = useCallback(async () => {
@@ -449,25 +461,39 @@ export function QueueWatchClient() {
               1. Install the tab monitor (required)
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Pokemon Center&apos;s Imperva bot shield blocks Vercel/datacenter IPs almost instantly.
-              LIVE detection only works from a real browser tab that already passed their checks —
-              this bookmarklet watches Queue-it traffic on that tab and reports back here.
+              Pokemon Center blocks external scripts and API calls (CSP). This bookmarklet is
+              self-contained and pings CollecTools through a tiny pop-up beacon — allow pop-ups for
+              this site when the browser asks.
             </p>
 
             <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
-              <li>Copy the bookmarklet below.</li>
-              <li>Create a new browser bookmark and paste it as the URL.</li>
+              <li>
+                Prefer <strong className="text-foreground">drag</strong> the link below to your
+                bookmarks bar (Chrome often strips <code className="rounded bg-secondary px-1">javascript:</code>{" "}
+                if you paste).
+              </li>
               <li>
                 Open <strong className="text-foreground">pokemoncenter.com</strong>, pass any bot
-                check if shown, then click the bookmark once.
+                check, then click the bookmark once.
               </li>
               <li>
-                Leave that tab open during drops — look for the dark &quot;PC Queue Watch active&quot;
-                badge in the corner.
+                Allow the CollecTools pop-up if prompted. You should see a dark{" "}
+                <strong className="text-foreground">PC Queue Watch active</strong> badge and an alert.
               </li>
+              <li>Leave that tab open during drops. Keep this Queue Watch page open too.</li>
             </ol>
 
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {bookmarkletHref ? (
+                <a
+                  href={bookmarkletHref}
+                  onClick={(e) => e.preventDefault()}
+                  className="inline-flex cursor-grab items-center gap-2 rounded-xl border border-dashed border-primary/50 bg-primary/10 px-4 py-2 text-sm font-medium text-primary active:cursor-grabbing"
+                  title="Drag me to your bookmarks bar"
+                >
+                  ☰ Drag to bookmarks: PC Queue Watch
+                </a>
+              ) : null}
               <button
                 type="button"
                 onClick={() => void copyBookmarklet()}
@@ -490,6 +516,12 @@ export function QueueWatchClient() {
               </button>
             </div>
 
+            {tokenError && (
+              <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {tokenError}
+              </p>
+            )}
+
             <p className="mt-3 text-xs text-muted-foreground">
               Tab monitor:{" "}
               <span className={tabConnected ? "font-medium text-trade" : "font-medium text-amber-600"}>
@@ -497,6 +529,13 @@ export function QueueWatchClient() {
               </span>
               {status?.bookmarklet?.reportedAt &&
                 ` · last ping ${new Date(status.bookmarklet.reportedAt).toLocaleTimeString()}`}
+            </p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Still stuck? Use the{" "}
+              <Link href="/queue-watch/mobile" className="text-primary hover:underline">
+                Android APK
+              </Link>{" "}
+              — WebView injection is more reliable than bookmarks on Pokemon Center.
             </p>
           </section>
 

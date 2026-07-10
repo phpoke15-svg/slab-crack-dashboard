@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Queue-Watch-Token",
 }
 
@@ -56,25 +56,18 @@ async function resolveProUserId(request: Request, bodyToken?: string): Promise<s
   return null
 }
 
-export async function POST(request: Request) {
-  let body: ReportBody
-  try {
-    body = (await request.json()) as ReportBody
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS })
-  }
-
+async function processReport(
+  request: Request,
+  body: ReportBody,
+): Promise<{ ok: true; discordSent: boolean; ntfySent: boolean; pushSent: boolean } | { ok: false; status: number; error: string }> {
   const proUserId = await resolveProUserId(request, body.token)
   if (!proUserId) {
-    return NextResponse.json(
-      { error: "Queue Watch requires a Pro subscription.", upgradeUrl: "/pricing" },
-      { status: 403, headers: CORS_HEADERS },
-    )
+    return { ok: false, status: 403, error: "Queue Watch requires a Pro subscription." }
   }
 
   const sessionId = body.sessionId?.trim()
   if (!sessionId || sessionId.length > 80) {
-    return NextResponse.json({ error: "sessionId required" }, { status: 400, headers: CORS_HEADERS })
+    return { ok: false, status: 400, error: "sessionId required" }
   }
 
   const previous = await getQueueWatchReport(sessionId)
@@ -90,8 +83,79 @@ export async function POST(request: Request) {
   }
 
   await saveQueueWatchReport(report)
-
   const { discordSent, ntfySent, pushSent } = await maybeSendMobileAlerts(report, previous)
+  return { ok: true, discordSent, ntfySent, pushSent }
+}
 
-  return NextResponse.json({ ok: true, discordSent, ntfySent, pushSent }, { headers: CORS_HEADERS })
+/**
+ * Navigation beacon for bookmarklets on CSP-locked sites (Pokemon Center).
+ * connect-src blocks fetch to CollecTools, but window.open navigation still works.
+ */
+export async function GET(request: Request) {
+  const url = new URL(request.url)
+  let signals: QueueSignal[] = []
+  const rawSignals = url.searchParams.get("signals")
+  if (rawSignals) {
+    try {
+      const parsed = JSON.parse(rawSignals) as unknown
+      if (Array.isArray(parsed)) signals = parsed as QueueSignal[]
+    } catch {
+      signals = []
+    }
+  }
+
+  const result = await processReport(request, {
+    sessionId: url.searchParams.get("sessionId") ?? undefined,
+    live: url.searchParams.get("live") === "1" || url.searchParams.get("live") === "true",
+    confidence: Number(url.searchParams.get("confidence") || 0),
+    signals,
+    pageUrl: url.searchParams.get("pageUrl") ?? undefined,
+    token: url.searchParams.get("token") ?? undefined,
+    source: "bookmarklet",
+  })
+
+  if (!result.ok) {
+    return new NextResponse(
+      `<!doctype html><html><body style="font:14px system-ui;padding:16px">Queue Watch: ${result.error}<script>setTimeout(function(){window.close()},1500)</script></body></html>`,
+      {
+        status: result.status,
+        headers: { "Content-Type": "text/html; charset=utf-8", ...CORS_HEADERS },
+      },
+    )
+  }
+
+  return new NextResponse(
+    `<!doctype html><html><body style="font:14px system-ui;padding:16px;background:#111;color:#eee">PC Queue Watch ping OK<script>setTimeout(function(){window.close()},400)</script></body></html>`,
+    {
+      status: 200,
+      headers: { "Content-Type": "text/html; charset=utf-8", ...CORS_HEADERS },
+    },
+  )
+}
+
+export async function POST(request: Request) {
+  let body: ReportBody
+  try {
+    body = (await request.json()) as ReportBody
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400, headers: CORS_HEADERS })
+  }
+
+  const result = await processReport(request, body)
+  if (!result.ok) {
+    return NextResponse.json(
+      { error: result.error, upgradeUrl: "/pricing" },
+      { status: result.status, headers: CORS_HEADERS },
+    )
+  }
+
+  return NextResponse.json(
+    {
+      ok: true,
+      discordSent: result.discordSent,
+      ntfySent: result.ntfySent,
+      pushSent: result.pushSent,
+    },
+    { headers: CORS_HEADERS },
+  )
 }
