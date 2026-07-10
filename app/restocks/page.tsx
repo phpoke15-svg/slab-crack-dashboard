@@ -3,7 +3,7 @@ import { RestocksClient } from "@/components/restocks-client"
 export const metadata = {
   title: "Restocks — CollecTools",
   description:
-    "Live Walmart and Pokémon Center availability for curated Pokémon TCG sealed products.",
+    "Auto-discovered Walmart Pokémon TCG sealed stock. Pokémon Center queue alerts live in Queue Watch.",
 }
 
 export default function RestocksPage() {

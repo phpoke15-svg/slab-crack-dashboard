@@ -33,7 +33,7 @@ export function RestocksClient() {
   const [meta, setMeta] = useState<Meta | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [retailer, setRetailer] = useState<"all" | RestockRetailer>("all")
+  const [retailer, setRetailer] = useState<"all" | RestockRetailer>("walmart")
   const [inStockOnly, setInStockOnly] = useState(false)
 
   const load = useCallback(async () => {
@@ -74,11 +74,14 @@ export function RestocksClient() {
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-8 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <CollecToolsBrand href="/" size="lg" subtitle="Restocks · Walmart & Pokémon Center" />
+          <CollecToolsBrand href="/" size="lg" subtitle="Restocks · Walmart sealed TCG" />
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Live availability for curated sealed products. Walmart updates via Affiliate API cron;
-            Pokémon Center updates from Imperva-safe browser/app reports. Not a rumor calendar —
-            status of SKUs we watch.
+            Automatically finds Pokémon sealed products at Walmart and tracks stock. For Pokémon
+            Center drop timing and virtual queues, use{" "}
+            <Link href="/queue-watch" className="font-medium text-primary hover:underline">
+              Queue Watch
+            </Link>
+            .
           </p>
         </div>
         <SiteAuthButton className="shrink-0" />
@@ -208,7 +211,7 @@ export function RestocksClient() {
                     >
                       Open product <ExternalLink className="size-3.5" />
                     </a>
-                    {product.retailer === "pokemon_center" && product.queueLikely ? (
+                    {product.retailer === "walmart" ? null : product.queueLikely ? (
                       <Link
                         href="/queue-watch"
                         className="inline-flex items-center rounded-xl border border-border px-3 py-2 text-sm font-medium text-foreground hover:border-primary/40"
@@ -225,16 +228,22 @@ export function RestocksClient() {
       )}
 
       <section className="mt-8 rounded-2xl border border-border bg-card/40 p-4 text-xs leading-relaxed text-muted-foreground">
-        <p className="font-medium text-foreground">How data stays fresh</p>
+        <p className="font-medium text-foreground">How this stays hands-off</p>
         <ul className="mt-2 list-disc space-y-1 pl-4">
           <li>
-            <strong className="text-foreground">Walmart</strong> — cron hits the Affiliate Product API
-            for each watched item ID.
+            <strong className="text-foreground">Discovery</strong> — cron searches Walmart for sealed
+            Pokémon TCG (ETBs, bundles, boxes, etc.) and adds matches automatically.
           </li>
           <li>
-            <strong className="text-foreground">Pokémon Center</strong> — browser/app sessions that
-            already passed Imperva POST stock to{" "}
-            <code className="rounded bg-secondary px-1">/api/restocks/report</code>.
+            <strong className="text-foreground">Stock checks</strong> — same cron polls Affiliate
+            availability every 15 minutes and can Discord-ping on restock.
+          </li>
+          <li>
+            <strong className="text-foreground">Pokémon Center</strong> — use{" "}
+            <Link href="/queue-watch" className="text-primary hover:underline">
+              Queue Watch
+            </Link>{" "}
+            for queue-live alerts (not this board).
           </li>
         </ul>
       </section>

@@ -8,7 +8,7 @@ Use this before marketing the site as public.
 2. If the binder banner only lists **Binder card numbers** + **Price cache**, run the smaller patch instead: [`supabase/pokematch-missing-pieces.sql`](./supabase/pokematch-missing-pieces.sql).
 3. For SlabCrack catalog/arbitrage tables (if empty): run [`supabase/schema.sql`](./supabase/schema.sql), then seed/sync prices.
 4. Optional: **Settings → API → Reload schema**, wait ~30s, hard-refresh `/binder`. The amber setup banner must be gone.
-5. Restocks board: run [`supabase/restocks.sql`](./supabase/restocks.sql), then insert real Walmart item IDs / PC URLs with `active = true`.
+5. Restocks board: run [`supabase/restocks.sql`](./supabase/restocks.sql). Walmart SKUs auto-discover after Affiliate API keys are set.
 
 ## 2. One Vercel project
 
@@ -73,14 +73,16 @@ After changing env vars, **Redeploy**.
 - `/api/cron/sync-binder-prices` — daily 07:00 UTC
 - `/api/cron/sync-restocks` — every 15 minutes (Walmart Affiliate SKUs)
 
-## Restocks (Walmart + Pokémon Center)
+## Restocks (Walmart auto-discovery)
 
-1. Run [`supabase/restocks.sql`](./supabase/restocks.sql).
-2. Replace seed rows with real products (`active = true`).
-3. Walmart: set `WALMART_AFFILIATE_CONSUMER_ID`, `WALMART_AFFILIATE_PRIVATE_KEY`, `WALMART_AFFILIATE_PUBLISHER_ID`.
-4. Pokémon Center: POST stock from a real browser/app session to `/api/restocks/report` (optional `RESTOCKS_REPORT_SECRET`). Helper script: `public/pc-restock-watch.js`.
-5. Optional Discord: `RESTOCKS_DISCORD_WEBHOOK` (falls back to Queue Watch webhook).
-6. UI: `/restocks`
+1. Run [`supabase/restocks.sql`](./supabase/restocks.sql) (creates tables).
+2. Set Walmart Affiliate env: `WALMART_AFFILIATE_CONSUMER_ID`, `WALMART_AFFILIATE_PRIVATE_KEY`, `WALMART_AFFILIATE_PUBLISHER_ID`.
+3. Cron `/api/cron/sync-restocks` every 15m:
+   - **Discovers** sealed Pokémon TCG SKUs via Affiliate search (no manual item list required)
+   - **Checks** stock and can Discord-alert on restock (`RESTOCKS_DISCORD_WEBHOOK`)
+4. Optional: `WALMART_DISCOVERY_QUERIES` (pipe-separated search strings).
+5. UI: `/restocks`
+6. **Pokémon Center** live queues stay on **Queue Watch** (`/queue-watch`) — not this board.
 
 Uptime / config probe (no auth):
 

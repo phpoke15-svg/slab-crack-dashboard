@@ -30,9 +30,9 @@ export const COLLECTOOLS: CollecTool[] = [
     id: "restocks",
     href: "/restocks",
     name: "Restocks",
-    tagline: "Walmart & PC availability",
+    tagline: "Walmart sealed stock",
     description:
-      "Live stock board for curated sealed products. Walmart via Affiliate API; Pokémon Center via Imperva-safe reports.",
+      "Auto-discovers Pokémon TCG sealed products at Walmart and tracks in-stock vs OOS. Pokémon Center drops use Queue Watch.",
     icon: Package,
   },
   {

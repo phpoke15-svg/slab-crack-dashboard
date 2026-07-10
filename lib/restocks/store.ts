@@ -204,6 +204,78 @@ export async function applyStockSnapshot(
   return { product: next, changed, restocked }
 }
 
+/** Upsert a Walmart (or other) product discovered by search. */
+export async function upsertDiscoveredProduct(input: {
+  retailer: RestockRetailer
+  externalId: string
+  name: string
+  productUrl: string
+  imageUrl?: string | null
+  price?: number | null
+  inStock?: boolean | null
+  category?: string
+  source?: string
+}): Promise<RestockProduct | null> {
+  const now = new Date().toISOString()
+  const category = input.category ?? "sealed"
+
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = createAdminClient()
+      const row = {
+        retailer: input.retailer,
+        external_id: input.externalId,
+        name: input.name,
+        product_url: input.productUrl,
+        image_url: input.imageUrl ?? null,
+        category,
+        queue_likely: false,
+        active: true,
+        in_stock: input.inStock ?? null,
+        price: input.price ?? null,
+        last_checked_at: input.inStock != null ? now : null,
+        last_source: input.source ?? "walmart_discovery",
+        updated_at: now,
+      }
+
+      const { data, error } = await supabase
+        .from("restock_products")
+        .upsert(row, { onConflict: "retailer,external_id" })
+        .select("*")
+        .single()
+      if (error) throw error
+      return mapProduct(data as DbProduct)
+    } catch {
+      // fall through
+    }
+  }
+
+  const existing = [...memoryProducts.values()].find(
+    (p) => p.retailer === input.retailer && p.externalId === input.externalId,
+  )
+  const id = existing?.id ?? crypto.randomUUID()
+  const next: RestockProduct = {
+    id,
+    retailer: input.retailer,
+    externalId: input.externalId,
+    name: input.name,
+    productUrl: input.productUrl,
+    imageUrl: input.imageUrl ?? null,
+    msrp: null,
+    category,
+    queueLikely: false,
+    active: true,
+    inStock: input.inStock ?? null,
+    price: input.price ?? null,
+    lastCheckedAt: input.inStock != null ? now : null,
+    lastRestockAt: existing?.lastRestockAt ?? null,
+    lastSource: input.source ?? "walmart_discovery",
+    updatedAt: now,
+  }
+  memoryProducts.set(id, next)
+  return next
+}
+
 /** Dev/test helper when Supabase table is missing. */
 export function upsertMemoryProduct(product: RestockProduct) {
   memoryProducts.set(product.id, product)

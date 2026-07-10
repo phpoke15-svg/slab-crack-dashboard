@@ -76,6 +76,140 @@ function parsePrice(item: Record<string, unknown>): number | null {
   return n > 0 ? n : null
 }
 
+export type WalmartSearchHit = {
+  itemId: string
+  name: string
+  productUrl: string
+  imageUrl: string | null
+  price: number | null
+  inStock: boolean
+}
+
+function mapSearchItem(item: Record<string, unknown>): WalmartSearchHit | null {
+  const itemId = String(item.itemId ?? item.id ?? "").trim()
+  const name = String(item.name ?? item.title ?? "").trim()
+  if (!itemId || !name) return null
+
+  const productUrl =
+    String(item.productUrl ?? item.productPageUrl ?? "").trim() ||
+    `https://www.walmart.com/ip/${encodeURIComponent(itemId)}`
+
+  const imageUrl =
+    String(
+      item.thumbnailImage ??
+        item.mediumImage ??
+        item.largeImage ??
+        (item.imageEntities as { thumbnailImage?: string }[] | undefined)?.[0]?.thumbnailImage ??
+        "",
+    ).trim() || null
+
+  return {
+    itemId,
+    name,
+    productUrl,
+    imageUrl,
+    price: parsePrice(item),
+    inStock: parseAvailability(item),
+  }
+}
+
+/** Default search queries for sealed Pokémon TCG at Walmart. Override with WALMART_DISCOVERY_QUERIES. */
+export function getWalmartDiscoveryQueries(): string[] {
+  const raw = process.env.WALMART_DISCOVERY_QUERIES?.trim()
+  if (raw) {
+    return raw
+      .split("|")
+      .map((q) => q.trim())
+      .filter(Boolean)
+  }
+  return [
+    "pokemon elite trainer box",
+    "pokemon booster bundle",
+    "pokemon booster box",
+    "pokemon collection box",
+    "pokemon upc",
+    "pokemon tin",
+  ]
+}
+
+/** Keep sealed TCG-ish hits; drop plush/toys/apparel noise. */
+export function isPokemonTcgSealedCandidate(name: string): boolean {
+  const n = name.toLowerCase()
+  if (!n.includes("pokemon") && !n.includes("pokémon")) return false
+
+  const reject = [
+    "plush",
+    "figure",
+    "apparel",
+    "hoodie",
+    "t-shirt",
+    "tshirt",
+    "poster",
+    "sticker",
+    "keychain",
+    "backpack",
+    "sock",
+    "mug",
+    "lego",
+    "video game",
+    "nintendo switch",
+    "amiibo",
+  ]
+  if (reject.some((w) => n.includes(w))) return false
+
+  const sealedHints = [
+    "elite trainer",
+    "etb",
+    "booster",
+    "bundle",
+    "upc",
+    "ultra premium",
+    "collection box",
+    "tin",
+    "blister",
+    "build & battle",
+    "build and battle",
+    "premium collection",
+    "illustration collection",
+    "poster collection",
+    "tech sticker",
+    "sleeved",
+  ]
+  return sealedHints.some((w) => n.includes(w))
+}
+
+export async function searchWalmartProducts(
+  query: string,
+  options?: { numItems?: number },
+): Promise<WalmartSearchHit[]> {
+  if (!isWalmartAffiliateConfigured()) {
+    throw new Error("Walmart Affiliate API is not configured")
+  }
+
+  const publisherId = process.env.WALMART_AFFILIATE_PUBLISHER_ID!.trim()
+  const numItems = Math.min(25, Math.max(1, options?.numItems ?? 25))
+  const params = new URLSearchParams({
+    query,
+    publisherId,
+    numItems: String(numItems),
+  })
+  const url = `${AFFILIATE_BASE}/search?${params.toString()}`
+
+  const response = await fetch(url, {
+    headers: authHeaders(),
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "")
+    throw new Error(`Walmart search ${response.status}: ${body.slice(0, 200)}`)
+  }
+
+  const json = (await response.json()) as { items?: Record<string, unknown>[] }
+  const items = Array.isArray(json.items) ? json.items : []
+  return items.map(mapSearchItem).filter((h): h is WalmartSearchHit => Boolean(h))
+}
+
 export async function fetchWalmartItemStock(itemId: string): Promise<StockSnapshot> {
   if (!isWalmartAffiliateConfigured()) {
     throw new Error("Walmart Affiliate API is not configured")
