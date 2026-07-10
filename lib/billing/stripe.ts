@@ -48,28 +48,43 @@ export async function getEntitlementsForUser(userId: string): Promise<Entitlemen
     admin.from("profiles").select("plan").eq("id", userId).maybeSingle(),
     admin
       .from("subscriptions")
-      .select("status, plan, stripe_price_id, current_period_end, cancel_at_period_end")
+      .select("status, plan, stripe_price_id, current_period_end, cancel_at_period_end, updated_at")
       .eq("user_id", userId)
       .order("updated_at", { ascending: false })
-      .limit(5),
+      .limit(20),
   ])
 
-  const activeSub = (subs ?? []).find((row) => ACTIVE_STATUSES.has(String(row.status)))
-  if (activeSub) {
-    const plan = (activeSub.plan as PlanId) || planFromStripePriceId(activeSub.stripe_price_id)
-    return entitlementsForPlan(plan, {
-      status: String(activeSub.status),
-      currentPeriodEnd: activeSub.current_period_end
-        ? new Date(activeSub.current_period_end).toISOString()
-        : null,
-      cancelAtPeriodEnd: Boolean(activeSub.cancel_at_period_end),
-    })
+  const profilePlan = (profile?.plan as PlanId | undefined) ?? "free"
+  let best: PlanId = profilePlan === "free" ? "free" : profilePlan
+  let bestMeta: {
+    status: string | null
+    currentPeriodEnd: string | null
+    cancelAtPeriodEnd: boolean
+  } = {
+    status: best === "free" ? null : "active",
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
   }
 
-  const profilePlan = (profile?.plan as PlanId | undefined) ?? "free"
-  return entitlementsForPlan(profilePlan === "free" ? "free" : profilePlan, {
-    status: null,
-  })
+  // Prefer the highest tier among active/trialing rows (comp Pro must beat stale Stripe free/premium).
+  for (const row of subs ?? []) {
+    if (!ACTIVE_STATUSES.has(String(row.status))) continue
+    const fromColumn = (row.plan as PlanId) || "free"
+    const fromPrice = planFromStripePriceId(row.stripe_price_id)
+    const candidate = planRank(fromColumn) >= planRank(fromPrice) ? fromColumn : fromPrice
+    if (planRank(candidate) > planRank(best)) {
+      best = candidate
+      bestMeta = {
+        status: String(row.status),
+        currentPeriodEnd: row.current_period_end
+          ? new Date(row.current_period_end as string).toISOString()
+          : null,
+        cancelAtPeriodEnd: Boolean(row.cancel_at_period_end),
+      }
+    }
+  }
+
+  return entitlementsForPlan(best, bestMeta)
 }
 
 export async function requireQueueWatchAccess(userId: string): Promise<boolean> {
