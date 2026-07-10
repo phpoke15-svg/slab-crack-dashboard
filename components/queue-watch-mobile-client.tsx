@@ -51,7 +51,8 @@ export function QueueWatchMobileClient() {
         <h2 className="text-base font-semibold text-foreground">What you get</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5">
           <li>
-            <strong className="text-foreground">Native Queue Watch</strong> — polls from your phone every 12 seconds
+            <strong className="text-foreground">Native Queue Watch</strong> — polls from your phone every 20 seconds
+            (backs off to 60s if Imperva challenges you)
           </li>
           <li>
             <strong className="text-foreground">Built-in push</strong> — no ntfy app required

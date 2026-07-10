@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server"
-import { checkPokemonCenterQueue } from "@/lib/pokemon-center/queue-detector"
+import {
+  BOOKMARKLET_STALE_MS,
+  checkPokemonCenterQueue,
+} from "@/lib/pokemon-center/queue-detector"
 import { getQueueWatchReport } from "@/lib/pokemon-center/queue-alerts"
 import { requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { verifyQueueWatchToken } from "@/lib/billing/queue-watch-token"
@@ -27,6 +30,28 @@ async function hasProAccess(request: Request): Promise<boolean> {
   return false
 }
 
+function isFreshReport(reportedAt: string | undefined): boolean {
+  if (!reportedAt) return false
+  const ts = Date.parse(reportedAt)
+  if (Number.isNaN(ts)) return false
+  return Date.now() - ts < BOOKMARKLET_STALE_MS
+}
+
+const SKIPPED_SERVER = {
+  live: false,
+  confidence: 0,
+  signals: [
+    {
+      id: "probe-skipped",
+      label: "Server probe skipped (bookmarklet-first)",
+      confidence: 0,
+    },
+  ],
+  blocked: false,
+  checkedAt: new Date().toISOString(),
+  cached: true,
+}
+
 export async function GET(request: Request) {
   const allowed = await hasProAccess(request)
   if (!allowed) {
@@ -36,26 +61,45 @@ export async function GET(request: Request) {
     )
   }
 
-  const sessionId = new URL(request.url).searchParams.get("sessionId")?.trim()
-  const bookmarklet = sessionId ? await getQueueWatchReport(sessionId) : null
-  const server = await checkPokemonCenterQueue()
+  const url = new URL(request.url)
+  const sessionId = url.searchParams.get("sessionId")?.trim()
+  // Imperva blocks Vercel. Default: no outbound PC fetch.
+  // ?probe=1 = soft cached probe (10–30 min TTL). Never used by the dashboard poller.
+  const wantProbe = url.searchParams.get("probe") === "1"
 
-  const live = bookmarklet?.live ?? server.live
-  const confidence = Math.max(bookmarklet?.confidence ?? 0, server.confidence)
-  const source = bookmarklet?.live
+  const bookmarklet = sessionId ? await getQueueWatchReport(sessionId) : null
+  const bookmarkletFresh = isFreshReport(bookmarklet?.reportedAt)
+
+  // When the user's tab is already reporting, never touch pokemoncenter.com from Vercel.
+  const server =
+    wantProbe && !bookmarkletFresh
+      ? await checkPokemonCenterQueue()
+      : { ...SKIPPED_SERVER, checkedAt: new Date().toISOString() }
+
+  const live = bookmarkletFresh ? Boolean(bookmarklet?.live) : false
+  const confidence = bookmarkletFresh ? (bookmarklet?.confidence ?? 0) : 0
+  const source = bookmarkletFresh
     ? "bookmarklet"
-    : server.live
-      ? "server"
-      : bookmarklet
-        ? "bookmarklet"
-        : "server"
+    : server.blocked
+      ? "blocked"
+      : wantProbe
+        ? "server"
+        : "idle"
 
   return NextResponse.json({
     live,
     confidence,
     source,
     server,
-    bookmarklet,
+    bookmarklet: bookmarklet
+      ? {
+          ...bookmarklet,
+          fresh: bookmarkletFresh,
+        }
+      : null,
     checkedAt: new Date().toISOString(),
+    guidance: bookmarkletFresh
+      ? null
+      : "Start the bookmarklet on an open pokemoncenter.com tab. Server probes from Vercel are blocked by Imperva and are not used for LIVE detection.",
   })
 }

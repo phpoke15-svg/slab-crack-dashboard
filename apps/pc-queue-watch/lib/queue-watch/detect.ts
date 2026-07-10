@@ -47,12 +47,13 @@ export function detectQueueFromContent(input: { html?: string; url?: string }): 
 
   const queueSignals = signals.filter((s) => s.confidence > 0)
   const confidence = queueSignals.reduce((max, s) => Math.max(max, s.confidence), 0)
+  const blocked = signals.some((s) => s.confidence === 0)
 
   return {
-    live: confidence >= 60,
-    confidence,
-    signals: queueSignals,
-    blocked: signals.some((s) => s.confidence === 0),
+    live: blocked ? false : confidence >= 60,
+    confidence: blocked ? 0 : confidence,
+    signals: blocked ? signals : queueSignals,
+    blocked,
   }
 }
 

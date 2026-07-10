@@ -30,8 +30,14 @@ type StatusResponse = {
   confidence: number
   source: string
   server: { live: boolean; blocked?: boolean; signals: Array<{ label: string }> }
-  bookmarklet: { live: boolean; pageUrl?: string; reportedAt?: string } | null
+  bookmarklet: {
+    live: boolean
+    pageUrl?: string
+    reportedAt?: string
+    fresh?: boolean
+  } | null
   checkedAt: string
+  guidance?: string | null
 }
 
 function createSessionId() {
@@ -216,8 +222,18 @@ export function QueueWatchClient() {
   }
 
   const live = status?.live ?? false
-  const bookmarkletActive = Boolean(status?.bookmarklet?.reportedAt)
-  const serverBlocked = status?.server?.blocked
+  const bookmarkletActive = Boolean(status?.bookmarklet?.fresh ?? status?.bookmarklet?.reportedAt)
+  const tabConnected = Boolean(status?.bookmarklet?.fresh)
+  const guidance = status?.guidance
+
+  const sourceLabel =
+    status?.source === "bookmarklet"
+      ? "your Pokemon Center tab"
+      : status?.source === "blocked"
+        ? "server blocked (ignored)"
+        : status?.source === "idle"
+          ? "waiting for tab monitor"
+          : "soft server probe"
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
@@ -335,17 +351,24 @@ export function QueueWatchClient() {
                     </span>
                   ) : live ? (
                     "Queue is LIVE"
-                  ) : (
+                  ) : tabConnected ? (
                     "No queue detected"
+                  ) : (
+                    "Tab monitor offline"
                   )}
                 </h1>
                 {status && (
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Source:{" "}
-                    {status.source === "bookmarklet" ? "your Pokemon Center tab" : "server probe"}
+                    Source: {sourceLabel}
                     {status.confidence > 0 && ` · ${status.confidence}% confidence`}
                   </p>
                 )}
+                {guidance ? (
+                  <p className="mt-3 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+                    <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
+                    <span>{guidance}</span>
+                  </p>
+                ) : null}
               </div>
               <span
                 className={cn(
@@ -393,7 +416,8 @@ export function QueueWatchClient() {
                 {monitoring ? "Monitoring active" : "Start monitoring"}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                Polls every {POLL_MS / 1000}s while this page is open.
+                Reads your tab monitor every {POLL_MS / 1000}s — does not hit Pokemon Center from
+                Vercel.
               </p>
             </button>
 
@@ -419,23 +443,27 @@ export function QueueWatchClient() {
             </p>
           )}
 
-          <section className="mb-6 rounded-2xl border border-border bg-card/60 p-5">
+          <section className="mb-6 rounded-2xl border border-primary/40 bg-primary/5 p-5">
             <h2 className="text-base font-semibold text-foreground">
-              1. Install the tab monitor (recommended)
+              1. Install the tab monitor (required)
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Pokemon Center blocks datacenter bots, so the fastest alerts come from a tab on your home
-              network.
+              Pokemon Center&apos;s Imperva bot shield blocks Vercel/datacenter IPs almost instantly.
+              LIVE detection only works from a real browser tab that already passed their checks —
+              this bookmarklet watches Queue-it traffic on that tab and reports back here.
             </p>
 
             <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
               <li>Copy the bookmarklet below.</li>
               <li>Create a new browser bookmark and paste it as the URL.</li>
               <li>
-                Open <strong className="text-foreground">pokemoncenter.com</strong> and click the
-                bookmark once.
+                Open <strong className="text-foreground">pokemoncenter.com</strong>, pass any bot
+                check if shown, then click the bookmark once.
               </li>
-              <li>Leave that tab open during drops — it watches Queue-it traffic and page signals.</li>
+              <li>
+                Leave that tab open during drops — look for the dark &quot;PC Queue Watch active&quot;
+                badge in the corner.
+              </li>
             </ol>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -462,7 +490,10 @@ export function QueueWatchClient() {
             </div>
 
             <p className="mt-3 text-xs text-muted-foreground">
-              Tab monitor: {bookmarkletActive ? "connected" : "not connected yet"}
+              Tab monitor:{" "}
+              <span className={tabConnected ? "font-medium text-trade" : "font-medium text-amber-600"}>
+                {tabConnected ? "connected" : bookmarkletActive ? "stale" : "not connected yet"}
+              </span>
               {status?.bookmarklet?.reportedAt &&
                 ` · last ping ${new Date(status.bookmarklet.reportedAt).toLocaleTimeString()}`}
             </p>
@@ -478,20 +509,13 @@ export function QueueWatchClient() {
               in Vercel env vars to ping a channel when your tab monitor detects the queue (5 min
               cooldown).
             </p>
-            {serverBlocked && (
-              <p className="mt-3 flex items-start gap-2 text-xs text-amber-600 dark:text-amber-400">
-                <ShieldAlert className="mt-0.5 size-3.5 shrink-0" />
-                Server-side checks from Vercel are often blocked by Imperva — use the bookmarklet for
-                reliable speed.
-              </p>
-            )}
           </section>
 
-          <section className="mt-6 rounded-2xl border border-primary/30 bg-primary/5 p-5">
-            <h2 className="text-base font-semibold text-foreground">Want a real phone app (APK)?</h2>
+          <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
+            <h2 className="text-base font-semibold text-foreground">Want a phone app (APK)?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Queue Watch is built into the CollecTools Android app — native push, no Pokemon Center
-              tab required.
+              The Android build can poll from your phone&apos;s network (better than Vercel), but
+              Imperva can still challenge it. The browser bookmarklet remains the most reliable path.
             </p>
             <Link
               href="/queue-watch/mobile"

@@ -5,7 +5,9 @@ import { POKEMON_CENTER_URL } from "../config"
 import { checkPokemonCenterQueue, type QueueSignal } from "./detect"
 
 export const QUEUE_WATCH_TASK = "collectools-queue-watch-background"
-export const POLL_MS = 10_000
+/** Foreground poll — keep modest so Imperva doesn't flag the phone IP. */
+export const POLL_MS = 20_000
+export const POLL_MS_BLOCKED = 60_000
 
 export type QueueCheckState = {
   live: boolean
@@ -116,7 +118,20 @@ class QueueWatchService {
     }
 
     this.lastLive = result.live
+
+    // Back off when Imperva challenges the phone IP.
+    if (this.active) {
+      this.reschedule(result.blocked ? POLL_MS_BLOCKED : POLL_MS)
+    }
+
     return state
+  }
+
+  private reschedule(ms: number) {
+    if (this.pollTimer) clearInterval(this.pollTimer)
+    this.pollTimer = setInterval(() => {
+      void this.runCheck()
+    }, ms)
   }
 
   async start() {
@@ -125,9 +140,6 @@ class QueueWatchService {
 
     this.active = true
     await this.runCheck()
-    this.pollTimer = setInterval(() => {
-      void this.runCheck()
-    }, POLL_MS)
   }
 
   stop() {

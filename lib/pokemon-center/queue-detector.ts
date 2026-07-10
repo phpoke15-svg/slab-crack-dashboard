@@ -11,6 +11,8 @@ export type QueueDetection = {
   blocked?: boolean
   finalUrl?: string
   checkedAt: string
+  /** True when this result came from cache, not a fresh fetch. */
+  cached?: boolean
 }
 
 const QUEUE_PATTERNS: Array<{ id: string; label: string; confidence: number; re: RegExp }> = [
@@ -20,13 +22,30 @@ const QUEUE_PATTERNS: Array<{ id: string; label: string; confidence: number; re:
   { id: "virtual-queue", label: "Virtual queue copy", confidence: 70, re: /virtual queue|waiting room/i },
   { id: "hi-trainer", label: "Queue greeting", confidence: 60, re: /hi,?\s*trainer/i },
   { id: "queue-timer", label: "Queue countdown", confidence: 50, re: /\b\d{1,2}:\d{2}:\d{2}\b.*(?:queue|wait)/i },
-  { id: "incapsula-queue", label: "Incapsula queue payload", confidence: 80, re: /"pos"\s*:\s*\d+.*"pending"\s*:\s*1/i },
+  {
+    id: "incapsula-queue",
+    label: "Incapsula queue payload",
+    confidence: 80,
+    re: /"pos"\s*:\s*\d+[\s\S]{0,200}"pending"\s*:\s*1/i,
+  },
 ]
 
 const BLOCKED_PATTERNS: Array<{ id: string; label: string; re: RegExp }> = [
   { id: "incapsula-block", label: "Imperva/Incapsula challenge", re: /_Incapsula_Resource|incident_id=/i },
   { id: "access-denied", label: "Access denied", re: /access denied|request unsuccessful/i },
 ]
+
+/** Soft probes only — Imperva blocks Vercel IPs almost immediately if we hammer. */
+const SERVER_PROBE_TTL_MS = 10 * 60 * 1000
+const SERVER_PROBE_BLOCKED_TTL_MS = 30 * 60 * 1000
+
+type CacheEntry = {
+  result: QueueDetection
+  expiresAt: number
+}
+
+let probeCache: CacheEntry | null = null
+let probeInFlight: Promise<QueueDetection> | null = null
 
 export function detectQueueFromContent(input: {
   html?: string
@@ -56,18 +75,21 @@ export function detectQueueFromContent(input: {
   const queueSignals = signals.filter((s) => s.confidence > 0)
   const confidence = queueSignals.reduce((max, s) => Math.max(max, s.confidence), 0)
   const live = confidence >= 60
+  const blocked =
+    input.blocked ??
+    signals.some((s) => s.id === "datacenter-block" || s.id === "incapsula-block" || s.id === "access-denied")
 
   return {
-    live,
-    confidence,
+    live: blocked ? false : live,
+    confidence: blocked ? 0 : confidence,
     signals,
-    blocked: input.blocked ?? signals.some((s) => s.id === "datacenter-block" || s.id === "incapsula-block"),
+    blocked,
     finalUrl: input.url,
     checkedAt,
   }
 }
 
-export async function checkPokemonCenterQueue(): Promise<QueueDetection> {
+async function fetchPokemonCenterOnce(): Promise<QueueDetection> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 12_000)
 
@@ -97,3 +119,39 @@ export async function checkPokemonCenterQueue(): Promise<QueueDetection> {
     clearTimeout(timeout)
   }
 }
+
+function cacheTtlMs(result: QueueDetection): number {
+  return result.blocked ? SERVER_PROBE_BLOCKED_TTL_MS : SERVER_PROBE_TTL_MS
+}
+
+/**
+ * Soft server probe of pokemoncenter.com.
+ * Cached aggressively — Imperva flags datacenter IPs; do not call on every dashboard poll.
+ */
+export async function checkPokemonCenterQueue(options?: {
+  force?: boolean
+}): Promise<QueueDetection> {
+  const now = Date.now()
+  if (!options?.force && probeCache && probeCache.expiresAt > now) {
+    return { ...probeCache.result, cached: true }
+  }
+
+  if (probeInFlight) return probeInFlight
+
+  probeInFlight = fetchPokemonCenterOnce()
+    .then((result) => {
+      probeCache = {
+        result,
+        expiresAt: Date.now() + cacheTtlMs(result),
+      }
+      return result
+    })
+    .finally(() => {
+      probeInFlight = null
+    })
+
+  return probeInFlight
+}
+
+/** Bookmarklet reports older than this are treated as disconnected. */
+export const BOOKMARKLET_STALE_MS = 45_000
