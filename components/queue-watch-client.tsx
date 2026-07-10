@@ -20,7 +20,7 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
-import { buildQueueWatchBookmarklet } from "@/lib/pokemon-center/bookmarklet"
+import { buildQueueWatchBookmarklet, buildQueueWatchConsoleSnippet } from "@/lib/pokemon-center/bookmarklet"
 import { cn } from "@/lib/utils"
 
 const SESSION_KEY = "pc-queue-watch-session"
@@ -58,6 +58,8 @@ export function QueueWatchClient() {
   const [monitoring, setMonitoring] = useState(true)
   const [notifications, setNotifications] = useState<NotificationPermission>("default")
   const [copied, setCopied] = useState(false)
+  const [copiedConsole, setCopiedConsole] = useState(false)
+  const [showBookmarkCode, setShowBookmarkCode] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const previousLive = useRef(false)
@@ -142,6 +144,15 @@ export function QueueWatchClient() {
     })
   }, [sessionId, watchToken])
 
+  const consoleSnippet = useMemo(() => {
+    if (!sessionId || !watchToken || typeof window === "undefined") return ""
+    return buildQueueWatchConsoleSnippet({
+      origin: window.location.origin,
+      sessionId,
+      token: watchToken,
+    })
+  }, [sessionId, watchToken])
+
   const notifyLive = useCallback(async () => {
     if (typeof window === "undefined") return
     try {
@@ -211,7 +222,14 @@ export function QueueWatchClient() {
     if (!bookmarkletHref) return
     await navigator.clipboard.writeText(bookmarkletHref)
     setCopied(true)
-    window.setTimeout(() => setCopied(false), 2000)
+    window.setTimeout(() => setCopied(false), 2500)
+  }
+
+  const copyConsoleSnippet = async () => {
+    if (!consoleSnippet) return
+    await navigator.clipboard.writeText(consoleSnippet)
+    setCopiedConsole(true)
+    window.setTimeout(() => setCopiedConsole(false), 2500)
   }
 
   const openPokemonCenter = () => {
@@ -461,39 +479,44 @@ export function QueueWatchClient() {
               1. Install the tab monitor (required)
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Pokemon Center blocks external scripts and API calls (CSP). This bookmarklet is
-              self-contained and pings CollecTools through a tiny pop-up beacon — allow pop-ups for
-              this site when the browser asks.
+              This is a <strong className="text-foreground">bookmarklet</strong> (JavaScript), not a
+              normal website link. If the bookmark URL doesn&apos;t start with{" "}
+              <code className="rounded bg-secondary px-1 text-xs">javascript:</code>, Chrome treats it
+              as a Google search.
             </p>
 
             <ol className="mt-4 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
               <li>
-                Prefer <strong className="text-foreground">drag</strong> the link below to your
-                bookmarks bar (Chrome often strips <code className="rounded bg-secondary px-1">javascript:</code>{" "}
-                if you paste).
+                Show your bookmarks bar: <kbd className="rounded bg-secondary px-1">Ctrl+Shift+B</kbd>{" "}
+                (Windows) or <kbd className="rounded bg-secondary px-1">Cmd+Shift+B</kbd> (Mac).
+              </li>
+              <li>
+                Right-click the bookmarks bar → <strong className="text-foreground">Add page</strong>{" "}
+                / <strong className="text-foreground">Add bookmark</strong>.
+              </li>
+              <li>
+                Name: <strong className="text-foreground">PC Queue Watch</strong>
+              </li>
+              <li>
+                URL field: click <strong className="text-foreground">Copy bookmarklet</strong> below,
+                paste into URL.{" "}
+                <strong className="text-foreground">
+                  Check it starts with javascript:
+                </strong>{" "}
+                If Chrome removed that word, type <code className="rounded bg-secondary px-1 text-xs">javascript:</code>{" "}
+                at the very beginning, then paste again.
               </li>
               <li>
                 Open <strong className="text-foreground">pokemoncenter.com</strong>, pass any bot
-                check, then click the bookmark once.
+                check, then click your new bookmark (on that tab — not from Google).
               </li>
               <li>
-                Allow the CollecTools pop-up if prompted. You should see a dark{" "}
-                <strong className="text-foreground">PC Queue Watch active</strong> badge and an alert.
+                Allow the CollecTools pop-up if asked. You should see{" "}
+                <strong className="text-foreground">PC Queue Watch active</strong> in the corner.
               </li>
-              <li>Leave that tab open during drops. Keep this Queue Watch page open too.</li>
             </ol>
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              {bookmarkletHref ? (
-                <a
-                  href={bookmarkletHref}
-                  onClick={(e) => e.preventDefault()}
-                  className="inline-flex cursor-grab items-center gap-2 rounded-xl border border-dashed border-primary/50 bg-primary/10 px-4 py-2 text-sm font-medium text-primary active:cursor-grabbing"
-                  title="Drag me to your bookmarks bar"
-                >
-                  ☰ Drag to bookmarks: PC Queue Watch
-                </a>
-              ) : null}
               <button
                 type="button"
                 onClick={() => void copyBookmarklet()}
@@ -502,10 +525,18 @@ export function QueueWatchClient() {
               >
                 {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
                 {copied
-                  ? "Copied"
+                  ? "Copied — paste into bookmark URL"
                   : bookmarkletHref
                     ? "Copy bookmarklet"
                     : "Preparing secure bookmarklet…"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBookmarkCode((v) => !v)}
+                disabled={!bookmarkletHref}
+                className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium disabled:opacity-50"
+              >
+                {showBookmarkCode ? "Hide code" : "Show code"}
               </button>
               <button
                 type="button"
@@ -513,6 +544,32 @@ export function QueueWatchClient() {
                 className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium"
               >
                 Open Pokemon Center <ExternalLink className="size-4" />
+              </button>
+            </div>
+
+            {showBookmarkCode && bookmarkletHref ? (
+              <textarea
+                readOnly
+                value={bookmarkletHref}
+                onFocus={(e) => e.currentTarget.select()}
+                className="mt-3 h-28 w-full rounded-xl border border-border bg-background p-3 font-mono text-[10px] leading-relaxed text-foreground"
+              />
+            ) : null}
+
+            <div className="mt-4 rounded-xl border border-border bg-card/60 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Easier fallback: DevTools console</p>
+              <p className="mt-1">
+                On pokemoncenter.com press <kbd className="rounded bg-secondary px-1">F12</kbd> →
+                Console → paste the console snippet → Enter. Same monitor, no bookmark needed.
+              </p>
+              <button
+                type="button"
+                onClick={() => void copyConsoleSnippet()}
+                disabled={!consoleSnippet}
+                className="mt-2 inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground disabled:opacity-50"
+              >
+                {copiedConsole ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                {copiedConsole ? "Copied console snippet" : "Copy console snippet"}
               </button>
             </div>
 
@@ -531,11 +588,10 @@ export function QueueWatchClient() {
                 ` · last ping ${new Date(status.bookmarklet.reportedAt).toLocaleTimeString()}`}
             </p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Still stuck? Use the{" "}
+              Prefer an app?{" "}
               <Link href="/queue-watch/mobile" className="text-primary hover:underline">
                 Android APK
-              </Link>{" "}
-              — WebView injection is more reliable than bookmarks on Pokemon Center.
+              </Link>
             </p>
           </section>
 

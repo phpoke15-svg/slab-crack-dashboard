@@ -18,3 +18,14 @@ export function buildQueueWatchBookmarklet(input: {
 
   return `javascript:${body}`
 }
+
+/** Same monitor without the javascript: prefix — paste into DevTools console on pokemoncenter.com */
+export function buildQueueWatchConsoleSnippet(input: {
+  origin: string
+  sessionId: string
+  token: string
+}): string {
+  const href = buildQueueWatchBookmarklet(input)
+  return href.startsWith("javascript:") ? href.slice("javascript:".length) : href
+}
+
