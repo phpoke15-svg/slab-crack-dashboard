@@ -25,6 +25,7 @@ export const PLAN_TIERS: PlanTier[] = [
     fullSlabCrack: true,
     includesQueueWatch: false,
     features: [
+      "7-day free trial",
       "Full SlabCrack deficit feed (all graded opportunities)",
       "Ad-free SlabCrack and PokeMatch",
       "Cancel anytime",
@@ -40,6 +41,7 @@ export const PLAN_TIERS: PlanTier[] = [
     fullSlabCrack: true,
     includesQueueWatch: true,
     features: [
+      "7-day free trial",
       "Everything in Premium",
       "Pokemon Center Queue Watch (web + phone alerts)",
       "Restocks board + Wednesday Walmart alerts",

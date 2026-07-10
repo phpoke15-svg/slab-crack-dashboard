@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       cancel_url: `${siteUrl}/pricing?checkout=cancel`,
       allow_promotion_codes: true,
       subscription_data: {
+        trial_period_days: 7,
         metadata: {
           supabase_user_id: auth.user.id,
           plan,

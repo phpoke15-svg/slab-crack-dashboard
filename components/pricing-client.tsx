@@ -81,7 +81,8 @@ export function PricingClient() {
           <CollecToolsBrand href="/" size="lg" subtitle="Plans · Premium & Pro" />
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
             Free includes a SlabCrack preview (10 mid-deficit cards) with ads. Premium unlocks the full
-            feed ad-free. Pro adds Pokemon Center Queue Watch and the rest of CollecTools.
+            feed ad-free. Pro adds Pokemon Center Queue Watch and the rest of CollecTools. Both paid
+            plans start with a <strong className="font-medium text-foreground">7-day free trial</strong>.
           </p>
         </div>
         <SiteAuthButton className="shrink-0" />
