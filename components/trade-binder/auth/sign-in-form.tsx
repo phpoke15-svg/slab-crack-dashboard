@@ -55,7 +55,7 @@ export function SignInForm({ onSuccess, className }: SignInFormProps) {
           {mode === "sign-in" ? "Sign in to CollecTools" : "Create your account"}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          One account for PokeMatch, SlabCrack, and Grade Check.
+          One account for PokeMatch and SlabCrack.
         </p>
       </div>
 

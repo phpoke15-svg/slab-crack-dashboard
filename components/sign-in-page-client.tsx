@@ -36,7 +36,7 @@ function SignInPageContent() {
       <SignInForm onSuccess={() => router.replace(next)} />
 
       <p className="mt-6 text-center text-xs text-muted-foreground text-pretty">
-        Your account works across PokeMatch, SlabCrack, and Grade Check.
+        Your account works across PokeMatch and SlabCrack.
       </p>
 
       <SiteFooter className="mt-8" />

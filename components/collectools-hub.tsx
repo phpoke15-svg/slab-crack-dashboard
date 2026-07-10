@@ -23,9 +23,8 @@ export function CollecToolsHub() {
         <div className="min-w-0 flex-1">
           <CollecToolsBrand href={undefined} size="lg" subtitle="Tools for TCG collectors" />
           <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Pick a tool to get started. SlabCrack finds arbitrage, Grade Check helps you pre-grade at
-            home, PokeMatch keeps your collection organized for swaps, and Queue Watch alerts you when
-            Pokemon Center&apos;s queue goes live.
+            Pick a tool to get started. SlabCrack finds arbitrage, PokeMatch keeps your collection
+            organized for swaps, and Queue Watch alerts you when Pokemon Center&apos;s queue goes live.
           </p>
         </div>
         <SiteAuthButton className="shrink-0" />

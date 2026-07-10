@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { Bell, BookOpen, Layers, ShieldCheck } from "lucide-react"
+import { Bell, BookOpen, Layers } from "lucide-react"
 
 export type CollecTool = {
   id: string
@@ -25,15 +25,6 @@ export const COLLECTOOLS: CollecTool[] = [
       "Market awareness — track graded vs raw pricing gaps and stay ahead of the market",
     ],
     icon: Layers,
-  },
-  {
-    id: "grade-check",
-    href: "/grade-check",
-    name: "Grade Check",
-    tagline: "Pre-submission estimator",
-    description:
-      "Upload photos, check centering, score condition, and estimate PSA ROI before you submit.",
-    icon: ShieldCheck,
   },
   {
     id: "binder",

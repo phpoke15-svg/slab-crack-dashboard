@@ -65,8 +65,8 @@ export function QueueWatchMobileClient() {
             flips live
           </li>
           <li>
-            <strong className="text-foreground">CollecTools tab</strong> — SlabCrack, Grade Check, and
-            PokeMatch inside the app
+            <strong className="text-foreground">CollecTools tab</strong> — SlabCrack and PokeMatch
+            inside the app
           </li>
         </ul>
         <p className="mt-3 text-xs">

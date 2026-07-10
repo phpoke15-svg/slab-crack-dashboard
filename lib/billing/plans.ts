@@ -23,7 +23,7 @@ export const PLAN_TIERS: PlanTier[] = [
     adFree: true,
     includesQueueWatch: false,
     features: [
-      "Ad-free SlabCrack, Grade Check, and PokeMatch",
+      "Ad-free SlabCrack and PokeMatch",
       "Same tools as Free — without Sponsored slots",
       "Cancel anytime",
     ],

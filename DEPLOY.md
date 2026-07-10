@@ -88,7 +88,6 @@ curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/sync-bi
 
 - [ ] Sign up / sign in
 - [ ] SlabCrack feed loads; first ad after 5th card (not above the fold)
-- [ ] Grade Check completes a result
 - [ ] PokeMatch: add card, friend request, start trade
 - [ ] Block / report another profile
 - [ ] `/privacy` and `/terms` load; footer links work

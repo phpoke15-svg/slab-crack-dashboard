@@ -6,7 +6,7 @@ Installable **Android APK** (v1.1.0) that loads your live **CollecTools website*
 
 Opens the full website inside the app:
 
-- Hub with SlabCrack, Grade Check, PokeMatch, and Queue Watch
+- Hub with SlabCrack, PokeMatch, and Queue Watch
 - Sign in, binder, trades, messages — everything on the site
 - In-app navigation stays on your CollecTools domain; external links open in the browser
 

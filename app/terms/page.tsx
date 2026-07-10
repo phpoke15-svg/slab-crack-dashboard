@@ -134,8 +134,8 @@ export default function TermsPage() {
         </p>
         <ul>
           <li>
-            <strong className="text-foreground">Premium</strong> — ad-free access to SlabCrack,
-            Grade Check, and {LEGAL_PRODUCT_NAME}.
+            <strong className="text-foreground">Premium</strong> — ad-free access to SlabCrack and{" "}
+            {LEGAL_PRODUCT_NAME}.
           </li>
           <li>
             <strong className="text-foreground">Pro</strong> — everything in Premium, plus Pokemon

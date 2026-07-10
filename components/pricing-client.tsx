@@ -262,7 +262,7 @@ export function PricingClient() {
       )}
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Free forever includes SlabCrack, Grade Check, and PokeMatch with ads.{" "}
+        Free forever includes SlabCrack and PokeMatch with ads.{" "}
         <Link href="/terms" className="hover:text-foreground">
           Terms
         </Link>
