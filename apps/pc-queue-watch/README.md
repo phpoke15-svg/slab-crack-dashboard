@@ -1,6 +1,6 @@
 # CollecTools Mobile App
 
-Installable **Android APK** that loads your live **CollecTools website** — same hub, tools, and PokeMatch experience as [slab-crack-dashboard.vercel.app](https://slab-crack-dashboard.vercel.app).
+Installable **Android APK** that loads your live **CollecTools website** plus a native **Queue Watch** that survives Imperva.
 
 ## CollecTools tab (default)
 
@@ -10,15 +10,16 @@ Opens the full website inside the app:
 - Sign in, binder, trades, messages — everything on the site
 - In-app navigation stays on your CollecTools domain; external links open in the browser
 
-## Queue tab (optional native bonus)
+## Queue tab (primary for drops)
 
-Native Pokemon Center monitor with push notifications (runs separately from the web Queue Watch page):
+**WebView-first monitoring** (not a headless fetch from the phone IP):
 
-- Polls `pokemoncenter.com` from your phone every **10 seconds**
-- Push notification when the virtual queue goes live
-- Background checks on Android while monitoring is on
+1. Tap **Start monitoring** — Pokemon Center loads **in the app**
+2. Pass any Imperva / bot check in that page (once)
+3. Leave the Queue tab open — injected JS watches Queue-it like the desktop bookmarklet
+4. Get a **local push** when the virtual queue goes live
 
-Use this tab if you want phone alerts without keeping a browser tab open.
+Headless `fetch` is only a weak fallback if the WebView stops heartbeating (e.g. app fully backgrounded). For reliable alerts, keep the Queue tab open (screen can dim; keep-awake is enabled while monitoring).
 
 ## Build the APK
 
@@ -37,7 +38,7 @@ Download the `.apk` from the EAS build page and install on Android.
 npm start
 ```
 
-Use Expo Go to test UI. **Verify push + polling on a real APK** — Expo Go has limitations.
+Use Expo Go to test UI. **Verify push + WebView monitoring on a real APK** — Expo Go has limitations.
 
 ## Optional env
 

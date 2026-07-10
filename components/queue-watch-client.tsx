@@ -514,8 +514,9 @@ export function QueueWatchClient() {
           <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
             <h2 className="text-base font-semibold text-foreground">Want a phone app (APK)?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              The Android build can poll from your phone&apos;s network (better than Vercel), but
-              Imperva can still challenge it. The browser bookmarklet remains the most reliable path.
+              The Android app opens Pokemon Center in a WebView so you can pass Imperva, then watches
+              Queue-it from that session — same approach as this bookmarklet, with native push. Keep the
+              Queue tab open during drops.
             </p>
             <Link
               href="/queue-watch/mobile"

@@ -90,21 +90,32 @@
     var changed = lastReportedLive === null || lastReportedLive !== state.live
     if (!force && !changed && now - lastReportAt < HEARTBEAT_MS) return
 
+    var payload = {
+      type: "pc-queue-watch",
+      sessionId: sessionId,
+      live: state.live,
+      confidence: state.confidence,
+      signals: state.signals,
+      pageUrl: location.href,
+      token: watchToken || undefined,
+      source: "bookmarklet",
+      checkedAt: new Date().toISOString(),
+    }
+
+    // Native app WebView bridge (Imperva-safe path)
+    try {
+      if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
+        window.ReactNativeWebView.postMessage(JSON.stringify(payload))
+      }
+    } catch (e) {}
+
     var headers = { "Content-Type": "application/json" }
     if (watchToken) headers["X-Queue-Watch-Token"] = watchToken
 
     fetch(reportUrl, {
       method: "POST",
       headers: headers,
-      body: JSON.stringify({
-        sessionId: sessionId,
-        live: state.live,
-        confidence: state.confidence,
-        signals: state.signals,
-        pageUrl: location.href,
-        token: watchToken || undefined,
-        source: "bookmarklet",
-      }),
+      body: JSON.stringify(payload),
       keepalive: true,
       mode: "cors",
       credentials: "omit",
