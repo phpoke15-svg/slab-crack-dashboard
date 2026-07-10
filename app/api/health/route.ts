@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
 import { checkPokeMatchSetup } from "@/lib/trade-binder/setup-health"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
+import { isStripeConfigured } from "@/lib/billing/stripe"
 import { LEGAL_SITE_NAME, LEGAL_SITE_URL } from "@/lib/legal/config"
 
 export const dynamic = "force-dynamic"
@@ -13,6 +14,7 @@ export async function GET() {
   const adsenseConfigured = Boolean(
     process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || process.env.NEXT_PUBLIC_ADSENSE_FEED_SLOT_ID,
   )
+  const stripeConfigured = isStripeConfigured()
 
   let pokematchReady: boolean | null = null
   if (supabaseConfigured) {
@@ -41,6 +43,7 @@ export async function GET() {
         supabaseConfigured,
         cronSecretConfigured,
         adsenseConfigured,
+        stripeConfigured,
         pokematchReady,
       },
       time: new Date().toISOString(),
