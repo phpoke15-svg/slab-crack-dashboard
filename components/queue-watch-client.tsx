@@ -587,6 +587,16 @@ export function QueueWatchClient() {
               {status?.bookmarklet?.reportedAt &&
                 ` · last ping ${new Date(status.bookmarklet.reportedAt).toLocaleTimeString()}`}
             </p>
+            {!tabConnected && (
+              <p className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
+                Pokemon Center console noise like &quot;event successful&quot; is <strong>not</strong>{" "}
+                CollecTools. Look for an orange/dark badge saying <strong>PC Queue Watch</strong>. If
+                it says <strong>click to sync</strong>, click it once and allow the CollecTools
+                pop-up. Also run{" "}
+                <code className="rounded bg-secondary px-1">supabase/queue-watch.sql</code> if you
+                haven&apos;t — reports need that table across servers.
+              </p>
+            )}
             <p className="mt-2 text-xs text-muted-foreground">
               Prefer an app?{" "}
               <Link href="/queue-watch/mobile" className="text-primary hover:underline">
