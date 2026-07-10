@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, ExternalLink, Star, Calculator, Lightbulb, ChevronDown, Activity, BarChart3, ShieldCheck, Receipt } from "lucide-react"
+import { X, ExternalLink, Star, Calculator, Lightbulb, ChevronDown, Activity, BarChart3, ShieldCheck } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getBestGradeQuote,
@@ -185,20 +185,8 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             />
           </div>
 
-          {/* Recent eBay sold comps */}
-          <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Receipt className="size-4 text-primary" />
-              <h4 className="font-semibold text-foreground">Recent eBay Sales</h4>
-            </div>
-
-            <div className="flex flex-col items-center rounded-xl border border-dashed border-border/80 bg-card/40 px-4 py-8 text-center">
-              <p className="text-sm font-semibold text-foreground">Coming soon</p>
-              <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-muted-foreground">
-                Live sold comps for raw and PSA slabs will show here once our eBay sales API is connected.
-              </p>
-            </div>
-          </div>
+          {/* Recent eBay sold comps — re-enable when sales API is wired */}
+          {null}
 
           {/* Deal intelligence */}
           {priced && confidence && (

@@ -10,6 +10,7 @@ import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
 import { PLAN_TIERS, type PriceKey } from "@/lib/billing/plans"
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal/config"
 import { cn } from "@/lib/utils"
 
 export function PricingClient() {
@@ -23,8 +24,15 @@ export function PricingClient() {
   const checkoutState = searchParams.get("checkout")
 
   useEffect(() => {
-    if (checkoutState === "success") {
+    if (checkoutState !== "success") return
+    void entitlements.refresh()
+    const id = window.setInterval(() => {
       void entitlements.refresh()
+    }, 2500)
+    const stop = window.setTimeout(() => window.clearInterval(id), 30_000)
+    return () => {
+      window.clearInterval(id)
+      window.clearTimeout(stop)
     }
   }, [checkoutState, entitlements])
 
@@ -58,33 +66,56 @@ export function PricingClient() {
     }
   }
 
+  const renewalLabel = entitlements.currentPeriodEnd
+    ? new Date(entitlements.currentPeriodEnd).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-10 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <CollecToolsBrand href="/" size="lg" subtitle="Plans · Premium & Pro" />
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Free tools stay free. Upgrade for an ad-free experience, or Pro for Pokemon Center Queue
-            Watch.
+            All tools stay free with ads. Upgrade for an ad-free experience, or Pro for Pokemon Center
+            Queue Watch.
           </p>
         </div>
         <SiteAuthButton className="shrink-0" />
       </header>
 
       {checkoutState === "success" && (
-        <p className="mb-6 rounded-xl border border-trade/40 bg-trade/10 px-4 py-3 text-sm text-foreground">
-          Thanks — your subscription is activating. This page will update in a few seconds.
+        <p
+          role="status"
+          className="mb-6 rounded-xl border border-trade/40 bg-trade/10 px-4 py-3 text-sm text-foreground"
+        >
+          {entitlements.plan !== "free"
+            ? `You're on ${entitlements.plan}. Thanks for supporting CollecTools.`
+            : "Thanks — your subscription is activating. This page updates automatically for about 30 seconds."}
         </p>
       )}
       {checkoutState === "cancel" && (
         <p className="mb-6 rounded-xl border border-border bg-secondary/40 px-4 py-3 text-sm text-muted-foreground">
-          Checkout canceled. You can pick a plan anytime.
+          Checkout canceled.{" "}
+          <Link href="/" className="font-medium text-foreground hover:underline">
+            Back to tools
+          </Link>{" "}
+          or pick a plan anytime.
         </p>
       )}
 
-      <div className="mb-6 flex items-center justify-center gap-2">
+      <div
+        className="mb-6 flex items-center justify-center gap-2"
+        role="tablist"
+        aria-label="Billing interval"
+      >
         <button
           type="button"
+          role="tab"
+          aria-selected={interval === "month"}
           onClick={() => setInterval("month")}
           className={cn(
             "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
@@ -97,6 +128,8 @@ export function PricingClient() {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={interval === "year"}
           onClick={() => setInterval("year")}
           className={cn(
             "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
@@ -106,6 +139,7 @@ export function PricingClient() {
           )}
         >
           Yearly
+          <span className="ml-1 text-[10px] font-normal opacity-80">save ~17%</span>
         </button>
       </div>
 
@@ -116,6 +150,11 @@ export function PricingClient() {
             <span className="font-semibold capitalize">{entitlements.plan}</span>
             {entitlements.adFree ? " · Ad-free" : ""}
             {entitlements.queueWatch ? " · Queue Watch" : ""}
+            {entitlements.cancelAtPeriodEnd && renewalLabel
+              ? ` · Cancels ${renewalLabel}`
+              : renewalLabel
+                ? ` · Renews ${renewalLabel}`
+                : ""}
           </p>
           <button
             type="button"
@@ -129,8 +168,23 @@ export function PricingClient() {
       )}
 
       {error && (
-        <p className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p
+          role="alert"
+          className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
           {error}
+        </p>
+      )}
+
+      {!user && (
+        <p className="mb-4 text-center text-xs text-muted-foreground">
+          Sign in required to subscribe.{" "}
+          <Link
+            href={`/sign-in?next=${encodeURIComponent("/pricing")}`}
+            className="font-medium text-foreground hover:underline"
+          >
+            Sign in
+          </Link>
         </p>
       )}
 
@@ -140,6 +194,7 @@ export function PricingClient() {
           const price = interval === "month" ? tier.monthlyPrice : tier.yearlyPrice
           const isCurrent = entitlements.plan === tier.id
           const busy = busyKey === priceKey
+          const billingReady = entitlements.stripeConfigured && !entitlements.isLoading
 
           return (
             <article
@@ -172,7 +227,9 @@ export function PricingClient() {
               </ul>
               <button
                 type="button"
-                disabled={busy || isCurrent || !entitlements.stripeConfigured}
+                aria-busy={busy}
+                aria-disabled={isCurrent || !billingReady}
+                disabled={busy || isCurrent || !billingReady}
                 onClick={() => void start(priceKey)}
                 className={cn(
                   "mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-colors disabled:opacity-60",
@@ -184,14 +241,25 @@ export function PricingClient() {
                 {busy ? <Loader2 className="size-4 animate-spin" /> : null}
                 {isCurrent
                   ? "Current plan"
-                  : !entitlements.stripeConfigured
-                    ? "Billing coming soon"
-                    : `Choose ${tier.name}`}
+                  : entitlements.isLoading
+                    ? "Loading…"
+                    : !entitlements.stripeConfigured
+                      ? "Subscriptions aren't open yet"
+                      : `Choose ${tier.name}`}
               </button>
             </article>
           )
         })}
       </div>
+
+      {!entitlements.stripeConfigured && !entitlements.isLoading && (
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Questions?{" "}
+          <a href={`mailto:${LEGAL_CONTACT_EMAIL}`} className="hover:text-foreground">
+            {LEGAL_CONTACT_EMAIL}
+          </a>
+        </p>
+      )}
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Free forever includes SlabCrack, Grade Check, and PokeMatch with ads.{" "}

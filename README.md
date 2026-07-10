@@ -7,19 +7,28 @@ TCG collector toolkit: **SlabCrack**, **Grade Check**, **PokeMatch**, and **Queu
 - Production: https://slab-crack-dashboard.vercel.app
 - Public launch steps: [DEPLOY.md](./DEPLOY.md)
 
-## Local
-
-```bash
-cp .env.example .env.local
-# fill Supabase + API keys
-npm ci
-npm run dev
-```
-
 ## Database
 
 Run `supabase/pokematch-setup.sql` in the Supabase SQL Editor (or the smaller
 `supabase/pokematch-missing-pieces.sql` if only card numbers / price cache are missing).
+
+For Premium/Pro billing, also run `supabase/billing-plans.sql` and set Stripe env vars
+(see [DEPLOY.md](./DEPLOY.md) § Billing).
+
+## Local
+
+```bash
+cp .env.example .env.local
+# fill Supabase + API keys (Stripe optional for local checkout)
+npm ci
+npm run dev
+```
+
+## Billing
+
+- Pricing page: `/pricing`
+- Plans: Free (ads) · Premium (ad-free) · Pro (ad-free + Queue Watch)
+- Setup: [DEPLOY.md](./DEPLOY.md) § Billing
 
 ## Scripts
 

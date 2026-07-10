@@ -3,8 +3,10 @@ import Stripe from "stripe"
 import { createAdminClient } from "@/lib/supabase/server"
 import {
   entitlementsForPlan,
+  getStripePriceId,
   planFromStripePriceId,
   planRank,
+  PRICE_KEYS,
   type Entitlements,
   type PlanId,
 } from "@/lib/billing/plans"
@@ -24,7 +26,9 @@ export function getStripe(): Stripe {
 }
 
 export function isStripeConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY?.trim())
+  if (!process.env.STRIPE_SECRET_KEY?.trim()) return false
+  // Checkout needs every published price ID; secret alone is not enough.
+  return PRICE_KEYS.every((key) => Boolean(getStripePriceId(key)))
 }
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"])

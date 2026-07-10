@@ -33,7 +33,10 @@ export function AdSlot({
   const pushed = useRef(false)
   const clientId = getAdSenseClientId()
   const slotId = getAdSenseSlotId(variant)
-  const adsEnabled = Boolean(clientId && slotId) && !entitlements?.adFree
+  // Wait for entitlements so Premium/Pro users never flash Sponsored slots.
+  const entitlementsPending = Boolean(entitlements?.isLoading)
+  const adsEnabled =
+    Boolean(clientId && slotId) && !entitlementsPending && !entitlements?.adFree
 
   useEffect(() => {
     if (!adsEnabled || pushed.current) return
@@ -46,7 +49,7 @@ export function AdSlot({
     }
   }, [adsEnabled, slotId])
 
-  if (entitlements?.adFree) return null
+  if (entitlementsPending || entitlements?.adFree) return null
 
   if (!adsEnabled) {
     return (

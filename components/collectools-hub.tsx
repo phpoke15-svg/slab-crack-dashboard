@@ -6,10 +6,17 @@ import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { FooterAd } from "@/components/footer-ad"
 import { SiteAuthButton } from "@/components/site-auth-button"
+import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { COLLECTOOLS } from "@/lib/collectools-tools"
 import { cn } from "@/lib/utils"
 
 export function CollecToolsHub() {
+  const entitlements = useOptionalEntitlements()
+  const showUpgrade =
+    !entitlements?.isLoading && entitlements?.signedIn && entitlements.plan === "free"
+  const showProNudge =
+    !entitlements?.isLoading && entitlements?.signedIn && entitlements.plan === "premium"
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-10 flex items-start justify-between gap-4">
@@ -23,6 +30,23 @@ export function CollecToolsHub() {
         </div>
         <SiteAuthButton className="shrink-0" />
       </header>
+
+      {showUpgrade ? (
+        <p className="mb-6 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+          Go ad-free from $1.99/mo.{" "}
+          <Link href="/pricing" className="font-medium text-primary hover:underline">
+            View Premium & Pro
+          </Link>
+        </p>
+      ) : null}
+      {showProNudge ? (
+        <p className="mb-6 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+          You&apos;re on Premium. Unlock Pokemon Center Queue Watch with Pro.{" "}
+          <Link href="/pricing" className="font-medium text-primary hover:underline">
+            Upgrade
+          </Link>
+        </p>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-1">
         {COLLECTOOLS.map((tool) => {
@@ -78,7 +102,7 @@ export function CollecToolsHub() {
         {" · "}
         ad-free from $1.99/mo · Queue Watch with Pro
       </p>
-      <SiteFooter className="mt-auto pt-8" />
+      <SiteFooter className="mt-auto pt-10" />
     </div>
   )
 }

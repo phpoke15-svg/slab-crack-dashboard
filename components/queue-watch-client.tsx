@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
+import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
 import { cn } from "@/lib/utils"
@@ -234,7 +235,17 @@ export function QueueWatchClient() {
         <SiteAuthButton className="shrink-0" />
       </header>
 
-      {!authLoading && !entitlements.isLoading && !hasPro ? (
+      {authLoading || entitlements.isLoading ? (
+        <section
+          role="status"
+          className="mb-8 rounded-2xl border border-border bg-card/40 p-6"
+        >
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            Checking your plan…
+          </div>
+        </section>
+      ) : !hasPro ? (
         <section className="mb-8 rounded-2xl border border-primary/40 bg-primary/10 p-6">
           <div className="flex items-start gap-3">
             <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/40 bg-primary/15 text-primary">
@@ -243,26 +254,44 @@ export function QueueWatchClient() {
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-semibold text-foreground">Pro feature</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Queue Watch (web monitoring, bookmarklet, and Discord/ntfy alerts) is part of{" "}
-                <strong className="text-foreground">Pro</strong> — $9.99/mo or $90/yr. Premium ($1.99/mo)
-                removes ads but does not include Queue Watch.
+                Queue Watch (web monitoring, bookmarklet, and optional Discord alerts) is part of{" "}
+                <strong className="text-foreground">Pro</strong> — $9.99/mo or $90/yr.
+                {entitlements.plan === "premium"
+                  ? " You’re on Premium (ad-free) — upgrade to Pro to unlock Queue Watch."
+                  : " Premium ($1.99/mo) removes ads but does not include Queue Watch."}
               </p>
+              {error ? (
+                <p
+                  role="alert"
+                  className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                >
+                  {error}
+                </p>
+              ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
-                  disabled={checkoutBusy}
+                  disabled={checkoutBusy || !entitlements.stripeConfigured}
                   onClick={() => void upgradeToPro("pro_month")}
                   className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
                 >
-                  {checkoutBusy ? "Starting…" : "Get Pro — $9.99/mo"}
+                  {checkoutBusy ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="size-4 animate-spin" /> Starting…
+                    </span>
+                  ) : !entitlements.stripeConfigured ? (
+                    "Billing coming soon"
+                  ) : (
+                    "Get Pro — $9.99/mo"
+                  )}
                 </button>
                 <button
                   type="button"
-                  disabled={checkoutBusy}
+                  disabled={checkoutBusy || !entitlements.stripeConfigured}
                   onClick={() => void upgradeToPro("pro_year")}
                   className="rounded-xl border border-border bg-card/60 px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
                 >
-                  Pro yearly — $90
+                  {checkoutBusy ? "…" : "Pro yearly — $90"}
                 </button>
                 <Link
                   href="/pricing"
@@ -270,6 +299,14 @@ export function QueueWatchClient() {
                 >
                   Compare plans
                 </Link>
+                {!user ? (
+                  <Link
+                    href={`/sign-in?next=${encodeURIComponent("/queue-watch")}`}
+                    className="inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Sign in
+                  </Link>
+                ) : null}
               </div>
             </div>
           </div>
@@ -409,7 +446,11 @@ export function QueueWatchClient() {
                 className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
               >
                 {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-                {copied ? "Copied" : "Copy bookmarklet"}
+                {copied
+                  ? "Copied"
+                  : bookmarkletHref
+                    ? "Copy bookmarklet"
+                    : "Preparing secure bookmarklet…"}
               </button>
               <button
                 type="button"
@@ -462,11 +503,7 @@ export function QueueWatchClient() {
         </>
       ) : null}
 
-      <footer className="mt-auto pt-10 text-center text-[11px] text-muted-foreground">
-        <Link href="/" className="hover:text-foreground">
-          Back to CollecTools
-        </Link>
-      </footer>
+      <SiteFooter className="mt-auto pt-10" />
     </div>
   )
 }

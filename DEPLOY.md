@@ -38,6 +38,10 @@ Copy from [`.env.example`](./.env.example). Minimum for public:
 | `REPORTS_DISCORD_WEBHOOK` | Optional — Discord alert on user reports |
 | `POKEMON_CENTER_DISCORD_WEBHOOK` | Queue Watch alerts (also used as report fallback) |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Optional Search Console |
+| `STRIPE_SECRET_KEY` | Checkout + portal (paid launch) |
+| `STRIPE_WEBHOOK_SECRET` | Subscription sync webhook |
+| `STRIPE_PRICE_PREMIUM_MONTHLY` / `_YEARLY` | Premium price IDs |
+| `STRIPE_PRICE_PRO_MONTHLY` / `_YEARLY` | Pro price IDs |
 
 After changing env vars, **Redeploy**.
 
@@ -89,6 +93,8 @@ curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/sync-bi
 - [ ] Block / report another profile
 - [ ] `/privacy` and `/terms` load; footer links work
 - [ ] Setup banner absent on `/binder`
+- [ ] `/pricing` loads; Choose Premium / Choose Pro when Stripe is configured
+- [ ] Test-mode checkout (card `4242…`); Premium hides ads; Pro unlocks Queue Watch
 
 ## 7. Ads
 

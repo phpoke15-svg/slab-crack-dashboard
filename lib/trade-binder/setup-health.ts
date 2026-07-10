@@ -6,6 +6,9 @@ export const POKEMATCH_MISSING_PIECES_SQL = "supabase/pokematch-missing-pieces.s
 /** Tables covered by the smaller gap-fill migration. */
 const MISSING_PIECES_TABLES = new Set(["trade_chat_reads", "binder_card_prices"])
 
+/** Billing schema — probed for ops, but product `ready` ignores these. */
+const BILLING_PROBE_IDS = new Set(["profiles_plan", "subscriptions"])
+
 export type SetupCheck = {
   id: string
   label: string
@@ -145,9 +148,19 @@ export async function checkPokeMatchSetup(supabase: SupabaseClient): Promise<Set
     }
   }
 
+  const failed = checks.filter((c) => !c.ok)
+  const productFailed = failed.filter((c) => !BILLING_PROBE_IDS.has(c.id))
+  const onlyMissingPieces =
+    productFailed.length > 0 &&
+    productFailed.every((c) => {
+      const probe = PROBES.find((p) => p.id === c.id)
+      return probe && MISSING_PIECES_TABLES.has(probe.table)
+    })
+
   return {
-    ready: checks.every((c) => c.ok),
+    // Binder UX cares about product tables; billing gaps are ops-only.
+    ready: productFailed.length === 0,
     checks,
-    setupSql: POKEMATCH_SETUP_SQL,
+    setupSql: onlyMissingPieces ? POKEMATCH_MISSING_PIECES_SQL : POKEMATCH_SETUP_SQL,
   }
 }
