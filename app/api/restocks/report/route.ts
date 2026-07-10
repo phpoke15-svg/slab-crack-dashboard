@@ -30,10 +30,17 @@ type ReportBody = {
 /**
  * Pokemon Center (and optional manual) stock reports.
  * Called from the mobile WebView inject / bookmarklet after Imperva is passed.
- * Optional shared secret: RESTOCKS_REPORT_SECRET via X-Restock-Secret.
+ * Requires RESTOCKS_REPORT_SECRET via X-Restock-Secret in production.
  */
 export async function POST(request: Request) {
   const requiredSecret = process.env.RESTOCKS_REPORT_SECRET?.trim()
+  const isProd = process.env.VERCEL_ENV === "production" || process.env.NODE_ENV === "production"
+  if (isProd && !requiredSecret) {
+    return NextResponse.json(
+      { error: "Restock reports disabled until RESTOCKS_REPORT_SECRET is set" },
+      { status: 503, headers: CORS_HEADERS },
+    )
+  }
   if (requiredSecret) {
     const provided = request.headers.get("x-restock-secret")?.trim()
     if (provided !== requiredSecret) {

@@ -2,6 +2,7 @@ import {
   claimPushAlertDedupe,
   sendWebPushToTopic,
 } from "@/lib/push/web-push"
+import { getSiteUrl } from "@/lib/site-url"
 
 const TZ = "America/New_York"
 
@@ -72,9 +73,7 @@ export async function sendWalmartWednesdayReminder(opts?: {
     return { sent: false, reason: "already_sent_this_week", weekKey, discordSent: false, pushSent: 0 }
   }
 
-  const site =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/$/, "") ||
-    "https://slab-crack-dashboard.vercel.app"
+  const site = getSiteUrl()
 
   const when = now.toLocaleString("en-US", {
     timeZone: TZ,

@@ -19,6 +19,7 @@ export async function GET() {
   const stripeConfigured = isStripeConfigured()
   const walmartAffiliateConfigured = isWalmartAffiliateConfigured()
   const webPushConfigured = isWebPushConfigured()
+  const restockReportSecured = Boolean(process.env.RESTOCKS_REPORT_SECRET?.trim())
 
   let pokematchReady: boolean | null = null
   if (supabaseConfigured) {
@@ -33,16 +34,27 @@ export async function GET() {
     }
   }
 
-  const ok =
+  const coreOk =
     supabaseConfigured &&
     cronSecretConfigured &&
     (pokematchReady === null || pokematchReady === true)
 
+  const launchReady = {
+    core: coreOk,
+    billing: stripeConfigured,
+    ads: adsenseConfigured,
+    restocksWalmart: walmartAffiliateConfigured,
+    phoneAlerts: webPushConfigured,
+    restockReportSecured,
+  }
+
   return NextResponse.json(
     {
-      ok,
+      ok: coreOk,
       service: LEGAL_SITE_NAME,
       siteUrl: LEGAL_SITE_URL,
+      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
+      env: process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? null,
       checks: {
         supabaseConfigured,
         cronSecretConfigured,
@@ -50,10 +62,12 @@ export async function GET() {
         stripeConfigured,
         walmartAffiliateConfigured,
         webPushConfigured,
+        restockReportSecured,
         pokematchReady,
       },
+      launchReady,
       time: new Date().toISOString(),
     },
-    { status: ok ? 200 : 503 },
+    { status: coreOk ? 200 : 503 },
   )
 }

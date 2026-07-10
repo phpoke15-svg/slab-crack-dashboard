@@ -5,6 +5,7 @@ import {
   sendWebPushToTopic,
 } from "@/lib/push/web-push"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
+import { getSiteUrl } from "@/lib/site-url"
 
 export type QueueWatchReport = {
   sessionId: string
@@ -113,9 +114,7 @@ async function maybeSendQueueLiveWebPush(report: QueueWatchReport): Promise<bool
   const claimed = await claimPushAlertDedupe("queue_live_global", PUSH_COOLDOWN_MS)
   if (!claimed) return false
 
-  const site =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim()?.replace(/\/$/, "") ||
-    "https://slab-crack-dashboard.vercel.app"
+  const site = getSiteUrl()
 
   const signalSummary =
     report.signals.length > 0

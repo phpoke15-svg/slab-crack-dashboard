@@ -94,12 +94,13 @@ After changing env vars, **Redeploy**.
 
 1. Run [`supabase/restocks.sql`](./supabase/restocks.sql) (creates tables).
 2. Set Walmart Affiliate env: `WALMART_AFFILIATE_CONSUMER_ID`, `WALMART_AFFILIATE_PRIVATE_KEY`, `WALMART_AFFILIATE_PUBLISHER_ID`.
-3. Cron `/api/cron/sync-restocks` every 15m:
+3. Cron `/api/cron/sync-restocks` daily (Hobby once/day limit; Pro can use `*/15`):
    - **Discovers** sealed Pokémon TCG SKUs via Affiliate search (no manual item list required)
    - **Checks** stock and can Discord-alert on restock (`RESTOCKS_DISCORD_WEBHOOK`)
 4. Optional: `WALMART_DISCOVERY_QUERIES` (pipe-separated search strings).
 5. UI: `/restocks`
 6. **Pokémon Center** live queues stay on **Queue Watch** (`/queue-watch`) — not this board.
+7. Set `RESTOCKS_REPORT_SECRET` in production so `/api/restocks/report` is not open.
 
 Uptime / config probe (no auth):
 
@@ -124,8 +125,12 @@ curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/walmart
 - [ ] Block / report another profile
 - [ ] `/privacy` and `/terms` load; footer links work
 - [ ] Setup banner absent on `/binder`
-- [ ] `/pricing` loads; Choose Premium / Choose Pro when Stripe is configured
-- [ ] Test-mode checkout (card `4242…`); Premium hides ads; Pro unlocks Queue Watch
+- [ ] `/pricing` loads; Start Premium/Pro trial when Stripe is configured
+- [ ] Live-mode checkout; Premium hides ads; Pro unlocks Queue Watch
+- [ ] `/api/health` shows `ok: true` and `launchReady.billing: true`
+- [ ] Phone alerts: VAPID env set (`launchReady.phoneAlerts: true`) and opt-in works on `/queue-watch`
+- [ ] Restocks: Walmart Affiliate env set if you want auto-discovery (`launchReady.restocksWalmart`)
+- [ ] Only one Vercel project deploys Production for this domain
 
 ## 7. Ads
 

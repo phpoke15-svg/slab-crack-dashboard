@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || LEGAL_SITE_URL).replace(/\/$/, "")
+  const siteUrl = LEGAL_SITE_URL.replace(/\/$/, "")
   const plan = planFromPriceKey(priceKey)
 
   try {

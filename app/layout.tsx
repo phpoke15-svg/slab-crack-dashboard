@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { AdSenseScript } from '@/components/adsense-script'
 import { AppProviders } from '@/components/app-providers'
+import { getSiteUrl } from '@/lib/site-url'
 import './globals.css'
 
 const geistSans = Geist({
@@ -15,11 +16,31 @@ const geistMono = Geist_Mono({
   variable: '--font-mono',
 })
 
+const siteUrl = getSiteUrl()
+
 export const metadata: Metadata = {
-  title: 'CollecTools — TCG Collector Toolkit',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'CollecTools — TCG Collector Toolkit',
+    template: '%s · CollecTools',
+  },
   description:
-    'SlabCrack arbitrage, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
-  generator: 'v0.app',
+    'SlabCrack arbitrage, Restocks, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
+  applicationName: 'CollecTools',
+  openGraph: {
+    type: 'website',
+    siteName: 'CollecTools',
+    title: 'CollecTools — TCG Collector Toolkit',
+    description:
+      'SlabCrack arbitrage, Restocks, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
+    url: siteUrl,
+  },
+  twitter: {
+    card: 'summary',
+    title: 'CollecTools — TCG Collector Toolkit',
+    description:
+      'SlabCrack arbitrage, Restocks, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
+  },
   other: {
     'google-adsense-account': 'ca-pub-8023063687308230',
   },

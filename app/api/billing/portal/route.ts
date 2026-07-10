@@ -17,7 +17,7 @@ export async function POST() {
   const auth = await requireUser()
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || LEGAL_SITE_URL).replace(/\/$/, "")
+  const siteUrl = LEGAL_SITE_URL.replace(/\/$/, "")
 
   try {
     const customerId = await ensureStripeCustomer(auth.user.id, auth.user.email ?? null)

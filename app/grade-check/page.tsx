@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation"
 
-/** Grade Check is paused — redirect bookmarks to the hub. */
+/** Grade Check is paused — send bookmarks to the hub. */
 export default function GradeCheckPage() {
   redirect("/")
 }
