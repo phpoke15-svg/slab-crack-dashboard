@@ -1,6 +1,6 @@
 # CollecTools
 
-TCG collector toolkit: **SlabCrack**, **PokeMatch**, and **Queue Watch**.
+TCG collector toolkit: **SlabCrack**, **Restocks**, **PokeMatch**, and **Queue Watch**.
 
 ## Live
 
@@ -14,6 +14,9 @@ Run `supabase/pokematch-setup.sql` in the Supabase SQL Editor (or the smaller
 
 For Premium/Pro billing, also run `supabase/billing-plans.sql` and set Stripe env vars
 (see [DEPLOY.md](./DEPLOY.md) § Billing).
+
+For the Restocks board, run `supabase/restocks.sql` and configure Walmart Affiliate env vars
+(see [DEPLOY.md](./DEPLOY.md) § Restocks).
 
 ## Local
 

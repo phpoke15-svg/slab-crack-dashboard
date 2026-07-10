@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/sync-binder-prices",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/sync-restocks",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

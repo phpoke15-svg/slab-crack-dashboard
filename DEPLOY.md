@@ -8,6 +8,7 @@ Use this before marketing the site as public.
 2. If the binder banner only lists **Binder card numbers** + **Price cache**, run the smaller patch instead: [`supabase/pokematch-missing-pieces.sql`](./supabase/pokematch-missing-pieces.sql).
 3. For SlabCrack catalog/arbitrage tables (if empty): run [`supabase/schema.sql`](./supabase/schema.sql), then seed/sync prices.
 4. Optional: **Settings → API → Reload schema**, wait ~30s, hard-refresh `/binder`. The amber setup banner must be gone.
+5. Restocks board: run [`supabase/restocks.sql`](./supabase/restocks.sql), then insert real Walmart item IDs / PC URLs with `active = true`.
 
 ## 2. One Vercel project
 
@@ -70,6 +71,16 @@ After changing env vars, **Redeploy**.
 
 - `/api/cron/discover-arbitrage` — daily 06:00 UTC
 - `/api/cron/sync-binder-prices` — daily 07:00 UTC
+- `/api/cron/sync-restocks` — every 15 minutes (Walmart Affiliate SKUs)
+
+## Restocks (Walmart + Pokémon Center)
+
+1. Run [`supabase/restocks.sql`](./supabase/restocks.sql).
+2. Replace seed rows with real products (`active = true`).
+3. Walmart: set `WALMART_AFFILIATE_CONSUMER_ID`, `WALMART_AFFILIATE_PRIVATE_KEY`, `WALMART_AFFILIATE_PUBLISHER_ID`.
+4. Pokémon Center: POST stock from a real browser/app session to `/api/restocks/report` (optional `RESTOCKS_REPORT_SECRET`). Helper script: `public/pc-restock-watch.js`.
+5. Optional Discord: `RESTOCKS_DISCORD_WEBHOOK` (falls back to Queue Watch webhook).
+6. UI: `/restocks`
 
 Uptime / config probe (no auth):
 
@@ -82,6 +93,7 @@ Smoke-test crons (replace secret + host):
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/discover-arbitrage"
 curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/sync-binder-prices"
+curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/sync-restocks"
 ```
 
 ## 6. Product smoke test

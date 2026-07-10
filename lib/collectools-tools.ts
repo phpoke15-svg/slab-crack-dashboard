@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { Bell, BookOpen, Layers } from "lucide-react"
+import { Bell, BookOpen, Layers, Package } from "lucide-react"
 
 export type CollecTool = {
   id: string
@@ -25,6 +25,15 @@ export const COLLECTOOLS: CollecTool[] = [
       "Market awareness — track graded vs raw pricing gaps and stay ahead of the market",
     ],
     icon: Layers,
+  },
+  {
+    id: "restocks",
+    href: "/restocks",
+    name: "Restocks",
+    tagline: "Walmart & PC availability",
+    description:
+      "Live stock board for curated sealed products. Walmart via Affiliate API; Pokémon Center via Imperva-safe reports.",
+    icon: Package,
   },
   {
     id: "binder",
