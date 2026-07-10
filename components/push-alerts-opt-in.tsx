@@ -1,7 +1,10 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
+import Link from "next/link"
 import { Bell, BellOff, Loader2, Smartphone } from "lucide-react"
+import { useAuth } from "@/components/trade-binder/auth/auth-provider"
+import { useEntitlements } from "@/components/billing/entitlements-provider"
 import {
   disableWebPush,
   enableWebPush,
@@ -25,6 +28,10 @@ export function PushAlertsOptIn({
   defaultWalmartWednesday = true,
   compact = false,
 }: Props) {
+  const { user, isLoading: authLoading } = useAuth()
+  const entitlements = useEntitlements()
+  const hasPro = entitlements.queueWatch
+
   const [supported, setSupported] = useState(true)
   const [enabled, setEnabled] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -47,9 +54,28 @@ export function PushAlertsOptIn({
     void refresh()
   }, [refresh])
 
+  // Queue-live requires Pro; if they aren't Pro, uncheck it.
+  useEffect(() => {
+    if (!authLoading && (!user || !hasPro) && queueLive) {
+      setQueueLive(false)
+    }
+  }, [authLoading, user, hasPro, queueLive])
+
   const onEnable = async () => {
     setBusy(true)
     setError(null)
+
+    if (queueLive && !user) {
+      setBusy(false)
+      setError("Sign in to get Pokémon Center queue alerts.")
+      return
+    }
+    if (queueLive && !hasPro) {
+      setBusy(false)
+      setError("Pokémon Center queue alerts require CollecTools Pro.")
+      return
+    }
+
     const result = await enableWebPush({ queueLive, walmartWednesday })
     setBusy(false)
     if (!result.ok) {
@@ -90,8 +116,10 @@ export function PushAlertsOptIn({
       </p>
       {!compact && (
         <p className="mt-2 text-sm text-muted-foreground">
-          Get a push notification on this device when Pokémon Center&apos;s queue goes live, and every
-          Wednesday at 9:00 PM ET for Walmart sealed restocks. No Discord account needed.
+          When <strong className="font-medium text-foreground">any</strong> Pro member detects the
+          Pokémon Center queue live on their phone or browser, <strong className="font-medium text-foreground">all</strong>{" "}
+          Pro members who enabled queue alerts get a push. Wednesday 9pm ET Walmart reminders are
+          separate.
         </p>
       )}
 
@@ -101,11 +129,31 @@ export function PushAlertsOptIn({
             <input
               type="checkbox"
               checked={queueLive}
+              disabled={!user || !hasPro}
               onChange={(e) => setQueueLive(e.target.checked)}
-              className="size-4 rounded border-border"
+              className="size-4 rounded border-border disabled:opacity-50"
             />
-            Pokémon Center queue live
+            <span>
+              Pokémon Center queue live{" "}
+              <span className="text-xs">(Pro)</span>
+            </span>
           </label>
+          {!user && (
+            <p className="pl-6 text-xs">
+              <Link href="/pricing" className="text-primary hover:underline">
+                Sign in
+              </Link>{" "}
+              with Pro to enable queue alerts.
+            </p>
+          )}
+          {user && !hasPro && (
+            <p className="pl-6 text-xs">
+              <Link href="/pricing" className="text-primary hover:underline">
+                Upgrade to Pro
+              </Link>{" "}
+              for queue-live pushes.
+            </p>
+          )}
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -132,7 +180,7 @@ export function PushAlertsOptIn({
         ) : (
           <button
             type="button"
-            disabled={busy || (!queueLive && !walmartWednesday)}
+            disabled={busy || authLoading || (!queueLive && !walmartWednesday)}
             onClick={() => void onEnable()}
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >

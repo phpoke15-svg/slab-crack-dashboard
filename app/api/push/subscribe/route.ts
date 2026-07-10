@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { removePushSubscription, upsertPushSubscription } from "@/lib/push/web-push"
 
@@ -30,12 +31,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "subscription too large" }, { status: 400 })
   }
 
+  const queueLive = body.queueLive === true
+  const walmartWednesday = body.walmartWednesday !== false
+
+  if (!queueLive && !walmartWednesday) {
+    return NextResponse.json({ error: "Select at least one alert type" }, { status: 400 })
+  }
+
   let userId: string | null = null
   try {
     const authResult = await requireUser()
     if (authResult.ok) userId = authResult.user.id
   } catch {
-    // anonymous subscriptions allowed
+    // Walmart-only may still work without sign-in
+  }
+
+  if (queueLive) {
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Sign in required for Pokémon Center queue alerts.", upgradeUrl: "/pricing" },
+        { status: 401 },
+      )
+    }
+    const isPro = await requireQueueWatchAccess(userId)
+    if (!isPro) {
+      return NextResponse.json(
+        {
+          error: "Pokémon Center queue alerts require CollecTools Pro.",
+          upgradeUrl: "/pricing",
+        },
+        { status: 403 },
+      )
+    }
   }
 
   await upsertPushSubscription({
@@ -43,12 +70,12 @@ export async function POST(request: Request) {
     p256dh,
     auth,
     userId,
-    queueLive: body.queueLive !== false,
-    walmartWednesday: body.walmartWednesday !== false,
+    queueLive,
+    walmartWednesday,
     userAgent: request.headers.get("user-agent"),
   })
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, queueLive, walmartWednesday })
 }
 
 export async function DELETE(request: Request) {

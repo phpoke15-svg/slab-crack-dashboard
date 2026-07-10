@@ -1,4 +1,5 @@
 import webpush from "web-push"
+import { requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 
 export type PushTopic = "queue_live" | "walmart_wednesday"
@@ -127,6 +128,21 @@ async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionReco
   )
 }
 
+/** Queue-live alerts only go to signed-in Pro members. */
+async function filterProQueueSubscribers(
+  subs: PushSubscriptionRecord[],
+): Promise<PushSubscriptionRecord[]> {
+  const withUser = subs.filter((s) => Boolean(s.userId))
+  if (withUser.length === 0) return []
+
+  const uniqueIds = [...new Set(withUser.map((s) => s.userId!))]
+  const flags = await Promise.all(
+    uniqueIds.map(async (id) => [id, await requireQueueWatchAccess(id)] as const),
+  )
+  const proIds = new Set(flags.filter(([, ok]) => ok).map(([id]) => id))
+  return withUser.filter((s) => s.userId && proIds.has(s.userId))
+}
+
 /** Returns true if this alert_key was not sent recently (and records it). */
 export async function claimPushAlertDedupe(
   alertKey: string,
@@ -175,9 +191,17 @@ export async function sendWebPushToTopic(
   }
 
   configureWebPush()
-  const subs = await listSubscriptions(topic)
+  let subs = await listSubscriptions(topic)
+  if (topic === "queue_live") {
+    subs = await filterProQueueSubscribers(subs)
+  }
   if (subs.length === 0) {
-    return { sent: 0, failed: 0, skipped: true, reason: "no_subscribers" }
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: true,
+      reason: topic === "queue_live" ? "no_pro_subscribers" : "no_subscribers",
+    }
   }
 
   const body = JSON.stringify(payload)
@@ -202,7 +226,6 @@ export async function sendWebPushToTopic(
           err && typeof err === "object" && "statusCode" in err
             ? Number((err as { statusCode?: number }).statusCode)
             : 0
-        // Gone / expired subscription
         if (statusCode === 404 || statusCode === 410) {
           await removePushSubscription(sub.endpoint)
         }

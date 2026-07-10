@@ -84,8 +84,8 @@ After changing env vars, **Redeploy**.
    - `VAPID_SUBJECT` (e.g. `mailto:support@collectools.app`)
 4. Redeploy. Users enable **Phone alerts** on `/queue-watch` or `/restocks`.
 5. Sends:
-   - Pokémon Center queue live (when a Pro monitor reports LIVE)
-   - Walmart Wednesday 9pm ET reminder
+   - Pokémon Center queue live → **all Pro members** who enabled queue phone alerts (one monitor detects → everyone notified)
+   - Walmart Wednesday 9pm ET reminder (anyone who opted in)
 6. **iOS:** Add to Home Screen first, then enable alerts from the home-screen icon.
 
 ## Restocks (Walmart auto-discovery)
