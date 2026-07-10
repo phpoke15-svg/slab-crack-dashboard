@@ -67,9 +67,21 @@ const PROBES: Probe[] = [
   },
   { id: "trade_items", label: "Trade items", table: "trade_items" },
   { id: "trade_messages", label: "Trade chat", table: "trade_messages" },
-  { id: "trade_chat_reads", label: "Chat read receipts", table: "trade_chat_reads" },
+  {
+    id: "trade_chat_reads",
+    label: "Chat read receipts",
+    table: "trade_chat_reads",
+    // Primary key is (trade_id, user_id) — no id column.
+    columns: "trade_id,user_id,last_read_at",
+  },
   { id: "reviews", label: "Reviews", table: "reviews" },
-  { id: "binder_card_prices", label: "Price cache", table: "binder_card_prices" },
+  {
+    id: "binder_card_prices",
+    label: "Price cache",
+    table: "binder_card_prices",
+    // Primary key is card_id — no id column.
+    columns: "card_id,raw_price,synced_at",
+  },
   {
     id: "profiles_plan",
     label: "Billing plans",
