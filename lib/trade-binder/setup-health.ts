@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 
 export const POKEMATCH_SETUP_SQL = "supabase/pokematch-setup.sql"
+export const POKEMATCH_MISSING_PIECES_SQL = "supabase/pokematch-missing-pieces.sql"
+
+/** Tables covered by the smaller gap-fill migration. */
+const MISSING_PIECES_TABLES = new Set(["trade_chat_reads", "binder_card_prices"])
 
 export type SetupCheck = {
   id: string
@@ -112,12 +116,15 @@ async function probe(supabase: SupabaseClient, item: Probe): Promise<SetupCheck>
   }
 
   const message = error.message ?? "Unknown error"
+  const sqlHint = MISSING_PIECES_TABLES.has(item.table)
+    ? POKEMATCH_MISSING_PIECES_SQL
+    : POKEMATCH_SETUP_SQL
   return {
     id: item.id,
     label: item.label,
     ok: false,
     detail: isMissingSchemaError(message)
-      ? `Missing — run ${POKEMATCH_SETUP_SQL}`
+      ? `Missing — run ${sqlHint}`
       : message,
   }
 }
