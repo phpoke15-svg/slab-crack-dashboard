@@ -5,4 +5,4 @@ export const LEGAL_SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "https://slab-crack-dashboard.vercel.app"
 export const LEGAL_CONTACT_EMAIL =
   process.env.NEXT_PUBLIC_CONTACT_EMAIL ?? "support@collectools.app"
-export const LEGAL_LAST_UPDATED = "July 9, 2026"
+export const LEGAL_LAST_UPDATED = "July 10, 2026"

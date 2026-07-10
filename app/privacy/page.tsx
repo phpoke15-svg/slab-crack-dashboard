@@ -62,7 +62,13 @@ export default function PrivacyPage() {
           >
             Google&apos;s advertising policies
           </a>
-          . You can manage ad personalization in your Google account settings.
+          . You can manage ad personalization in your Google account settings. Paid Premium and Pro
+          subscribers do not see in-app Sponsored ad slots while their plan is active.
+        </p>
+        <p>
+          <strong className="text-foreground">Billing information.</strong> If you purchase
+          Premium or Pro, payment is processed by Stripe. We receive subscription status, plan
+          identifiers, and a Stripe customer ID. We do not store your full card number.
         </p>
       </LegalSection>
 
@@ -73,6 +79,7 @@ export default function PrivacyPage() {
           <li>Show your profile and binder to other users according to your visibility settings.</li>
           <li>Sync card price estimates used for fair-value matching.</li>
           <li>Improve reliability, fix bugs, and prevent abuse.</li>
+          <li>Process subscriptions and provide paid plan benefits.</li>
           <li>Comply with law and enforce our Terms of Service.</li>
         </ul>
         <p>We do not sell your personal information to third parties.</p>
@@ -91,6 +98,7 @@ export default function PrivacyPage() {
         <ul>
           <li>Supabase (database, authentication, file storage)</li>
           <li>Vercel (hosting and analytics)</li>
+          <li>Stripe (subscription billing for Premium and Pro)</li>
           <li>Google AdSense (advertising, where enabled)</li>
           <li>Price data providers (e.g. PriceCharting) for market price estimates</li>
         </ul>

@@ -116,13 +116,51 @@ export default function TermsPage() {
 
       <LegalSection title="8. Advertising">
         <p>
-          The Service may display third-party advertisements (e.g. Google AdSense). Ads are provided
-          by third parties; we do not endorse advertised products. Your dealings with advertisers are
-          solely between you and them.
+          The Service may display third-party advertisements (e.g. Google AdSense) for free users.
+          Ads are provided by third parties; we do not endorse advertised products. Your dealings
+          with advertisers are solely between you and them.
+        </p>
+        <p>
+          Paid <strong className="text-foreground">Premium</strong> and{" "}
+          <strong className="text-foreground">Pro</strong> plans remove in-app Sponsored ad slots
+          while the subscription is active. Queue Watch features require Pro.
         </p>
       </LegalSection>
 
-      <LegalSection title="9. Intellectual property">
+      <LegalSection title="9. Paid subscriptions (Premium & Pro)">
+        <p>
+          Optional paid plans are billed through Stripe. Current offerings (subject to change on the{" "}
+          <a href="/pricing">pricing</a> page) include:
+        </p>
+        <ul>
+          <li>
+            <strong className="text-foreground">Premium</strong> — ad-free access to SlabCrack,
+            Grade Check, and {LEGAL_PRODUCT_NAME}.
+          </li>
+          <li>
+            <strong className="text-foreground">Pro</strong> — everything in Premium, plus Pokemon
+            Center Queue Watch (web monitoring and related alerts).
+          </li>
+        </ul>
+        <p>
+          Fees are charged in advance on a recurring monthly or yearly basis until you cancel.
+          You can manage or cancel in the Stripe customer portal linked from the pricing page, or by
+          contacting us. Cancellation stops future renewals; you retain paid benefits until the end
+          of the current billing period unless otherwise required by law.
+        </p>
+        <p>
+          Except where required by law, subscription fees are non-refundable. We may change prices
+          with notice; changes apply on the next renewal unless you cancel. Paid features may be
+          modified or discontinued; if we discontinue a paid feature you paid for, we will provide
+          a prorated credit or refund where required by law.
+        </p>
+        <p>
+          Subscription billing is handled by Stripe. We do not store your full card number; Stripe
+          processes payments under its terms and privacy policy.
+        </p>
+      </LegalSection>
+
+      <LegalSection title="10. Intellectual property">
         <p>
           {LEGAL_SITE_NAME}, its branding, software, and design are owned by us or our licensors.
           Pokémon, TCG set names, and card images may be trademarks or copyrights of their respective
@@ -131,24 +169,25 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Termination">
+      <LegalSection title="11. Termination">
         <p>
           You may stop using the Service at any time. We may suspend or terminate your access if you
-          breach these terms, create risk for other users, or if we discontinue the Service. Sections
-          that by nature should survive (disclaimers, liability limits, dispute terms) will survive
-          termination.
+          breach these terms, create risk for other users, or if we discontinue the Service. Unpaid
+          amounts remain due. Sections that by nature should survive (disclaimers, liability limits,
+          dispute terms) will survive termination.
         </p>
       </LegalSection>
 
-      <LegalSection title="11. Disclaimers">
+      <LegalSection title="12. Disclaimers">
         <p>
           THE SERVICE IS PROVIDED &quot;AS IS&quot; AND &quot;AS AVAILABLE&quot; WITHOUT WARRANTIES
           OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR
-          PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT UNINTERRUPTED OR ERROR-FREE OPERATION.
+          PURPOSE, AND NON-INFRINGEMENT. WE DO NOT WARRANT UNINTERRUPTED OR ERROR-FREE OPERATION,
+          INCLUDING QUEUE WATCH ALERTS OR MARKET PRICE DATA.
         </p>
       </LegalSection>
 
-      <LegalSection title="12. Limitation of liability">
+      <LegalSection title="13. Limitation of liability">
         <p>
           TO THE MAXIMUM EXTENT PERMITTED BY LAW, {LEGAL_SITE_NAME.toUpperCase()} AND ITS
           OPERATORS WILL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR
@@ -157,12 +196,11 @@ export default function TermsPage() {
         </p>
         <p>
           OUR TOTAL LIABILITY FOR ANY CLAIM RELATING TO THE SERVICE IS LIMITED TO THE GREATER OF (A)
-          USD $100 OR (B) THE AMOUNT YOU PAID US IN THE TWELVE MONTHS BEFORE THE CLAIM (TYPICALLY
-          $0 FOR FREE USERS).
+          USD $100 OR (B) THE AMOUNT YOU PAID US IN THE TWELVE MONTHS BEFORE THE CLAIM.
         </p>
       </LegalSection>
 
-      <LegalSection title="13. Indemnification">
+      <LegalSection title="14. Indemnification">
         <p>
           You agree to indemnify and hold harmless {LEGAL_SITE_NAME} and its operators from claims,
           damages, and expenses (including reasonable legal fees) arising from your use of the
@@ -170,7 +208,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="14. Disputes and governing law">
+      <LegalSection title="15. Disputes and governing law">
         <p>
           These terms are governed by the laws of the United States and the State of Delaware,
           without regard to conflict-of-law rules, except where mandatory consumer protection laws in
@@ -184,7 +222,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="15. Changes">
+      <LegalSection title="16. Changes">
         <p>
           We may modify these Terms from time to time. We will post the updated version on this page.
           Material changes may also be noted in the app. Continued use after the effective date
@@ -192,7 +230,7 @@ export default function TermsPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="16. Contact">
+      <LegalSection title="17. Contact">
         <p>
           Questions about these Terms:{" "}
           <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>
