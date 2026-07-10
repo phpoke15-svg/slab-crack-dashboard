@@ -72,6 +72,7 @@ After changing env vars, **Redeploy**.
 - `/api/cron/discover-arbitrage` — daily 06:00 UTC
 - `/api/cron/sync-binder-prices` — daily 07:00 UTC
 - `/api/cron/sync-restocks` — every 15 minutes (Walmart Affiliate SKUs)
+- `/api/cron/walmart-wednesday-reminder` — Thu 01:00 & 02:00 UTC (Wed 9pm ET DST/STD); Discord ping
 
 ## Restocks (Walmart auto-discovery)
 
@@ -96,6 +97,7 @@ Smoke-test crons (replace secret + host):
 curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/discover-arbitrage"
 curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/sync-binder-prices"
 curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/sync-restocks"
+curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/walmart-wednesday-reminder?force=1"
 ```
 
 ## 6. Product smoke test

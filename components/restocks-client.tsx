@@ -239,6 +239,10 @@ export function RestocksClient() {
             availability every 15 minutes and can Discord-ping on restock.
           </li>
           <li>
+            <strong className="text-foreground">Wednesday 9pm ET</strong> — weekly Discord reminder
+            for the usual Walmart Pokémon sealed restock window.
+          </li>
+          <li>
             <strong className="text-foreground">Pokémon Center</strong> — use{" "}
             <Link href="/queue-watch" className="text-primary hover:underline">
               Queue Watch
