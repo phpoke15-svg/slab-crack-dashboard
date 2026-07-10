@@ -5,7 +5,7 @@ import { PricingClient } from "@/components/pricing-client"
 export const metadata: Metadata = {
   title: "Pricing — CollecTools",
   description:
-    "Free tools with ads. Premium removes ads from $1.99/mo. Pro adds Pokemon Center Queue Watch from $9.99/mo.",
+    "Free SlabCrack preview (10 mid-deficit cards). Premium $4.99/mo unlocks the full feed ad-free. Pro $9.99/mo adds Queue Watch and everything else.",
 }
 
 export default function PricingPage() {

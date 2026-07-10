@@ -21,6 +21,8 @@ import { interleaveFeedAds } from "@/lib/feed-ads"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
+import { FREE_SLABCRACK_LIMIT, pickMidDeficitCards } from "@/lib/slab-free-tier"
+import Link from "next/link"
 import {
   findWatchedIdForHit,
   isSearchHitWatched,
@@ -173,10 +175,18 @@ export function SlabDashboard() {
     [watchlistStore, feedById],
   )
 
-  const results = useMemo(() => {
-    const source = feed === "watchlist" ? watchedCards : arbitrageFeed
+  const fullSlabCrack = Boolean(entitlements?.fullSlabCrack)
 
-    return source
+  const results = useMemo(() => {
+    // Free tier (and pre-auth default): mid-deficit preview only (not the top chase deals).
+    const baseFeed =
+      feed === "watchlist"
+        ? watchedCards
+        : fullSlabCrack
+          ? arbitrageFeed
+          : pickMidDeficitCards(arbitrageFeed)
+
+    return baseFeed
       .filter((card) => {
         const matchesFeed =
           feed === "watchlist"
@@ -198,7 +208,9 @@ export function SlabDashboard() {
         if (a.hasPricing !== b.hasPricing) return a.hasPricing ? -1 : 1
         return sortMode === "dollar" ? b.deficit - a.deficit : b.percentageSavings - a.percentageSavings
       })
-  }, [arbitrageFeed, feed, query, sortMode, watchedCards])
+  }, [arbitrageFeed, feed, fullSlabCrack, query, sortMode, watchedCards])
+
+  const showFreePreviewBanner = !fullSlabCrack && feed === "top" && !entitlements?.isLoading
 
   const pricedCount = useMemo(
     () => arbitrageFeed.filter((card) => card.hasPricing !== false).length,
@@ -214,7 +226,8 @@ export function SlabDashboard() {
     () => interleaveFeedAds(results, entitlements?.adFree ? 0 : undefined),
     [results, entitlements?.adFree],
   )
-  const showCatalogSearch = query.trim().length >= 2 && feed !== "watchlist"
+  const showCatalogSearch =
+    query.trim().length >= 2 && feed !== "watchlist" && fullSlabCrack
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -322,7 +335,10 @@ export function SlabDashboard() {
             <span>
               {results.length} {results.length === 1 ? "card" : "cards"}
               {feed === "watchlist" ? " on watchlist" : " tracked"}
-              {feed !== "watchlist" && pricedCount > 0 && (
+              {showFreePreviewBanner && (
+                <> · free preview (mid-deficit)</>
+              )}
+              {feed !== "watchlist" && !showFreePreviewBanner && pricedCount > 0 && (
                 <>
                   {" "}
                   · {pricedCount} with live pricing · by{" "}
@@ -371,6 +387,19 @@ export function SlabDashboard() {
             </div>
           )}
         </div>
+
+        {showFreePreviewBanner && (
+          <div className="mb-4 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+            <p className="font-medium text-foreground">Free SlabCrack preview</p>
+            <p className="mt-1">
+              Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities).{" "}
+              <Link href="/pricing" className="font-medium text-primary hover:underline">
+                Upgrade to Premium
+              </Link>{" "}
+              for the full feed, ad-free — from $4.99/mo.
+            </p>
+          </div>
+        )}
 
         {feedLoading ? (
           <div className="mt-16 flex flex-col items-center justify-center text-center">

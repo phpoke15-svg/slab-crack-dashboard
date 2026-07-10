@@ -302,10 +302,10 @@ export function QueueWatchClient() {
               <h1 className="text-xl font-semibold text-foreground">Pro feature</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 Queue Watch (web monitoring, bookmarklet, and optional Discord alerts) is part of{" "}
-                <strong className="text-foreground">Pro</strong> — $9.99/mo or $90/yr.
+                <strong className="text-foreground">Pro</strong> — $9.99/mo or $99.99/yr.
                 {entitlements.plan === "premium"
-                  ? " You’re on Premium (ad-free) — upgrade to Pro to unlock Queue Watch."
-                  : " Premium ($1.99/mo) removes ads but does not include Queue Watch."}
+                  ? " You’re on Premium (full SlabCrack, ad-free) — upgrade to Pro to unlock Queue Watch."
+                  : " Premium ($4.99/mo) unlocks full SlabCrack ad-free but does not include Queue Watch."}
               </p>
               {error ? (
                 <p
@@ -338,7 +338,7 @@ export function QueueWatchClient() {
                   onClick={() => void upgradeToPro("pro_year")}
                   className="rounded-xl border border-border bg-card/60 px-4 py-2.5 text-sm font-semibold disabled:opacity-60"
                 >
-                  {checkoutBusy ? "…" : "Pro yearly — $90"}
+                  {checkoutBusy ? "…" : "Pro yearly — $99.99"}
                 </button>
                 <Link
                   href="/pricing"

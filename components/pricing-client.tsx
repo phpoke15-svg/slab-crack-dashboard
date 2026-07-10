@@ -9,7 +9,7 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
-import { PLAN_TIERS, type PriceKey } from "@/lib/billing/plans"
+import { PLAN_TIERS, FREE_PLAN_FEATURES, type PriceKey } from "@/lib/billing/plans"
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal/config"
 import { cn } from "@/lib/utils"
 
@@ -80,8 +80,8 @@ export function PricingClient() {
         <div className="min-w-0 flex-1">
           <CollecToolsBrand href="/" size="lg" subtitle="Plans · Premium & Pro" />
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            All tools stay free with ads. Upgrade for an ad-free experience, or Pro for Pokemon Center
-            Queue Watch.
+            Free includes a SlabCrack preview (10 mid-deficit cards) with ads. Premium unlocks the full
+            feed ad-free. Pro adds Pokemon Center Queue Watch and the rest of CollecTools.
           </p>
         </div>
         <SiteAuthButton className="shrink-0" />
@@ -188,7 +188,29 @@ export function PricingClient() {
         </p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <article className="flex flex-col rounded-2xl border border-border bg-card/40 p-5">
+          <h2 className="text-lg font-semibold text-foreground">Free</h2>
+          <p className="mt-1 text-sm text-muted-foreground">SlabCrack preview + ads</p>
+          <p className="mt-4 font-mono text-3xl font-bold text-foreground">
+            $0
+            <span className="text-sm font-medium text-muted-foreground">/mo</span>
+          </p>
+          <ul className="mt-4 flex-1 space-y-2 text-sm text-muted-foreground">
+            {FREE_PLAN_FEATURES.map((feature) => (
+              <li key={feature} className="flex gap-2">
+                <Check className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+                <span>{feature}</span>
+              </li>
+            ))}
+          </ul>
+          <Link
+            href="/slabcrack"
+            className="mt-5 inline-flex items-center justify-center rounded-xl border border-border bg-secondary/60 px-4 py-2.5 text-sm font-semibold text-foreground hover:border-primary/40"
+          >
+            Try SlabCrack
+          </Link>
+        </article>
         {PLAN_TIERS.map((tier) => {
           const priceKey = `${tier.id}_${interval}` as PriceKey
           const price = interval === "month" ? tier.monthlyPrice : tier.yearlyPrice

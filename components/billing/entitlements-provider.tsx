@@ -48,6 +48,9 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
         plan: (data.plan as PlanId) || "free",
         adFree: Boolean(data.adFree),
         queueWatch: Boolean(data.queueWatch),
+        fullSlabCrack: Boolean(
+          data.fullSlabCrack ?? (data.plan === "premium" || data.plan === "pro"),
+        ),
         status: data.status ?? null,
         currentPeriodEnd: data.currentPeriodEnd ?? null,
         cancelAtPeriodEnd: Boolean(data.cancelAtPeriodEnd),

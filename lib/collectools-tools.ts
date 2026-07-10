@@ -18,7 +18,7 @@ export const COLLECTOOLS: CollecTool[] = [
     name: "SlabCrack",
     tagline: "Graded slab arbitrage",
     description:
-      "Find PSA slabs selling for less than a raw Near-Mint copy. Live deficit feed, card lookup, and watchlists.",
+      "Find PSA slabs selling for less than a raw Near-Mint copy. Free preview shows 10 mid-deficit cards; Premium unlocks the full feed.",
     highlights: [
       "Buy, crack, and sell — spot slabs where cracking and selling raw beats the market price",
       "Buy high-end cards under market for your personal collection",

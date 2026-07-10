@@ -11,39 +11,48 @@ export type PlanTier = {
   features: string[]
   includesQueueWatch: boolean
   adFree: boolean
+  fullSlabCrack: boolean
 }
 
 export const PLAN_TIERS: PlanTier[] = [
   {
     id: "premium",
     name: "Premium",
-    tagline: "Ad-free CollecTools",
-    monthlyPrice: 1.99,
-    yearlyPrice: 20,
+    tagline: "Full SlabCrack, ad-free",
+    monthlyPrice: 4.99,
+    yearlyPrice: 39.99,
     adFree: true,
+    fullSlabCrack: true,
     includesQueueWatch: false,
     features: [
+      "Full SlabCrack deficit feed (all graded opportunities)",
       "Ad-free SlabCrack and PokeMatch",
-      "Same tools as Free — without Sponsored slots",
       "Cancel anytime",
     ],
   },
   {
     id: "pro",
     name: "Pro",
-    tagline: "Ad-free + Pokemon Center Queue Watch",
+    tagline: "Everything CollecTools offers",
     monthlyPrice: 9.99,
-    yearlyPrice: 90,
+    yearlyPrice: 99.99,
     adFree: true,
+    fullSlabCrack: true,
     includesQueueWatch: true,
     features: [
       "Everything in Premium",
-      "Pokemon Center Queue Watch (web + alerts)",
-      "Browser notifications when the queue goes live",
+      "Pokemon Center Queue Watch (web + phone alerts)",
+      "Restocks board + Wednesday Walmart alerts",
       "Cancel anytime",
     ],
   },
 ]
+
+export const FREE_PLAN_FEATURES = [
+  "SlabCrack preview: 10 mid-deficit cards",
+  "PokeMatch with ads",
+  "Upgrade anytime for the full feed",
+] as const
 
 export type PriceKey = "premium_month" | "premium_year" | "pro_month" | "pro_year"
 
@@ -90,6 +99,8 @@ export type Entitlements = {
   plan: PlanId
   adFree: boolean
   queueWatch: boolean
+  /** Full SlabCrack feed; free users get a mid-deficit preview only. */
+  fullSlabCrack: boolean
   status: string | null
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
@@ -97,10 +108,12 @@ export type Entitlements = {
 
 export function entitlementsForPlan(plan: PlanId, extras?: Partial<Entitlements>): Entitlements {
   const tier = PLAN_TIERS.find((t) => t.id === plan)
+  const paid = plan === "premium" || plan === "pro"
   return {
     plan,
     adFree: Boolean(tier?.adFree),
     queueWatch: Boolean(tier?.includesQueueWatch),
+    fullSlabCrack: paid || Boolean(tier?.fullSlabCrack),
     status: extras?.status ?? (plan === "free" ? null : "active"),
     currentPeriodEnd: extras?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: extras?.cancelAtPeriodEnd ?? false,

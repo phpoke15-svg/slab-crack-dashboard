@@ -59,8 +59,8 @@ After changing env vars, **Redeploy**.
 
 1. Run [`supabase/billing-plans.sql`](./supabase/billing-plans.sql) in Supabase.
 2. Create Stripe products/prices:
-   - **Premium** — $1.99/mo + $20/yr (ad-free)
-   - **Pro** — $9.99/mo + $90/yr (ad-free + Queue Watch)
+   - **Premium** — $4.99/mo + $39.99/yr (full SlabCrack + ad-free)
+   - **Pro** — $9.99/mo + $99.99/yr (everything, including Queue Watch)
 3. Set Vercel env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the four `STRIPE_PRICE_*` IDs.
 4. Stripe webhook endpoint: `https://YOUR_HOST/api/billing/webhook` (events: `checkout.session.completed`, `customer.subscription.*`).
 5. Pricing page: `/pricing`

@@ -134,14 +134,18 @@ export default function TermsPage() {
         </p>
         <ul>
           <li>
-            <strong className="text-foreground">Premium</strong> — ad-free access to SlabCrack and{" "}
-            {LEGAL_PRODUCT_NAME}.
+            <strong className="text-foreground">Premium</strong> — full SlabCrack deficit feed and
+            ad-free access to {LEGAL_PRODUCT_NAME} tools ($4.99/mo or $39.99/yr).
           </li>
           <li>
             <strong className="text-foreground">Pro</strong> — everything in Premium, plus Pokemon
-            Center Queue Watch (web monitoring and related alerts).
+            Center Queue Watch, Restocks alerts, and related Pro features ($9.99/mo or $99.99/yr).
           </li>
         </ul>
+        <p>
+          The free tier includes a limited SlabCrack preview (a sample of mid-deficit cards) and
+          other tools with ads, as described on the pricing page.
+        </p>
         <p>
           Fees are charged in advance on a recurring monthly or yearly basis until you cancel.
           You can manage or cancel in the Stripe customer portal linked from the pricing page, or by

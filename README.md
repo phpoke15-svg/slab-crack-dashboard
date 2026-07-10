@@ -30,7 +30,7 @@ npm run dev
 ## Billing
 
 - Pricing page: `/pricing`
-- Plans: Free (ads) · Premium (ad-free) · Pro (ad-free + Queue Watch)
+- Plans: Free (10 mid-deficit SlabCrack cards + ads) · Premium $4.99/mo (full SlabCrack, ad-free) · Pro $9.99/mo (everything)
 - Setup: [DEPLOY.md](./DEPLOY.md) § Billing
 
 ## Scripts

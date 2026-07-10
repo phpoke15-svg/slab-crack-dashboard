@@ -33,9 +33,9 @@ export function CollecToolsHub() {
 
       {showUpgrade ? (
         <p className="mb-6 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
-          Go ad-free from $1.99/mo.{" "}
+          Go Premium from $4.99/mo for full SlabCrack, ad-free.{" "}
           <Link href="/pricing" className="font-medium text-primary hover:underline">
-            View Premium & Pro
+            View plans
           </Link>
         </p>
       ) : null}
@@ -100,7 +100,7 @@ export function CollecToolsHub() {
           Premium & Pro plans
         </Link>
         {" · "}
-        ad-free from $1.99/mo · Queue Watch with Pro
+        ad-free full SlabCrack from $4.99/mo · Queue Watch with Pro
       </p>
       <SiteFooter className="mt-auto pt-10" />
     </div>
