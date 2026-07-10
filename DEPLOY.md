@@ -71,8 +71,8 @@ After changing env vars, **Redeploy**.
 
 - `/api/cron/discover-arbitrage` — daily 06:00 UTC
 - `/api/cron/sync-binder-prices` — daily 07:00 UTC
-- `/api/cron/sync-restocks` — every 15 minutes (Walmart Affiliate SKUs)
-- `/api/cron/walmart-wednesday-reminder` — Thu 01:00 & 02:00 UTC (Wed 9pm ET); Web Push + optional Discord
+- `/api/cron/sync-restocks` — daily 08:00 UTC on Hobby (Vercel Hobby allows only once/day crons; upgrade to Pro for `*/15`)
+- `/api/cron/walmart-wednesday-reminder` — Thu 01:00 UTC (Wed 9pm ET during EDT); Web Push + optional Discord
 
 ## Web Push (phone alerts)
 

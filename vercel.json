@@ -12,11 +12,11 @@
     },
     {
       "path": "/api/cron/sync-restocks",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/walmart-wednesday-reminder",
-      "schedule": "0 1,2 * * 4"
+      "schedule": "0 1 * * 4"
     }
   ]
 }
