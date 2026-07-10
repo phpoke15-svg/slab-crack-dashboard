@@ -1,6 +1,6 @@
 # CollecTools Mobile App
 
-Installable **Android APK** that loads your live **CollecTools website** plus a native **Queue Watch** that survives Imperva.
+Installable **Android APK** (v1.1.0) that loads your live **CollecTools website** plus a native **Queue Watch** that survives Imperva.
 
 ## CollecTools tab (default)
 
@@ -26,11 +26,13 @@ Headless `fetch` is only a weak fallback if the WebView stops heartbeating (e.g.
 ```bash
 cd apps/pc-queue-watch
 npm install
+# optional: regenerate placeholder icons if assets/ is missing
+# python scripts/generate-assets.py
 npx eas-cli login
 npm run build:apk
 ```
 
-Download the `.apk` from the EAS build page and install on Android.
+This ships **version 1.1.0** (`versionCode` 2) with WebView-first Queue Watch. Uninstall the old APK first only if Android refuses the upgrade.
 
 ## Dev preview
 
