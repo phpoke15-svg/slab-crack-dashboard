@@ -30,9 +30,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     icon: Layers,
   },
   {
-    id: "psa10-scanner",
-    href: "/psa10-scanner",
-    name: "PSA 10 Scanner",
+    id: "slablab",
+    href: "/slablab",
+    name: "SlabLab",
     tagline: "Spread · multiplier · ROI",
     description:
       "Rank modern cards by PSA 10 gross spread, graded multiplier, and gem-rate-weighted submission yield.",
