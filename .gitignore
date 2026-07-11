@@ -11,6 +11,7 @@ __v0_jsx-dev-runtime.ts
 .env.local.save*
 .env.vapid.generated
 .env.*.generated
+.env.ebay-notification.generated
 
 
 # Common ignores
