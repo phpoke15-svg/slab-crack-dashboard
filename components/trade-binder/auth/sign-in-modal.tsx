@@ -18,7 +18,7 @@ export function SignInModal() {
       />
 
       <div className="relative z-10 w-full max-w-sm">
-        <SignInForm onSuccess={closeAuthModal} />
+        <SignInForm onSuccess={closeAuthModal} onClose={closeAuthModal} />
       </div>
     </div>
   )
