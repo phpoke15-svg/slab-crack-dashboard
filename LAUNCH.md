@@ -1,6 +1,6 @@
 # Production launch — status
 
-Live health: `https://slab-crack-dashboard.vercel.app/api/health`
+Live health: `https://collectools.app/api/health`
 
 ## Green
 

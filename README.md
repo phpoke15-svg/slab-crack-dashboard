@@ -4,7 +4,7 @@ TCG collector toolkit: **SlabCrack**, **Restocks**, **PokeMatch**, and **Queue W
 
 ## Live
 
-- Production: https://slab-crack-dashboard.vercel.app
+- Production: https://collectools.app
 - Public launch steps: [DEPLOY.md](./DEPLOY.md)
 
 ## Database

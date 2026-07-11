@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic"
 
 const DEFAULT_TOKEN = "CollecToolsEbayNotifyToken2026Secure01"
 const DEFAULT_ENDPOINT =
-  "https://slab-crack-dashboard.vercel.app/api/ebay/marketplace-account-deletion"
+  "https://collectools.app/api/ebay/marketplace-account-deletion"
 
 function verificationToken(): string {
   const token = process.env.EBAY_NOTIFICATION_VERIFICATION_TOKEN?.trim() || DEFAULT_TOKEN

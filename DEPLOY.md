@@ -15,7 +15,7 @@ Use this before marketing the site as public.
 This repo has historically deployed to **two** projects (`slabcrack` and `slab-crack-dashboard`).
 
 1. In Vercel, open both projects → **Settings → Git**.
-2. Keep **one** production project (recommend the one serving `slab-crack-dashboard.vercel.app` or your custom domain).
+2. Keep **one** production project (recommend the one serving `collectools.app`).
 3. On the other: disconnect the Git repo **or** disable Production deployments so env/crons cannot diverge.
 4. Confirm Production domain points at the kept project.
 

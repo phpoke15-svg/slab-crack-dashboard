@@ -1,6 +1,6 @@
 # Store launch checklist (Play + App Store)
 
-Privacy policy (live): https://slab-crack-dashboard.vercel.app/privacy  
+Privacy policy (live): https://collectools.app/privacy  
 Package / bundle ID: `com.collectools.app`  
 Version: **1.3.1** (Android `versionCode` 6). EAS slug is `pokepax` (legacy project id); app display name stays **CollecTools**.
 
@@ -34,7 +34,7 @@ npx eas-cli build -p ios --profile production       # needs Apple team
 - Create app `com.collectools.app`
 - Upload AAB from EAS
 - Store listing, screenshots (phone), content rating, **Data safety**
-- Privacy policy URL: `https://slab-crack-dashboard.vercel.app/privacy`
+- Privacy policy URL: `https://collectools.app/privacy`
 - Decide billing: Stripe in WebView vs Play Billing (Google is strict on IAP)
 - Internal testing track first
 

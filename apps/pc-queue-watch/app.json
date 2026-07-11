@@ -13,7 +13,7 @@
       "backgroundColor": "#0b0e14"
     },
     "primaryColor": "#4ade80",
-    "privacyPolicyUrl": "https://slab-crack-dashboard.vercel.app/privacy",
+    "privacyPolicyUrl": "https://collectools.app/privacy",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.collectools.app",
@@ -57,8 +57,8 @@
       "eas": {
         "projectId": "36c104de-8e81-4804-86b5-5d5a0d70ae18"
       },
-      "privacyPolicyUrl": "https://slab-crack-dashboard.vercel.app/privacy",
-      "collectoolsUrl": "https://slab-crack-dashboard.vercel.app"
+      "privacyPolicyUrl": "https://collectools.app/privacy",
+      "collectoolsUrl": "https://collectools.app"
     },
     "owner": "phpoke15s-team"
   }

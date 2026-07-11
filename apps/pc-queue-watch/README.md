@@ -52,5 +52,5 @@ Use Expo Go for UI. **Verify push + WebView monitoring on a real APK.**
 ## Env
 
 ```
-EXPO_PUBLIC_COLLECTOOLS_URL=https://slab-crack-dashboard.vercel.app
+EXPO_PUBLIC_COLLECTOOLS_URL=https://collectools.app
 ```
