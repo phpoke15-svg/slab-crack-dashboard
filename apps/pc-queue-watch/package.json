@@ -11,7 +11,11 @@
     "ios:run": "expo run:ios",
     "build:apk": "npx eas-cli build -p android --profile apk",
     "build:preview": "npx eas-cli build -p android --profile preview",
-    "build:ios": "npx eas-cli build -p ios --profile preview"
+    "build:android": "npx eas-cli build -p android --profile production",
+    "build:ios": "npx eas-cli build -p ios --profile production",
+    "build:ios:preview": "npx eas-cli build -p ios --profile preview",
+    "submit:android": "npx eas-cli submit -p android --profile production",
+    "submit:ios": "npx eas-cli submit -p ios --profile production"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "1.23.1",

@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "CollecTools",
-    "slug": "pokepax",
-    "version": "1.1.0",
+    "slug": "collectools",
+    "version": "1.2.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "collectools",
@@ -12,20 +12,23 @@
       "resizeMode": "contain",
       "backgroundColor": "#0b0e14"
     },
+    "privacyPolicyUrl": "https://slab-crack-dashboard.vercel.app/privacy",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.collectools.app",
+      "buildNumber": "3",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
           "remote-notification"
         ],
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserTrackingUsageDescription": "CollecTools does not track you across apps. This permission is unused."
       }
     },
     "android": {
       "package": "com.collectools.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b0e14"
@@ -52,7 +55,9 @@
     "extra": {
       "eas": {
         "projectId": "36c104de-8e81-4804-86b5-5d5a0d70ae18"
-      }
+      },
+      "privacyPolicyUrl": "https://slab-crack-dashboard.vercel.app/privacy",
+      "collectoolsUrl": "https://slab-crack-dashboard.vercel.app"
     },
     "owner": "phpoke15s-team"
   }

@@ -1,67 +1,25 @@
-# Production launch — remaining manual steps
+# Production launch — status
 
 Live health: `https://slab-crack-dashboard.vercel.app/api/health`
 
-## Already green (from last probe)
+## Green
 
-- Supabase + PokeMatch schema
-- Cron secret
-- AdSense client/slot
-- Stripe checkout prices configured
+- Supabase + PokeMatch + Queue Watch reports + Web Push tables
+- Stripe billing (`stripeConfigured`)
+- AdSense
+- SoldComps eBay sold comps
+- EPN Campaign ID on SlabCrack eBay links
+- Phone alerts / restock report secret configured
+- Restocks **hidden** (`RESTOCKS_ENABLED=false`) until Walmart Affiliate is ready
 
-## Do these before marketing hard
+## Still manual
 
-### 1. One Vercel project
+1. **One Vercel project** — disconnect Production on duplicate **`slabcrack`**.
+2. **Smoke test** — sign-in, trial, SlabCrack, Queue Watch bookmarklet synced.
+3. **Mobile stores** — see [`apps/pc-queue-watch/STORE.md`](./apps/pc-queue-watch/STORE.md).
 
-You have both `slabcrack` and `slab-crack-dashboard` on the same repo.
+## Intentionally deferred
 
-1. Keep **slab-crack-dashboard** (owns `slab-crack-dashboard.vercel.app`).
-2. On **slabcrack**: Settings → Git → Disconnect, or disable Production deployments.
-3. Confirm env vars match on the kept project.
-
-### 2. Web Push (phone alerts) — currently off
-
-```bash
-npx web-push generate-vapid-keys
-```
-
-Add to Vercel Production env:
-
-- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
-- `VAPID_PRIVATE_KEY`
-- `VAPID_SUBJECT=mailto:support@collectools.app`
-
-Run `supabase/web-push.sql` in Supabase if not already. Redeploy.
-
-### 3. Queue Watch reports table (required for bookmarklet)
-
-Run [`supabase/queue-watch.sql`](./supabase/queue-watch.sql) in the Supabase SQL editor.
-
-Without this table, the Pokemon Center badge can look “active” while `/queue-watch` stays offline (Vercel instances do not share memory).
-
-After deploying the sync fix: re-copy the bookmarklet from `/queue-watch` and confirm the badge says **active · synced**. Health should show `queueWatchReportsReady: true`.
-
-### 4. Walmart Restocks — currently off
-
-Set:
-
-- `WALMART_AFFILIATE_CONSUMER_ID`
-- `WALMART_AFFILIATE_PRIVATE_KEY`
-- `WALMART_AFFILIATE_PUBLISHER_ID`
-
-Optional: `RESTOCKS_DISCORD_WEBHOOK`, `RESTOCKS_REPORT_SECRET` (required for `/api/restocks/report` in production).
-
-### 5. Stripe Live checklist
-
-- Live mode keys + four Live price IDs on Vercel
-- Webhook: `https://slab-crack-dashboard.vercel.app/api/billing/webhook`
-- Events: `checkout.session.completed`, `customer.subscription.created/updated/deleted`
-- Run `supabase/billing-plans.sql` if not done
-
-### 6. Smoke test
-
-- Sign in
-- `/pricing` → Start Premium trial
-- Free SlabCrack shows 10-card preview + upgrade CTA on search
-- Pro unlocks `/queue-watch`
-- `/privacy` `/terms` `/ads.txt`
+- Walmart Affiliate Restocks auto-discovery
+- Custom domain
+- Remote FCM/APNs push (native app uses local notifications for now)

@@ -16,6 +16,7 @@ import {
   type QueueCheckState,
   type WebViewReport,
 } from "./service"
+import { reportQueueStateToServer } from "./report-to-server"
 
 const AUTO_START_KEY = "collectools-queue-auto-start"
 const KEEP_AWAKE_TAG = "collectools-queue-watch"
@@ -70,6 +71,7 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
   const applyWebViewReport = useCallback(async (report: WebViewReport) => {
     setWebViewConnected(true)
     await queueWatchService.applyWebViewReport(report)
+    void reportQueueStateToServer(report)
   }, [])
 
   useEffect(() => {

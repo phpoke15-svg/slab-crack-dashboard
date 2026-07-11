@@ -25,29 +25,30 @@ export function QueueWatchMobileClient() {
             <h1 className="text-lg font-semibold text-foreground">Install the CollecTools APK</h1>
             <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
               <li>
-                On your computer, open{" "}
-                <code className="rounded bg-secondary px-1 text-xs">apps/pc-queue-watch</code>
+                On your computer:{" "}
+                <code className="rounded bg-secondary px-1 text-xs">cd apps/pc-queue-watch</code>
               </li>
               <li>
-                Run <code className="rounded bg-secondary px-1 text-xs">npm install</code>, then{" "}
-                <code className="rounded bg-secondary px-1 text-xs">npx eas-cli login</code> and{" "}
-                <code className="rounded bg-secondary px-1 text-xs">npx eas-cli init</code>
+                <code className="rounded bg-secondary px-1 text-xs">npm install</code> then{" "}
+                <code className="rounded bg-secondary px-1 text-xs">npx eas-cli login</code>
               </li>
               <li>
                 Build: <code className="rounded bg-secondary px-1 text-xs">npm run build:apk</code>
               </li>
-              <li>Download the .apk from the EAS build page and install it on your Android phone</li>
+              <li>Install the APK from the EAS build page (allow unknown sources if asked)</li>
               <li>
-                Open <strong className="text-foreground">CollecTools → Queue</strong>, allow notifications,
-                tap <strong className="text-foreground">Start monitoring</strong>
+                Open <strong className="text-foreground">CollecTools</strong>, sign in on the site
+                tab, visit Queue Watch once (Pro) so the app can sync
               </li>
               <li>
-                Pass any bot check on the in-app Pokemon Center page, then leave the Queue tab open during
-                drops
+                Open <strong className="text-foreground">Queue</strong>, allow notifications,{" "}
+                <strong className="text-foreground">Start monitoring</strong>, pass any bot check,
+                leave the tab open during drops
               </li>
             </ol>
             <p className="mt-3 text-xs text-muted-foreground">
-              Full steps: <code className="rounded bg-secondary px-1">apps/pc-queue-watch/README.md</code>
+              Play / App Store steps:{" "}
+              <code className="rounded bg-secondary px-1">apps/pc-queue-watch/STORE.md</code>
             </p>
           </div>
         </div>
