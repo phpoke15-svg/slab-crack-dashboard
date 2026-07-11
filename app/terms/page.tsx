@@ -139,7 +139,7 @@ export default function TermsPage() {
           </li>
           <li>
             <strong className="text-foreground">Pro</strong> — everything in Premium, plus Pokemon
-            Center Queue Watch, Restocks alerts, and related Pro features ($9.99/mo or $99.99/yr).
+            Center Queue Watch and related Pro features ($9.99/mo or $99.99/yr).
           </li>
         </ul>
         <p>

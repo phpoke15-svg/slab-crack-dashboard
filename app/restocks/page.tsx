@@ -1,15 +1,20 @@
+import { redirect } from "next/navigation"
 import { RestocksClient } from "@/components/restocks-client"
+import { RESTOCKS_ENABLED } from "@/lib/collectools-tools"
 
 export const metadata = {
   title: "Restocks — CollecTools",
-  description:
-    "Auto-discovered Walmart Pokémon TCG sealed stock. Pokémon Center queue alerts live in Queue Watch.",
+  description: "Walmart sealed Pokémon TCG stock tracker.",
 }
 
 export default function RestocksPage() {
+  if (!RESTOCKS_ENABLED) {
+    redirect("/")
+  }
+
   return (
-    <div className="min-h-dvh bg-background">
+    <main className="min-h-dvh bg-background">
       <RestocksClient />
-    </div>
+    </main>
   )
 }

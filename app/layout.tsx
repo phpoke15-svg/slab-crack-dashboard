@@ -25,21 +25,21 @@ export const metadata: Metadata = {
     template: '%s · CollecTools',
   },
   description:
-    'SlabCrack arbitrage, Restocks, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
+    'SlabCrack arbitrage, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
   applicationName: 'CollecTools',
   openGraph: {
     type: 'website',
     siteName: 'CollecTools',
     title: 'CollecTools — TCG Collector Toolkit',
     description:
-      'SlabCrack arbitrage, Restocks, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
+      'SlabCrack arbitrage, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
     url: siteUrl,
   },
   twitter: {
     card: 'summary',
     title: 'CollecTools — TCG Collector Toolkit',
     description:
-      'SlabCrack arbitrage, Restocks, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
+      'SlabCrack arbitrage, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
   },
   other: {
     'google-adsense-account': 'ca-pub-8023063687308230',

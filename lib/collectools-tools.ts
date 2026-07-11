@@ -1,6 +1,9 @@
 import type { LucideIcon } from "lucide-react"
 import { Bell, BookOpen, Layers, Package } from "lucide-react"
 
+/** Flip to true when Walmart Affiliate Restocks ships again. */
+export const RESTOCKS_ENABLED = false
+
 export type CollecTool = {
   id: string
   href: string
@@ -11,7 +14,7 @@ export type CollecTool = {
   icon: LucideIcon
 }
 
-export const COLLECTOOLS: CollecTool[] = [
+const ALL_COLLECTOOLS: CollecTool[] = [
   {
     id: "slabcrack",
     href: "/slabcrack",
@@ -54,3 +57,8 @@ export const COLLECTOOLS: CollecTool[] = [
     icon: Bell,
   },
 ]
+
+/** Tools shown on the hub / nav. Restocks stays in code but hidden while Affiliate is off. */
+export const COLLECTOOLS: CollecTool[] = ALL_COLLECTOOLS.filter(
+  (tool) => tool.id !== "restocks" || RESTOCKS_ENABLED,
+)

@@ -44,7 +44,6 @@ export const PLAN_TIERS: PlanTier[] = [
       "7-day free trial",
       "Everything in Premium",
       "Pokemon Center Queue Watch (web + phone alerts)",
-      "Restocks board + Wednesday Walmart alerts",
       "Cancel anytime",
     ],
   },
