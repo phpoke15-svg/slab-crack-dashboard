@@ -10,7 +10,16 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-const GRADING_COST = 15
+const DEFAULT_GRADING_COST = 19
+
+/** Common PSA-style all-in cost presets (fee + typical ship share). */
+const GRADING_PRESETS = [
+  { id: "bulk", label: "Bulk / economy", cost: 15 },
+  { id: "value", label: "Value", cost: 19 },
+  { id: "regular", label: "Regular", cost: 50 },
+  { id: "express", label: "Express", cost: 100 },
+  { id: "super", label: "Super express", cost: 150 },
+] as const
 
 type ReleaseEra = "3y" | "5y"
 type SortMode = "spread" | "multiplier" | "roi"
@@ -232,9 +241,11 @@ const MOCK_CARDS: ScannerCard[] = [
 
 type ComputedRow = ScannerCard & {
   grossSpread: number
+  netSpread: number
   gradedMultiplier: number
   estimatedYield: number
   trueRoiScore: number
+  gradingCost: number
   dangerZone: boolean
   primeSlot: boolean
 }
@@ -245,11 +256,12 @@ function money(n: number): string {
   return `${n < 0 ? "-" : ""}$${formatted}`
 }
 
-function computeRow(card: ScannerCard): ComputedRow {
+function computeRow(card: ScannerCard, gradingCost: number): ComputedRow {
   const grossSpread = card.psa10Price - card.rawPrice
+  const netSpread = grossSpread - gradingCost
   const gradedMultiplier = card.rawPrice > 0 ? card.psa10Price / card.rawPrice : 0
   const estimatedYield =
-    card.psa10Price * (card.gemRate / 100) - card.rawPrice - GRADING_COST
+    card.psa10Price * (card.gemRate / 100) - card.rawPrice - gradingCost
   const trueRoiScore = estimatedYield
   const dangerZone = card.psa9Price < card.rawPrice
   const primeSlot = estimatedYield > 150
@@ -257,9 +269,11 @@ function computeRow(card: ScannerCard): ComputedRow {
   return {
     ...card,
     grossSpread,
+    netSpread,
     gradedMultiplier,
     estimatedYield,
     trueRoiScore,
+    gradingCost,
     dangerZone,
     primeSlot,
   }
@@ -274,13 +288,14 @@ const SORT_TABS: { id: SortMode; label: string; hint: string }[] = [
 export function Psa10SpreadScanner() {
   const [era, setEra] = useState<ReleaseEra>("3y")
   const [minGemRate, setMinGemRate] = useState(25)
+  const [gradingCost, setGradingCost] = useState(DEFAULT_GRADING_COST)
   const [sortMode, setSortMode] = useState<SortMode>("roi")
 
   const rows = useMemo(() => {
     const maxYears = era === "3y" ? 3 : 5
     const filtered = MOCK_CARDS.filter(
       (c) => c.yearsAgo <= maxYears && c.gemRate >= minGemRate,
-    ).map(computeRow)
+    ).map((c) => computeRow(c, gradingCost))
 
     filtered.sort((a, b) => {
       if (sortMode === "spread") return b.grossSpread - a.grossSpread
@@ -289,10 +304,11 @@ export function Psa10SpreadScanner() {
     })
 
     return filtered
-  }, [era, minGemRate, sortMode])
+  }, [era, minGemRate, gradingCost, sortMode])
 
   const primeCount = rows.filter((r) => r.primeSlot).length
   const dangerCount = rows.filter((r) => r.dangerZone).length
+  const activePreset = GRADING_PRESETS.find((p) => p.cost === gradingCost)?.id ?? null
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-5">
@@ -316,6 +332,55 @@ export function Psa10SpreadScanner() {
                 <option value="3y">Past 3 Years — Sword &amp; Shield / Scarlet &amp; Violet</option>
                 <option value="5y">Past 5 Years — Sun &amp; Moon era forward</option>
               </select>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between gap-3">
+                <label
+                  htmlFor="grading-cost"
+                  className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+                >
+                  Grading cost (all-in)
+                </label>
+                <span className="font-mono text-sm font-semibold text-primary tabular-nums">
+                  ${gradingCost.toFixed(gradingCost % 1 === 0 ? 0 : 2)}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {GRADING_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setGradingCost(preset.cost)}
+                    className={cn(
+                      "rounded-lg border px-2.5 py-1.5 text-[11px] font-medium transition-colors",
+                      activePreset === preset.id
+                        ? "border-primary/50 bg-primary/15 text-primary"
+                        : "border-border bg-secondary/40 text-muted-foreground hover:border-primary/35 hover:text-foreground",
+                    )}
+                  >
+                    {preset.label} · ${preset.cost}
+                  </button>
+                ))}
+              </div>
+              <input
+                id="grading-cost"
+                type="range"
+                min={10}
+                max={200}
+                step={1}
+                value={gradingCost}
+                onChange={(e) => setGradingCost(Number(e.target.value))}
+                className="mt-3 w-full accent-[var(--primary)]"
+                aria-valuemin={10}
+                aria-valuemax={200}
+                aria-valuenow={gradingCost}
+              />
+              <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+                <span>$10</span>
+                <span>PSA fee + shipping share</span>
+                <span>$200</span>
+              </div>
             </div>
 
             <div>
@@ -415,15 +480,16 @@ export function Psa10SpreadScanner() {
       <p className="px-0.5 text-[11px] leading-relaxed text-muted-foreground">
         Yield model:{" "}
         <span className="font-mono text-foreground/80">
-          (PSA10 × gem%/100) − raw − ${GRADING_COST}
+          (PSA10 × gem%/100) − raw − grading (${gradingCost})
         </span>
-        . Mock comps for demo — not live market data.
+        . Gross spread ignores fees; True ROI and net spread subtract grading cost. Mock comps for
+        demo.
       </p>
 
       {/* Leaderboard */}
       <section className="overflow-hidden rounded-2xl border border-border bg-card/40">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] border-collapse text-left text-sm">
+          <table className="w-full min-w-[960px] border-collapse text-left text-sm">
             <thead>
               <tr className="border-b border-border bg-secondary/40 text-[10px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-3 py-3 font-semibold sm:px-4">Rank</th>
@@ -431,7 +497,7 @@ export function Psa10SpreadScanner() {
                 <th className="px-3 py-3 font-semibold sm:px-4">Set / Era</th>
                 <th className="px-3 py-3 text-right font-semibold sm:px-4">Raw</th>
                 <th className="px-3 py-3 text-right font-semibold sm:px-4">PSA 10</th>
-                <th className="px-3 py-3 text-right font-semibold sm:px-4">Gross spread</th>
+                <th className="px-3 py-3 text-right font-semibold sm:px-4">Gross / net</th>
                 <th className="px-3 py-3 text-right font-semibold sm:px-4">Gem rate</th>
                 <th className="px-3 py-3 text-right font-semibold sm:px-4">True ROI score</th>
               </tr>
@@ -490,6 +556,14 @@ export function Psa10SpreadScanner() {
                     </td>
                     <td className="px-3 py-3.5 text-right font-mono font-semibold tabular-nums text-primary sm:px-4">
                       {money(row.grossSpread)}
+                      <span
+                        className={cn(
+                          "mt-0.5 block text-[10px] font-normal",
+                          row.netSpread >= 0 ? "text-muted-foreground" : "text-destructive",
+                        )}
+                      >
+                        net {money(row.netSpread)} after grade
+                      </span>
                       <span className="mt-0.5 block text-[10px] font-normal text-muted-foreground">
                         {row.gradedMultiplier.toFixed(2)}×
                       </span>
@@ -507,7 +581,7 @@ export function Psa10SpreadScanner() {
                         {money(row.trueRoiScore)}
                       </span>
                       <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                        net @ {row.gemRate}% gem
+                        net @ {row.gemRate}% − ${row.gradingCost} grade
                       </span>
                     </td>
                   </tr>
