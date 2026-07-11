@@ -3,13 +3,13 @@ import {
   ActivityIndicator,
   Linking,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
 } from "react-native"
 import { useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes"
 import { COLLECTOOLS_BASE_URL } from "../lib/config"
@@ -138,7 +138,7 @@ export default function SiteWebScreen() {
   }, [])
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
       <WebView
         key={reloadKey}
         ref={webRef}

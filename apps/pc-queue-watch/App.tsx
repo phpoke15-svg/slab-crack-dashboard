@@ -2,6 +2,7 @@ import "./lib/queue-watch/background"
 import { NavigationContainer, DarkTheme } from "@react-navigation/native"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import { StatusBar } from "expo-status-bar"
+import { SafeAreaProvider } from "react-native-safe-area-context"
 import type { RootStackParamList } from "./lib/navigation"
 import { colors } from "./lib/theme"
 import { QueueWatchProvider } from "./lib/queue-watch"
@@ -27,33 +28,35 @@ const theme = {
 
 export default function App() {
   return (
-    <QueueWatchProvider>
-      <NavigationContainer theme={theme}>
-        <StatusBar style="light" />
-        <Stack.Navigator
-          initialRouteName="Home"
-          screenOptions={{
-            headerStyle: { backgroundColor: colors.card },
-            headerTintColor: colors.text,
-            headerShadowVisible: false,
-            contentStyle: { backgroundColor: colors.background },
-          }}
-        >
-          <Stack.Screen
-            name="Home"
-            component={SiteWebScreen}
-            options={{ headerShown: false }}
-          />
-          <Stack.Screen
-            name="Queue"
-            component={QueueWatchScreen}
-            options={{
-              title: "Queue Watch",
-              headerBackTitle: "Back",
+    <SafeAreaProvider>
+      <QueueWatchProvider>
+        <NavigationContainer theme={theme}>
+          <StatusBar style="light" />
+          <Stack.Navigator
+            initialRouteName="Home"
+            screenOptions={{
+              headerStyle: { backgroundColor: colors.card },
+              headerTintColor: colors.text,
+              headerShadowVisible: false,
+              contentStyle: { backgroundColor: colors.background },
             }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
-    </QueueWatchProvider>
+          >
+            <Stack.Screen
+              name="Home"
+              component={SiteWebScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="Queue"
+              component={QueueWatchScreen}
+              options={{
+                title: "Queue Watch",
+                headerBackTitle: "Back",
+              }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </QueueWatchProvider>
+    </SafeAreaProvider>
   )
 }

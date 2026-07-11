@@ -2,7 +2,6 @@ import { useCallback, useMemo, useRef } from "react"
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   StyleSheet,
   Switch,
   Text,
@@ -11,6 +10,7 @@ import {
 import * as Linking from "expo-linking"
 import { useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
+import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
 import type { WebViewMessageEvent } from "react-native-webview"
 import { COLLECTOOLS_BASE_URL, POKEMON_CENTER_URL } from "../lib/config"
@@ -99,7 +99,7 @@ export default function QueueWatchScreen() {
 
   if (proChecking && hasPro === null) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
         <View style={styles.lockWrap}>
           <ActivityIndicator color={colors.primary} size="large" />
           <Text style={styles.lockMeta}>Checking Pro access…</Text>
@@ -110,7 +110,7 @@ export default function QueueWatchScreen() {
 
   if (!hasPro) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
         <View style={styles.header}>
           <Text style={styles.kicker}>Pro only</Text>
           <Text style={styles.title}>Queue Watch</Text>
@@ -150,7 +150,7 @@ export default function QueueWatchScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
       <View style={styles.header}>
         <Text style={styles.kicker}>Native · Imperva-safe · Pro</Text>
         <Text style={styles.title}>Queue Watch</Text>
