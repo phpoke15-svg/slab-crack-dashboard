@@ -24,3 +24,4 @@ Live health: `https://slab-crack-dashboard.vercel.app/api/health`
 - Walmart Affiliate Restocks auto-discovery
 - Custom domain
 - Remote FCM/APNs push (native app uses local notifications for now)
+- **Display ads** — hidden until AdSense is approved (`NEXT_PUBLIC_ADS_ENABLED=true` to turn on)

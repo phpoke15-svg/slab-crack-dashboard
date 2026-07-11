@@ -1,4 +1,5 @@
 import type { MockCardEntry } from "@/lib/slab-data"
+import { isAdsDisplayEnabled } from "@/lib/adsense-config"
 
 /** Hardcoded so Vercel env cannot silently keep ads at every 10 cards. */
 export const FEED_AD_INTERVAL = 5
@@ -10,15 +11,15 @@ export const DEFAULT_GRID_AD_INTERVAL = GRID_AD_INTERVAL
 export const DEFAULT_MATCH_AD_INTERVAL = MATCH_AD_INTERVAL
 
 export function getFeedAdInterval(): number {
-  return FEED_AD_INTERVAL
+  return isAdsDisplayEnabled() ? FEED_AD_INTERVAL : 0
 }
 
 export function getGridAdInterval(): number {
-  return GRID_AD_INTERVAL
+  return isAdsDisplayEnabled() ? GRID_AD_INTERVAL : 0
 }
 
 export function getMatchAdInterval(): number {
-  return MATCH_AD_INTERVAL
+  return isAdsDisplayEnabled() ? MATCH_AD_INTERVAL : 0
 }
 
 export type InterleavedItem<T> =

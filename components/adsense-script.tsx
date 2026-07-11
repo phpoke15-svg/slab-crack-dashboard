@@ -1,14 +1,15 @@
 import Script from "next/script"
-
-const ADSENSE_CLIENT_ID =
-  process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID ?? "ca-pub-8023063687308230"
+import { getAdSenseClientId, isAdsDisplayEnabled } from "@/lib/adsense-config"
 
 export function AdSenseScript() {
+  if (!isAdsDisplayEnabled()) return null
+
+  const clientId = getAdSenseClientId()
   return (
     <Script
       id="adsense-loader"
       async
-      src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT_ID}`}
+      src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${clientId}`}
       crossOrigin="anonymous"
       strategy="afterInteractive"
     />

@@ -5,6 +5,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/server"
 import { isQueueWatchReportsTableReady } from "@/lib/pokemon-center/queue-alerts"
 import { isWalmartAffiliateConfigured } from "@/lib/restocks/walmart"
 import { isWebPushConfigured } from "@/lib/push/web-push"
+import { isAdsDisplayEnabled } from "@/lib/adsense-config"
 import { isStripeConfigured } from "@/lib/billing/stripe"
 import { LEGAL_SITE_NAME, LEGAL_SITE_URL } from "@/lib/legal/config"
 
@@ -17,6 +18,7 @@ export async function GET() {
   const adsenseConfigured = Boolean(
     process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || process.env.NEXT_PUBLIC_ADSENSE_FEED_SLOT_ID,
   )
+  const adsDisplayEnabled = isAdsDisplayEnabled()
   const stripeConfigured = isStripeConfigured()
   const walmartAffiliateConfigured = isWalmartAffiliateConfigured()
   const webPushConfigured = isWebPushConfigured()
@@ -49,7 +51,7 @@ export async function GET() {
   const launchReady = {
     core: coreOk,
     billing: stripeConfigured,
-    ads: adsenseConfigured,
+    ads: adsDisplayEnabled && adsenseConfigured,
     restocksWalmart: walmartAffiliateConfigured,
     phoneAlerts: webPushConfigured,
     restockReportSecured,
@@ -67,6 +69,7 @@ export async function GET() {
         supabaseConfigured,
         cronSecretConfigured,
         adsenseConfigured,
+        adsDisplayEnabled,
         stripeConfigured,
         walmartAffiliateConfigured,
         webPushConfigured,

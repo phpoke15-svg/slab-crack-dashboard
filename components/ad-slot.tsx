@@ -5,13 +5,15 @@ import { cn } from "@/lib/utils"
 import {
   getAdSenseClientId,
   getAdSenseSlotId,
+  isAdsDisplayEnabled,
+  isAdSenseEnabled,
   type AdSenseSlotVariant,
 } from "@/lib/adsense-config"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 
 type AdSlotProps = {
   variant?: AdSenseSlotVariant
-  /** For dev placeholders and aria labels when multiple ads share a page. */
+  /** For aria labels when multiple ads share a page. */
   slotIndex?: number
   className?: string
   compact?: boolean
@@ -33,10 +35,14 @@ export function AdSlot({
   const pushed = useRef(false)
   const clientId = getAdSenseClientId()
   const slotId = getAdSenseSlotId(variant)
+  const displayEnabled = isAdsDisplayEnabled()
   // Wait for entitlements so Premium/Pro users never flash Sponsored slots.
   const entitlementsPending = Boolean(entitlements?.isLoading)
   const adsEnabled =
-    Boolean(clientId && slotId) && !entitlementsPending && !entitlements?.adFree
+    displayEnabled &&
+    isAdSenseEnabled(variant) &&
+    !entitlementsPending &&
+    !entitlements?.adFree
 
   useEffect(() => {
     if (!adsEnabled || pushed.current) return
@@ -49,33 +55,10 @@ export function AdSlot({
     }
   }, [adsEnabled, slotId])
 
-  if (entitlementsPending || entitlements?.adFree) return null
+  // Hidden until AdSense is confirmed / Premium+ users / still loading entitlements.
+  if (!displayEnabled || entitlementsPending || entitlements?.adFree) return null
 
-  if (!adsEnabled) {
-    return (
-      <div
-        role="complementary"
-        aria-label={`Advertisement slot ${slotIndex}`}
-        className={cn(
-          "flex flex-col items-center justify-center rounded-2xl border border-dashed border-border/80 bg-secondary/20 px-4 text-center",
-          compact ? "min-h-[72px] py-4" : "min-h-[100px] py-6",
-          className,
-        )}
-      >
-        <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-          Sponsored
-        </p>
-        {!compact && (
-          <p className="mt-1 text-xs text-muted-foreground">
-            {variant} slot · set{" "}
-            <code className="rounded bg-secondary px-1 py-0.5 font-mono text-[10px]">
-              NEXT_PUBLIC_ADSENSE_*
-            </code>
-          </p>
-        )}
-      </div>
-    )
-  }
+  if (!adsEnabled) return null
 
   return (
     <div

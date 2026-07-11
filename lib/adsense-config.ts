@@ -11,6 +11,14 @@ const SLOT_ENV: Record<AdSenseSlotVariant, string | undefined> = {
   result: process.env.NEXT_PUBLIC_ADSENSE_RESULT_SLOT_ID,
 }
 
+/**
+ * Master switch for showing ads in the UI.
+ * Keep false until AdSense is approved — set NEXT_PUBLIC_ADS_ENABLED=true on Vercel to turn on.
+ */
+export function isAdsDisplayEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_ADS_ENABLED === "true"
+}
+
 export function getAdSenseClientId(): string {
   return process.env.NEXT_PUBLIC_ADSENSE_CLIENT_ID || DEFAULT_CLIENT_ID
 }
@@ -21,5 +29,6 @@ export function getAdSenseSlotId(variant: AdSenseSlotVariant): string {
 }
 
 export function isAdSenseEnabled(variant: AdSenseSlotVariant = "feed"): boolean {
+  if (!isAdsDisplayEnabled()) return false
   return Boolean(getAdSenseClientId() && getAdSenseSlotId(variant))
 }
