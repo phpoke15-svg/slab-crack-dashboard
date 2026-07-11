@@ -20,6 +20,7 @@ import { DeficitSparkline } from "@/components/deficit-sparkline"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RegradeCalculator } from "@/components/regrade-calculator"
 import { DEFAULT_CONDITION, type ConditionKey, type ConditionState } from "@/components/condition-log"
+import { ebaySearchUrl, withEbayAffiliate } from "@/lib/ebay-affiliate"
 
 interface SlabDrawerProps {
   selectedCard: MockCardEntry | null
@@ -91,7 +92,10 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
     low: "text-destructive border-destructive/30 bg-destructive/10",
   }
 
-  const ebayUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`${selectedCard.cardName} ${selectedCard.cardNumber} PSA ${salesGrade}`)}`
+  const ebayUrl = ebaySearchUrl(
+    `${selectedCard.cardName} ${selectedCard.cardNumber} PSA ${salesGrade}`,
+    `slabcrack-${selectedCard.id}-psa${salesGrade}`,
+  )
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">

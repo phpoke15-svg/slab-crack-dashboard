@@ -12,6 +12,7 @@ import {
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
+import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 
 interface SlabRowProps {
   card: MockCardEntry
@@ -32,7 +33,10 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
   const activeGrade = selectedGrade ?? best?.grade ?? 9
   const activeQuote = gradeQuotes.find((q) => q.grade === activeGrade) ?? best
   const ebayGrade = activeGrade
-  const ebayUrl = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(`${card.cardName} ${card.cardNumber} PSA ${ebayGrade}`)}`
+  const ebayUrl = ebaySearchUrl(
+    `${card.cardName} ${card.cardNumber} PSA ${ebayGrade}`,
+    `slabcrack-${card.id}-psa${ebayGrade}`,
+  )
 
   return (
     <div
