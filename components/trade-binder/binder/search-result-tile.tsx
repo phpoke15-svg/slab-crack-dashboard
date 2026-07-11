@@ -1,19 +1,11 @@
 "use client"
 
 import { Check } from "lucide-react"
-import { cn } from "@/lib/utils"
-import type { CardStatus, CatalogCard, Rarity } from "@/lib/trade-binder/cards"
+import type { CardStatus, CatalogCard } from "@/lib/trade-binder/cards"
 import { FolderSwitcher } from "./folder-switcher"
 import { CardImage } from "./card-image"
 
 export type SearchResultCard = CatalogCard & { rawPrice?: number; cardNumber?: string }
-
-const rarityStyles: Record<Rarity, string> = {
-  Common: "border-border bg-secondary/80 text-muted-foreground",
-  Rare: "border-border bg-secondary text-foreground",
-  Epic: "border-wishlist/40 bg-wishlist/15 text-wishlist",
-  Legendary: "border-primary/40 bg-primary/15 text-primary",
-}
 
 export function SearchResultTile({
   card,
@@ -35,14 +27,6 @@ export function SearchResultTile({
           card={card}
           alt={`${card.name} Pokémon card`}
         />
-        <span
-          className={cn(
-            "absolute left-1.5 top-1.5 rounded-md border px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm",
-            rarityStyles[card.rarity],
-          )}
-        >
-          {card.rarity}
-        </span>
         {owned && (
           <span className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md border border-primary/40 bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
             <Check className="size-3" aria-hidden="true" />

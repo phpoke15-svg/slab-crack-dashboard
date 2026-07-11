@@ -1,18 +1,10 @@
 "use client"
 
 import { Clock, Trash2 } from "lucide-react"
-import { cn } from "@/lib/utils"
 import type { CardStatus, TcgCard } from "@/lib/trade-binder/cards"
 import { binderCardKey } from "@/lib/trade-binder/binder"
 import { FolderSwitcher } from "./folder-switcher"
 import { CardImage } from "./card-image"
-
-const rarityStyles: Record<TcgCard["rarity"], string> = {
-  Common: "border-border bg-secondary/80 text-muted-foreground",
-  Rare: "border-border bg-secondary text-foreground",
-  Epic: "border-wishlist/40 bg-wishlist/15 text-wishlist",
-  Legendary: "border-primary/40 bg-primary/15 text-primary",
-}
 
 export function CardTile({
   card,
@@ -32,14 +24,6 @@ export function CardTile({
           card={card}
           alt={`${card.name} trading card`}
         />
-        <span
-          className={cn(
-            "absolute left-1.5 top-1.5 rounded-md border px-1.5 py-0.5 text-[10px] font-medium backdrop-blur-sm",
-            rarityStyles[card.rarity],
-          )}
-        >
-          {card.rarity}
-        </span>
         {showRemove && onRemove && (
           <button
             type="button"

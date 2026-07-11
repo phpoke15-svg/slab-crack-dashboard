@@ -3,20 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import Image from "next/image"
 import { Plus, X, ArrowLeftRight, Heart, Search, PackageX, Loader2 } from "lucide-react"
-import type { CardStatus, CatalogCard, Rarity } from "@/lib/trade-binder/cards"
+import type { CardStatus, CatalogCard } from "@/lib/trade-binder/cards"
 import { usePokemonSearch } from "@/hooks/trade-binder/use-pokemon-search"
 import { cn } from "@/lib/utils"
 
 type AddCardFabProps = {
   ownedIds: Set<string>
   onAdd: (card: CatalogCard, status: CardStatus) => void
-}
-
-const rarityText: Record<Rarity, string> = {
-  Common: "text-muted-foreground",
-  Rare: "text-foreground",
-  Epic: "text-wishlist",
-  Legendary: "text-primary",
 }
 
 export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
@@ -168,9 +161,6 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
                                 Raw ${card.rawPrice.toFixed(0)}
                               </span>
                             )}
-                          </span>
-                          <span className={cn("shrink-0 text-[10px] font-medium", rarityText[card.rarity])}>
-                            {card.rarity}
                           </span>
                         </button>
                       </li>
