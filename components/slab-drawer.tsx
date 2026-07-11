@@ -60,6 +60,7 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
   const [liveSlabSales, setLiveSlabSales] = useState<RecentSale[] | null>(null)
   const [salesLoading, setSalesLoading] = useState(false)
+  const [fullscreen, setFullscreen] = useState(false)
 
   useEffect(() => {
     if (selectedCard) {
@@ -69,6 +70,7 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
       setLiveSlabSales(null)
       setHistory([])
       setTrend("building")
+      setFullscreen(false)
       document.body.style.overflow = "hidden"
     } else {
       document.body.style.overflow = ""
@@ -88,11 +90,16 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose()
+      if (e.key !== "Escape") return
+      if (fullscreen) {
+        setFullscreen(false)
+        return
+      }
+      onClose()
     }
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
-  }, [onClose])
+  }, [onClose, fullscreen])
 
   useEffect(() => {
     if (!selectedCard || selectedCard.hasPricing === false) {
@@ -217,7 +224,12 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
 
         <div className="flex-1 overflow-y-auto px-5 pb-5 pt-2">
           <div className="flex gap-4">
-            <div className="relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 shadow-lg sm:w-28">
+            <button
+              type="button"
+              onClick={() => setFullscreen(true)}
+              className="relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 shadow-lg transition-opacity hover:opacity-90 sm:w-28"
+              aria-label={`View ${selectedCard.cardName} full screen`}
+            >
               <SlabCardImage
                 card={selectedCard}
                 alt={`${selectedCard.cardName} card artwork`}
@@ -225,7 +237,7 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
                 className="object-contain p-1"
                 upgrade
               />
-            </div>
+            </button>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <h2 className="truncate text-xl font-bold text-foreground">{selectedCard.cardName}</h2>
@@ -234,6 +246,13 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
                 </span>
               </div>
               <p className="text-sm text-muted-foreground">{selectedCard.setName}</p>
+              <button
+                type="button"
+                onClick={() => setFullscreen(true)}
+                className="mt-2 text-left text-[11px] font-medium text-primary hover:underline"
+              >
+                Tap card for full screen
+              </button>
               <div className="mt-3">
                 {pricingLoading ? (
                   <p className="text-sm text-muted-foreground">Loading PSA 7–10 comps…</p>
@@ -395,6 +414,48 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
           )}
         </div>
       </div>
+
+      {fullscreen && (
+        <div
+          className="fixed inset-0 z-[60] flex flex-col bg-black/95 animate-fade-in"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${selectedCard.cardName} full screen`}
+        >
+          <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-white">{selectedCard.cardName}</p>
+              <p className="truncate text-xs text-white/60">
+                {selectedCard.setName} · #{selectedCard.cardNumber}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setFullscreen(false)}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+              aria-label="Close full screen"
+            >
+              <X className="size-5" />
+            </button>
+          </div>
+          <button
+            type="button"
+            className="flex min-h-0 flex-1 items-center justify-center px-4 pb-[max(1rem,env(safe-area-inset-bottom))]"
+            onClick={() => setFullscreen(false)}
+            aria-label="Close full screen card view"
+          >
+            <div className="relative aspect-[3/4] h-[min(85dvh,720px)] w-auto max-w-[min(100%,420px)]">
+              <SlabCardImage
+                card={selectedCard}
+                alt={`${selectedCard.cardName} full screen`}
+                sizes="100vw"
+                className="object-contain"
+                upgrade
+              />
+            </div>
+          </button>
+        </div>
+      )}
     </div>
   )
 }
