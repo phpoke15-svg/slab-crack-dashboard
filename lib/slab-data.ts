@@ -264,6 +264,73 @@ export function getDeficitTrendFromHistory(history: number[]): DeficitTrend {
   return "stable"
 }
 
+export type DeficitTechnicalAnalysis = {
+  trend: DeficitTrend
+  points: number
+  latest: number
+  change: number
+  changePct: number | null
+  high: number
+  low: number
+  sma: number | null
+  summary: string
+}
+
+function simpleMovingAverage(values: number[], window: number): number | null {
+  if (values.length === 0) return null
+  const slice = values.slice(-Math.min(window, values.length))
+  return slice.reduce((sum, v) => sum + v, 0) / slice.length
+}
+
+/** Stats + short copy for a 30-day deficit series (raw − slab). */
+export function analyzeDeficitHistory(history: number[]): DeficitTechnicalAnalysis {
+  const trend = getDeficitTrendFromHistory(history)
+  if (history.length === 0) {
+    return {
+      trend: "building",
+      points: 0,
+      latest: 0,
+      change: 0,
+      changePct: null,
+      high: 0,
+      low: 0,
+      sma: null,
+      summary: "Building 30-day history — more daily syncs needed.",
+    }
+  }
+
+  const latest = history[history.length - 1]!
+  const first = history[0]!
+  const change = latest - first
+  const changePct = Math.abs(first) > 0.01 ? (change / Math.abs(first)) * 100 : null
+  const high = Math.max(...history)
+  const low = Math.min(...history)
+  const sma = simpleMovingAverage(history, 7)
+
+  let summary: string
+  if (trend === "building") {
+    summary = `Early history (${history.length} day${history.length === 1 ? "" : "s"}). Need a few more syncs for a clear signal.`
+  } else if (trend === "widening") {
+    summary = `Gap widening — arbitrage window improving${changePct != null ? ` (${changePct >= 0 ? "+" : ""}${changePct.toFixed(0)}% over period)` : ""}.`
+  } else if (trend === "closing") {
+    summary = `Gap closing — window shrinking${changePct != null ? ` (${changePct.toFixed(0)}% over period)` : ""}.`
+  } else {
+    summary = `Holding steady around $${latest.toFixed(0)} deficit vs 7-day avg $${(sma ?? latest).toFixed(0)}.`
+  }
+
+  return {
+    trend,
+    points: history.length,
+    latest,
+    change,
+    changePct,
+    high,
+    low,
+    sma,
+    summary,
+  }
+}
+
 /* ---------------------------------------------------------------------------
  * Regrade ROI model
  * ------------------------------------------------------------------------- */

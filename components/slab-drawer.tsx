@@ -16,14 +16,13 @@ import {
   getBestGradeQuote,
   getGradeQuotes,
   mockEntryToSlabCard,
-  type DeficitTrend,
   type MockCardEntry,
   type PsaGradeNumber,
   type RecentSale,
 } from "@/lib/slab-data"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
-import { DeficitSparkline } from "@/components/deficit-sparkline"
+import { DeficitTechnicalChart } from "@/components/deficit-technical-chart"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RegradeCalculator } from "@/components/regrade-calculator"
 import { RecentSalesList } from "@/components/recent-sales-list"
@@ -37,13 +36,6 @@ interface SlabDrawerProps {
   onToggleWatch: (card: MockCardEntry) => void
 }
 
-type DeficitHistoryResponse = {
-  history: number[]
-  trend: DeficitTrend
-  building?: boolean
-  error?: string
-}
-
 type CardSalesResponse = {
   recentRawSales?: RecentSale[]
   recentSlabSales?: RecentSale[]
@@ -54,9 +46,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   const [showLog, setShowLog] = useState(false)
   const [condition, setCondition] = useState<ConditionState>(DEFAULT_CONDITION)
   const [salesGrade, setSalesGrade] = useState<PsaGradeNumber>(9)
-  const [history, setHistory] = useState<number[]>([])
-  const [trend, setTrend] = useState<DeficitTrend>("building")
-  const [historyLoading, setHistoryLoading] = useState(false)
   const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
   const [liveSlabSales, setLiveSlabSales] = useState<RecentSale[] | null>(null)
   const [salesLoading, setSalesLoading] = useState(false)
@@ -68,8 +57,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
       setCondition(DEFAULT_CONDITION)
       setLiveRawSales(null)
       setLiveSlabSales(null)
-      setHistory([])
-      setTrend("building")
       setFullscreen(false)
       document.body.style.overflow = "hidden"
     } else {
@@ -100,42 +87,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose, fullscreen])
-
-  useEffect(() => {
-    if (!selectedCard || selectedCard.hasPricing === false) {
-      setHistory([])
-      setTrend("building")
-      return
-    }
-
-    let cancelled = false
-    setHistoryLoading(true)
-    void fetch(`/api/card-deficit-history?id=${encodeURIComponent(selectedCard.id)}&grade=${salesGrade}`)
-      .then(async (res) => {
-        const data = (await res.json().catch(() => null)) as DeficitHistoryResponse | null
-        if (cancelled) return
-        if (!res.ok || !data) {
-          setHistory([])
-          setTrend("building")
-          return
-        }
-        setHistory(Array.isArray(data.history) ? data.history : [])
-        setTrend(data.trend ?? "building")
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setHistory([])
-          setTrend("building")
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setHistoryLoading(false)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [selectedCard, salesGrade])
 
   useEffect(() => {
     if (!selectedCard || selectedCard.hasPricing === false) return
@@ -177,15 +128,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
     activeQuote?.recentSlabSales ?? selectedCard.recentSlabSales ?? []
   const rawSales = liveRawSales ?? selectedCard.recentRawSales ?? []
   const slabSales = liveSlabSales ?? cachedSlabSales
-
-  const trendLabel =
-    trend === "widening"
-      ? "Gap widening"
-      : trend === "closing"
-        ? "Gap closing"
-        : trend === "building"
-          ? "Building history"
-          : "Holding steady"
 
   const ebayUrl = ebaySearchUrl(
     `${selectedCard.cardName} ${selectedCard.cardNumber} PSA ${salesGrade}`,
@@ -313,45 +255,21 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             </div>
           )}
 
-          {priced && (
-            <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
-              <div className="mb-3 flex items-center gap-2">
+          {priced && activeQuote && activeQuote.slabPrice > 0 && (
+            <div className="mt-4">
+              <div className="mb-2 flex items-center gap-2 px-0.5">
                 <Activity className="size-4 text-primary" />
                 <h4 className="font-semibold text-foreground">Deal Intelligence</h4>
               </div>
-
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/60 p-3">
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    30-day deficit trend
-                  </span>
-                  <span
-                    className={cn(
-                      "text-sm font-semibold",
-                      trend === "widening"
-                        ? "text-primary"
-                        : trend === "closing"
-                          ? "text-destructive"
-                          : "text-muted-foreground",
-                    )}
-                  >
-                    {historyLoading ? "Loading…" : trendLabel}
-                  </span>
-                  {trend === "building" && !historyLoading && (
-                    <span className="mt-1 text-[11px] text-muted-foreground">
-                      More daily syncs needed for a full trend.
-                    </span>
-                  )}
-                </div>
-                {history.length >= 2 ? (
-                  <DeficitSparkline
-                    data={history}
-                    trend={trend === "building" ? "stable" : trend}
-                  />
-                ) : (
-                  <span className="text-[11px] text-muted-foreground">—</span>
-                )}
-              </div>
+              <DeficitTechnicalChart
+                cardId={selectedCard.id}
+                grade={salesGrade}
+                currentDeficit={
+                  activeQuote.deficit > 0
+                    ? activeQuote.deficit
+                    : selectedCard.rawPrice - activeQuote.slabPrice
+                }
+              />
             </div>
           )}
 

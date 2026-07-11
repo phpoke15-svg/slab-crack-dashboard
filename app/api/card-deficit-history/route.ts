@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { getDeficitHistoryForCard } from "@/lib/db/price-snapshots"
-import { getDeficitTrendFromHistory, isPsaSlabGrade, type PsaGradeNumber } from "@/lib/slab-data"
+import {
+  analyzeDeficitHistory,
+  getDeficitTrendFromHistory,
+  isPsaSlabGrade,
+  type PsaGradeNumber,
+} from "@/lib/slab-data"
 
 export const dynamic = "force-dynamic"
 
@@ -22,6 +27,7 @@ export async function GET(request: Request) {
     const points = await getDeficitHistoryForCard(id, grade, 30)
     const history = points.map((p) => p.deficit)
     const trend = getDeficitTrendFromHistory(history)
+    const analysis = analyzeDeficitHistory(history)
 
     return NextResponse.json({
       id,
@@ -30,6 +36,7 @@ export async function GET(request: Request) {
       points,
       trend,
       building: trend === "building",
+      analysis,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load deficit history"
