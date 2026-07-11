@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 
@@ -10,10 +10,11 @@ type Mode = "sign-in" | "sign-up"
 
 type SignInFormProps = {
   onSuccess?: () => void
+  onClose?: () => void
   className?: string
 }
 
-export function SignInForm({ onSuccess, className }: SignInFormProps) {
+export function SignInForm({ onSuccess, onClose, className }: SignInFormProps) {
   const { signIn, signUp } = useAuth()
   const [mode, setMode] = useState<Mode>("sign-in")
   const [email, setEmail] = useState("")
@@ -50,7 +51,17 @@ export function SignInForm({ onSuccess, className }: SignInFormProps) {
 
   return (
     <div className={cn("overflow-hidden rounded-2xl border border-border bg-card shadow-xl", className)}>
-      <div className="border-b border-border px-4 py-3">
+      <div className="relative border-b border-border px-4 py-3 pr-12">
+        {onClose && (
+          <button
+            type="button"
+            aria-label="Close"
+            onClick={onClose}
+            className="absolute right-3 top-3 flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+          >
+            <X className="size-4" aria-hidden="true" />
+          </button>
+        )}
         <h2 className="text-base font-semibold text-foreground">
           {mode === "sign-in" ? "Sign in to CollecTools" : "Create your account"}
         </h2>
