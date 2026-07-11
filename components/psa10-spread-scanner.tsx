@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from "react"
 import {
   AlertTriangle,
   ChevronRight,
+  ExternalLink,
   Sparkles,
   TrendingUp,
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CardImage } from "@/components/trade-binder/binder/card-image"
+import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 
 const DEFAULT_GRADING_COST = 19
 
@@ -323,6 +325,13 @@ function primaryMetric(row: ComputedRow, sortMode: SortMode): { label: string; v
   return { label: "ROI", value: money(row.trueRoiScore) }
 }
 
+function cardEbayUrl(row: Pick<ScannerCard, "id" | "name" | "cardNumber">): string {
+  return ebaySearchUrl(
+    `${row.name} ${row.cardNumber} PSA 10`,
+    `slablab-${row.id}`,
+  )
+}
+
 export function Psa10SpreadScanner() {
   const [era, setEra] = useState<ReleaseEra>("3y")
   const [minGemRate, setMinGemRate] = useState(25)
@@ -505,7 +514,7 @@ export function Psa10SpreadScanner() {
                     <span className="text-[10px] text-muted-foreground">{row.gemRate}% gem</span>
                   </div>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1">
+                <div className="flex shrink-0 flex-col items-end gap-1.5">
                   <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
                     {metric.label}
                   </span>
@@ -519,8 +528,18 @@ export function Psa10SpreadScanner() {
                   >
                     {metric.value}
                   </span>
-                  <ChevronRight className="size-4 text-muted-foreground/60" aria-hidden="true" />
+                  <a
+                    href={cardEbayUrl(row)}
+                    target="_blank"
+                    rel="noopener noreferrer sponsored"
+                    onClick={(e) => e.stopPropagation()}
+                    className="inline-flex items-center gap-1 rounded-lg border border-border bg-secondary/50 px-2 py-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                  >
+                    eBay
+                    <ExternalLink className="size-3" aria-hidden="true" />
+                  </a>
                 </div>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
               </button>
             )
           })
@@ -660,6 +679,16 @@ function SlabLabDetailDrawer({
               this is a 10-or-bust submission.
             </p>
           )}
+
+          <a
+            href={cardEbayUrl(row)}
+            target="_blank"
+            rel="noopener noreferrer sponsored"
+            className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            <ExternalLink className="size-4" aria-hidden="true" />
+            Search eBay PSA 10
+          </a>
 
           <p className="mt-4 text-[11px] text-muted-foreground">
             Yield uses your selected grading cost. Mock market comps for demo — not live pricing.
