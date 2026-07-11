@@ -222,6 +222,16 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             />
           </div>
 
+          <a
+            href={ebayUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            <ExternalLink className="size-4" />
+            Search eBay Slabs
+          </a>
+
           {priced && (
             <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
@@ -270,16 +280,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
           </div>
 
           <div className="mt-4 flex flex-col gap-2.5">
-            <a
-              href={ebayUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              <ExternalLink className="size-4" />
-              Search eBay Slabs
-            </a>
-
             <button
               type="button"
               onClick={() => onToggleWatch(selectedCard)}
