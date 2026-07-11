@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 
 interface DeficitSparklineProps {
   data: number[]
-  trend: "widening" | "closing" | "stable"
+  trend: "widening" | "closing" | "stable" | "building"
   className?: string
   width?: number
   height?: number
@@ -13,8 +13,8 @@ interface DeficitSparklineProps {
 
 /**
  * Lightweight sparkline for the raw→slab deficit over time.
- * Deficits are negative, so a downward line means the gap is deepening
- * (a better crack window). We flip the Y axis to plot magnitude intuitively.
+ * Series values are raw − slab (positive = arbitrage gap). A rising line
+ * means the gap is widening (better crack window).
  */
 export function DeficitSparkline({
   data,
@@ -33,9 +33,9 @@ export function DeficitSparkline({
 
   const points = data.map((v, i) => {
     const x = pad + (i / (data.length - 1)) * (width - pad * 2)
-    // Larger magnitude deficit (more negative) sits lower on the chart.
+    // Larger positive gap sits higher on the chart.
     const norm = (v - min) / range
-    const y = pad + norm * (height - pad * 2)
+    const y = height - pad - norm * (height - pad * 2)
     return [x, y] as const
   })
 

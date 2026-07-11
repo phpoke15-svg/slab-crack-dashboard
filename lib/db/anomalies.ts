@@ -6,6 +6,7 @@ import {
   type MockCardEntry,
   type PsaGradeNumber,
   type RecentSale,
+  type SampleCounts,
 } from "@/lib/slab-data"
 
 export function gradeQuotesToStored(gradeQuotes: ReturnType<typeof getGradeQuotes>) {
@@ -42,6 +43,7 @@ type AnomalyRow = {
   recent_raw_sales: RecentSale[] | null
   recent_slab_sales: RecentSale[] | null
   grade_prices: Record<string, { slab_price: number; recent_slab_sales?: RecentSale[] }> | null
+  sample_counts?: SampleCounts | null
   synced_at: string
   slab_watchlist_cards: {
     id: string
@@ -64,7 +66,7 @@ function gradeQuotesFromRow(row: AnomalyRow) {
       {}
     for (const [gradeKey, value] of Object.entries(row.grade_prices)) {
       const grade = Number(gradeKey) as PsaGradeNumber
-      if (grade !== 7 && grade !== 8 && grade !== 9) continue
+      if (grade !== 7 && grade !== 8 && grade !== 9 && grade !== 10) continue
       byGrade[grade] = {
         slabPrice: Number(value.slab_price),
         recentSlabSales: value.recent_slab_sales ?? [],
@@ -105,6 +107,7 @@ function rowToMockEntry(row: AnomalyRow): MockCardEntry | null {
     marketInsight: insight,
     recentRawSales: row.recent_raw_sales ?? [],
     recentSlabSales: row.recent_slab_sales ?? [],
+    sampleCounts: row.sample_counts ?? undefined,
     hasPricing: true,
     gradeQuotes: gradeQuotesFromRow(row),
   })
@@ -113,10 +116,46 @@ function rowToMockEntry(row: AnomalyRow): MockCardEntry | null {
 export async function getAnomaliesFromDb(): Promise<MockCardEntry[]> {
   const supabase = createReadClient()
 
-  const { data, error } = await supabase
+  const withCounts = await supabase
     .from("slab_anomalies")
     .select(
       `
+      watchlist_id,
+      card_id,
+      raw_price,
+      slab_grade,
+      slab_price,
+      deficit,
+      percentage_savings,
+      recent_raw_sales,
+      recent_slab_sales,
+      grade_prices,
+      sample_counts,
+      synced_at,
+      slab_watchlist_cards (
+        id,
+        market_insight,
+        slab_cards (
+          id,
+          name,
+          set_name,
+          card_number,
+          rarity,
+          image_large
+        )
+      )
+    `,
+    )
+    .order("deficit", { ascending: false })
+
+  let data = withCounts.data
+  let error = withCounts.error
+
+  if (error?.message?.includes("sample_counts")) {
+    const withoutCounts = await supabase
+      .from("slab_anomalies")
+      .select(
+        `
       watchlist_id,
       card_id,
       raw_price,
@@ -141,12 +180,15 @@ export async function getAnomaliesFromDb(): Promise<MockCardEntry[]> {
         )
       )
     `,
-    )
-    .order("deficit", { ascending: false })
+      )
+      .order("deficit", { ascending: false })
+    data = withoutCounts.data
+    error = withoutCounts.error
+  }
 
   if (error) throw new Error(`Failed to read anomalies: ${error.message}`)
 
-  return (data as AnomalyRow[])
+  return ((data ?? []) as AnomalyRow[])
     .map(rowToMockEntry)
     .filter((entry): entry is MockCardEntry => entry !== null)
 }
@@ -183,12 +225,21 @@ export async function upsertAnomaliesToDb(entries: MockCardEntry[]): Promise<voi
       recent_raw_sales: normalized.recentRawSales ?? [],
       recent_slab_sales: normalized.recentSlabSales ?? [],
       grade_prices: gradeQuotesToStored(gradeQuotes),
+      sample_counts: normalized.sampleCounts ?? null,
       synced_at: new Date().toISOString(),
     }
   })
 
   const { error } = await supabase.from("slab_anomalies").upsert(rows, { onConflict: "watchlist_id" })
-  if (error) throw new Error(`Failed to upsert anomalies: ${error.message}`)
+  if (error) {
+    if (error.message.includes("sample_counts")) {
+      const withoutCounts = rows.map(({ sample_counts: _sc, ...rest }) => rest)
+      const retry = await supabase.from("slab_anomalies").upsert(withoutCounts, { onConflict: "watchlist_id" })
+      if (retry.error) throw new Error(`Failed to upsert anomalies: ${retry.error.message}`)
+      return
+    }
+    throw new Error(`Failed to upsert anomalies: ${error.message}`)
+  }
 }
 
 export { isSupabaseConfigured }

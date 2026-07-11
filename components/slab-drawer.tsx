@@ -1,24 +1,34 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { X, ExternalLink, Star, Calculator, Lightbulb, ChevronDown, Activity, BarChart3, ShieldCheck } from "lucide-react"
+import {
+  X,
+  ExternalLink,
+  Star,
+  Calculator,
+  Lightbulb,
+  ChevronDown,
+  Activity,
+  ShieldCheck,
+  Loader2,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getBestGradeQuote,
-  getDeficitHistory,
-  getDeficitTrend,
-  getGradeQuotes,
-  getPopReport,
   getConfidence,
+  getGradeQuotes,
   mockEntryToSlabCard,
+  type DeficitTrend,
   type MockCardEntry,
   type PsaGradeNumber,
+  type RecentSale,
 } from "@/lib/slab-data"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { DeficitSparkline } from "@/components/deficit-sparkline"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RegradeCalculator } from "@/components/regrade-calculator"
+import { RecentSalesList } from "@/components/recent-sales-list"
 import { DEFAULT_CONDITION, type ConditionKey, type ConditionState } from "@/components/condition-log"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 
@@ -29,15 +39,38 @@ interface SlabDrawerProps {
   onToggleWatch: (card: MockCardEntry) => void
 }
 
+type DeficitHistoryResponse = {
+  history: number[]
+  trend: DeficitTrend
+  building?: boolean
+  error?: string
+}
+
+type CardSalesResponse = {
+  recentRawSales?: RecentSale[]
+  recentSlabSales?: RecentSale[]
+  error?: string
+}
+
 export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: SlabDrawerProps) {
   const [showLog, setShowLog] = useState(false)
   const [condition, setCondition] = useState<ConditionState>(DEFAULT_CONDITION)
   const [salesGrade, setSalesGrade] = useState<PsaGradeNumber>(9)
+  const [history, setHistory] = useState<number[]>([])
+  const [trend, setTrend] = useState<DeficitTrend>("building")
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
+  const [liveSlabSales, setLiveSlabSales] = useState<RecentSale[] | null>(null)
+  const [salesLoading, setSalesLoading] = useState(false)
 
   useEffect(() => {
     if (selectedCard) {
       setShowLog(false)
       setCondition(DEFAULT_CONDITION)
+      setLiveRawSales(null)
+      setLiveSlabSales(null)
+      setHistory([])
+      setTrend("building")
       document.body.style.overflow = "hidden"
     } else {
       document.body.style.overflow = ""
@@ -63,6 +96,67 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
     return () => window.removeEventListener("keydown", onKey)
   }, [onClose])
 
+  useEffect(() => {
+    if (!selectedCard || selectedCard.hasPricing === false) {
+      setHistory([])
+      setTrend("building")
+      return
+    }
+
+    let cancelled = false
+    setHistoryLoading(true)
+    void fetch(`/api/card-deficit-history?id=${encodeURIComponent(selectedCard.id)}&grade=${salesGrade}`)
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as DeficitHistoryResponse | null
+        if (cancelled) return
+        if (!res.ok || !data) {
+          setHistory([])
+          setTrend("building")
+          return
+        }
+        setHistory(Array.isArray(data.history) ? data.history : [])
+        setTrend(data.trend ?? "building")
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHistory([])
+          setTrend("building")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedCard, salesGrade])
+
+  useEffect(() => {
+    if (!selectedCard || selectedCard.hasPricing === false) return
+
+    let cancelled = false
+    setSalesLoading(true)
+    void fetch(`/api/card-sales?id=${encodeURIComponent(selectedCard.id)}&grade=${salesGrade}`)
+      .then(async (res) => {
+        const data = (await res.json().catch(() => null)) as CardSalesResponse | null
+        if (cancelled) return
+        if (!res.ok || !data) return
+        setLiveRawSales(Array.isArray(data.recentRawSales) ? data.recentRawSales : [])
+        setLiveSlabSales(Array.isArray(data.recentSlabSales) ? data.recentSlabSales : [])
+      })
+      .catch(() => {
+        // Keep cached sales from the card entry
+      })
+      .finally(() => {
+        if (!cancelled) setSalesLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedCard, salesGrade])
+
   if (!selectedCard) return null
 
   const priced = selectedCard.hasPricing !== false
@@ -71,20 +165,23 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   const best = getBestGradeQuote(gradeQuotes)
   const activeQuote = gradeQuotes.find((q) => q.grade === salesGrade) ?? best
   const slabCard = mockEntryToSlabCard(selectedCard)
-  const history = priced ? getDeficitHistory(slabCard) : []
-  const trend = priced ? getDeficitTrend(slabCard) : ("stable" as const)
-  const pop = getPopReport(slabCard)
-  const gradePop = pop[salesGrade] ?? 0
-  const confidence = priced ? getConfidence(slabCard) : null
+  const confidence = priced ? getConfidence(selectedCard, salesGrade) : null
   const handleCondition = (key: ConditionKey, value: number) =>
     setCondition((prev) => ({ ...prev, [key]: value }))
+
+  const cachedSlabSales =
+    activeQuote?.recentSlabSales ?? selectedCard.recentSlabSales ?? []
+  const rawSales = liveRawSales ?? selectedCard.recentRawSales ?? []
+  const slabSales = liveSlabSales ?? cachedSlabSales
 
   const trendLabel =
     trend === "widening"
       ? "Gap widening"
       : trend === "closing"
         ? "Gap closing"
-        : "Holding steady"
+        : trend === "building"
+          ? "Building history"
+          : "Holding steady"
 
   const confidenceColor: Record<string, string> = {
     high: "text-primary border-primary/30 bg-primary/10",
@@ -99,7 +196,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-      {/* Backdrop */}
       <button
         type="button"
         aria-label="Close details"
@@ -107,7 +203,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
         className="absolute inset-0 animate-fade-in bg-black/70 backdrop-blur-sm"
       />
 
-      {/* Sheet */}
       <div
         role="dialog"
         aria-modal="true"
@@ -117,7 +212,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
           "sm:rounded-3xl",
         )}
       >
-        {/* Grabber + close */}
         <div className="relative flex items-center justify-center pt-3">
           <span className="h-1.5 w-10 rounded-full bg-border sm:hidden" />
           <button
@@ -131,7 +225,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pb-5 pt-2">
-          {/* Header */}
           <div className="flex gap-4">
             <div className="relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 shadow-lg sm:w-28">
               <SlabCardImage
@@ -189,79 +282,99 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             />
           </div>
 
-          {/* Recent eBay sold comps — re-enable when sales API is wired */}
-          {null}
-
-          {/* Deal intelligence */}
-          {priced && confidence && (
-          <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Activity className="size-4 text-primary" />
-              <h4 className="font-semibold text-foreground">Deal Intelligence</h4>
-            </div>
-
-            {/* Deficit trend */}
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/60 p-3">
-              <div className="flex flex-col">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  30-day deficit trend
-                </span>
-                <span
-                  className={cn(
-                    "text-sm font-semibold",
-                    trend === "widening"
-                      ? "text-primary"
-                      : trend === "closing"
-                        ? "text-destructive"
-                        : "text-muted-foreground",
-                  )}
-                >
-                  {trendLabel}
-                </span>
+          {priced && (
+            <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h4 className="font-semibold text-foreground">Recent eBay sold comps</h4>
+                {salesLoading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
               </div>
-              <DeficitSparkline data={history} trend={trend} />
-            </div>
-
-            {/* Pop + confidence */}
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-border bg-card/60 p-3">
-                <div className="mb-0.5 flex items-center gap-1.5">
-                  <BarChart3 className="size-3.5 text-muted-foreground" />
-                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    PSA {salesGrade} Pop
-                  </span>
-                </div>
-                <p className="font-mono text-lg font-semibold text-foreground tabular-nums">
-                  {gradePop.toLocaleString()}
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  PSA 10 pop {pop[10].toLocaleString()}
-                </p>
-              </div>
-              <div className="rounded-xl border border-border bg-card/60 p-3">
-                <div className="mb-0.5 flex items-center gap-1.5">
-                  <ShieldCheck className="size-3.5 text-muted-foreground" />
-                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    Comp confidence
-                  </span>
-                </div>
-                <span
-                  className={cn(
-                    "inline-flex rounded-md border px-1.5 py-0.5 text-xs font-semibold",
-                    confidenceColor[confidence.level],
-                  )}
-                >
-                  {confidence.label}
-                </span>
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  {confidence.sales} recent sales
-                </p>
+              <div className="flex flex-col gap-4">
+                <RecentSalesList
+                  title="Raw NM"
+                  sales={rawSales}
+                  emptyMessage="No recent raw sold comps in cache yet."
+                />
+                <RecentSalesList
+                  title={`PSA ${salesGrade}`}
+                  sales={slabSales}
+                  emptyMessage={`No recent PSA ${salesGrade} sold comps yet.`}
+                />
               </div>
             </div>
-          </div>
           )}
 
-          {/* Market insights */}
+          {priced && confidence && (
+            <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Activity className="size-4 text-primary" />
+                <h4 className="font-semibold text-foreground">Deal Intelligence</h4>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-card/60 p-3">
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    30-day deficit trend
+                  </span>
+                  <span
+                    className={cn(
+                      "text-sm font-semibold",
+                      trend === "widening"
+                        ? "text-primary"
+                        : trend === "closing"
+                          ? "text-destructive"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    {historyLoading ? "Loading…" : trendLabel}
+                  </span>
+                  {trend === "building" && !historyLoading && (
+                    <span className="mt-1 text-[11px] text-muted-foreground">
+                      More daily syncs needed for a full trend.
+                    </span>
+                  )}
+                </div>
+                {history.length >= 2 ? (
+                  <DeficitSparkline
+                    data={history}
+                    trend={trend === "building" ? "stable" : trend}
+                  />
+                ) : (
+                  <span className="text-[11px] text-muted-foreground">—</span>
+                )}
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-border bg-card/60 p-3">
+                  <div className="mb-0.5 flex items-center gap-1.5">
+                    <ShieldCheck className="size-3.5 text-muted-foreground" />
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      Comp confidence
+                    </span>
+                  </div>
+                  <span
+                    className={cn(
+                      "inline-flex rounded-md border px-1.5 py-0.5 text-xs font-semibold",
+                      confidenceColor[confidence.level],
+                    )}
+                  >
+                    {confidence.label}
+                  </span>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {confidence.sales} sold comps (raw + PSA {salesGrade})
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-card/60 p-3">
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    PSA population
+                  </span>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Official PSA pop reports are not available yet.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
             <div className="mb-1.5 flex items-center gap-2">
               <Lightbulb className="size-4 text-primary" />
@@ -270,7 +383,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             <p className="text-sm leading-relaxed text-muted-foreground">{selectedCard.marketInsight}</p>
           </div>
 
-          {/* Actions */}
           <div className="mt-4 flex flex-col gap-2.5">
             <a
               href={ebayUrl}
@@ -315,7 +427,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             </div>
           </div>
 
-          {/* Regrade ROI calculator */}
           {showLog && (
             <div className="mt-4 animate-fade-in">
               <RegradeCalculator card={slabCard} condition={condition} onChange={handleCondition} />

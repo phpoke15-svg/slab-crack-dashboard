@@ -1,9 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { COLLECTOOLS_BASE_URL } from "../config"
 import type { WebViewReport } from "./service"
-
-const SESSION_KEY = "collectools-qw-session"
-const TOKEN_KEY = "collectools-qw-token"
+import { SESSION_KEY, TOKEN_KEY } from "./pro-access"
 
 export async function getOrCreateMobileSessionId(): Promise<string> {
   const existing = await AsyncStorage.getItem(SESSION_KEY)
@@ -19,13 +17,29 @@ export async function getOrCreateMobileSessionId(): Promise<string> {
 export async function saveQueueWatchCredentials(input: {
   sessionId?: string
   token?: string
-}) {
+}): Promise<{ tokenChanged: boolean; hasToken: boolean }> {
+  let tokenChanged = false
+  let hasToken = Boolean((await AsyncStorage.getItem(TOKEN_KEY))?.trim())
+
   if (input.sessionId?.trim()) {
     await AsyncStorage.setItem(SESSION_KEY, input.sessionId.trim())
   }
-  if (input.token?.trim()) {
-    await AsyncStorage.setItem(TOKEN_KEY, input.token.trim())
+
+  if (input.token !== undefined) {
+    const next = input.token.trim()
+    const prev = (await AsyncStorage.getItem(TOKEN_KEY))?.trim() || ""
+    if (next) {
+      if (next !== prev) tokenChanged = true
+      await AsyncStorage.setItem(TOKEN_KEY, next)
+      hasToken = true
+    } else {
+      if (prev) tokenChanged = true
+      await AsyncStorage.removeItem(TOKEN_KEY)
+      hasToken = false
+    }
   }
+
+  return { tokenChanged, hasToken }
 }
 
 /** Pull Pro bookmarklet token/session from the CollecTools WebView localStorage. */
@@ -77,6 +91,6 @@ export async function reportQueueStateToServer(report: WebViewReport): Promise<v
       }),
     })
   } catch {
-    // Offline / network — local alerts still work
+    // Offline / network — local alerts still work for Pro sessions
   }
 }

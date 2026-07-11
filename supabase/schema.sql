@@ -43,23 +43,43 @@ create table public.slab_anomalies (
   recent_raw_sales jsonb not null default '[]'::jsonb,
   recent_slab_sales jsonb not null default '[]'::jsonb,
   grade_prices jsonb,
+  sample_counts jsonb,
   synced_at timestamptz not null default now()
 );
 
 create index slab_anomalies_synced_at_idx on public.slab_anomalies (synced_at desc);
 create index slab_watchlist_cards_card_id_idx on public.slab_watchlist_cards (card_id);
 
+create table public.slab_price_snapshots (
+  id bigserial primary key,
+  watchlist_id text not null references public.slab_watchlist_cards(id) on delete cascade,
+  grade integer not null check (grade between 7 and 10),
+  raw_price numeric(10, 2) not null,
+  slab_price numeric(10, 2) not null,
+  deficit numeric(10, 2) not null,
+  snapshot_date date not null default ((timezone('utc', now()))::date),
+  captured_at timestamptz not null default now(),
+  unique (watchlist_id, grade, snapshot_date)
+);
+
+create index slab_price_snapshots_lookup_idx
+  on public.slab_price_snapshots (watchlist_id, grade, snapshot_date desc);
+
 alter table public.slab_cards enable row level security;
 alter table public.slab_watchlist_cards enable row level security;
 alter table public.slab_anomalies enable row level security;
+alter table public.slab_price_snapshots enable row level security;
 
 grant select on public.slab_cards to anon, authenticated;
 grant select on public.slab_watchlist_cards to anon, authenticated;
 grant select on public.slab_anomalies to anon, authenticated;
+grant select on public.slab_price_snapshots to anon, authenticated;
 
 grant all on public.slab_cards to service_role;
 grant all on public.slab_watchlist_cards to service_role;
 grant all on public.slab_anomalies to service_role;
+grant all on public.slab_price_snapshots to service_role;
+grant usage, select on sequence public.slab_price_snapshots_id_seq to service_role;
 
 drop policy if exists "slab_cards_public_read" on public.slab_cards;
 create policy "slab_cards_public_read"
@@ -76,5 +96,11 @@ create policy "slab_watchlist_public_read"
 drop policy if exists "slab_anomalies_public_read" on public.slab_anomalies;
 create policy "slab_anomalies_public_read"
   on public.slab_anomalies for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "slab_price_snapshots_public_read" on public.slab_price_snapshots;
+create policy "slab_price_snapshots_public_read"
+  on public.slab_price_snapshots for select
   to anon, authenticated
   using (true);

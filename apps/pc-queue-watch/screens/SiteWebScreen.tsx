@@ -4,6 +4,7 @@ import { WebView } from "react-native-webview"
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes"
 import { COLLECTOOLS_BASE_URL } from "../lib/config"
 import { colors } from "../lib/theme"
+import { useQueueWatch } from "../lib/queue-watch"
 import { BRIDGE_INJECT, saveQueueWatchCredentials } from "../lib/queue-watch/report-to-server"
 
 function isCollecToolsUrl(url: string) {
@@ -19,6 +20,7 @@ function isCollecToolsUrl(url: string) {
 export default function SiteWebScreen() {
   const [loading, setLoading] = useState(true)
   const webRef = useRef<WebView>(null)
+  const { refreshProAccess } = useQueueWatch()
 
   const onShouldStartLoadWithRequest = useCallback((request: ShouldStartLoadRequest) => {
     if (isCollecToolsUrl(request.url)) return true
@@ -26,23 +28,28 @@ export default function SiteWebScreen() {
     return false
   }, [])
 
-  const onMessage = useCallback((event: { nativeEvent: { data: string } }) => {
-    try {
-      const data = JSON.parse(event.nativeEvent.data) as {
-        type?: string
-        sessionId?: string
-        token?: string
+  const onMessage = useCallback(
+    (event: { nativeEvent: { data: string } }) => {
+      try {
+        const data = JSON.parse(event.nativeEvent.data) as {
+          type?: string
+          sessionId?: string
+          token?: string
+        }
+        if (data?.type === "collectools-qw-creds") {
+          void saveQueueWatchCredentials({
+            sessionId: data.sessionId,
+            token: data.token ?? "",
+          }).then(({ tokenChanged }) => {
+            if (tokenChanged) void refreshProAccess()
+          })
+        }
+      } catch {
+        // ignore
       }
-      if (data?.type === "collectools-qw-creds") {
-        void saveQueueWatchCredentials({
-          sessionId: data.sessionId,
-          token: data.token,
-        })
-      }
-    } catch {
-      // ignore
-    }
-  }, [])
+    },
+    [refreshProAccess],
+  )
 
   return (
     <SafeAreaView style={styles.safe}>

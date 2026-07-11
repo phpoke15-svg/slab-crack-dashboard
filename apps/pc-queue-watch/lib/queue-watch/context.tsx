@@ -10,13 +10,17 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage"
 import { AppState } from "react-native"
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake"
-import { registerQueueBackgroundTask } from "./background"
+import {
+  registerQueueBackgroundTask,
+  unregisterQueueBackgroundTask,
+} from "./background"
 import {
   queueWatchService,
   type QueueCheckState,
   type WebViewReport,
 } from "./service"
 import { reportQueueStateToServer } from "./report-to-server"
+import { verifyProAccess } from "./pro-access"
 
 const AUTO_START_KEY = "collectools-queue-auto-start"
 const KEEP_AWAKE_TAG = "collectools-queue-watch"
@@ -27,10 +31,14 @@ type QueueWatchContextValue = {
   state: QueueCheckState | null
   error: string | null
   webViewConnected: boolean
+  /** null while first Pro check is in flight */
+  hasPro: boolean | null
+  proChecking: boolean
   start: () => Promise<void>
   stop: () => void
   setAutoStart: (enabled: boolean) => Promise<void>
   applyWebViewReport: (report: WebViewReport) => Promise<void>
+  refreshProAccess: () => Promise<boolean>
 }
 
 const QueueWatchContext = createContext<QueueWatchContextValue | null>(null)
@@ -41,9 +49,46 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<QueueCheckState | null>(queueWatchService.getState())
   const [error, setError] = useState<string | null>(null)
   const [webViewConnected, setWebViewConnected] = useState(false)
+  const [hasPro, setHasPro] = useState<boolean | null>(null)
+  const [proChecking, setProChecking] = useState(true)
+
+  const stop = useCallback(() => {
+    queueWatchService.stop()
+    deactivateKeepAwake(KEEP_AWAKE_TAG)
+    void unregisterQueueBackgroundTask()
+    setMonitoring(false)
+    setWebViewConnected(false)
+    setState((prev) => (prev ? { ...prev, live: false } : prev))
+  }, [])
+
+  const refreshProAccess = useCallback(async () => {
+    setProChecking(true)
+    try {
+      const result = await verifyProAccess()
+      setHasPro(result.hasPro)
+      if (!result.hasPro) {
+        stop()
+        // Only clear auto-start preference when Pro was revoked, not when never linked.
+        if (result.reason === "forbidden") {
+          await AsyncStorage.setItem(AUTO_START_KEY, "0")
+          setAutoStartState(false)
+        }
+      }
+      return result.hasPro
+    } finally {
+      setProChecking(false)
+    }
+  }, [stop])
 
   const start = useCallback(async () => {
     setError(null)
+    const allowed = await verifyProAccess()
+    setHasPro(allowed.hasPro)
+    if (!allowed.hasPro) {
+      setError("Queue Watch requires CollecTools Pro. Sign in on the CollecTools tab, open Queue Watch once, then come back.")
+      stop()
+      return
+    }
     try {
       await queueWatchService.start()
       await registerQueueBackgroundTask()
@@ -53,26 +98,35 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
       setError(err instanceof Error ? err.message : "Could not start monitoring")
       setMonitoring(false)
     }
-  }, [])
+  }, [stop])
 
-  const stop = useCallback(() => {
-    queueWatchService.stop()
-    deactivateKeepAwake(KEEP_AWAKE_TAG)
-    setMonitoring(false)
-    setWebViewConnected(false)
-    setState((prev) => (prev ? { ...prev, live: false } : prev))
-  }, [])
+  const setAutoStart = useCallback(
+    async (enabled: boolean) => {
+      if (enabled) {
+        const allowed = await verifyProAccess()
+        setHasPro(allowed.hasPro)
+        if (!allowed.hasPro) {
+          setError("Auto-start needs CollecTools Pro.")
+          setAutoStartState(false)
+          await AsyncStorage.setItem(AUTO_START_KEY, "0")
+          return
+        }
+      }
+      setAutoStartState(enabled)
+      await AsyncStorage.setItem(AUTO_START_KEY, enabled ? "1" : "0")
+    },
+    [],
+  )
 
-  const setAutoStart = useCallback(async (enabled: boolean) => {
-    setAutoStartState(enabled)
-    await AsyncStorage.setItem(AUTO_START_KEY, enabled ? "1" : "0")
-  }, [])
-
-  const applyWebViewReport = useCallback(async (report: WebViewReport) => {
-    setWebViewConnected(true)
-    await queueWatchService.applyWebViewReport(report)
-    void reportQueueStateToServer(report)
-  }, [])
+  const applyWebViewReport = useCallback(
+    async (report: WebViewReport) => {
+      if (!hasPro) return
+      setWebViewConnected(true)
+      await queueWatchService.applyWebViewReport(report)
+      void reportQueueStateToServer(report)
+    },
+    [hasPro],
+  )
 
   useEffect(() => {
     void queueWatchService.init()
@@ -83,18 +137,23 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
       if (next.source === "webview") setWebViewConnected(true)
     })
 
-    void AsyncStorage.getItem(AUTO_START_KEY).then(async (value) => {
+    void (async () => {
+      const allowed = await refreshProAccess()
+      const value = await AsyncStorage.getItem(AUTO_START_KEY)
       const enabled = value !== "0"
       setAutoStartState(enabled)
-      if (enabled) await start()
-    })
+      if (allowed && enabled) await start()
+    })()
 
     const sub = AppState.addEventListener("change", (next) => {
-      if (next === "active" && queueWatchService.isActive()) {
-        // Soft fallback only if WebView heartbeats went stale while backgrounded.
-        if (!queueWatchService.hasFreshWebView()) {
-          void queueWatchService.runCheck()
-        }
+      if (next === "active") {
+        void refreshProAccess().then((allowed) => {
+          if (allowed && queueWatchService.isActive()) {
+            if (!queueWatchService.hasFreshWebView()) {
+              void queueWatchService.runCheck()
+            }
+          }
+        })
       }
     })
 
@@ -102,7 +161,9 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
       unsubscribe()
       sub.remove()
     }
-  }, [start])
+    // intentionally once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const value = useMemo(
     () => ({
@@ -111,10 +172,13 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
       state,
       error,
       webViewConnected,
+      hasPro,
+      proChecking,
       start,
       stop,
       setAutoStart,
       applyWebViewReport,
+      refreshProAccess,
     }),
     [
       monitoring,
@@ -122,10 +186,13 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
       state,
       error,
       webViewConnected,
+      hasPro,
+      proChecking,
       start,
       stop,
       setAutoStart,
       applyWebViewReport,
+      refreshProAccess,
     ],
   )
 

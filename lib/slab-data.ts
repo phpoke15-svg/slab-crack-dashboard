@@ -13,6 +13,15 @@ export interface RecentSale {
   url?: string
 }
 
+/** SoldComps match counts from the last ebay price sync (last ~30 days scrape). */
+export type SampleCounts = {
+  raw: number
+  psa7: number
+  psa8: number
+  psa9: number
+  psa10: number
+}
+
 export interface MockCardEntry {
   id: string
   cardName: string
@@ -30,6 +39,8 @@ export interface MockCardEntry {
   gradeQuotes?: GradeQuote[]
   recentRawSales?: RecentSale[]
   recentSlabSales?: RecentSale[]
+  /** Real SoldComps sample sizes when priced via ebay sync. */
+  sampleCounts?: SampleCounts
   /** False when the card is tracked but price sync has not run yet. */
   hasPricing?: boolean
   /** ISO date from PriceCharting set release (YYYY-MM-DD). */
@@ -198,73 +209,32 @@ export function computeDeficit(card: SlabCard) {
 }
 
 /* ---------------------------------------------------------------------------
- * Deal Intelligence
- * Deterministic, seed-based signals so values stay stable across renders
- * without bloating the dataset with hand-authored numbers.
+ * Deal Intelligence — real SoldComps sample sizes + snapshot deficit history
  * ------------------------------------------------------------------------- */
 
-function seedFrom(str: string): number {
-  let h = 2166136261
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
+export type DeficitTrend = "widening" | "closing" | "stable" | "building"
+
+function sampleCountForGrade(counts: SampleCounts | undefined, grade: PsaGradeNumber): number {
+  if (!counts) return 0
+  if (grade === 7) return counts.psa7
+  if (grade === 8) return counts.psa8
+  if (grade === 9) return counts.psa9
+  return counts.psa10
 }
 
-function mulberry32(seed: number) {
-  let a = seed
-  return () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-}
+/**
+ * Number of sold comps backing the selected grade (and raw when available).
+ * Prefers SoldComps sampleCounts; falls back to cached recent-sale list lengths.
+ */
+export function getSalesCount(entry: MockCardEntry, grade: PsaGradeNumber): number {
+  const slab = sampleCountForGrade(entry.sampleCounts, grade)
+  const raw = entry.sampleCounts?.raw ?? 0
+  if (slab > 0 || raw > 0) return slab + raw
 
-/** 30-day history of the raw→slab deficit, trending toward today's value. */
-export function getDeficitHistory(card: SlabCard, points = 30): number[] {
-  const rand = mulberry32(seedFrom(card.id))
-  const current = computeDeficit(card).diff
-  // Start further from zero, drift toward the current deficit with noise.
-  const start = current * (0.35 + rand() * 0.4)
-  const series: number[] = []
-  for (let i = 0; i < points; i++) {
-    const t = i / (points - 1)
-    const base = start + (current - start) * t
-    const noise = (rand() - 0.5) * Math.abs(current) * 0.18
-    series.push(base + noise)
-  }
-  series[points - 1] = current
-  return series
-}
-
-/** Is the arbitrage window opening (deficit deepening) or closing? */
-export function getDeficitTrend(card: SlabCard): "widening" | "closing" | "stable" {
-  const h = getDeficitHistory(card)
-  const recent = h[h.length - 1] - h[h.length - 8]
-  if (recent < -1.5) return "widening"
-  if (recent > 1.5) return "closing"
-  return "stable"
-}
-
-/** PSA population report across grades for this card. */
-export function getPopReport(card: SlabCard): Record<number, number> {
-  const rand = mulberry32(seedFrom(card.id + "pop"))
-  const scale = 6
-  return {
-    7: Math.round((40 + rand() * 260) * scale),
-    8: Math.round((80 + rand() * 520) * scale),
-    9: Math.round((160 + rand() * 900) * scale),
-    10: Math.round((30 + rand() * 380) * scale),
-  }
-}
-
-/** Number of recent verified sales backing the comp. */
-export function getSalesCount(card: SlabCard): number {
-  const rand = mulberry32(seedFrom(card.id + "sales"))
-  return Math.round(3 + rand() * 44)
+  const quote = getGradeQuotes(entry).find((q) => q.grade === grade)
+  const slabLen = quote?.recentSlabSales?.length ?? entry.recentSlabSales?.length ?? 0
+  const rawLen = entry.recentRawSales?.length ?? 0
+  return slabLen + rawLen
 }
 
 export interface Confidence {
@@ -273,12 +243,25 @@ export interface Confidence {
   sales: number
 }
 
-/** Comp confidence based on how many recent sales support the deficit. */
-export function getConfidence(card: SlabCard): Confidence {
-  const sales = getSalesCount(card)
+/** Comp confidence from real SoldComps / cached sale sample sizes. */
+export function getConfidence(entry: MockCardEntry, grade: PsaGradeNumber): Confidence {
+  const sales = getSalesCount(entry, grade)
   if (sales >= 25) return { level: "high", label: "High confidence", sales }
   if (sales >= 10) return { level: "medium", label: "Medium confidence", sales }
   return { level: "low", label: "Low confidence", sales }
+}
+
+/**
+ * Trend from a real deficit series (raw − slab). Larger positive = wider gap.
+ * Needs at least 3 points; otherwise "building".
+ */
+export function getDeficitTrendFromHistory(history: number[]): DeficitTrend {
+  if (history.length < 3) return "building"
+  const lookback = Math.min(7, history.length - 1)
+  const recent = history[history.length - 1] - history[history.length - 1 - lookback]
+  if (recent > 1.5) return "widening"
+  if (recent < -1.5) return "closing"
+  return "stable"
 }
 
 /* ---------------------------------------------------------------------------

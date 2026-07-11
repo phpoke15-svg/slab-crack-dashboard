@@ -8,9 +8,13 @@ import {
   Text,
   View,
 } from "react-native"
+import * as Linking from "expo-linking"
+import { useNavigation } from "@react-navigation/native"
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs"
 import { WebView } from "react-native-webview"
 import type { WebViewMessageEvent } from "react-native-webview"
-import { POKEMON_CENTER_URL } from "../lib/config"
+import { COLLECTOOLS_BASE_URL, POKEMON_CENTER_URL } from "../lib/config"
+import type { RootTabParamList } from "../lib/navigation"
 import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { WEBVIEW_MONITOR_SCRIPT } from "../lib/queue-watch/webview-monitor-script"
@@ -22,16 +26,20 @@ function formatRelativeTime(iso: string) {
 }
 
 export default function QueueWatchScreen() {
+  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>()
   const {
     monitoring,
     autoStart,
     state,
     error,
     webViewConnected,
+    hasPro,
+    proChecking,
     start,
     stop,
     setAutoStart,
     applyWebViewReport,
+    refreshProAccess,
   } = useQueueWatch()
   const webRef = useRef<WebView>(null)
 
@@ -80,10 +88,70 @@ export default function QueueWatchScreen() {
     webRef.current?.injectJavaScript(WEBVIEW_MONITOR_SCRIPT)
   }, [])
 
+  const openCollecTools = useCallback(() => {
+    navigation.navigate("CollecTools")
+  }, [navigation])
+
+  const openPricing = useCallback(() => {
+    void Linking.openURL(`${COLLECTOOLS_BASE_URL}/pricing`)
+  }, [])
+
+  if (proChecking && hasPro === null) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.lockWrap}>
+          <ActivityIndicator color={colors.primary} size="large" />
+          <Text style={styles.lockMeta}>Checking Pro access…</Text>
+        </View>
+      </SafeAreaView>
+    )
+  }
+
+  if (!hasPro) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.header}>
+          <Text style={styles.kicker}>Pro only</Text>
+          <Text style={styles.title}>Queue Watch</Text>
+          <Text style={styles.subtitle}>
+            Native Pokémon Center monitoring and alerts are included with CollecTools Pro.
+          </Text>
+
+          <View style={styles.lockCard}>
+            <Text style={styles.lockTitle}>Unlock with Pro</Text>
+            <Text style={styles.lockBody}>
+              1. Open the CollecTools tab and sign in{"\n"}
+              2. Upgrade to Pro if needed{"\n"}
+              3. Visit Queue Watch on the site once (links your Pro token){"\n"}
+              4. Return here and tap Refresh access
+            </Text>
+          </View>
+
+          <Pressable style={styles.primaryButton} onPress={openCollecTools}>
+            <Text style={styles.primaryButtonText}>Open CollecTools</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={openPricing}>
+            <Text style={styles.secondaryButtonText}>View Pro pricing</Text>
+          </Pressable>
+          <Pressable
+            style={styles.ghostButton}
+            onPress={() => void refreshProAccess()}
+            disabled={proChecking}
+          >
+            <Text style={styles.ghostButtonText}>
+              {proChecking ? "Checking…" : "Refresh access"}
+            </Text>
+          </Pressable>
+          {error && <Text style={styles.error}>{error}</Text>}
+        </View>
+      </SafeAreaView>
+    )
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
-        <Text style={styles.kicker}>Native · Imperva-safe</Text>
+        <Text style={styles.kicker}>Native · Imperva-safe · Pro</Text>
         <Text style={styles.title}>Queue Watch</Text>
         <Text style={styles.subtitle}>
           Opens Pokemon Center in-app so you can pass Imperva, then watches Queue-it from that real
@@ -222,6 +290,21 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
+  secondaryButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  secondaryButtonText: { color: colors.text, fontSize: 14, fontWeight: "600" },
+  ghostButton: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  ghostButtonText: { color: colors.primary, fontSize: 13, fontWeight: "700" },
   stopButton: { backgroundColor: colors.danger },
   primaryButtonText: { color: colors.white, fontSize: 14, fontWeight: "700" },
   error: { color: colors.error, fontSize: 12 },
@@ -239,4 +322,22 @@ const styles = StyleSheet.create({
   web: { flex: 1, backgroundColor: colors.background },
   idleHint: { paddingHorizontal: 16, paddingTop: 8 },
   footer: { color: colors.textDim, fontSize: 12, lineHeight: 18 },
+  lockWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    padding: 24,
+  },
+  lockMeta: { color: colors.textMuted, fontSize: 13 },
+  lockCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    padding: 14,
+    gap: 8,
+  },
+  lockTitle: { color: colors.text, fontSize: 16, fontWeight: "700" },
+  lockBody: { color: colors.textMuted, fontSize: 13, lineHeight: 20 },
 })

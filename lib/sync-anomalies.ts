@@ -15,6 +15,7 @@ import {
   type MockCardEntry,
 } from "@/lib/slab-data"
 import { upsertAnomaliesToDb, getAnomaliesFromDb, isSupabaseConfigured } from "@/lib/db/anomalies"
+import { appendPriceSnapshots } from "@/lib/db/price-snapshots"
 import { getWatchlistFromDb, updatePriceChartingId } from "@/lib/db/watchlist"
 import {
   defaultEbayQueries,
@@ -33,6 +34,7 @@ export interface WatchlistCard {
     psa7?: string
     psa8?: string
     psa9?: string
+    psa10?: string
   }
   cardName: string
   setName: string
@@ -79,6 +81,11 @@ export async function writeAnomaliesCache(anomalies: MockCardEntry[]): Promise<v
       await upsertAnomaliesToDb(anomalies)
     } catch (error) {
       console.error("[sync] Supabase upsert failed:", error)
+    }
+    try {
+      await appendPriceSnapshots(anomalies)
+    } catch (error) {
+      console.error("[sync] Price snapshot upsert failed:", error)
     }
   }
 }
@@ -208,6 +215,7 @@ export async function syncAnomaliesFromEbaySold(apiKey: string): Promise<SyncRes
         marketInsight: `${card.marketInsight} (Prices from eBay sold comps, last 30 days.)`,
         recentRawSales,
         recentSlabSales: best?.recentSlabSales ?? recentByGrade[best?.grade ?? 9] ?? [],
+        sampleCounts,
         hasPricing: true,
       }),
     )

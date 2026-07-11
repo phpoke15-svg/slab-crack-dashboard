@@ -1,10 +1,17 @@
 import * as BackgroundFetch from "expo-background-fetch"
 import * as TaskManager from "expo-task-manager"
+import { verifyProAccess } from "./pro-access"
 import { queueWatchService, QUEUE_WATCH_TASK } from "./service"
 
 TaskManager.defineTask(QUEUE_WATCH_TASK, async () => {
   try {
     if (!queueWatchService.isActive()) {
+      return BackgroundFetch.BackgroundFetchResult.NoData
+    }
+
+    const access = await verifyProAccess()
+    if (!access.hasPro) {
+      queueWatchService.stop()
       return BackgroundFetch.BackgroundFetchResult.NoData
     }
 

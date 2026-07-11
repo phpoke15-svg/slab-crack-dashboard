@@ -17,6 +17,7 @@ Live health: `https://slab-crack-dashboard.vercel.app/api/health`
 1. **One Vercel project** — disconnect Production on duplicate **`slabcrack`**.
 2. **Smoke test** — sign-in, trial, SlabCrack, Queue Watch bookmarklet synced.
 3. **Mobile stores** — see [`apps/pc-queue-watch/STORE.md`](./apps/pc-queue-watch/STORE.md).
+4. **Deal Intelligence SQL** — run [`supabase/deal-intelligence.sql`](./supabase/deal-intelligence.sql) in Supabase (sample counts + deficit snapshots). Daily `/api/cron/sync-prices` is scheduled in `vercel.json`.
 
 ## Intentionally deferred
 

@@ -7,6 +7,7 @@ import {
   type MockCardEntry,
   type PsaGradeNumber,
   type RecentSale,
+  type SampleCounts,
 } from "@/lib/slab-data"
 
 type SlabCardRow = {
@@ -40,6 +41,7 @@ type AnomalyRow = {
   recent_raw_sales: RecentSale[] | null
   recent_slab_sales: RecentSale[] | null
   grade_prices: Record<string, StoredGradePrice> | null
+  sample_counts?: SampleCounts | null
 }
 
 function formatCardName(name: string, rarity: string | null): string {
@@ -57,7 +59,7 @@ function gradeQuotesFromAnomaly(anomaly: AnomalyRow): GradeQuote[] {
 
     for (const [gradeKey, value] of Object.entries(anomaly.grade_prices)) {
       const grade = Number(gradeKey) as PsaGradeNumber
-      if (grade !== 7 && grade !== 8 && grade !== 9) continue
+      if (grade !== 7 && grade !== 8 && grade !== 9 && grade !== 10) continue
       byGrade[grade] = {
         slabPrice: Number(value.slab_price),
         recentSlabSales: value.recent_slab_sales ?? [],
@@ -107,6 +109,7 @@ function watchlistToEntry(row: WatchlistRow, anomaly: AnomalyRow | undefined): M
       gradeQuotes,
       recentRawSales: anomaly.recent_raw_sales ?? [],
       recentSlabSales: anomaly.recent_slab_sales ?? [],
+      sampleCounts: anomaly.sample_counts ?? undefined,
       hasPricing: true,
     })
   }
@@ -148,8 +151,24 @@ export async function getCatalogFeedFromDb(): Promise<MockCardEntry[]> {
   let anomalyRows: AnomalyRow[] | null = null
   let anomalyError: { message: string } | null = null
 
-  const withGradePrices = await supabase.from("slab_anomalies").select(
+  const withSampleCounts = await supabase.from("slab_anomalies").select(
     `
+        watchlist_id,
+        raw_price,
+        slab_grade,
+        slab_price,
+        deficit,
+        percentage_savings,
+        recent_raw_sales,
+        recent_slab_sales,
+        grade_prices,
+        sample_counts
+      `,
+  )
+
+  if (withSampleCounts.error?.message?.includes("sample_counts")) {
+    const withGradePrices = await supabase.from("slab_anomalies").select(
+      `
         watchlist_id,
         raw_price,
         slab_grade,
@@ -160,9 +179,28 @@ export async function getCatalogFeedFromDb(): Promise<MockCardEntry[]> {
         recent_slab_sales,
         grade_prices
       `,
-  )
+    )
 
-  if (withGradePrices.error?.message?.includes("grade_prices")) {
+    if (withGradePrices.error?.message?.includes("grade_prices")) {
+      const withoutGradePrices = await supabase.from("slab_anomalies").select(
+        `
+        watchlist_id,
+        raw_price,
+        slab_grade,
+        slab_price,
+        deficit,
+        percentage_savings,
+        recent_raw_sales,
+        recent_slab_sales
+      `,
+      )
+      anomalyRows = (withoutGradePrices.data ?? []) as AnomalyRow[]
+      anomalyError = withoutGradePrices.error
+    } else {
+      anomalyRows = (withGradePrices.data ?? []) as AnomalyRow[]
+      anomalyError = withGradePrices.error
+    }
+  } else if (withSampleCounts.error?.message?.includes("grade_prices")) {
     const withoutGradePrices = await supabase.from("slab_anomalies").select(
       `
         watchlist_id,
@@ -178,8 +216,8 @@ export async function getCatalogFeedFromDb(): Promise<MockCardEntry[]> {
     anomalyRows = (withoutGradePrices.data ?? []) as AnomalyRow[]
     anomalyError = withoutGradePrices.error
   } else {
-    anomalyRows = (withGradePrices.data ?? []) as AnomalyRow[]
-    anomalyError = withGradePrices.error
+    anomalyRows = (withSampleCounts.data ?? []) as AnomalyRow[]
+    anomalyError = withSampleCounts.error
   }
 
   if (anomalyError) throw new Error(`Failed to load anomalies: ${anomalyError.message}`)
