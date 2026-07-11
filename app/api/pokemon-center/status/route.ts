@@ -3,14 +3,18 @@ import {
   BOOKMARKLET_STALE_MS,
   checkPokemonCenterQueue,
 } from "@/lib/pokemon-center/queue-detector"
-import { getQueueWatchReport } from "@/lib/pokemon-center/queue-alerts"
+import {
+  getLatestQueueWatchReportForUser,
+  getQueueWatchReport,
+  isQueueWatchReportsTableReady,
+} from "@/lib/pokemon-center/queue-alerts"
 import { requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { verifyQueueWatchToken } from "@/lib/billing/queue-watch-token"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
 
-async function hasProAccess(request: Request): Promise<boolean> {
+async function resolveProUserId(request: Request): Promise<string | null> {
   const url = new URL(request.url)
   const token =
     url.searchParams.get("token") ||
@@ -19,15 +23,21 @@ async function hasProAccess(request: Request): Promise<boolean> {
     ""
 
   const fromToken = verifyQueueWatchToken(token)
-  if (fromToken) return requireQueueWatchAccess(fromToken)
+  if (fromToken) {
+    const allowed = await requireQueueWatchAccess(fromToken)
+    return allowed ? fromToken : null
+  }
 
   try {
     const auth = await requireUser()
-    if (auth.ok) return requireQueueWatchAccess(auth.user.id)
+    if (auth.ok) {
+      const allowed = await requireQueueWatchAccess(auth.user.id)
+      return allowed ? auth.user.id : null
+    }
   } catch {
     // unauthenticated
   }
-  return false
+  return null
 }
 
 function isFreshReport(reportedAt: string | undefined): boolean {
@@ -53,8 +63,8 @@ const SKIPPED_SERVER = {
 }
 
 export async function GET(request: Request) {
-  const allowed = await hasProAccess(request)
-  if (!allowed) {
+  const proUserId = await resolveProUserId(request)
+  if (!proUserId) {
     return NextResponse.json(
       { error: "Queue Watch requires a Pro subscription.", upgradeUrl: "/pricing" },
       { status: 403 },
@@ -67,8 +77,18 @@ export async function GET(request: Request) {
   // ?probe=1 = soft cached probe (10–30 min TTL). Never used by the dashboard poller.
   const wantProbe = url.searchParams.get("probe") === "1"
 
-  const bookmarklet = sessionId ? await getQueueWatchReport(sessionId) : null
+  const bySession = sessionId ? await getQueueWatchReport(sessionId) : null
+  const byUser =
+    !isFreshReport(bySession?.reportedAt) ? await getLatestQueueWatchReportForUser(proUserId) : null
+
+  const bookmarklet = isFreshReport(bySession?.reportedAt)
+    ? bySession
+    : isFreshReport(byUser?.reportedAt)
+      ? byUser
+      : bySession ?? byUser
+
   const bookmarkletFresh = isFreshReport(bookmarklet?.reportedAt)
+  const reportsTableReady = await isQueueWatchReportsTableReady()
 
   // When the user's tab is already reporting, never touch pokemoncenter.com from Vercel.
   const server =
@@ -86,6 +106,17 @@ export async function GET(request: Request) {
         ? "server"
         : "idle"
 
+  let guidance: string | null = null
+  if (!bookmarkletFresh) {
+    if (!reportsTableReady) {
+      guidance =
+        "Queue Watch storage is missing. Run supabase/queue-watch.sql in the Supabase SQL editor, then re-copy the bookmarklet and click it on pokemoncenter.com."
+    } else {
+      guidance =
+        "Start the bookmarklet on an open pokemoncenter.com tab (or click the orange badge once and allow the CollecTools pop-up). Server probes from Vercel are blocked by Imperva and are not used for LIVE detection."
+    }
+  }
+
   return NextResponse.json({
     live,
     confidence,
@@ -97,9 +128,8 @@ export async function GET(request: Request) {
           fresh: bookmarkletFresh,
         }
       : null,
+    reportsTableReady,
     checkedAt: new Date().toISOString(),
-    guidance: bookmarkletFresh
-      ? null
-      : "Start the bookmarklet on an open pokemoncenter.com tab. Server probes from Vercel are blocked by Imperva and are not used for LIVE detection.",
+    guidance,
   })
 }

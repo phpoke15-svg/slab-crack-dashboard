@@ -16,31 +16,82 @@ export type QueueWatchReport = {
   pageUrl?: string
   reportedAt: string
   ntfyTopic?: string
+  userId?: string
 }
 
 const memoryReports = new Map<string, QueueWatchReport>()
+const memoryByUser = new Map<string, QueueWatchReport>()
 const lastDiscordAt = new Map<string, number>()
 
 const DISCORD_COOLDOWN_MS = 5 * 60 * 1000
 const PUSH_COOLDOWN_MS = 5 * 60 * 1000
 
-export async function saveQueueWatchReport(report: QueueWatchReport) {
-  memoryReports.set(report.sessionId, report)
+function rowToReport(data: {
+  session_id: string
+  live: boolean
+  confidence: number
+  signals: unknown
+  page_url: string | null
+  reported_at: string
+  user_id?: string | null
+}): QueueWatchReport {
+  return {
+    sessionId: data.session_id,
+    live: data.live,
+    confidence: data.confidence,
+    signals: Array.isArray(data.signals) ? data.signals : [],
+    source: "bookmarklet",
+    pageUrl: data.page_url ?? undefined,
+    reportedAt: data.reported_at,
+    userId: data.user_id ?? undefined,
+  }
+}
 
-  if (!isSupabaseConfigured()) return
+export async function saveQueueWatchReport(
+  report: QueueWatchReport,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  memoryReports.set(report.sessionId, report)
+  if (report.userId) memoryByUser.set(report.userId, report)
+
+  if (!isSupabaseConfigured()) {
+    // Local/dev single process — memory is enough. Vercel always has Supabase.
+    return { ok: true }
+  }
 
   try {
     const supabase = createAdminClient()
-    await supabase.from("queue_watch_reports").upsert({
+    const baseRow = {
       session_id: report.sessionId,
       live: report.live,
       confidence: report.confidence,
       signals: report.signals,
       page_url: report.pageUrl ?? null,
       reported_at: report.reportedAt,
-    })
-  } catch {
-    // Table may not exist yet; memory fallback still works on warm instances.
+    }
+
+    const withUser = report.userId ? { ...baseRow, user_id: report.userId } : baseRow
+    const first = await supabase.from("queue_watch_reports").upsert(withUser)
+
+    if (first.error && report.userId) {
+      // Older schema without user_id — still persist the ping.
+      const fallback = await supabase.from("queue_watch_reports").upsert(baseRow)
+      if (fallback.error) {
+        console.error("[queue-watch] persist failed:", fallback.error.message)
+        return { ok: false, error: fallback.error.message }
+      }
+      return { ok: true }
+    }
+
+    if (first.error) {
+      console.error("[queue-watch] persist failed:", first.error.message)
+      return { ok: false, error: first.error.message }
+    }
+
+    return { ok: true }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to save report"
+    console.error("[queue-watch] persist exception:", message)
+    return { ok: false, error: message }
   }
 }
 
@@ -48,22 +99,22 @@ export async function getQueueWatchReport(sessionId: string): Promise<QueueWatch
   if (isSupabaseConfigured()) {
     try {
       const supabase = createAdminClient()
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("queue_watch_reports")
-        .select("session_id, live, confidence, signals, page_url, reported_at")
+        .select("session_id, live, confidence, signals, page_url, reported_at, user_id")
         .eq("session_id", sessionId)
         .maybeSingle()
 
-      if (data) {
-        return {
-          sessionId: data.session_id,
-          live: data.live,
-          confidence: data.confidence,
-          signals: Array.isArray(data.signals) ? data.signals : [],
-          source: "bookmarklet",
-          pageUrl: data.page_url ?? undefined,
-          reportedAt: data.reported_at,
-        }
+      if (!error && data) return rowToReport(data)
+
+      // Older schema without user_id
+      if (error) {
+        const retry = await supabase
+          .from("queue_watch_reports")
+          .select("session_id, live, confidence, signals, page_url, reported_at")
+          .eq("session_id", sessionId)
+          .maybeSingle()
+        if (!retry.error && retry.data) return rowToReport({ ...retry.data, user_id: null })
       }
     } catch {
       // fall through to memory
@@ -71,6 +122,41 @@ export async function getQueueWatchReport(sessionId: string): Promise<QueueWatch
   }
 
   return memoryReports.get(sessionId) ?? null
+}
+
+/** Latest report for a Pro user — survives bookmarklet/sessionId mismatches. */
+export async function getLatestQueueWatchReportForUser(
+  userId: string,
+): Promise<QueueWatchReport | null> {
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = createAdminClient()
+      const { data, error } = await supabase
+        .from("queue_watch_reports")
+        .select("session_id, live, confidence, signals, page_url, reported_at, user_id")
+        .eq("user_id", userId)
+        .order("reported_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (!error && data) return rowToReport(data)
+    } catch {
+      // fall through
+    }
+  }
+
+  return memoryByUser.get(userId) ?? null
+}
+
+export async function isQueueWatchReportsTableReady(): Promise<boolean> {
+  if (!isSupabaseConfigured()) return false
+  try {
+    const supabase = createAdminClient()
+    const { error } = await supabase.from("queue_watch_reports").select("session_id").limit(1)
+    return !error
+  } catch {
+    return false
+  }
 }
 
 export async function maybeSendDiscordAlert(report: QueueWatchReport): Promise<boolean> {

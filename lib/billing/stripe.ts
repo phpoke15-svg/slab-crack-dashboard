@@ -26,9 +26,11 @@ export function getStripe(): Stripe {
 }
 
 export function isStripeConfigured(): boolean {
-  if (!process.env.STRIPE_SECRET_KEY?.trim()) return false
+  const key = process.env.STRIPE_SECRET_KEY?.trim() ?? ""
+  // Stripe secret keys are sk_test_… / sk_live_… — reject lookalikes (pk_, mk_, etc.).
+  if (!/^sk_(test|live)_/.test(key)) return false
   // Checkout needs every published price ID; secret alone is not enough.
-  return PRICE_KEYS.every((key) => Boolean(getStripePriceId(key)))
+  return PRICE_KEYS.every((k) => Boolean(getStripePriceId(k)))
 }
 
 const ACTIVE_STATUSES = new Set(["active", "trialing"])

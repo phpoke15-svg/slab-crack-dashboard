@@ -33,7 +33,15 @@ Add to Vercel Production env:
 
 Run `supabase/web-push.sql` in Supabase if not already. Redeploy.
 
-### 3. Walmart Restocks — currently off
+### 3. Queue Watch reports table (required for bookmarklet)
+
+Run [`supabase/queue-watch.sql`](./supabase/queue-watch.sql) in the Supabase SQL editor.
+
+Without this table, the Pokemon Center badge can look “active” while `/queue-watch` stays offline (Vercel instances do not share memory).
+
+After deploying the sync fix: re-copy the bookmarklet from `/queue-watch` and confirm the badge says **active · synced**. Health should show `queueWatchReportsReady: true`.
+
+### 4. Walmart Restocks — currently off
 
 Set:
 
@@ -43,14 +51,14 @@ Set:
 
 Optional: `RESTOCKS_DISCORD_WEBHOOK`, `RESTOCKS_REPORT_SECRET` (required for `/api/restocks/report` in production).
 
-### 4. Stripe Live checklist
+### 5. Stripe Live checklist
 
 - Live mode keys + four Live price IDs on Vercel
 - Webhook: `https://slab-crack-dashboard.vercel.app/api/billing/webhook`
 - Events: `checkout.session.completed`, `customer.subscription.created/updated/deleted`
 - Run `supabase/billing-plans.sql` if not done
 
-### 5. Smoke test
+### 6. Smoke test
 
 - Sign in
 - `/pricing` → Start Premium trial

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
 import { checkPokeMatchSetup } from "@/lib/trade-binder/setup-health"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
+import { isQueueWatchReportsTableReady } from "@/lib/pokemon-center/queue-alerts"
 import { isWalmartAffiliateConfigured } from "@/lib/restocks/walmart"
 import { isWebPushConfigured } from "@/lib/push/web-push"
 import { isStripeConfigured } from "@/lib/billing/stripe"
@@ -22,6 +23,7 @@ export async function GET() {
   const restockReportSecured = Boolean(process.env.RESTOCKS_REPORT_SECRET?.trim())
 
   let pokematchReady: boolean | null = null
+  let queueWatchReportsReady: boolean | null = null
   if (supabaseConfigured) {
     const supabase = createCrossUserReader()
     if (supabase) {
@@ -31,6 +33,11 @@ export async function GET() {
       } catch {
         pokematchReady = false
       }
+    }
+    try {
+      queueWatchReportsReady = await isQueueWatchReportsTableReady()
+    } catch {
+      queueWatchReportsReady = false
     }
   }
 
@@ -46,6 +53,7 @@ export async function GET() {
     restocksWalmart: walmartAffiliateConfigured,
     phoneAlerts: webPushConfigured,
     restockReportSecured,
+    queueWatchReports: queueWatchReportsReady === true,
   }
 
   return NextResponse.json(
@@ -64,6 +72,7 @@ export async function GET() {
         webPushConfigured,
         restockReportSecured,
         pokematchReady,
+        queueWatchReportsReady,
       },
       launchReady,
       time: new Date().toISOString(),

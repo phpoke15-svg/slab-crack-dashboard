@@ -40,6 +40,7 @@ type StatusResponse = {
   } | null
   checkedAt: string
   guidance?: string | null
+  reportsTableReady?: boolean
 }
 
 function createSessionId() {
@@ -512,8 +513,9 @@ export function QueueWatchClient() {
                 check, then click your new bookmark (on that tab — not from Google).
               </li>
               <li>
-                Allow the CollecTools pop-up if asked. You should see{" "}
-                <strong className="text-foreground">PC Queue Watch active</strong> in the corner.
+                Allow the CollecTools pop-up if asked. The corner badge must say{" "}
+                <strong className="text-foreground">active · synced</strong> (not just “active”).
+                If it says sync failed, re-copy the bookmarklet from this page and try again.
               </li>
             </ol>
 
@@ -591,11 +593,25 @@ export function QueueWatchClient() {
             {!tabConnected && (
               <p className="mt-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-100">
                 Pokemon Center console noise like &quot;event successful&quot; is <strong>not</strong>{" "}
-                CollecTools. Look for an orange/dark badge saying <strong>PC Queue Watch</strong>. If
-                it says <strong>click to sync</strong>, click it once and allow the CollecTools
-                pop-up. Also run{" "}
-                <code className="rounded bg-secondary px-1">supabase/queue-watch.sql</code> if you
-                haven&apos;t — reports need that table across servers.
+                CollecTools. Look for the corner badge: it must say{" "}
+                <strong>active · synced</strong>. If it stays orange / &quot;sync failed&quot;, click
+                the badge once, allow the CollecTools pop-up, then{" "}
+                <strong>Copy bookmarklet</strong> again (token/session must match this page).
+                {status?.reportsTableReady === false ? (
+                  <>
+                    {" "}
+                    Storage is missing — run{" "}
+                    <code className="rounded bg-secondary px-1">supabase/queue-watch.sql</code> in
+                    Supabase or pings cannot reach this page on Vercel.
+                  </>
+                ) : (
+                  <>
+                    {" "}
+                    If you never ran it, also execute{" "}
+                    <code className="rounded bg-secondary px-1">supabase/queue-watch.sql</code> in
+                    Supabase.
+                  </>
+                )}
               </p>
             )}
             <p className="mt-2 text-xs text-muted-foreground">

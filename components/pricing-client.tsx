@@ -47,7 +47,11 @@ export function PricingClient() {
     setError(null)
     try {
       const url = await entitlements.startCheckout(priceKey)
-      if (url) window.location.href = url
+      if (url) {
+        window.location.assign(url)
+        return
+      }
+      setError("Checkout did not return a Stripe URL. Try again or contact support.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed")
     } finally {
@@ -173,7 +177,7 @@ export function PricingClient() {
       {error && (
         <p
           role="alert"
-          className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="mb-4 rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-sm font-medium text-destructive"
         >
           {error}
         </p>

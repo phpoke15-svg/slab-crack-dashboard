@@ -77,7 +77,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: session.url })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Checkout failed"
+    const raw = error instanceof Error ? error.message : "Checkout failed"
+    const message = /invalid api key/i.test(raw)
+      ? "Stripe secret key is invalid. In Vercel, set STRIPE_SECRET_KEY to sk_live_… or sk_test_… from Stripe → Developers → API keys (not a publishable or other mk_/pk_ key)."
+      : raw
+    console.error("[billing/checkout]", raw)
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

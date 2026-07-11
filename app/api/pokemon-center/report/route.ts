@@ -33,6 +33,25 @@ type ReportBody = {
   token?: string
 }
 
+function syncHtml(ok: boolean, message: string, status: number) {
+  const payload = JSON.stringify({ type: "pcw-sync", ok, error: ok ? null : message })
+  const bg = ok ? "#111" : "#7f1d1d"
+  const body = ok
+    ? "PC Queue Watch ping OK"
+    : `Queue Watch: ${message}`
+  const closeMs = ok ? 500 : 4000
+  return new NextResponse(
+    `<!doctype html><html><body style="font:14px system-ui;padding:16px;background:${bg};color:#eee">${body}<script>
+try{if(window.opener){window.opener.postMessage(${payload},"*");}}catch(e){}
+setTimeout(function(){try{window.close()}catch(e){}},${closeMs});
+</script></body></html>`,
+    {
+      status,
+      headers: { "Content-Type": "text/html; charset=utf-8", ...CORS_HEADERS },
+    },
+  )
+}
+
 async function resolveProUserId(request: Request, bodyToken?: string): Promise<string | null> {
   const headerToken =
     request.headers.get("x-queue-watch-token") ||
@@ -59,10 +78,17 @@ async function resolveProUserId(request: Request, bodyToken?: string): Promise<s
 async function processReport(
   request: Request,
   body: ReportBody,
-): Promise<{ ok: true; discordSent: boolean; ntfySent: boolean; pushSent: boolean } | { ok: false; status: number; error: string }> {
+): Promise<
+  | { ok: true; discordSent: boolean; ntfySent: boolean; pushSent: boolean }
+  | { ok: false; status: number; error: string }
+> {
   const proUserId = await resolveProUserId(request, body.token)
   if (!proUserId) {
-    return { ok: false, status: 403, error: "Queue Watch requires a Pro subscription." }
+    return {
+      ok: false,
+      status: 403,
+      error: "Auth failed — re-copy the bookmarklet from Queue Watch while signed in with Pro.",
+    }
   }
 
   const sessionId = body.sessionId?.trim()
@@ -80,9 +106,21 @@ async function processReport(
     pageUrl: body.pageUrl,
     ntfyTopic: body.ntfyTopic?.trim(),
     reportedAt: new Date().toISOString(),
+    userId: proUserId,
   }
 
-  await saveQueueWatchReport(report)
+  const saved = await saveQueueWatchReport(report)
+  if (!saved.ok) {
+    return {
+      ok: false,
+      status: 503,
+      error:
+        saved.error.includes("queue_watch_reports") || saved.error.includes("schema cache")
+          ? "Run supabase/queue-watch.sql in Supabase, then try again."
+          : saved.error,
+    }
+  }
+
   const { discordSent, ntfySent, pushSent } = await maybeSendMobileAlerts(report, previous)
   return { ok: true, discordSent, ntfySent, pushSent }
 }
@@ -115,22 +153,10 @@ export async function GET(request: Request) {
   })
 
   if (!result.ok) {
-    return new NextResponse(
-      `<!doctype html><html><body style="font:14px system-ui;padding:16px">Queue Watch: ${result.error}<script>setTimeout(function(){window.close()},1500)</script></body></html>`,
-      {
-        status: result.status,
-        headers: { "Content-Type": "text/html; charset=utf-8", ...CORS_HEADERS },
-      },
-    )
+    return syncHtml(false, result.error, result.status)
   }
 
-  return new NextResponse(
-    `<!doctype html><html><body style="font:14px system-ui;padding:16px;background:#111;color:#eee">PC Queue Watch ping OK<script>setTimeout(function(){window.close()},400)</script></body></html>`,
-    {
-      status: 200,
-      headers: { "Content-Type": "text/html; charset=utf-8", ...CORS_HEADERS },
-    },
-  )
+  return syncHtml(true, "ok", 200)
 }
 
 export async function POST(request: Request) {

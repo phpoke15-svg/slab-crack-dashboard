@@ -63,7 +63,7 @@ After changing env vars, **Redeploy**.
 2. Create Stripe products/prices:
    - **Premium** — $4.99/mo + $39.99/yr (full SlabCrack + ad-free)
    - **Pro** — $9.99/mo + $99.99/yr (everything, including Queue Watch)
-3. Set Vercel env: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, and the four `STRIPE_PRICE_*` IDs.
+3. Set Vercel env: `STRIPE_SECRET_KEY` (**must** be `sk_live_…` or `sk_test_…` from Stripe → Developers → API keys — not `pk_`, `mk_`, or other keys), `STRIPE_WEBHOOK_SECRET`, and the four `STRIPE_PRICE_*` IDs.
 4. Stripe webhook endpoint: `https://YOUR_HOST/api/billing/webhook` (events: `checkout.session.completed`, `customer.subscription.*`).
 5. Pricing page: `/pricing`
 
@@ -89,6 +89,13 @@ After changing env vars, **Redeploy**.
    - Pokémon Center queue live → **all Pro members** who enabled queue phone alerts (one monitor detects → everyone notified)
    - Walmart Wednesday 9pm ET reminder (anyone who opted in)
 6. **iOS:** Add to Home Screen first, then enable alerts from the home-screen icon.
+
+## Queue Watch (Pokémon Center bookmarklet)
+
+1. Run [`supabase/queue-watch.sql`](./supabase/queue-watch.sql) (required — Vercel cannot share in-memory reports).
+2. Pro user opens `/queue-watch` → **Copy bookmarklet** → run on `pokemoncenter.com`.
+3. Badge must say **active · synced**. `/api/health` → `queueWatchReportsReady: true`.
+4. Optional Discord: `POKEMON_CENTER_DISCORD_WEBHOOK`.
 
 ## Restocks (Walmart auto-discovery)
 

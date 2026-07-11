@@ -154,4 +154,4 @@ export async function checkPokemonCenterQueue(options?: {
 }
 
 /** Bookmarklet reports older than this are treated as disconnected. */
-export const BOOKMARKLET_STALE_MS = 45_000
+export const BOOKMARKLET_STALE_MS = 60_000
