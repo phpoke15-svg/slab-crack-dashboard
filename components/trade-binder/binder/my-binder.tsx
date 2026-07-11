@@ -46,8 +46,8 @@ const tabs: { key: BinderTab; label: string; icon: typeof Search }[] = [
   { key: "search", label: "Search", icon: Search },
   { key: "have", label: "I have", icon: ArrowLeftRight },
   { key: "want", label: "I want", icon: Heart },
-  { key: "pending", label: "Pending", icon: Clock3 },
   { key: "matches", label: "Matches", icon: Users },
+  { key: "pending", label: "Pending", icon: Clock3 },
 ]
 
 function tabToStatus(tab: BinderTab): CardStatus | null {
