@@ -1,11 +1,21 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Search, Zap, TrendingDown, DollarSign, Percent } from "lucide-react"
+import {
+  Search,
+  Zap,
+  TrendingDown,
+  TrendingUp,
+  DollarSign,
+  Percent,
+  ShoppingCart,
+  Gem,
+  BarChart3,
+  Crown,
+} from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
-import { COLLECTOOLS } from "@/lib/collectools-tools"
 import mockData from "@/lib/mockData.json"
 import {
   FEEDS,
@@ -35,7 +45,23 @@ import {
 
 const FALLBACK_FEED: MockCardEntry[] = []
 
-const SLABCRACK = COLLECTOOLS.find((tool) => tool.id === "slabcrack")!
+const SLABCRACK_USES = [
+  {
+    title: "Buy, crack, and sell",
+    body: "Spot slabs where cracking and selling raw beats the market price.",
+    icon: ShoppingCart,
+  },
+  {
+    title: "Buy high-end cards",
+    body: "Find high-end cards under market for your personal collection.",
+    icon: Gem,
+  },
+  {
+    title: "Market awareness",
+    body: "Track graded vs raw pricing gaps and stay ahead of the market.",
+    icon: BarChart3,
+  },
+] as const
 
 export function SlabDashboard() {
   const entitlements = useOptionalEntitlements()
@@ -297,26 +323,35 @@ export function SlabDashboard() {
 
       {/* Feed */}
       <main className="flex-1 px-4 py-4 sm:px-6">
-        <div className="mb-4 rounded-xl border border-border bg-card/40 p-3.5 sm:p-4">
-          <p className="text-sm leading-relaxed text-muted-foreground">{SLABCRACK.description}</p>
-          {SLABCRACK.highlights && (
-            <>
-              <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Best uses
+        <section className="mb-4 overflow-hidden rounded-2xl border border-border bg-card/50">
+          <div className="flex items-start gap-3 border-b border-border px-3.5 py-3.5 sm:px-4">
+            <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+              <TrendingUp className="size-4" aria-hidden="true" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-foreground">Find undervalued cards.</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                Premium unlocks the full feed of deficits.
               </p>
-              <ol className="mt-2 space-y-1.5 text-sm leading-relaxed text-foreground">
-                {SLABCRACK.highlights.map((item, index) => (
-                  <li key={item} className="flex gap-2.5">
-                    <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-semibold text-primary">
-                      {index + 1}
-                    </span>
-                    <span className="text-pretty text-muted-foreground">{item}</span>
-                  </li>
-                ))}
-              </ol>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+          <ol className="divide-y divide-border">
+            {SLABCRACK_USES.map(({ title, body, icon: Icon }, index) => (
+              <li key={title} className="flex items-start gap-3 px-3.5 py-3.5 sm:px-4">
+                <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 text-[11px] font-bold text-primary">
+                  {index + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-foreground">{title}</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">
+                    {body}
+                  </p>
+                </div>
+                <Icon className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+              </li>
+            ))}
+          </ol>
+        </section>
 
         {showCatalogSearch && (
           <CardSearchResults
@@ -391,16 +426,25 @@ export function SlabDashboard() {
         </div>
 
         {showFreePreviewBanner && (
-          <div className="mb-4 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">Free SlabCrack preview</p>
-            <p className="mt-1">
-              Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities). Search and
-              the full feed need Premium.{" "}
-              <Link href="/pricing" className="font-medium text-primary hover:underline">
-                Upgrade from $4.99/mo
-              </Link>
-              .
-            </p>
+          <div className="mb-4 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3.5">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
+                <Crown className="size-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-foreground">Free SlabCrack preview</p>
+                <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                  Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities). Search
+                  and the full feed need Premium.
+                </p>
+                <Link
+                  href="/pricing"
+                  className="mt-2 inline-flex text-sm font-semibold text-primary hover:underline"
+                >
+                  Upgrade from $4.99/mo
+                </Link>
+              </div>
+            </div>
           </div>
         )}
 
