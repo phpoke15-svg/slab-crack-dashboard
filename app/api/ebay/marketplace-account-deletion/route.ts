@@ -11,14 +11,18 @@ export const dynamic = "force-dynamic"
  * CollecTools does not persist eBay user PII. We still expose this endpoint so a
  * Production keyset can be activated (challenge handshake + 200 OK acknowledgements).
  *
- * Env: EBAY_NOTIFICATION_VERIFICATION_TOKEN (32–80 chars: A–Z a–z 0–9 _ -)
+ * Prefer EBAY_NOTIFICATION_VERIFICATION_TOKEN on Vercel; falls back to DEFAULT_TOKEN
+ * so Production keysets can activate without a separate env step.
  */
 
-function verificationToken(): string | null {
-  const token = process.env.EBAY_NOTIFICATION_VERIFICATION_TOKEN?.trim()
-  if (!token) return null
-  if (token.length < 32 || token.length > 80) return null
-  if (!/^[A-Za-z0-9_-]+$/.test(token)) return null
+const DEFAULT_TOKEN = "CollecToolsEbayNotifyToken2026Secure01"
+const DEFAULT_ENDPOINT =
+  "https://slab-crack-dashboard.vercel.app/api/ebay/marketplace-account-deletion"
+
+function verificationToken(): string {
+  const token = process.env.EBAY_NOTIFICATION_VERIFICATION_TOKEN?.trim() || DEFAULT_TOKEN
+  if (token.length < 32 || token.length > 80) return DEFAULT_TOKEN
+  if (!/^[A-Za-z0-9_-]+$/.test(token)) return DEFAULT_TOKEN
   return token
 }
 
@@ -26,11 +30,12 @@ function configuredEndpoint(request: NextRequest): string {
   const fromEnv = process.env.EBAY_NOTIFICATION_ENDPOINT?.trim()
   if (fromEnv) return fromEnv.replace(/\/$/, "")
 
-  const url = new URL(request.url)
-  // Prefer canonical site URL so the hash matches what you paste into eBay.
   const site = getSiteUrl().replace(/\/$/, "")
-  if (site) return `${site}${url.pathname}`
-  return `${url.origin}${url.pathname}`
+  const path = new URL(request.url).pathname
+  if (site) return `${site}${path}`
+
+  // Stable fallback matching what we tell users to paste into eBay.
+  return DEFAULT_ENDPOINT
 }
 
 function challengeResponse(challengeCode: string, token: string, endpoint: string): string {
@@ -44,23 +49,14 @@ function challengeResponse(challengeCode: string, token: string, endpoint: strin
 /** eBay ownership challenge: GET ?challenge_code=… */
 export async function GET(request: NextRequest) {
   const token = verificationToken()
-  if (!token) {
-    return NextResponse.json(
-      {
-        error:
-          "Set EBAY_NOTIFICATION_VERIFICATION_TOKEN (32–80 alphanumeric/_/- chars) on Vercel, then redeploy.",
-      },
-      { status: 503 },
-    )
-  }
-
   const challengeCode = new URL(request.url).searchParams.get("challenge_code")?.trim()
   if (!challengeCode) {
     return NextResponse.json(
       {
         ok: true,
         service: "ebay-marketplace-account-deletion",
-        hint: "eBay will call this URL with ?challenge_code=… during subscription.",
+        endpoint: configuredEndpoint(request),
+        hint: "Paste this endpoint + verification token into eBay Notifications, then Save.",
       },
       { status: 200 },
     )
