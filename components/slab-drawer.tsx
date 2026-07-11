@@ -9,13 +9,11 @@ import {
   Lightbulb,
   ChevronDown,
   Activity,
-  ShieldCheck,
   Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   getBestGradeQuote,
-  getConfidence,
   getGradeQuotes,
   mockEntryToSlabCard,
   type DeficitTrend,
@@ -165,7 +163,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   const best = getBestGradeQuote(gradeQuotes)
   const activeQuote = gradeQuotes.find((q) => q.grade === salesGrade) ?? best
   const slabCard = mockEntryToSlabCard(selectedCard)
-  const confidence = priced ? getConfidence(selectedCard, salesGrade) : null
   const handleCondition = (key: ConditionKey, value: number) =>
     setCondition((prev) => ({ ...prev, [key]: value }))
 
@@ -182,12 +179,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
         : trend === "building"
           ? "Building history"
           : "Holding steady"
-
-  const confidenceColor: Record<string, string> = {
-    high: "text-primary border-primary/30 bg-primary/10",
-    medium: "text-amber-400 border-amber-400/30 bg-amber-400/10",
-    low: "text-destructive border-destructive/30 bg-destructive/10",
-  }
 
   const ebayUrl = ebaySearchUrl(
     `${selectedCard.cardName} ${selectedCard.cardNumber} PSA ${salesGrade}`,
@@ -303,7 +294,7 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             </div>
           )}
 
-          {priced && confidence && (
+          {priced && (
             <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
               <div className="mb-3 flex items-center gap-2">
                 <Activity className="size-4 text-primary" />
@@ -341,36 +332,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
                 ) : (
                   <span className="text-[11px] text-muted-foreground">—</span>
                 )}
-              </div>
-
-              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div className="rounded-xl border border-border bg-card/60 p-3">
-                  <div className="mb-0.5 flex items-center gap-1.5">
-                    <ShieldCheck className="size-3.5 text-muted-foreground" />
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      Comp confidence
-                    </span>
-                  </div>
-                  <span
-                    className={cn(
-                      "inline-flex rounded-md border px-1.5 py-0.5 text-xs font-semibold",
-                      confidenceColor[confidence.level],
-                    )}
-                  >
-                    {confidence.label}
-                  </span>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {confidence.sales} sold comps (raw + PSA {salesGrade})
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border bg-card/60 p-3">
-                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    PSA population
-                  </span>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Official PSA pop reports are not available yet.
-                  </p>
-                </div>
               </div>
             </div>
           )}
