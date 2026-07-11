@@ -98,10 +98,11 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
       <Link
         href={signInHref}
         className={cn(
-          "inline-flex items-center justify-center rounded-xl border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-semibold text-primary transition-colors hover:bg-primary/15",
+          "inline-flex items-center justify-center gap-1.5 rounded-full border border-primary/50 bg-transparent px-3.5 py-1.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/10",
           className,
         )}
       >
+        <User className="size-3.5" aria-hidden="true" />
         Sign in
       </Link>
     )

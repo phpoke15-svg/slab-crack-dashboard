@@ -53,10 +53,7 @@ export function SearchResultTile({
         ) : owned && ownedStatus && onSetStatus ? (
           <FolderSwitcher status={ownedStatus} onSelect={onSetStatus} size="sm" />
         ) : (
-          <>
-            <p className="text-[10px] text-muted-foreground">Add to folder:</p>
-            <FolderSwitcher status={null} onSelect={onAdd} size="sm" />
-          </>
+          <FolderSwitcher status={null} onSelect={onAdd} size="sm" />
         )}
       </div>
     </article>

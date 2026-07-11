@@ -2,7 +2,14 @@
 
 import Link from "next/link"
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { SearchX } from "lucide-react"
+import {
+  ArrowLeftRight,
+  Clock3,
+  Heart,
+  Search,
+  SearchX,
+  Users,
+} from "lucide-react"
 import { type CardStatus, type CatalogCard, type TcgCard } from "@/lib/trade-binder/cards"
 import {
   addCardToBinder,
@@ -35,12 +42,12 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 
 type BinderTab = "search" | "have" | "want" | "pending" | "matches"
 
-const tabs: { key: BinderTab; label: string }[] = [
-  { key: "search", label: "Search" },
-  { key: "have", label: "I have" },
-  { key: "want", label: "I want" },
-  { key: "pending", label: "Pending" },
-  { key: "matches", label: "Matches" },
+const tabs: { key: BinderTab; label: string; icon: typeof Search }[] = [
+  { key: "search", label: "Search", icon: Search },
+  { key: "have", label: "I have", icon: ArrowLeftRight },
+  { key: "want", label: "I want", icon: Heart },
+  { key: "pending", label: "Pending", icon: Clock3 },
+  { key: "matches", label: "Matches", icon: Users },
 ]
 
 function tabToStatus(tab: BinderTab): CardStatus | null {
@@ -259,13 +266,14 @@ export function MyBinder() {
         </div>
 
         <div
-          className="flex gap-1 overflow-x-auto px-4 pb-2 sm:px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex gap-0.5 overflow-x-auto px-2 pb-2 sm:px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           role="tablist"
           aria-label="PokeMatch sections"
         >
           {tabs.map((tab) => {
             const active = activeTab === tab.key
             const count = tabCount(tab.key)
+            const Icon = tab.icon
             return (
               <button
                 key={tab.key}
@@ -274,23 +282,29 @@ export function MyBinder() {
                 aria-selected={active}
                 onClick={() => setActiveTab(tab.key)}
                 className={cn(
-                  "relative flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                  "relative flex min-w-[4.25rem] flex-1 flex-col items-center gap-1 rounded-lg px-2 py-2 text-[11px] font-medium transition-colors sm:min-w-0 sm:text-xs",
                   active ? "text-primary" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {tab.label}
-                {count != null && count > 0 && (
-                  <span
-                    className={cn(
-                      "rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums",
-                      active ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground",
-                    )}
-                  >
-                    {count}
-                  </span>
-                )}
+                <Icon
+                  className={cn("size-4", active && tab.key === "want" && "fill-current")}
+                  aria-hidden="true"
+                />
+                <span className="inline-flex items-center gap-1">
+                  {tab.label}
+                  {count != null && count > 0 && (
+                    <span
+                      className={cn(
+                        "rounded-full px-1 py-px text-[9px] font-semibold tabular-nums",
+                        active ? "bg-primary/15 text-primary" : "bg-secondary text-muted-foreground",
+                      )}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </span>
                 {active && (
-                  <span className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-primary" />
+                  <span className="absolute inset-x-3 -bottom-2 h-0.5 rounded-full bg-primary" />
                 )}
               </button>
             )
@@ -307,13 +321,16 @@ export function MyBinder() {
             <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
             <div className="mt-4">
               {!user && (
-                <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border bg-card/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-muted-foreground text-pretty">
-                    Sign in to save cards to your binder.
-                  </p>
+                <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-border bg-card/60 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">Save your favorites</p>
+                    <p className="mt-0.5 text-sm text-muted-foreground text-pretty">
+                      Sign in to keep I have / I want lists across devices.
+                    </p>
+                  </div>
                   <Link
                     href="/sign-in?next=/binder"
-                    className="shrink-0 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-110"
+                    className="inline-flex h-10 shrink-0 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-110"
                   >
                     Sign in
                   </Link>
@@ -432,14 +449,14 @@ export function MyBinder() {
                 <button
                   type="button"
                   onClick={() => setActiveTab("search")}
-                  className="mt-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  className="mt-2 inline-flex h-10 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-110"
                 >
                   Go to Search
                 </button>
               ) : (
                 <Link
                   href="/sign-in?next=/binder"
-                  className="mt-2 inline-flex rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  className="mt-2 inline-flex h-10 items-center justify-center rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:brightness-110"
                 >
                   Sign in
                 </Link>
