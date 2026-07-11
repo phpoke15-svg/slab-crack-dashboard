@@ -1,32 +1,29 @@
 # CollecTools Mobile App
 
-Installable **Android / iOS** app (v1.3.1) that loads your live **CollecTools website** plus a native **Queue Watch** that survives Imperva. **Queue Watch is Pro-only** — sign in on the CollecTools tab, open site Queue Watch once to link your token, then Start monitoring.
+Installable **Android / iOS** app (v1.3.3) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **Queue Watch** opens from the site when you tap **Open native Queue Watch** on `/queue-watch`.
 
-Theme: dark background + **white / mint-green** accents (same as the website). Rebuild the APK after theme changes — old installs keep the previous blue UI until you install a new build.
+**Queue Watch is Pro-only** — sign in on the site, open Queue Watch once to link your token, then start native monitoring.
+
+Theme: dark background + **white / mint-green** accents (same as the website). Rebuild the APK after UI changes.
 
 Store path: see **[STORE.md](./STORE.md)**.
 
-## CollecTools tab (default)
+## Home (full-screen site)
 
-Opens the full website inside the app:
+Opens the full website:
 
 - Hub with SlabCrack, PokeMatch, and Queue Watch
-- Sign in, binder, trades, messages — everything on the site
+- Sign in, binder, trades, messages
 - In-app navigation stays on your CollecTools domain; external links open in the browser
-- If you open Queue Watch while Pro, the app copies your monitor token so native Queue can sync to the website
+- Visiting `/queue-watch` while Pro bridges your monitor token
 
-## Queue tab (primary for drops · Pro only)
+## Native Queue Watch (from the site)
 
-Without Pro, the Queue tab shows an unlock screen (no Pokemon Center WebView, no local alerts).
-
-**WebView-first monitoring** (not a headless fetch from the phone IP):
-
-1. Sign in as Pro on the CollecTools tab and open `/queue-watch` once (bridges token)
-2. Tap **Start monitoring** — Pokemon Center loads **in the app**
-3. Pass any Imperva / bot check in that page (once)
-4. Leave the Queue tab open — injected JS watches Queue-it like the desktop bookmarklet
-5. Get a **local push** when the virtual queue goes live
-6. Status syncs to `/queue-watch` on the website via the Pro token
+1. Open **Queue Watch** from the CollecTools hub
+2. Tap **Open native Queue Watch** (green button at the bottom)
+3. Tap **Start monitoring** — Pokemon Center loads in-app
+4. Pass any Imperva / bot check once
+5. Leave that screen open during drops for a local push when the queue goes live
 
 ## Build internal APK
 

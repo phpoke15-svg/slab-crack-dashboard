@@ -83,9 +83,9 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   useEffect(() => {
     if (!selectedCard) return
 
-    const gradeQuotes = getGradeQuotes(selectedCard)
+    const gradeQuotes = getGradeQuotes(selectedCard).filter((q) => q.grade !== 10)
     const best = getBestGradeQuote(gradeQuotes)
-    setSalesGrade(best?.grade ?? 9)
+    setSalesGrade(best?.grade === 10 ? 9 : (best?.grade ?? 9))
   }, [selectedCard])
 
   useEffect(() => {
@@ -285,10 +285,10 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
           {priced && (
             <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
               <div className="mb-3 flex items-center justify-between gap-2">
-                <h4 className="font-semibold text-foreground">Recent eBay sold comps</h4>
+                <h4 className="font-semibold text-foreground">Most recent eBay sold</h4>
                 {salesLoading && <Loader2 className="size-3.5 animate-spin text-muted-foreground" />}
               </div>
-              <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2">
                 <RecentSalesList
                   title="Raw NM"
                   sales={rawSales}

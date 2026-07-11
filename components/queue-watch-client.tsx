@@ -267,6 +267,19 @@ export function QueueWatchClient() {
           ? "waiting for tab monitor"
           : "soft server probe"
 
+  const [inNativeApp, setInNativeApp] = useState(false)
+  useEffect(() => {
+    setInNativeApp(typeof window !== "undefined" && Boolean(window.ReactNativeWebView))
+  }, [])
+
+  const openNativeQueue = useCallback(() => {
+    try {
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ type: "open-native-queue" }))
+    } catch {
+      // ignore
+    }
+  }, [])
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-8 flex items-start justify-between gap-4">
@@ -283,6 +296,22 @@ export function QueueWatchClient() {
         <SiteAuthButton className="shrink-0" />
       </header>
 
+      {inNativeApp && hasPro && (
+        <section className="mb-6 rounded-2xl border border-primary/40 bg-primary/10 p-5">
+          <h2 className="text-base font-semibold text-foreground">Native Queue Watch</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Open the in-app Pokemon Center monitor for Imperva-safe alerts. Leave that screen open
+            during drops.
+          </p>
+          <button
+            type="button"
+            onClick={openNativeQueue}
+            className="mt-3 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+          >
+            Open native Queue Watch
+          </button>
+        </section>
+      )}
       {authLoading || entitlements.isLoading ? (
         <section
           role="status"
@@ -635,9 +664,9 @@ export function QueueWatchClient() {
           <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
             <h2 className="text-base font-semibold text-foreground">Want a phone app?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              The Android app opens Pokemon Center in a WebView so you can pass Imperva, then watches
-              Queue-it from that session — same approach as this bookmarklet, with native push. Keep the
-              Queue tab open during drops.
+              The Android app opens CollecTools full-screen. From Queue Watch, tap{" "}
+              <strong className="text-foreground">Open native Queue Watch</strong> for Imperva-safe
+              monitoring and local alerts. Keep that screen open during drops.
             </p>
             <Link
               href="/queue-watch/mobile"

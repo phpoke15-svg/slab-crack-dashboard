@@ -10,11 +10,11 @@ import {
 } from "react-native"
 import * as Linking from "expo-linking"
 import { useNavigation } from "@react-navigation/native"
-import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs"
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import { WebView } from "react-native-webview"
 import type { WebViewMessageEvent } from "react-native-webview"
 import { COLLECTOOLS_BASE_URL, POKEMON_CENTER_URL } from "../lib/config"
-import type { RootTabParamList } from "../lib/navigation"
+import type { RootStackParamList } from "../lib/navigation"
 import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { WEBVIEW_MONITOR_SCRIPT } from "../lib/queue-watch/webview-monitor-script"
@@ -26,7 +26,7 @@ function formatRelativeTime(iso: string) {
 }
 
 export default function QueueWatchScreen() {
-  const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>()
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const {
     monitoring,
     autoStart,
@@ -88,13 +88,14 @@ export default function QueueWatchScreen() {
     webRef.current?.injectJavaScript(WEBVIEW_MONITOR_SCRIPT)
   }, [])
 
-  const openCollecTools = useCallback(() => {
-    navigation.navigate("CollecTools")
+  const openHome = useCallback(() => {
+    navigation.navigate("Home")
   }, [navigation])
 
   const openPricing = useCallback(() => {
+    navigation.navigate("Home")
     void Linking.openURL(`${COLLECTOOLS_BASE_URL}/pricing`)
-  }, [])
+  }, [navigation])
 
   if (proChecking && hasPro === null) {
     return (
@@ -120,15 +121,15 @@ export default function QueueWatchScreen() {
           <View style={styles.lockCard}>
             <Text style={styles.lockTitle}>Unlock with Pro</Text>
             <Text style={styles.lockBody}>
-              1. Open the CollecTools tab and sign in{"\n"}
+              1. Go back to CollecTools and sign in{"\n"}
               2. Upgrade to Pro if needed{"\n"}
-              3. Visit Queue Watch on the site once (links your Pro token){"\n"}
-              4. Return here and tap Refresh access
+              3. Open Queue Watch on the site (links your Pro token){"\n"}
+              4. Tap “Open native Queue Watch”, then Refresh access here
             </Text>
           </View>
 
-          <Pressable style={styles.primaryButton} onPress={openCollecTools}>
-            <Text style={styles.primaryButtonText}>Open CollecTools</Text>
+          <Pressable style={styles.primaryButton} onPress={openHome}>
+            <Text style={styles.primaryButtonText}>Back to CollecTools</Text>
           </Pressable>
           <Pressable style={styles.secondaryButton} onPress={openPricing}>
             <Text style={styles.secondaryButtonText}>View Pro pricing</Text>
@@ -155,7 +156,7 @@ export default function QueueWatchScreen() {
         <Text style={styles.title}>Queue Watch</Text>
         <Text style={styles.subtitle}>
           Opens Pokemon Center in-app so you can pass Imperva, then watches Queue-it from that real
-          browser session. Leave this tab open during drops.
+          browser session. Leave this screen open during drops.
         </Text>
 
         <View style={[styles.card, state?.live ? styles.cardLive : null]}>
@@ -239,8 +240,8 @@ export default function QueueWatchScreen() {
       ) : (
         <View style={styles.idleHint}>
           <Text style={styles.footer}>
-            Start monitoring to load Pokemon Center here. Pass any bot check once, keep the app on
-            this tab, and you&apos;ll get a push when the queue goes live.
+            Start monitoring to load Pokemon Center here. Pass any bot check once, keep this screen
+            open, and you&apos;ll get a push when the queue goes live.
           </Text>
         </View>
       )}

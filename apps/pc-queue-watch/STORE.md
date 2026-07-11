@@ -2,7 +2,7 @@
 
 Privacy policy (live): https://slab-crack-dashboard.vercel.app/privacy  
 Package / bundle ID: `com.collectools.app`  
-Version: **1.3.0** (Android `versionCode` 5)
+Version: **1.3.1** (Android `versionCode` 6). EAS slug is `pokepax` (legacy project id); app display name stays **CollecTools**.
 
 ## Done in repo
 
@@ -54,5 +54,5 @@ npx eas-cli build -p ios --profile production       # needs Apple team
 ## Smoke before store submit
 
 1. Web: sign-in, Premium/Pro trial, SlabCrack, Queue Watch bookmarklet **active · synced**
-2. APK: CollecTools tab loads site; Queue tab monitors; notification on test live signal
-3. Open `/queue-watch` on phone WebView while Pro so token bridges to native sync
+2. APK: site loads full-screen; from `/queue-watch` open native Queue Watch; notification on test live signal
+3. Open `/queue-watch` in-app while Pro so token bridges to native sync

@@ -22,7 +22,7 @@ interface SlabRowProps {
 
 export function SlabRow({ card, onClick, watched }: SlabRowProps) {
   const priced = card.hasPricing !== false
-  const gradeQuotes = getGradeQuotes(card)
+  const gradeQuotes = getGradeQuotes(card).filter((q) => q.grade !== 10)
   const best = getBestGradeQuote(gradeQuotes)
   const [selectedGrade, setSelectedGrade] = useState<PsaGradeNumber | null>(null)
 
@@ -30,7 +30,7 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
     setSelectedGrade(null)
   }, [card.id])
 
-  const activeGrade = selectedGrade ?? best?.grade ?? 9
+  const activeGrade = selectedGrade ?? (best?.grade === 10 ? 9 : best?.grade) ?? 9
   const activeQuote = gradeQuotes.find((q) => q.grade === activeGrade) ?? best
   const ebayGrade = activeGrade
   const ebayUrl = ebaySearchUrl(

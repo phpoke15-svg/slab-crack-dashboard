@@ -2,13 +2,14 @@
 
 import { cn } from "@/lib/utils"
 import type { GradeQuote, PsaGradeNumber } from "@/lib/slab-data"
-import { PSA_GRADE_NUMBERS } from "@/lib/slab-data"
+
+/** PSA 7–9 only — PSA 10 comps are omitted from the price grid. */
+const GRID_GRADES = [7, 8, 9] as const satisfies readonly PsaGradeNumber[]
 
 const gradeColor: Record<number, string> = {
   7: "text-amber-400 border-amber-400/30 bg-amber-400/10",
   8: "text-sky-400 border-sky-400/30 bg-sky-400/10",
   9: "text-emerald-400 border-emerald-400/30 bg-emerald-400/10",
-  10: "text-violet-300 border-violet-400/30 bg-violet-400/10",
 }
 
 interface GradePriceGridProps {
@@ -28,13 +29,16 @@ export function GradePriceGrid({
   selectedGrade = null,
   onSelectGrade,
 }: GradePriceGridProps) {
+  const gridQuotes = quotes.filter((quote) =>
+    (GRID_GRADES as readonly number[]).includes(quote.grade),
+  )
   const bestDeficit = highlightBest
-    ? Math.max(...quotes.filter((quote) => quote.isArbitrage).map((quote) => quote.deficit), 0)
+    ? Math.max(...gridQuotes.filter((quote) => quote.isArbitrage).map((quote) => quote.deficit), 0)
     : 0
 
   return (
-    <div className={cn("grid grid-cols-4 gap-1", compact ? "gap-1" : "gap-1.5 sm:gap-2")}>
-      {PSA_GRADE_NUMBERS.map((grade) => {
+    <div className={cn("grid grid-cols-3 gap-1", compact ? "gap-1" : "gap-1.5 sm:gap-2")}>
+      {GRID_GRADES.map((grade) => {
         const quote = quotes.find((item) => item.grade === grade)
         const isSelected = selectedGrade === grade
         const isBest =
