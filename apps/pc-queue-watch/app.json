@@ -12,11 +12,12 @@
       "resizeMode": "contain",
       "backgroundColor": "#0b0e14"
     },
+    "primaryColor": "#4ade80",
     "privacyPolicyUrl": "https://slab-crack-dashboard.vercel.app/privacy",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.collectools.app",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -28,7 +29,7 @@
     },
     "android": {
       "package": "com.collectools.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b0e14"
@@ -47,7 +48,7 @@
         "expo-notifications",
         {
           "icon": "./assets/notification-icon.png",
-          "color": "#2563eb"
+          "color": "#4ade80"
         }
       ],
       "expo-asset"

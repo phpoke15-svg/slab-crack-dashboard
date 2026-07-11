@@ -92,7 +92,7 @@ export default function QueueWatchScreen() {
         <View style={[styles.card, state?.live ? styles.cardLive : null]}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardLabel}>Status</Text>
-            {monitoring && !state?.live && <ActivityIndicator color="#60a5fa" size="small" />}
+            {monitoring && !state?.live && <ActivityIndicator color="#4ade80" size="small" />}
           </View>
           <Text style={[styles.cardTitle, state?.live ? styles.cardTitleLive : null]}>
             {statusLabel}
@@ -176,7 +176,7 @@ export default function QueueWatchScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#0b0e14" },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, gap: 10 },
-  kicker: { color: "#93c5fd", fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
+  kicker: { color: "#86efac", fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
   title: { color: "#f9fafb", fontSize: 24, fontWeight: "700" },
   subtitle: { color: "#9ca3af", fontSize: 13, lineHeight: 18 },
   card: {
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#111827",
   },
   webBarText: { color: "#9ca3af", fontSize: 12, fontWeight: "600" },
-  webBarAction: { color: "#60a5fa", fontSize: 12, fontWeight: "700" },
+  webBarAction: { color: "#4ade80", fontSize: 12, fontWeight: "700" },
   web: { flex: 1, backgroundColor: "#0b0e14" },
   idleHint: { paddingHorizontal: 16, paddingTop: 8 },
   footer: { color: "#6b7280", fontSize: 12, lineHeight: 18 },

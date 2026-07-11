@@ -64,7 +64,7 @@ export default function SiteWebScreen() {
       />
       {loading && (
         <View style={styles.loading}>
-          <ActivityIndicator color="#60a5fa" size="large" />
+          <ActivityIndicator color="#4ade80" size="large" />
         </View>
       )}
     </SafeAreaView>
