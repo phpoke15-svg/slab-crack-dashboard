@@ -9,6 +9,9 @@ __v0_jsx-dev-runtime.ts
 # SlabCrack dashboard — local env (not committed)
 .env*.local
 .env.local.save*
+.env.vapid.generated
+.env.*.generated
+
 
 # Common ignores
 node_modules
