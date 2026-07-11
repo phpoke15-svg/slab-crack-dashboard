@@ -20,7 +20,7 @@ import { DeficitSparkline } from "@/components/deficit-sparkline"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RegradeCalculator } from "@/components/regrade-calculator"
 import { DEFAULT_CONDITION, type ConditionKey, type ConditionState } from "@/components/condition-log"
-import { ebaySearchUrl, withEbayAffiliate } from "@/lib/ebay-affiliate"
+import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 
 interface SlabDrawerProps {
   selectedCard: MockCardEntry | null
