@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react"
-import { Bell, BookOpen, Layers, Package } from "lucide-react"
+import { Bell, BookOpen, Layers, Package, Ratio } from "lucide-react"
 
 /** Flip to true when Walmart Affiliate Restocks ships again. */
 export const RESTOCKS_ENABLED = false
@@ -28,6 +28,20 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Market awareness — track graded vs raw pricing gaps and stay ahead of the market",
     ],
     icon: Layers,
+  },
+  {
+    id: "psa10-scanner",
+    href: "/psa10-scanner",
+    name: "PSA 10 Scanner",
+    tagline: "Spread · multiplier · ROI",
+    description:
+      "Rank modern cards by PSA 10 gross spread, graded multiplier, and gem-rate-weighted submission yield.",
+    highlights: [
+      "Toggle past 3 vs 5 years of releases",
+      "Filter by minimum PSA 10 gem rate from pop reports",
+      "Flag Prime Submission Slots and 10-or-Bust danger zones",
+    ],
+    icon: Ratio,
   },
   {
     id: "restocks",
