@@ -5,9 +5,7 @@ import {
   X,
   ExternalLink,
   Star,
-  Calculator,
   Lightbulb,
-  ChevronDown,
   Activity,
   Loader2,
 } from "lucide-react"
@@ -15,7 +13,6 @@ import { cn } from "@/lib/utils"
 import {
   getBestGradeQuote,
   getGradeQuotes,
-  mockEntryToSlabCard,
   type MockCardEntry,
   type PsaGradeNumber,
   type RecentSale,
@@ -24,9 +21,7 @@ import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { DeficitTechnicalChart } from "@/components/deficit-technical-chart"
 import { GradePriceGrid } from "@/components/grade-price-grid"
-import { RegradeCalculator } from "@/components/regrade-calculator"
 import { RecentSalesList } from "@/components/recent-sales-list"
-import { DEFAULT_CONDITION, type ConditionKey, type ConditionState } from "@/components/condition-log"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 
 interface SlabDrawerProps {
@@ -43,8 +38,6 @@ type CardSalesResponse = {
 }
 
 export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: SlabDrawerProps) {
-  const [showLog, setShowLog] = useState(false)
-  const [condition, setCondition] = useState<ConditionState>(DEFAULT_CONDITION)
   const [salesGrade, setSalesGrade] = useState<PsaGradeNumber>(9)
   const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
   const [liveSlabSales, setLiveSlabSales] = useState<RecentSale[] | null>(null)
@@ -53,8 +46,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
 
   useEffect(() => {
     if (selectedCard) {
-      setShowLog(false)
-      setCondition(DEFAULT_CONDITION)
       setLiveRawSales(null)
       setLiveSlabSales(null)
       setFullscreen(false)
@@ -120,9 +111,6 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   const gradeQuotes = getGradeQuotes(selectedCard)
   const best = getBestGradeQuote(gradeQuotes)
   const activeQuote = gradeQuotes.find((q) => q.grade === salesGrade) ?? best
-  const slabCard = mockEntryToSlabCard(selectedCard)
-  const handleCondition = (key: ConditionKey, value: number) =>
-    setCondition((prev) => ({ ...prev, [key]: value }))
 
   const cachedSlabSales =
     activeQuote?.recentSlabSales ?? selectedCard.recentSlabSales ?? []
@@ -292,44 +280,20 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
               Search eBay Slabs
             </a>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <button
-                type="button"
-                onClick={() => onToggleWatch(selectedCard)}
-                className={cn(
-                  "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 font-medium transition-colors",
-                  watched
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border bg-secondary text-foreground hover:border-primary/40",
-                )}
-              >
-                <Star className={cn("size-4", watched && "fill-primary")} />
-                {watched ? "Watching" : "Add to Watchlist"}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setShowLog((s) => !s)}
-                className={cn(
-                  "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 font-medium transition-colors",
-                  showLog
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border bg-secondary text-foreground hover:border-primary/40",
-                )}
-                aria-expanded={showLog}
-              >
-                <Calculator className="size-4" />
-                Regrade ROI
-                <ChevronDown className={cn("size-4 transition-transform", showLog && "rotate-180")} />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => onToggleWatch(selectedCard)}
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 font-medium transition-colors",
+                watched
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-border bg-secondary text-foreground hover:border-primary/40",
+              )}
+            >
+              <Star className={cn("size-4", watched && "fill-primary")} />
+              {watched ? "Watching" : "Add to Watchlist"}
+            </button>
           </div>
-
-          {showLog && (
-            <div className="mt-4 animate-fade-in">
-              <RegradeCalculator card={slabCard} condition={condition} onChange={handleCondition} />
-            </div>
-          )}
         </div>
       </div>
 
