@@ -11,6 +11,7 @@ import {
 import { WebView } from "react-native-webview"
 import type { WebViewMessageEvent } from "react-native-webview"
 import { POKEMON_CENTER_URL } from "../lib/config"
+import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { WEBVIEW_MONITOR_SCRIPT } from "../lib/queue-watch/webview-monitor-script"
 
@@ -92,7 +93,7 @@ export default function QueueWatchScreen() {
         <View style={[styles.card, state?.live ? styles.cardLive : null]}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardLabel}>Status</Text>
-            {monitoring && !state?.live && <ActivityIndicator color="#4ade80" size="small" />}
+            {monitoring && !state?.live && <ActivityIndicator color={colors.primary} size="small" />}
           </View>
           <Text style={[styles.cardTitle, state?.live ? styles.cardTitleLive : null]}>
             {statusLabel}
@@ -122,7 +123,13 @@ export default function QueueWatchScreen() {
             <Text style={styles.label}>Auto-start on launch</Text>
             <Text style={styles.hint}>Opens the Pokemon Center monitor when the app starts</Text>
           </View>
-          <Switch value={autoStart} onValueChange={(v) => void setAutoStart(v)} />
+          <Switch
+            value={autoStart}
+            onValueChange={(v) => void setAutoStart(v)}
+            trackColor={{ false: colors.border, true: colors.primaryStrong }}
+            thumbColor={colors.white}
+            ios_backgroundColor={colors.border}
+          />
         </View>
 
         <Pressable
@@ -174,26 +181,26 @@ export default function QueueWatchScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0b0e14" },
+  safe: { flex: 1, backgroundColor: colors.background },
   header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, gap: 10 },
-  kicker: { color: "#86efac", fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
-  title: { color: "#f9fafb", fontSize: 24, fontWeight: "700" },
-  subtitle: { color: "#9ca3af", fontSize: 13, lineHeight: 18 },
+  kicker: { color: colors.primary, fontSize: 11, fontWeight: "600", textTransform: "uppercase" },
+  title: { color: colors.text, fontSize: 24, fontWeight: "700" },
+  subtitle: { color: colors.textMuted, fontSize: 13, lineHeight: 18 },
   card: {
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#111827",
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     padding: 12,
     gap: 4,
   },
-  cardLive: { borderColor: "#34d399", backgroundColor: "rgba(6, 78, 59, 0.35)" },
+  cardLive: { borderColor: colors.live, backgroundColor: colors.liveBg },
   cardHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  cardLabel: { color: "#9ca3af", fontSize: 11, textTransform: "uppercase", fontWeight: "600" },
-  cardTitle: { color: "#f9fafb", fontSize: 18, fontWeight: "700" },
-  cardTitleLive: { color: "#6ee7b7" },
-  meta: { color: "#9ca3af", fontSize: 11 },
-  warn: { color: "#fbbf24", fontSize: 12, marginTop: 4, lineHeight: 16 },
+  cardLabel: { color: colors.textMuted, fontSize: 11, textTransform: "uppercase", fontWeight: "600" },
+  cardTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
+  cardTitleLive: { color: colors.liveSoft },
+  meta: { color: colors.textMuted, fontSize: 11 },
+  warn: { color: colors.warn, fontSize: 12, marginTop: 4, lineHeight: 16 },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -201,35 +208,35 @@ const styles = StyleSheet.create({
     gap: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#1f2937",
-    backgroundColor: "#111827",
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   rowText: { flex: 1 },
   label: { color: "#e5e7eb", fontSize: 13, fontWeight: "600" },
-  hint: { color: "#6b7280", fontSize: 11, marginTop: 2 },
+  hint: { color: colors.textDim, fontSize: 11, marginTop: 2 },
   primaryButton: {
     borderRadius: 12,
-    backgroundColor: "#16a34a",
+    backgroundColor: colors.primaryStrong,
     paddingVertical: 12,
     alignItems: "center",
   },
-  stopButton: { backgroundColor: "#b91c1c" },
-  primaryButtonText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  error: { color: "#f87171", fontSize: 12 },
-  webWrap: { flex: 1, borderTopWidth: 1, borderTopColor: "#1f2937" },
+  stopButton: { backgroundColor: colors.danger },
+  primaryButtonText: { color: colors.white, fontSize: 14, fontWeight: "700" },
+  error: { color: colors.error, fontSize: 12 },
+  webWrap: { flex: 1, borderTopWidth: 1, borderTopColor: colors.border },
   webBar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: "#111827",
+    backgroundColor: colors.card,
   },
-  webBarText: { color: "#9ca3af", fontSize: 12, fontWeight: "600" },
-  webBarAction: { color: "#4ade80", fontSize: 12, fontWeight: "700" },
-  web: { flex: 1, backgroundColor: "#0b0e14" },
+  webBarText: { color: colors.textMuted, fontSize: 12, fontWeight: "600" },
+  webBarAction: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  web: { flex: 1, backgroundColor: colors.background },
   idleHint: { paddingHorizontal: 16, paddingTop: 8 },
-  footer: { color: "#6b7280", fontSize: 12, lineHeight: 18 },
+  footer: { color: colors.textDim, fontSize: 12, lineHeight: 18 },
 })

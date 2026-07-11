@@ -1,6 +1,8 @@
 # CollecTools Mobile App
 
-Installable **Android / iOS** app (v1.2.0) that loads your live **CollecTools website** plus a native **Queue Watch** that survives Imperva.
+Installable **Android / iOS** app (v1.3.0) that loads your live **CollecTools website** plus a native **Queue Watch** that survives Imperva.
+
+Theme: dark background + **white / mint-green** accents (same as the website). Rebuild the APK after theme changes — old installs keep the previous blue UI until you install a new build.
 
 Store path: see **[STORE.md](./STORE.md)**.
 

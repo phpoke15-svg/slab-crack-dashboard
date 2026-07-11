@@ -4,6 +4,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs"
 import { StatusBar } from "expo-status-bar"
 import { Text, View } from "react-native"
 import type { RootTabParamList } from "./lib/navigation"
+import { colors } from "./lib/theme"
 import { QueueWatchProvider, useQueueWatch } from "./lib/queue-watch"
 import QueueWatchScreen from "./screens/QueueWatchScreen"
 import SiteWebScreen from "./screens/SiteWebScreen"
@@ -16,25 +17,34 @@ const theme = {
   ...DarkTheme,
   colors: {
     ...DarkTheme.colors,
-    background: "#0b0e14",
-    card: "#111827",
-    primary: "#3b82f6",
-    text: "#f9fafb",
-    border: "#1f2937",
+    background: colors.background,
+    card: colors.card,
+    primary: colors.primary,
+    text: colors.text,
+    border: colors.border,
+    notification: colors.primaryStrong,
   },
 }
 
 function TabLabel({ label, focused, live }: { label: string; focused: boolean; live?: boolean }) {
   return (
     <View style={{ alignItems: "center", gap: 2 }}>
-      <Text style={{ color: focused ? "#60a5fa" : "#6b7280", fontSize: 11, fontWeight: "700" }}>{label}</Text>
+      <Text
+        style={{
+          color: focused ? colors.primary : colors.textDim,
+          fontSize: 11,
+          fontWeight: "700",
+        }}
+      >
+        {label}
+      </Text>
       {live && (
         <View
           style={{
             width: 6,
             height: 6,
             borderRadius: 3,
-            backgroundColor: "#34d399",
+            backgroundColor: colors.live,
           }}
         />
       )}
@@ -50,14 +60,14 @@ function AppTabs() {
     <Tab.Navigator
       initialRouteName="CollecTools"
       screenOptions={{
-        headerStyle: { backgroundColor: "#111827" },
-        headerTintColor: "#f9fafb",
+        headerStyle: { backgroundColor: colors.card },
+        headerTintColor: colors.text,
         tabBarStyle: {
-          backgroundColor: "#111827",
-          borderTopColor: "#1f2937",
+          backgroundColor: colors.card,
+          borderTopColor: colors.border,
         },
-        tabBarActiveTintColor: "#60a5fa",
-        tabBarInactiveTintColor: "#6b7280",
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.textDim,
       }}
     >
       <Tab.Screen
@@ -76,9 +86,11 @@ function AppTabs() {
           title: "Queue Watch",
           tabBarBadge: queueLive ? "LIVE" : monitoring ? undefined : undefined,
           tabBarBadgeStyle: queueLive
-            ? { backgroundColor: "#059669", color: "#fff", fontSize: 9, minWidth: 28 }
+            ? { backgroundColor: colors.primaryDark, color: colors.white, fontSize: 9, minWidth: 28 }
             : undefined,
-          tabBarLabel: ({ focused }) => <TabLabel label="Queue" focused={focused} live={queueLive} />,
+          tabBarLabel: ({ focused }) => (
+            <TabLabel label="Queue" focused={focused} live={queueLive} />
+          ),
         }}
       />
     </Tab.Navigator>

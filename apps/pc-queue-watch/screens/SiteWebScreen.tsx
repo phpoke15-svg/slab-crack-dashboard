@@ -3,6 +3,7 @@ import { ActivityIndicator, Linking, SafeAreaView, StyleSheet, View } from "reac
 import { WebView } from "react-native-webview"
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes"
 import { COLLECTOOLS_BASE_URL } from "../lib/config"
+import { colors } from "../lib/theme"
 import { BRIDGE_INJECT, saveQueueWatchCredentials } from "../lib/queue-watch/report-to-server"
 
 function isCollecToolsUrl(url: string) {
@@ -64,7 +65,7 @@ export default function SiteWebScreen() {
       />
       {loading && (
         <View style={styles.loading}>
-          <ActivityIndicator color="#4ade80" size="large" />
+          <ActivityIndicator color={colors.primary} size="large" />
         </View>
       )}
     </SafeAreaView>
@@ -72,12 +73,12 @@ export default function SiteWebScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: "#0b0e14" },
-  web: { flex: 1, backgroundColor: "#0b0e14" },
+  safe: { flex: 1, backgroundColor: colors.background },
+  web: { flex: 1, backgroundColor: colors.background },
   loading: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0b0e14",
+    backgroundColor: colors.background,
   },
 })

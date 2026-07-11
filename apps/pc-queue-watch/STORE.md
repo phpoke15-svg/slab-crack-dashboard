@@ -2,7 +2,7 @@
 
 Privacy policy (live): https://slab-crack-dashboard.vercel.app/privacy  
 Package / bundle ID: `com.collectools.app`  
-Version: **1.2.0** (Android `versionCode` 3)
+Version: **1.3.0** (Android `versionCode` 5)
 
 ## Done in repo
 
