@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
   hint: { color: "#6b7280", fontSize: 11, marginTop: 2 },
   primaryButton: {
     borderRadius: 12,
-    backgroundColor: "#2563eb",
+    backgroundColor: "#16a34a",
     paddingVertical: 12,
     alignItems: "center",
   },
