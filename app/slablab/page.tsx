@@ -25,8 +25,8 @@ export default function SlabLabPage() {
               SlabLab
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Scan modern sets for the widest raw → PSA 10 gaps, then rank by gross spread, graded
-              multiplier, or gem-rate-weighted submission yield.
+              Browse submission candidates, then tap a card for the full spread, multiplier, and
+              grading-cost breakdown.
             </p>
           </div>
           <SiteAuthButton className="shrink-0" />
