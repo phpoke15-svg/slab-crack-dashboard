@@ -44,7 +44,6 @@ type ComputedRow = ScannerCard & {
   grossSpread: number
   netSpread: number
   gradedMultiplier: number
-  estimatedYield: number
   trueRoiScore: number
   gradingCost: number
   dangerZone: boolean
@@ -61,18 +60,15 @@ function computeRow(card: ScannerCard, gradingCost: number): ComputedRow {
   const grossSpread = card.psa10Price - card.rawPrice
   const netSpread = grossSpread - gradingCost
   const gradedMultiplier = card.rawPrice > 0 ? card.psa10Price / card.rawPrice : 0
-  const estimatedYield =
-    card.psa10Price * (card.gemRate / 100) - card.rawPrice - gradingCost
   return {
     ...card,
     grossSpread,
     netSpread,
     gradedMultiplier,
-    estimatedYield,
-    trueRoiScore: estimatedYield,
+    trueRoiScore: netSpread,
     gradingCost,
-    dangerZone: card.psa9Price < card.rawPrice,
-    primeSlot: estimatedYield > 150,
+    dangerZone: card.psa9Price > 0 && card.psa9Price < card.rawPrice,
+    primeSlot: netSpread > 150,
   }
 }
 
@@ -99,7 +95,6 @@ export function Psa10SpreadScanner() {
   const [cards, setCards] = useState<ScannerCard[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [minGemRate, setMinGemRate] = useState(25)
   const [gradingCost, setGradingCost] = useState(DEFAULT_GRADING_COST)
   const [sortMode, setSortMode] = useState<SortMode>("roi")
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -134,17 +129,15 @@ export function Psa10SpreadScanner() {
   }, [])
 
   const rows = useMemo(() => {
-    const filtered = cards
-      .filter((c) => c.gemRate >= minGemRate)
-      .map((c) => computeRow(c, gradingCost))
+    const computed = cards.map((c) => computeRow(c, gradingCost))
 
-    filtered.sort((a, b) => {
+    computed.sort((a, b) => {
       if (sortMode === "spread") return b.grossSpread - a.grossSpread
       if (sortMode === "multiplier") return b.gradedMultiplier - a.gradedMultiplier
       return b.trueRoiScore - a.trueRoiScore
     })
-    return filtered.slice(0, TOP_CARDS_LIMIT)
-  }, [cards, minGemRate, gradingCost, sortMode])
+    return computed.slice(0, TOP_CARDS_LIMIT)
+  }, [cards, gradingCost, sortMode])
 
   const selected = rows.find((r) => r.id === selectedId) ?? null
 
@@ -188,20 +181,7 @@ export function Psa10SpreadScanner() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Gem rate ≥{minGemRate}%
-            </span>
-            <input
-              type="range"
-              min={10}
-              max={80}
-              value={minGemRate}
-              onChange={(e) => setMinGemRate(Number(e.target.value))}
-              className="mt-2 w-full accent-[var(--primary)]"
-            />
-          </label>
+        <div className="grid gap-3">
           <label className="block">
             <span className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Grade cost {formatPsaFee(gradingCost)}
@@ -261,7 +241,7 @@ export function Psa10SpreadScanner() {
           <div className="rounded-2xl border border-dashed border-border px-4 py-16 text-center text-sm text-muted-foreground">
             {error
               ? "Could not load opportunities. Try refresh."
-              : "No cards match these filters. Lower the gem-rate floor or wait for price sync."}
+              : "No cards match yet. Wait for price sync or try again shortly."}
           </div>
         ) : (
           rows.map((row, index) => {
@@ -324,7 +304,6 @@ export function Psa10SpreadScanner() {
                           10-or-bust
                         </span>
                       )}
-                      <span className="text-[10px] text-muted-foreground">{row.gemRate}% gem</span>
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -472,7 +451,6 @@ function SlabLabDetailDrawer({
               value={money(row.psa10Price)}
             />
             <Stat label="PSA 9" value={money(row.psa9Price)} danger={row.dangerZone} />
-            <Stat label="Gem rate" value={`${row.gemRate}%`} />
             <Stat label="Gross spread" value={money(row.grossSpread)} accent />
             <Stat label="Net after grade" value={money(row.netSpread)} accent={row.netSpread >= 0} danger={row.netSpread < 0} />
             <Stat label="Multiplier" value={`${row.gradedMultiplier.toFixed(2)}×`} />
@@ -507,8 +485,7 @@ function SlabLabDetailDrawer({
               {money(row.trueRoiScore)}
             </p>
             <p className="mt-2 font-mono text-[11px] leading-relaxed text-muted-foreground">
-              ({money(row.psa10Price)} × {row.gemRate}%) − {money(row.rawPrice)} −{" "}
-              {money(row.gradingCost)} grading
+              {money(row.psa10Price)} − {money(row.rawPrice)} − {money(row.gradingCost)} grading
             </p>
           </div>
 
@@ -530,7 +507,7 @@ function SlabLabDetailDrawer({
           </a>
 
           <p className="mt-4 text-[11px] text-muted-foreground">
-            Yield uses your selected grading cost and gem-rate estimate from sold comps when available.
+            ROI is PSA 10 price minus raw and your selected grading cost.
           </p>
         </div>
       </div>

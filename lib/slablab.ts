@@ -23,12 +23,9 @@ export type SlabLabCard = {
   /** True when PSA 10 was implied from a lower grade (sold comps sparse). */
   psa10Estimated?: boolean
   psa9Price: number
-  gemRate: number
   image: string
   cardNumber: string
 }
-
-const DEFAULT_GEM_RATE = 40
 
 function yearsAgoFromRelease(iso?: string): number {
   if (!iso) return 0
@@ -46,17 +43,6 @@ function eraFromYears(yearsAgo: number): string {
 
 function isPokemonTcgFront(url: string): boolean {
   return /images\.pokemontcg\.io/i.test(url)
-}
-
-/** Rough gem-rate proxy from PSA 9 vs 10 sold-comp mix when available. */
-export function estimateGemRate(entry: MockCardEntry): number {
-  const sc = entry.sampleCounts
-  if (!sc) return DEFAULT_GEM_RATE
-  const psa9 = Number(sc.psa9) || 0
-  const psa10 = Number(sc.psa10) || 0
-  const high = psa9 + psa10
-  if (high < 8 || psa10 <= 0) return DEFAULT_GEM_RATE
-  return Math.round(Math.min(85, Math.max(10, (100 * psa10) / high)))
 }
 
 export function toSlabLabCard(entry: MockCardEntry): SlabLabCard | null {
@@ -80,7 +66,6 @@ export function toSlabLabCard(entry: MockCardEntry): SlabLabCard | null {
     psa10Price: Math.round(psa10 * 100) / 100,
     psa10Estimated,
     psa9Price: psa9,
-    gemRate: estimateGemRate(entry),
     image: entry.imageUrl || "/placeholder.svg",
     cardNumber: entry.cardNumber || "",
   }

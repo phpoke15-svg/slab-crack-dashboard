@@ -45,10 +45,10 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     name: "SlabLab",
     tagline: "Spread · multiplier · ROI",
     description:
-      "Rank the top 200 modern cards by PSA 10 gross spread, graded multiplier, and gem-rate-weighted submission yield.",
+      "Rank the top 200 modern cards by PSA 10 gross spread, graded multiplier, and net ROI after grading cost.",
     highlights: [
       "Live market comps for the top 200 PSA 10 grading opportunities",
-      "Filter by estimated gem rate from sold-comp mix",
+      "Model net ROI with current PSA grading tiers",
       "Flag Prime Submission slots and 10-or-Bust danger zones",
     ],
     icon: Ratio,
