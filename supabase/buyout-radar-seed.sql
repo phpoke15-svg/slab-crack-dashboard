@@ -68,24 +68,24 @@ select
   now() - ((i * 2.5) || ' hours')::interval
 from generate_series(0, 5) as i;
 
--- High Charizard SIR sweep.
+-- High Charizard SIR sweep (~8×, not Critical).
 insert into public.buyout_sales_transactions (card_id, quantity_purchased, total_price, buyer_ip_hash, purchased_at)
 select
   'sv3-223',
   2,
   270,
   'whale-char-7c01',
-  now() - ((i * 1.4) || ' hours')::interval
-from generate_series(0, 13) as i;
+  now() - ((i * 2.4) || ' hours')::interval
+from generate_series(0, 7) as i;
 
--- Warning Greninja SIR elevated two-buyer flow.
+-- Warning Greninja SIR — just over 5× threshold.
 insert into public.buyout_sales_transactions (card_id, quantity_purchased, total_price, buyer_ip_hash, purchased_at)
 select
   'sv6-214',
   2,
   744,
   case when i % 2 = 0 then 'spec-gren-a1' else 'spec-gren-b2' end,
-  now() - ((i * 2.2) || ' hours')::interval
-from generate_series(0, 7) as i;
+  now() - ((i * 4.5) || ' hours')::interval
+from generate_series(0, 3) as i;
 
 select public.refresh_buyout_anomalies();

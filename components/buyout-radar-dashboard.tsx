@@ -39,21 +39,21 @@ const PRIORITY_META: Record<
     className: "border-destructive/50 bg-destructive/15 text-destructive",
     bar: "bg-destructive",
     meaning:
-      "Extreme spike with very few buyers. A coordinated buyout is likely underway — retail listings often reprice soon after.",
+      "Volume is about 10×+ normal with very high buyout confidence. Treat as an active coordinated sweep.",
   },
   high: {
     label: "High",
     className: "border-amber-500/40 bg-amber-500/15 text-amber-200",
     bar: "bg-amber-400",
     meaning:
-      "Strong abnormal buying pressure. Worth watching closely and considering a speculative position before prices catch up.",
+      "Strong spike (about 7–9× normal, or very high confidence). Serious buyout pressure, not quite Critical.",
   },
   warning: {
     label: "Warning",
     className: "border-sky-500/40 bg-sky-500/15 text-sky-200",
     bar: "bg-sky-400",
     meaning:
-      "Elevated activity that clears the buyout thresholds, but confidence is lower. Could be early speculation or noisy comps.",
+      "Clears the 5× volume threshold with concentrated buyers, but the spike is milder. Early signal — watch closely.",
   },
 }
 
@@ -744,9 +744,10 @@ export function BuyoutRadarDashboard() {
             </div>
             <h2 className="mt-1 text-lg font-bold text-foreground">Buyout & Speculation Radar</h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
-              We watch how fast copies are being bought. When one card suddenly sells many more
-              copies than usual — and only one or two buyers are doing it — we raise an alert before
-              retail prices typically jump.
+              Not a full-market crawl yet. Right now this runs on a small Supreme demo catalog
+              (seed transactions) to prove the detector. A card flags when 24h buy volume is{" "}
+              <span className="font-medium text-foreground">5×+</span> its 14-day daily average and
+              only 1–2 buyer fingerprints are involved — often before retail listings reprice.
             </p>
           </div>
           <div className="flex items-center gap-2">

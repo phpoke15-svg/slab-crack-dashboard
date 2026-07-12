@@ -106,7 +106,7 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
     }
   }
 
-  // CRITICAL: Umbreon — ~40 copies in 24h from 2 buyer hashes (>> 5× baseline).
+  // CRITICAL: Umbreon — extreme spike, 2 buyer hashes (>> 10× baseline).
   const umbreonSpike = SEED_UNIT_PRICE["sv8pt5-161"]!.spike
   for (let h = 0; h < 18; h += 1) {
     push({
@@ -127,27 +127,27 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
     })
   }
 
-  // HIGH: Charizard — concentrated 1-buyer sweep overnight.
+  // HIGH: Charizard — clear buyout, ~7–9× normal daily pace (not quite Critical).
   const zardSpike = SEED_UNIT_PRICE["sv3-223"]!.spike
-  for (let i = 0; i < 14; i += 1) {
+  for (let i = 0; i < 8; i += 1) {
     push({
       cardId: "sv3-223",
       quantityPurchased: 2,
       totalPrice: zardSpike * 2,
       buyerIpHash: "whale-char-7c01",
-      purchasedAt: hoursAgo(i * 1.4 + 0.2, now),
+      purchasedAt: hoursAgo(i * 2.4 + 0.2, now),
     })
   }
 
-  // WARNING: Greninja — elevated volume, two hashes, milder multiple.
+  // WARNING: Greninja — just clears the 5× threshold with two buyer hashes.
   const grenSpike = SEED_UNIT_PRICE["sv6-214"]!.spike
-  for (let i = 0; i < 8; i += 1) {
+  for (let i = 0; i < 4; i += 1) {
     push({
       cardId: "sv6-214",
       quantityPurchased: 2,
       totalPrice: grenSpike * 2,
       buyerIpHash: i % 2 === 0 ? "spec-gren-a1" : "spec-gren-b2",
-      purchasedAt: hoursAgo(i * 2.2, now),
+      purchasedAt: hoursAgo(i * 4.5, now),
     })
   }
 

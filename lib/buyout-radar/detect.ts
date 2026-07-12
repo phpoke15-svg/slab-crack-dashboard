@@ -22,12 +22,16 @@ function recommendAction(
   return "Monitor / Alert"
 }
 
+/**
+ * Priority bands — driven mainly by how extreme the volume spike is.
+ * Probability is still shown as a confidence score on each alert.
+ */
 function priorityFor(
   probability: number,
   volumeMultiple: number,
 ): BuyoutPriority {
-  if (probability >= 85 && volumeMultiple >= 10) return "critical"
-  if (probability >= 70) return "high"
+  if (volumeMultiple >= 10 && probability >= 80) return "critical"
+  if (volumeMultiple >= 7 || probability >= 78) return "high"
   return "warning"
 }
 

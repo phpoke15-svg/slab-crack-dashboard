@@ -193,8 +193,8 @@ as $$
     f.buyer_concentration_index,
     f.buyout_probability_percentage,
     case
-      when f.buyout_probability_percentage >= 85 and f.volume_multiple >= 10 then 'critical'
-      when f.buyout_probability_percentage >= 70 then 'high'
+      when f.volume_multiple >= 10 and f.buyout_probability_percentage >= 80 then 'critical'
+      when f.volume_multiple >= 7 or f.buyout_probability_percentage >= 78 then 'high'
       else 'warning'
     end as priority,
     case
