@@ -95,10 +95,10 @@ const ALL_COLLECTOOLS: CollecTool[] = [
   {
     id: "supreme",
     href: "/supreme",
-    name: "Supreme Console",
+    name: "Site Insights",
     tagline: "Owner metrics",
     description:
-      "Site health, launch readiness, and live table metrics. Supreme accounts only.",
+      "Live product, billing, and ops insights across CollecTools. Supreme accounts only.",
     icon: Activity,
     supremeOnly: true,
   },

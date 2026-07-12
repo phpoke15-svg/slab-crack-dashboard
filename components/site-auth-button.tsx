@@ -212,7 +212,7 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
               className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-accent"
             >
               <FlaskConical className="size-4 text-primary" aria-hidden="true" />
-              Supreme Console
+              Site Insights
             </Link>
           ) : null}
 
