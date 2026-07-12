@@ -8,11 +8,16 @@ import { GradePriceGrid } from "@/components/grade-price-grid"
 import {
   computeRegradeROI,
   getGradeQuotes,
-  GRADING_TIERS,
   mockEntryToSlabCard,
   PSA_GRADE_NUMBERS,
   type MockCardEntry,
 } from "@/lib/slab-data"
+import {
+  DEFAULT_PSA_GRADING_TIER_ID,
+  findPsaGradingTier,
+  formatPsaFee,
+  PSA_GRADING_TIERS,
+} from "@/lib/psa-grading-tiers"
 import {
   confidenceLabel,
   effectiveGradeCondition,
@@ -28,8 +33,8 @@ type GradeCheckResultProps = {
 }
 
 export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResultProps) {
-  const [tierId, setTierId] = useState("regular")
-  const tier = GRADING_TIERS.find((item) => item.id === tierId) ?? GRADING_TIERS[1]
+  const [tierId, setTierId] = useState(DEFAULT_PSA_GRADING_TIER_ID)
+  const tier = findPsaGradingTier(tierId) ?? PSA_GRADING_TIERS.find((t) => t.id === "regular")!
 
   const effective = effectiveGradeCondition(condition)
   const band = estimateGradeBand(effective)
@@ -107,24 +112,32 @@ export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResu
 
       <div className="rounded-2xl border border-border bg-secondary/30 p-4">
         <h3 className="mb-3 font-semibold text-foreground">Submit for grading?</h3>
-        <div className="grid grid-cols-3 gap-2">
-          {GRADING_TIERS.map((item) => (
+        <div className="flex flex-wrap gap-2">
+          {PSA_GRADING_TIERS.map((item) => (
             <button
               key={item.id}
               type="button"
               onClick={() => setTierId(item.id)}
               className={cn(
-                "rounded-xl border px-2 py-2 text-center transition-colors",
+                "min-w-[4.5rem] flex-1 rounded-xl border px-2 py-2 text-center transition-colors sm:flex-none",
                 item.id === tierId
                   ? "border-primary/50 bg-primary/10 text-primary"
-                  : "border-border bg-card/50 text-muted-foreground",
+                  : item.available
+                    ? "border-border bg-card/50 text-muted-foreground"
+                    : "border-dashed border-border/70 bg-card/30 text-muted-foreground/80",
               )}
             >
               <p className="text-sm font-semibold">{item.label}</p>
-              <p className="font-mono text-xs">${item.fee}</p>
+              <p className="font-mono text-xs">{formatPsaFee(item.fee)}</p>
+              <p className="mt-0.5 text-[9px] text-muted-foreground">
+                {item.available ? item.turnaround : "Paused"}
+              </p>
             </button>
           ))}
         </div>
+        <p className="mt-2 text-[10px] text-muted-foreground">
+          Prices match current PSA service levels. Value tiers are paused by PSA but remain selectable for modeling.
+        </p>
 
         <dl className="mt-4 space-y-1.5 text-sm">
           <div className="flex justify-between">

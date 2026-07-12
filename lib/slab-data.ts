@@ -1,4 +1,9 @@
 import mockData from "@/lib/mockData.json"
+import {
+  DEFAULT_PSA_GRADING_TIER_ID,
+  PSA_AVAILABLE_GRADING_TIERS,
+  PSA_GRADING_TIERS,
+} from "@/lib/psa-grading-tiers"
 
 export type Grade = "PSA 7" | "PSA 8" | "PSA 9" | "PSA 10"
 
@@ -365,11 +370,16 @@ export interface GradingTier {
   turnaround: string
 }
 
-export const GRADING_TIERS: GradingTier[] = [
-  { id: "value", label: "Value", fee: 19, turnaround: "~65 days" },
-  { id: "regular", label: "Regular", fee: 39, turnaround: "~20 days" },
-  { id: "express", label: "Express", fee: 79, turnaround: "~5 days" },
-]
+/** Available PSA tiers (Value paused). Prefer `@/lib/psa-grading-tiers` for full schedule. */
+export const GRADING_TIERS: GradingTier[] = PSA_AVAILABLE_GRADING_TIERS.map((t) => ({
+  id: t.id,
+  label: t.label,
+  fee: t.fee,
+  turnaround: t.turnaround,
+}))
+
+export { DEFAULT_PSA_GRADING_TIER_ID, PSA_AVAILABLE_GRADING_TIERS, PSA_GRADING_TIERS }
+
 
 /** Shipping + supplies estimate for a single-card submission. */
 export const SUBMISSION_OVERHEAD = 12

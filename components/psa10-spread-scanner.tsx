@@ -12,17 +12,27 @@ import {
 import { cn } from "@/lib/utils"
 import { CardImage } from "@/components/trade-binder/binder/card-image"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
+import {
+  DEFAULT_PSA_GRADING_FEE,
+  findPsaTierByFee,
+  formatPsaFee,
+  PSA_AVAILABLE_GRADING_TIERS,
+  PSA_GRADING_TIERS,
+} from "@/lib/psa-grading-tiers"
 
-const DEFAULT_GRADING_COST = 19
+const DEFAULT_GRADING_COST = DEFAULT_PSA_GRADING_FEE
 
-const GRADING_PRESETS = [
-  { id: "bulk", label: "Bulk", cost: 15 },
-  { id: "value", label: "Value", cost: 19 },
-  { id: "regular", label: "Regular", cost: 50 },
-  { id: "express", label: "Express", cost: 100 },
-  { id: "super", label: "Super", cost: 150 },
-] as const
+const GRADING_PRESETS = PSA_GRADING_TIERS.map((tier) => ({
+  id: tier.id,
+  label: tier.label,
+  cost: tier.fee,
+  available: tier.available,
+  name: tier.name,
+}))
 
+const AVAILABLE_FEES = PSA_AVAILABLE_GRADING_TIERS.map((t) => t.fee)
+const GRADING_SLIDER_MIN = Math.floor(Math.min(...AVAILABLE_FEES))
+const GRADING_SLIDER_MAX = Math.ceil(Math.max(...AVAILABLE_FEES))
 type SortMode = "spread" | "multiplier" | "roi"
 
 type ScannerCard = {
@@ -356,7 +366,7 @@ export function Psa10SpreadScanner() {
     if (selectedId && !rows.some((r) => r.id === selectedId)) setSelectedId(null)
   }, [rows, selectedId])
 
-  const activePreset = GRADING_PRESETS.find((p) => p.cost === gradingCost)?.id ?? null
+  const activePreset = findPsaTierByFee(gradingCost)?.id ?? null
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -408,7 +418,7 @@ export function Psa10SpreadScanner() {
           </label>
           <label className="block">
             <span className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Grade cost ${gradingCost}
+              Grade cost {formatPsaFee(gradingCost)}
             </span>
             <div className="mt-1.5 flex flex-wrap gap-1">
               {GRADING_PRESETS.map((preset) => (
@@ -416,22 +426,30 @@ export function Psa10SpreadScanner() {
                   key={preset.id}
                   type="button"
                   onClick={() => setGradingCost(preset.cost)}
+                  title={`${preset.name} · ${formatPsaFee(preset.cost)}${preset.available ? "" : " (paused)"}`}
                   className={cn(
                     "rounded-md border px-2 py-0.5 text-[10px] font-medium",
                     activePreset === preset.id
                       ? "border-primary/50 bg-primary/15 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground",
+                      : preset.available
+                        ? "border-border text-muted-foreground hover:text-foreground"
+                        : "border-dashed border-border/70 text-muted-foreground/70",
                   )}
                 >
                   {preset.label}
+                  {!preset.available ? " · paused" : ""}
                 </button>
               ))}
             </div>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              All PSA tiers · Value levels are paused by PSA but still selectable for modeling.
+            </p>
             <input
               type="range"
-              min={10}
-              max={200}
-              value={gradingCost}
+              min={GRADING_SLIDER_MIN}
+              max={GRADING_SLIDER_MAX}
+              step={1}
+              value={Math.round(gradingCost)}
               onChange={(e) => setGradingCost(Number(e.target.value))}
               className="mt-2 w-full accent-[var(--primary)]"
             />
