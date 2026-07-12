@@ -4,6 +4,7 @@ import {
   Bell,
   BookOpen,
   Layers,
+  MessageSquare,
   Package,
   Radar,
   Ratio,
@@ -106,6 +107,21 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Recommended action badges for speculative buys",
     ],
     icon: Radar,
+    supremeOnly: true,
+  },
+  {
+    id: "lounge",
+    href: "/lounge",
+    name: "Lounge",
+    tagline: "Supreme · in development",
+    description:
+      "Private Twitter-style collector feed — short posts, follows, likes, and replies for Supreme only.",
+    highlights: [
+      "280-character posts with replies",
+      "Follow other Supreme collectors",
+      "Lounge feed + Following timeline",
+    ],
+    icon: MessageSquare,
     supremeOnly: true,
   },
   {
