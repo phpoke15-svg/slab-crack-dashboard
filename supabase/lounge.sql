@@ -12,7 +12,7 @@ create table if not exists public.lounge_posts (
   body text not null,
   parent_id uuid references public.lounge_posts (id) on delete cascade,
   created_at timestamptz not null default now(),
-  constraint lounge_posts_body_len check (char_length(trim(body)) between 1 and 280)
+  constraint lounge_posts_body_len check (char_length(trim(body)) <= 280)
 );
 
 create index if not exists lounge_posts_created_idx

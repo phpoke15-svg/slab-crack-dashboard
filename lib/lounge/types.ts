@@ -4,12 +4,20 @@ export type LoungeFeedMode = "all" | "following"
 
 export type LoungeAuthor = Pick<TraderProfile, "id" | "name" | "handle" | "avatar">
 
+export type LoungeMediaItem = {
+  id: string
+  kind: "image" | "video"
+  url: string
+  mimeType: string
+}
+
 export type LoungePost = {
   id: string
   body: string
   createdAt: string
   parentId: string | null
   author: LoungeAuthor
+  media: LoungeMediaItem[]
   likeCount: number
   replyCount: number
   likedByMe: boolean

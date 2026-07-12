@@ -4,6 +4,7 @@ import { createLoungePost, getLoungeFeed } from "@/lib/lounge/store"
 import type { LoungeFeedMode } from "@/lib/lounge/types"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 /** Supreme Lounge feed — top-level posts or replies for a parent. */
 export async function GET(request: Request) {
@@ -28,23 +29,52 @@ export async function GET(request: Request) {
   }
 }
 
-/** Create a post or reply. */
+/** Create a post or reply (JSON text-only, or multipart with photos/videos). */
 export async function POST(request: Request) {
   const auth = await requireSupreme()
   if (!auth.ok) return auth.response
 
   try {
-    const body = (await request.json()) as { body?: string; parentId?: string | null }
+    const contentType = request.headers.get("content-type") || ""
+    let body = ""
+    let parentId: string | null = null
+    let files: File[] = []
+
+    if (contentType.includes("multipart/form-data")) {
+      const form = await request.formData()
+      body = String(form.get("body") ?? "")
+      const parentRaw = form.get("parentId")
+      parentId = typeof parentRaw === "string" && parentRaw.trim() ? parentRaw.trim() : null
+      files = form
+        .getAll("files")
+        .filter((entry): entry is File => entry instanceof File && entry.size > 0)
+    } else {
+      const json = (await request.json()) as { body?: string; parentId?: string | null }
+      body = json.body ?? ""
+      parentId = json.parentId ?? null
+    }
+
     const post = await createLoungePost({
       authorId: auth.user.id,
       authorEmail: auth.user.email,
-      body: body.body ?? "",
-      parentId: body.parentId ?? null,
+      body,
+      parentId,
+      files,
     })
     return NextResponse.json({ ok: true, post })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to create post"
-    const status = message.includes("1–") || message.includes("Parent") ? 400 : 500
+    const status =
+      message.includes("1–") ||
+      message.includes("Parent") ||
+      message.includes("MB") ||
+      message.includes("Only") ||
+      message.includes("Up to") ||
+      message.includes("Caption") ||
+      message.includes("photo/video") ||
+      message.includes("lounge-media.sql")
+        ? 400
+        : 500
     console.error("[lounge] create:", message)
     return NextResponse.json({ ok: false, error: message }, { status })
   }

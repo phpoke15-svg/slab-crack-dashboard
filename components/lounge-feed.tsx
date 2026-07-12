@@ -1,10 +1,34 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
-import { Heart, Loader2, MessageCircle, RefreshCw, Trash2, UserPlus, UserMinus } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import {
+  Heart,
+  ImagePlus,
+  Loader2,
+  MessageCircle,
+  RefreshCw,
+  Trash2,
+  UserMinus,
+  UserPlus,
+  X,
+} from "lucide-react"
 import { UserAvatar } from "@/components/trade-binder/social/user-avatar"
 import { cn } from "@/lib/utils"
-import type { LoungeFeedMode, LoungeFeedResponse, LoungePost } from "@/lib/lounge/types"
+import type {
+  LoungeFeedMode,
+  LoungeFeedResponse,
+  LoungeMediaItem,
+  LoungePost,
+} from "@/lib/lounge/types"
+
+const MAX_MEDIA = 4
+
+type LocalMedia = {
+  id: string
+  file: File
+  previewUrl: string
+  kind: "image" | "video"
+}
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - Date.parse(iso)
@@ -19,53 +43,146 @@ function timeAgo(iso: string): string {
   return new Date(iso).toLocaleDateString()
 }
 
+function asUser(author: LoungePost["author"]) {
+  return { ...author, location: "", bio: "", binderVisibility: "public" as const }
+}
+
+function MediaGrid({ items, compact }: { items: LoungeMediaItem[]; compact?: boolean }) {
+  if (items.length === 0) return null
+  return (
+    <div
+      className={cn(
+        "mt-2 grid gap-1.5 overflow-hidden rounded-xl",
+        items.length === 1 ? "grid-cols-1" : "grid-cols-2",
+      )}
+    >
+      {items.map((item) =>
+        item.kind === "video" ? (
+          <video
+            key={item.id}
+            src={item.url}
+            controls
+            playsInline
+            preload="metadata"
+            className={cn(
+              "w-full rounded-lg border border-border bg-black object-contain",
+              compact ? "max-h-40" : "max-h-80",
+            )}
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={item.id}
+            src={item.url}
+            alt=""
+            className={cn(
+              "w-full rounded-lg border border-border object-cover",
+              compact ? "max-h-40" : "max-h-80",
+            )}
+          />
+        ),
+      )}
+    </div>
+  )
+}
+
 export function LoungeFeed() {
   const [mode, setMode] = useState<LoungeFeedMode>("all")
   const [data, setData] = useState<LoungeFeedResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [draft, setDraft] = useState("")
+  const [media, setMedia] = useState<LocalMedia[]>([])
   const [posting, setPosting] = useState(false)
   const [replyTo, setReplyTo] = useState<LoungePost | null>(null)
   const [replies, setReplies] = useState<Record<string, LoungePost[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  const load = useCallback(async (nextMode: LoungeFeedMode = mode) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch(`/api/lounge?mode=${nextMode}`, { cache: "no-store" })
-      const json = await res.json()
-      if (!res.ok || !json.ok) throw new Error(json.error || "Could not load lounge")
-      setData(json as LoungeFeedResponse)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load lounge")
-    } finally {
-      setLoading(false)
-    }
-  }, [mode])
+  const clearMedia = useCallback(() => {
+    setMedia((prev) => {
+      for (const item of prev) URL.revokeObjectURL(item.previewUrl)
+      return []
+    })
+  }, [])
+
+  const load = useCallback(
+    async (nextMode: LoungeFeedMode = mode) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch(`/api/lounge?mode=${nextMode}`, { cache: "no-store" })
+        const json = await res.json()
+        if (!res.ok || !json.ok) throw new Error(json.error || "Could not load lounge")
+        setData(json as LoungeFeedResponse)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not load lounge")
+      } finally {
+        setLoading(false)
+      }
+    },
+    [mode],
+  )
 
   useEffect(() => {
     void load(mode)
   }, [load, mode])
 
+  useEffect(() => {
+    return () => {
+      for (const item of media) URL.revokeObjectURL(item.previewUrl)
+    }
+    // only on unmount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function onPickFiles(fileList: FileList | null) {
+    if (!fileList?.length) return
+    const incoming = Array.from(fileList)
+    setMedia((prev) => {
+      const next = [...prev]
+      for (const file of incoming) {
+        if (next.length >= MAX_MEDIA) break
+        const isVideo = file.type.startsWith("video/")
+        const isImage = file.type.startsWith("image/")
+        if (!isVideo && !isImage) continue
+        if (isVideo && next.some((m) => m.kind === "video")) continue
+        next.push({
+          id: `${file.name}-${file.size}-${file.lastModified}-${Math.random()}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+          kind: isVideo ? "video" : "image",
+        })
+      }
+      return next
+    })
+    if (fileRef.current) fileRef.current.value = ""
+  }
+
+  function removeLocalMedia(id: string) {
+    setMedia((prev) => {
+      const target = prev.find((m) => m.id === id)
+      if (target) URL.revokeObjectURL(target.previewUrl)
+      return prev.filter((m) => m.id !== id)
+    })
+  }
+
   async function submitPost() {
     const body = draft.trim()
-    if (!body || posting) return
+    if ((!body && media.length === 0) || posting) return
     setPosting(true)
     setError(null)
     try {
-      const res = await fetch("/api/lounge", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          body,
-          parentId: replyTo?.id ?? null,
-        }),
-      })
+      const form = new FormData()
+      form.set("body", body)
+      if (replyTo?.id) form.set("parentId", replyTo.id)
+      for (const item of media) form.append("files", item.file)
+
+      const res = await fetch("/api/lounge", { method: "POST", body: form })
       const json = await res.json()
       if (!res.ok || !json.ok) throw new Error(json.error || "Could not post")
       setDraft("")
+      clearMedia()
       if (replyTo) {
         const parentId = replyTo.id
         setReplyTo(null)
@@ -179,6 +296,7 @@ export function LoungeFeed() {
 
   const me = data?.me
   const remaining = 280 - draft.length
+  const canPost = Boolean(draft.trim() || media.length > 0)
 
   return (
     <div className="mx-auto w-full max-w-xl space-y-4">
@@ -211,10 +329,7 @@ export function LoungeFeed() {
       <div className="rounded-2xl border border-border bg-card/60 p-4">
         <div className="flex gap-3">
           {me ? (
-            <UserAvatar
-              user={{ ...me, location: "", bio: "", binderVisibility: "public" }}
-              size="sm"
-            />
+            <UserAvatar user={asUser(me)} size="sm" />
           ) : (
             <div className="size-9 shrink-0 rounded-xl bg-muted" />
           )}
@@ -238,18 +353,73 @@ export function LoungeFeed() {
               rows={3}
               className="w-full resize-none rounded-xl border border-border bg-background/80 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none"
             />
+
+            {media.length > 0 ? (
+              <div className="mt-2 grid grid-cols-2 gap-1.5">
+                {media.map((item) => (
+                  <div key={item.id} className="relative overflow-hidden rounded-lg border border-border">
+                    {item.kind === "video" ? (
+                      <video
+                        src={item.previewUrl}
+                        className="h-28 w-full object-cover"
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={item.previewUrl}
+                        alt=""
+                        className="h-28 w-full object-cover"
+                      />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeLocalMedia(item.id)}
+                      className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white"
+                      aria-label="Remove attachment"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             <div className="mt-2 flex items-center justify-between gap-2">
-              <span
-                className={cn(
-                  "text-[11px] tabular-nums",
-                  remaining < 20 ? "text-destructive" : "text-muted-foreground",
-                )}
-              >
-                {remaining}
-              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => onPickFiles(e.target.files)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={media.length >= MAX_MEDIA || posting}
+                  className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  <ImagePlus className="size-3.5" aria-hidden />
+                  Photo / video
+                </button>
+                <span className="text-[10px] text-muted-foreground">
+                  {media.length}/{MAX_MEDIA}
+                </span>
+                <span
+                  className={cn(
+                    "text-[11px] tabular-nums",
+                    remaining < 20 ? "text-destructive" : "text-muted-foreground",
+                  )}
+                >
+                  {remaining}
+                </span>
+              </div>
               <button
                 type="button"
-                disabled={posting || !draft.trim()}
+                disabled={posting || !canPost}
                 onClick={() => void submitPost()}
                 className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
               >
@@ -257,6 +427,9 @@ export function LoungeFeed() {
                 {replyTo ? "Reply" : "Post"}
               </button>
             </div>
+            <p className="mt-1.5 text-[10px] text-muted-foreground">
+              Up to 4 photos or 1 video + photos from your phone. Images ≤8MB, videos ≤50MB.
+            </p>
           </div>
         </div>
       </div>
@@ -308,10 +481,6 @@ export function LoungeFeed() {
   )
 }
 
-function asUser(author: LoungePost["author"]) {
-  return { ...author, location: "", bio: "", binderVisibility: "public" as const }
-}
-
 function PostCard({
   post,
   isMine,
@@ -349,9 +518,12 @@ function PostCard({
             <span className="truncate text-[11px] text-muted-foreground">{post.author.handle}</span>
             <span className="text-[11px] text-muted-foreground">· {timeAgo(post.createdAt)}</span>
           </div>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground/95">
-            {post.body}
-          </p>
+          {post.body ? (
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground/95">
+              {post.body}
+            </p>
+          ) : null}
+          <MediaGrid items={post.media ?? []} />
           <div className="mt-3 flex flex-wrap items-center gap-1">
             <button
               type="button"
@@ -380,7 +552,9 @@ function PostCard({
                 onClick={onToggleReplies}
                 className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
               >
-                {expanded ? "Hide" : `${post.replyCount} ${post.replyCount === 1 ? "reply" : "replies"}`}
+                {expanded
+                  ? "Hide"
+                  : `${post.replyCount} ${post.replyCount === 1 ? "reply" : "replies"}`}
               </button>
             ) : null}
             {!isMine ? (
@@ -419,7 +593,10 @@ function PostCard({
                 <li className="text-[11px] text-muted-foreground">No replies yet.</li>
               ) : (
                 replies.map((reply) => (
-                  <li key={reply.id} className="rounded-xl border border-border/60 bg-background/40 p-3">
+                  <li
+                    key={reply.id}
+                    className="rounded-xl border border-border/60 bg-background/40 p-3"
+                  >
                     <div className="flex gap-2">
                       <UserAvatar user={asUser(reply.author)} size="sm" />
                       <div className="min-w-0 flex-1">
@@ -429,7 +606,12 @@ function PostCard({
                             {reply.author.handle} · {timeAgo(reply.createdAt)}
                           </span>
                         </div>
-                        <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">{reply.body}</p>
+                        {reply.body ? (
+                          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">
+                            {reply.body}
+                          </p>
+                        ) : null}
+                        <MediaGrid items={reply.media ?? []} compact />
                         <div className="mt-2 flex gap-1">
                           <button
                             type="button"

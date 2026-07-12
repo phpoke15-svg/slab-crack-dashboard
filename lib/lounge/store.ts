@@ -2,10 +2,17 @@ import "server-only"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { ensureProfile, fetchProfile } from "@/lib/trade-binder/profile-db"
 import { profileRowToTrader, type ProfileRow } from "@/lib/trade-binder/profile"
+import {
+  deleteLoungeStoragePaths,
+  resolveLoungeMediaUrl,
+  uploadLoungeMediaFiles,
+  type LoungeMediaUpload,
+} from "@/lib/lounge/media"
 import type {
   LoungeAuthor,
   LoungeFeedMode,
   LoungeFeedResponse,
+  LoungeMediaItem,
   LoungePost,
 } from "@/lib/lounge/types"
 
@@ -18,6 +25,15 @@ type PostRow = {
   body: string
   parent_id: string | null
   created_at: string
+}
+
+type MediaRow = {
+  id: string
+  post_id: string
+  storage_path: string
+  kind: "image" | "video"
+  mime_type: string
+  sort_order: number
 }
 
 function toAuthor(profile: {
@@ -34,9 +50,10 @@ function toAuthor(profile: {
   }
 }
 
-function normalizeBody(raw: string): string | null {
+function normalizeBody(raw: string, hasMedia: boolean): string | null {
   const body = raw.replace(/\r\n/g, "\n").trim()
-  if (!body || body.length > MAX_BODY) return null
+  if (body.length > MAX_BODY) return null
+  if (!body && !hasMedia) return null
   return body
 }
 
@@ -56,6 +73,44 @@ async function loadAuthors(
   return map
 }
 
+async function loadMediaByPost(
+  admin: ReturnType<typeof createAdminClient>,
+  postIds: string[],
+): Promise<Map<string, LoungeMediaItem[]>> {
+  const map = new Map<string, LoungeMediaItem[]>()
+  if (postIds.length === 0) return map
+
+  const { data, error } = await admin
+    .from("lounge_media")
+    .select("id, post_id, storage_path, kind, mime_type, sort_order")
+    .in("post_id", postIds)
+    .order("sort_order", { ascending: true })
+
+  if (error) {
+    // Table may not exist until lounge-media.sql is applied.
+    console.warn("[lounge] media load:", error.message)
+    return map
+  }
+
+  const rows = (data ?? []) as MediaRow[]
+  await Promise.all(
+    rows.map(async (row) => {
+      const url = await resolveLoungeMediaUrl(row.storage_path)
+      if (!url) return
+      const item: LoungeMediaItem = {
+        id: row.id,
+        kind: row.kind,
+        url,
+        mimeType: row.mime_type,
+      }
+      const list = map.get(row.post_id) ?? []
+      list.push(item)
+      map.set(row.post_id, list)
+    }),
+  )
+  return map
+}
+
 async function enrichPosts(
   admin: ReturnType<typeof createAdminClient>,
   rows: PostRow[],
@@ -66,6 +121,7 @@ async function enrichPosts(
   const postIds = rows.map((r) => r.id)
   const authorIds = rows.map((r) => r.author_id)
   const authors = await loadAuthors(admin, authorIds)
+  const mediaByPost = await loadMediaByPost(admin, postIds)
 
   const [{ data: likeRows }, { data: myLikes }, { data: replyRows }, { data: followRows }] =
     await Promise.all([
@@ -111,6 +167,7 @@ async function enrichPosts(
     createdAt: row.created_at,
     parentId: row.parent_id,
     author: authors.get(row.author_id) ?? { ...fallback, id: row.author_id },
+    media: mediaByPost.get(row.id) ?? [],
     likeCount: likeCounts.get(row.id) ?? 0,
     replyCount: replyCounts.get(row.id) ?? 0,
     likedByMe: likedByMe.has(row.id),
@@ -174,10 +231,18 @@ export async function createLoungePost(opts: {
   authorEmail?: string | null
   body: string
   parentId?: string | null
+  files?: File[]
 }): Promise<LoungePost> {
   if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
-  const body = normalizeBody(opts.body)
-  if (!body) throw new Error(`Post must be 1–${MAX_BODY} characters`)
+  const files = opts.files ?? []
+  const body = normalizeBody(opts.body, files.length > 0)
+  if (body === null) {
+    throw new Error(
+      files.length > 0
+        ? `Caption must be ${MAX_BODY} characters or fewer.`
+        : `Post must include text (1–${MAX_BODY} chars) or a photo/video.`,
+    )
+  }
 
   const admin = createAdminClient()
   await ensureProfile(admin, opts.authorId, opts.authorEmail)
@@ -191,6 +256,13 @@ export async function createLoungePost(opts: {
     if (!parent) throw new Error("Parent post not found")
   }
 
+  let uploads: LoungeMediaUpload[] = []
+  try {
+    uploads = await uploadLoungeMediaFiles(opts.authorId, files)
+  } catch (error) {
+    throw error instanceof Error ? error : new Error("Upload failed")
+  }
+
   const { data, error } = await admin
     .from("lounge_posts")
     .insert({
@@ -201,7 +273,31 @@ export async function createLoungePost(opts: {
     .select("id, author_id, body, parent_id, created_at")
     .single()
 
-  if (error || !data) throw new Error(error?.message || "Failed to create post")
+  if (error || !data) {
+    await deleteLoungeStoragePaths(uploads.map((u) => u.storagePath))
+    throw new Error(error?.message || "Failed to create post")
+  }
+
+  if (uploads.length > 0) {
+    const { error: mediaError } = await admin.from("lounge_media").insert(
+      uploads.map((u) => ({
+        post_id: data.id,
+        storage_path: u.storagePath,
+        kind: u.kind,
+        mime_type: u.mimeType,
+        sort_order: u.sortOrder,
+      })),
+    )
+    if (mediaError) {
+      await admin.from("lounge_posts").delete().eq("id", data.id)
+      await deleteLoungeStoragePaths(uploads.map((u) => u.storagePath))
+      throw new Error(
+        mediaError.message.includes("lounge_media")
+          ? "Media tables not ready — run supabase/lounge-media.sql in Supabase."
+          : mediaError.message,
+      )
+    }
+  }
 
   const [post] = await enrichPosts(admin, [data as PostRow], opts.authorId)
   return post!
@@ -221,8 +317,15 @@ export async function deleteLoungePost(opts: {
   if (!data) throw new Error("Post not found")
   if (data.author_id !== opts.viewerId) throw new Error("You can only delete your own posts")
 
+  const { data: media } = await admin
+    .from("lounge_media")
+    .select("storage_path")
+    .eq("post_id", opts.postId)
+  const paths = (media ?? []).map((m) => m.storage_path as string)
+
   const { error } = await admin.from("lounge_posts").delete().eq("id", opts.postId)
   if (error) throw new Error(error.message)
+  await deleteLoungeStoragePaths(paths)
 }
 
 export async function toggleLoungeLike(opts: {
