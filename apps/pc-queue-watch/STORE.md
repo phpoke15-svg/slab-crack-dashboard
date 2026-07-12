@@ -8,11 +8,11 @@ Version: **1.3.1** (Android `versionCode` 6). EAS slug is `pokepax` (legacy proj
 
 - [x] App icons / splash / notification assets under `apps/pc-queue-watch/assets/`
 - [x] `privacyPolicyUrl` in `app.json`
-- [x] Privacy policy covers native Queue Watch + WebView
+- [x] Privacy policy covers native PokeWatch + WebView
 - [x] EAS `production` profiles for Android AAB + iOS
-- [x] Mobile Queue Watch can sync to web when you open CollecTools in-app while Pro (copies bookmarklet token)
+- [x] Mobile PokeWatch can sync to web when you open CollecTools in-app while Pro (copies bookmarklet token)
 - [x] Restocks hidden until Walmart Affiliate returns
-- [x] Web launch: Stripe, SoldComps, EPN campaign links, Queue Watch SQL, web push
+- [x] Web launch: Stripe, SoldComps, EPN campaign links, PokeWatch SQL, web push
 
 ## You + agent together (needs your accounts)
 
@@ -53,6 +53,6 @@ npx eas-cli build -p ios --profile production       # needs Apple team
 
 ## Smoke before store submit
 
-1. Web: sign-in, Premium/Pro trial, SlabCrack, Queue Watch bookmarklet **active · synced**
-2. APK: site loads full-screen; from `/queue-watch` open native Queue Watch; notification on test live signal
-3. Open `/queue-watch` in-app while Pro so token bridges to native sync
+1. Web: sign-in, Premium/Pro trial, SlabCrack, PokeWatch bookmarklet **active · synced**
+2. APK: site loads full-screen; from `/pokewatch` open native PokeWatch; notification on test live signal
+3. Open `/pokewatch` in-app while Pro so token bridges to native sync

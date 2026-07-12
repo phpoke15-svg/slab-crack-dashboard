@@ -37,8 +37,8 @@ function syncHtml(ok: boolean, message: string, status: number) {
   const payload = JSON.stringify({ type: "pcw-sync", ok, error: ok ? null : message })
   const bg = ok ? "#111" : "#7f1d1d"
   const body = ok
-    ? "PC Queue Watch ping OK"
-    : `Queue Watch: ${message}`
+    ? "PokeWatch ping OK"
+    : `PokeWatch: ${message}`
   const closeMs = ok ? 500 : 4000
   return new NextResponse(
     `<!doctype html><html><body style="font:14px system-ui;padding:16px;background:${bg};color:#eee">${body}<script>
@@ -87,7 +87,7 @@ async function processReport(
     return {
       ok: false,
       status: 403,
-      error: "Auth failed — re-copy the bookmarklet from Queue Watch while signed in with Pro.",
+      error: "Auth failed — re-copy the bookmarklet from PokeWatch while signed in with Pro.",
     }
   }
 

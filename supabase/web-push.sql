@@ -1,4 +1,4 @@
--- Web Push subscriptions for phone alerts (Queue Watch live + Walmart Wednesday).
+-- Web Push subscriptions for phone alerts (PokeWatch live + Walmart Wednesday).
 -- Run in Supabase SQL editor. Service role only (no public RLS policies).
 
 create table if not exists push_subscriptions (

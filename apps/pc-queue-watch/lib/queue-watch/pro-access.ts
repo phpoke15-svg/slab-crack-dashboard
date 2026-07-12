@@ -15,7 +15,7 @@ export async function clearQueueWatchToken(): Promise<void> {
 }
 
 /**
- * Pro access for native Queue Watch = a valid bookmarklet token
+ * Pro access for native PokeWatch = a valid bookmarklet token
  * minted only for Pro users on the CollecTools site.
  *
  * Online: verifies against /api/pokemon-center/status (403 = not Pro / expired).

@@ -210,7 +210,7 @@ async function maybeSendQueueLiveWebPush(report: QueueWatchReport): Promise<bool
   const result = await sendWebPushToTopic("queue_live", {
     title: "Pokémon Center queue is LIVE",
     body: signalSummary,
-    url: `${site}/queue-watch`,
+    url: `${site}/pokewatch`,
     tag: "pc-queue-live",
   })
 

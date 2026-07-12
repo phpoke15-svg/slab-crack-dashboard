@@ -1,6 +1,6 @@
 # CollecTools
 
-TCG collector toolkit: **SlabCrack**, **Restocks**, **PokeMatch**, and **Queue Watch**.
+TCG collector toolkit: **SlabCrack**, **Restocks**, **PokeMatch**, and **PokeWatch**.
 
 ## Live
 

@@ -1,8 +1,8 @@
 # CollecTools Mobile App
 
-Installable **Android / iOS** app (v1.3.3) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **Queue Watch** opens from the site when you tap **Open native Queue Watch** on `/queue-watch`.
+Installable **Android / iOS** app (v1.3.3) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
 
-**Queue Watch is Pro-only** — sign in on the site, open Queue Watch once to link your token, then start native monitoring.
+**PokeWatch is Pro-only** — sign in on the site, open PokeWatch once to link your token, then start native monitoring.
 
 Theme: dark background + **white / mint-green** accents (same as the website). Rebuild the APK after UI changes.
 
@@ -12,15 +12,15 @@ Store path: see **[STORE.md](./STORE.md)**.
 
 Opens the full website:
 
-- Hub with SlabCrack, PokeMatch, and Queue Watch
+- Hub with SlabCrack, PokeMatch, and PokeWatch
 - Sign in, binder, trades, messages
 - In-app navigation stays on your CollecTools domain; external links open in the browser
-- Visiting `/queue-watch` while Pro bridges your monitor token
+- Visiting `/pokewatch` while Pro bridges your monitor token
 
-## Native Queue Watch (from the site)
+## Native PokeWatch (from the site)
 
-1. Open **Queue Watch** from the CollecTools hub
-2. Tap **Open native Queue Watch** (green button at the bottom)
+1. Open **PokeWatch** from the CollecTools hub
+2. Tap **Open native PokeWatch** (green button at the bottom)
 3. Tap **Start monitoring** — Pokemon Center loads in-app
 4. Pass any Imperva / bot check once
 5. Leave that screen open during drops for a local push when the queue goes live

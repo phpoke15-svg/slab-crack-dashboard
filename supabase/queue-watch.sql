@@ -1,4 +1,4 @@
--- Queue Watch cross-instance reports (required on Vercel — memory alone does not work).
+-- PokeWatch cross-instance reports (required on Vercel — memory alone does not work).
 -- Run in Supabase SQL editor, then re-copy the bookmarklet from /queue-watch.
 
 create table if not exists public.queue_watch_reports (

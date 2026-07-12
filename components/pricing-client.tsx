@@ -30,7 +30,7 @@ const HIGHLIGHTS = [
   {
     icon: Monitor,
     title: "Web monitoring",
-    body: "24/7 Queue Watch so you don’t have to sit and refresh.",
+    body: "24/7 PokeWatch so you don’t have to sit and refresh.",
   },
   {
     icon: Smartphone,
@@ -129,7 +129,7 @@ export function PricingClient() {
 
       <div className="relative mx-auto flex w-full max-w-5xl flex-col px-4 py-8 sm:px-6">
         <header className="mb-10 flex items-start justify-between gap-4">
-          <CollecToolsBrand href="/" size="lg" subtitle="Queue Watch · Pokémon Center alerts" />
+          <CollecToolsBrand href="/" size="lg" subtitle="PokeWatch · Pokémon Center alerts" />
           <SiteAuthButton className="shrink-0" />
         </header>
 
@@ -152,10 +152,10 @@ export function PricingClient() {
                 See Pro & Premium
               </a>
               <Link
-                href="/queue-watch"
+                href="/pokewatch"
                 className="inline-flex h-11 items-center justify-center rounded-xl border border-primary/50 px-5 text-sm font-semibold text-foreground transition-colors hover:bg-primary/10"
               >
-                Learn about Queue Watch
+                Learn about PokeWatch
               </Link>
             </div>
           </div>
@@ -203,7 +203,7 @@ export function PricingClient() {
               Current plan:{" "}
               <span className="font-semibold capitalize">{entitlements.plan}</span>
               {entitlements.adFree ? " · Ad-free" : ""}
-              {entitlements.queueWatch ? " · Queue Watch" : ""}
+              {entitlements.queueWatch ? " · PokeWatch" : ""}
               {entitlements.cancelAtPeriodEnd && renewalLabel
                 ? ` · Cancels ${renewalLabel}`
                 : renewalLabel
@@ -235,7 +235,7 @@ export function PricingClient() {
           <PlanSpotlight
             badge="PRO"
             name="CollecTools Pro"
-            tagline="Unlock Queue Watch and exclusive tools."
+            tagline="Unlock PokeWatch and exclusive tools."
             features={pro.features.filter((f) => !f.toLowerCase().includes("free trial"))}
             monthly={pro.monthlyPrice}
             yearly={pro.yearlyPrice}

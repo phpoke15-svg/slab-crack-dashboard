@@ -18,13 +18,13 @@ import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { BRIDGE_INJECT, saveQueueWatchCredentials } from "../lib/queue-watch/report-to-server"
 
-/** Floating CTA on /queue-watch so native monitoring is reached from the site, not a tab. */
+/** Floating CTA on /pokewatch so native monitoring is reached from the site, not a tab. */
 const NATIVE_QUEUE_CTA_INJECT = `
 (function(){
   try {
     if (!window.ReactNativeWebView) return;
     var path = (location.pathname || '');
-    if (path.indexOf('/queue-watch') !== 0) {
+    if (path.indexOf('/pokewatch') !== 0) {
       var old = document.getElementById('ct-native-qw-cta');
       if (old) old.remove();
       return;
@@ -33,7 +33,7 @@ const NATIVE_QUEUE_CTA_INJECT = `
     var b = document.createElement('button');
     b.id = 'ct-native-qw-cta';
     b.type = 'button';
-    b.textContent = 'Open native Queue Watch';
+    b.textContent = 'Open native PokeWatch';
     b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:2147483646;padding:14px 16px;border:0;border-radius:14px;background:#16a34a;color:#fff;font:700 15px/1.2 system-ui,sans-serif;box-shadow:0 10px 28px rgba(0,0,0,.4);cursor:pointer;';
     b.onclick = function(){
       window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'open-native-queue' }));
@@ -63,7 +63,7 @@ function isAllowedInApp(url: string) {
 function isQueueWatchPath(url: string) {
   try {
     const path = new URL(url).pathname
-    return path === "/queue-watch" || path.startsWith("/queue-watch/")
+    return path === "/pokewatch" || path.startsWith("/pokewatch/")
   } catch {
     return false
   }

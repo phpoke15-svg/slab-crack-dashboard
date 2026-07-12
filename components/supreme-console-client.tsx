@@ -114,7 +114,7 @@ const CHECK_LABELS: Record<string, string> = {
   webPushConfigured: "Web push",
   restockReportSecured: "Restock report secret",
   pokematchReady: "PokeMatch schema",
-  queueWatchReportsReady: "Queue Watch table",
+  queueWatchReportsReady: "PokeWatch table",
   discoveryMaxSetAgeYears: "Discovery max set age",
   supremeEmailsConfigured: "Supreme allowlist",
 }
@@ -469,7 +469,7 @@ export function SupremeConsoleClient() {
                   </section>
 
                   <section className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
-                    <SectionLabel icon={Store} title="Restocks & Queue Watch" />
+                    <SectionLabel icon={Store} title="Restocks & PokeWatch" />
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <MiniStat label="Tracked SKUs" value={fmt(data.ops.restockProducts)} />
                       <MiniStat label="In stock now" value={fmt(data.ops.restockInStock)} />

@@ -1,8 +1,8 @@
--- CollecTools one-shot schema (Queue Watch + Web Push)
+-- CollecTools one-shot schema (PokeWatch + Web Push)
 -- Paste into Supabase → SQL Editor → Run
 -- Project: jecuvylwpquahpqrjdqp
 
--- Queue Watch cross-instance reports
+-- PokeWatch cross-instance reports
 create table if not exists public.queue_watch_reports (
   session_id text primary key,
   live boolean not null default false,

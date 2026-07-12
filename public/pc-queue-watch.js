@@ -16,7 +16,7 @@
   var MUTATE_DEBOUNCE_MS = 750
 
   var badge = document.createElement("div")
-  badge.textContent = "PC Queue Watch active"
+  badge.textContent = "PokeWatch active"
   badge.style.cssText =
     "position:fixed;bottom:12px;right:12px;z-index:2147483647;padding:8px 12px;border-radius:999px;background:#111827;color:#f9fafb;font:600 12px/1.2 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.35);"
   document.documentElement.appendChild(badge)
@@ -81,7 +81,7 @@
         requireInteraction: true,
       })
     } else {
-      console.log("[PC Queue Watch] Queue is LIVE")
+      console.log("[PokeWatch] Queue is LIVE")
     }
   }
 
@@ -127,7 +127,7 @@
     if (state.live && !lastLive) notifyLive()
     lastLive = state.live
 
-    badge.textContent = state.live ? "PC Queue LIVE" : "PC Queue Watch active"
+    badge.textContent = state.live ? "PC Queue LIVE" : "PokeWatch active"
     badge.style.background = state.live ? "#059669" : "#111827"
   }
 

@@ -5,7 +5,7 @@ import { mintQueueWatchToken } from "@/lib/billing/queue-watch-token"
 
 export const dynamic = "force-dynamic"
 
-/** Issue a long-lived token for the Queue Watch bookmarklet (Pro only). */
+/** Issue a long-lived token for the PokeWatch bookmarklet (Pro only). */
 export async function POST() {
   const auth = await requireUser()
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
@@ -13,7 +13,7 @@ export async function POST() {
   const allowed = await requireQueueWatchAccess(auth.user.id)
   if (!allowed) {
     return NextResponse.json(
-      { error: "Queue Watch requires a Pro subscription.", upgradeUrl: "/pricing" },
+      { error: "PokeWatch requires a Pro subscription.", upgradeUrl: "/pricing" },
       { status: 403 },
     )
   }

@@ -1,4 +1,4 @@
--- CollecTools billing: Premium (ad-free) and Pro (ad-free + Queue Watch).
+-- CollecTools billing: Premium (ad-free) and Pro (ad-free + PokeWatch).
 -- Safe to re-run. Run in Supabase SQL Editor after pokematch-setup.sql.
 
 alter table public.profiles

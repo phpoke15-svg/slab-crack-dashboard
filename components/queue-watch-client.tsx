@@ -180,7 +180,7 @@ export function QueueWatchClient() {
         { cache: "no-store", credentials: "same-origin" },
       )
       if (response.status === 403) {
-        setError("Queue Watch requires a Pro subscription.")
+        setError("PokeWatch requires a Pro subscription.")
         setMonitoring(false)
         return
       }
@@ -239,7 +239,7 @@ export function QueueWatchClient() {
 
   const upgradeToPro = async (priceKey: "pro_month" | "pro_year") => {
     if (!user) {
-      window.location.href = `/sign-in?next=${encodeURIComponent("/queue-watch")}`
+      window.location.href = `/sign-in?next=${encodeURIComponent("/pokewatch")}`
       return
     }
     setCheckoutBusy(true)
@@ -284,7 +284,7 @@ export function QueueWatchClient() {
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-8 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <CollecToolsBrand href="/" size="lg" subtitle="Queue Watch · Pokemon Center alerts" />
+          <CollecToolsBrand href="/" size="lg" subtitle="PokeWatch · Pokemon Center alerts" />
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
             Get instant alerts when Pokemon Center&apos;s virtual queue goes live. Included with{" "}
             <Link href="/pricing" className="font-medium text-primary hover:underline">
@@ -298,7 +298,7 @@ export function QueueWatchClient() {
 
       {inNativeApp && hasPro && (
         <section className="mb-6 rounded-2xl border border-primary/40 bg-primary/10 p-5">
-          <h2 className="text-base font-semibold text-foreground">Native Queue Watch</h2>
+          <h2 className="text-base font-semibold text-foreground">Native PokeWatch</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Open the in-app Pokemon Center monitor for Imperva-safe alerts. Leave that screen open
             during drops.
@@ -308,7 +308,7 @@ export function QueueWatchClient() {
             onClick={openNativeQueue}
             className="mt-3 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
           >
-            Open native Queue Watch
+            Open native PokeWatch
           </button>
         </section>
       )}
@@ -331,12 +331,12 @@ export function QueueWatchClient() {
             <div className="min-w-0 flex-1">
               <h1 className="text-xl font-semibold text-foreground">Pro feature</h1>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                Queue Watch (web monitoring, bookmarklet, and phone alerts) is part of{" "}
+                PokeWatch (web monitoring, bookmarklet, and phone alerts) is part of{" "}
                 <strong className="text-foreground">Pro</strong> — $9.99/mo or $99.99/yr, with a
                 7-day free trial.
                 {entitlements.plan === "premium"
-                  ? " You’re on Premium (full SlabCrack, ad-free) — upgrade to Pro to unlock Queue Watch."
-                  : " Premium ($4.99/mo) unlocks full SlabCrack ad-free but does not include Queue Watch."}
+                  ? " You’re on Premium (full SlabCrack, ad-free) — upgrade to Pro to unlock PokeWatch."
+                  : " Premium ($4.99/mo) unlocks full SlabCrack ad-free but does not include PokeWatch."}
               </p>
               {error ? (
                 <p
@@ -379,7 +379,7 @@ export function QueueWatchClient() {
                 </Link>
                 {!user ? (
                   <Link
-                    href={`/sign-in?next=${encodeURIComponent("/queue-watch")}`}
+                    href={`/sign-in?next=${encodeURIComponent("/pokewatch")}`}
                     className="inline-flex items-center rounded-xl px-4 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground"
                   >
                     Sign in
@@ -526,7 +526,7 @@ export function QueueWatchClient() {
                 / <strong className="text-foreground">Add bookmark</strong>.
               </li>
               <li>
-                Name: <strong className="text-foreground">PC Queue Watch</strong>
+                Name: <strong className="text-foreground">PokeWatch</strong>
               </li>
               <li>
                 URL field: click <strong className="text-foreground">Copy bookmarklet</strong> below,
@@ -645,7 +645,7 @@ export function QueueWatchClient() {
             )}
             <p className="mt-2 text-xs text-muted-foreground">
               Prefer an app?{" "}
-              <Link href="/queue-watch/mobile" className="text-primary hover:underline">
+              <Link href="/pokewatch/mobile" className="text-primary hover:underline">
                 Android setup guide
               </Link>
             </p>
@@ -664,12 +664,12 @@ export function QueueWatchClient() {
           <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
             <h2 className="text-base font-semibold text-foreground">Want a phone app?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              The Android app opens CollecTools full-screen. From Queue Watch, tap{" "}
-              <strong className="text-foreground">Open native Queue Watch</strong> for Imperva-safe
+              The Android app opens CollecTools full-screen. From PokeWatch, tap{" "}
+              <strong className="text-foreground">Open native PokeWatch</strong> for Imperva-safe
               monitoring and local alerts. Keep that screen open during drops.
             </p>
             <Link
-              href="/queue-watch/mobile"
+              href="/pokewatch/mobile"
               className="mt-3 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
             >
               Android setup guide

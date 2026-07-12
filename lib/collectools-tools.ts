@@ -63,9 +63,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     icon: BookOpen,
   },
   {
-    id: "queue-watch",
-    href: "/queue-watch",
-    name: "Queue Watch",
+    id: "pokewatch",
+    href: "/pokewatch",
+    name: "PokeWatch",
     tagline: "Pro · Pokemon Center alerts",
     description:
       "Instant browser and phone alerts when the Pokemon Center virtual queue goes live. Included with CollecTools Pro.",
@@ -77,7 +77,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     name: "Restocks",
     tagline: RESTOCKS_ENABLED ? "Walmart sealed stock" : "Supreme · in development",
     description: RESTOCKS_ENABLED
-      ? "Auto-discovers Pokémon TCG sealed products at Walmart and tracks in-stock vs OOS. Pokémon Center drops use Queue Watch."
+      ? "Auto-discovers Pokémon TCG sealed products at Walmart and tracks in-stock vs OOS. Pokémon Center drops use PokeWatch."
       : "Walmart sealed auto-discovery. Hidden from public until Affiliate is live — Supreme can preview.",
     icon: Package,
     supremeOnly: !RESTOCKS_ENABLED,

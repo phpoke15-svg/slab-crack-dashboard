@@ -50,7 +50,7 @@ export default function App() {
               name="Queue"
               component={QueueWatchScreen}
               options={{
-                title: "Queue Watch",
+                title: "PokeWatch",
                 headerBackTitle: "Back",
               }}
             />

@@ -79,8 +79,8 @@ export function RestocksClient() {
           <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
             Automatically finds Pokémon sealed products at Walmart and tracks stock. For Pokémon
             Center drop timing and virtual queues, use{" "}
-            <Link href="/queue-watch" className="font-medium text-primary hover:underline">
-              Queue Watch
+            <Link href="/pokewatch" className="font-medium text-primary hover:underline">
+              PokeWatch
             </Link>
             .
           </p>
@@ -155,8 +155,8 @@ export function RestocksClient() {
           <p className="font-medium text-foreground">No products tracked yet</p>
           <p className="mt-2">
             Walmart sealed SKUs appear here after the next discovery sync. Check back soon, or use{" "}
-            <Link href="/queue-watch" className="text-primary hover:underline">
-              Queue Watch
+            <Link href="/pokewatch" className="text-primary hover:underline">
+              PokeWatch
             </Link>{" "}
             for Pokémon Center drops.
           </p>
@@ -222,10 +222,10 @@ export function RestocksClient() {
                     </a>
                     {product.retailer === "walmart" ? null : product.queueLikely ? (
                       <Link
-                        href="/queue-watch"
+                        href="/pokewatch"
                         className="inline-flex items-center rounded-xl border border-border px-3 py-2 text-sm font-medium text-foreground hover:border-primary/40"
                       >
-                        Queue Watch
+                        PokeWatch
                       </Link>
                     ) : null}
                   </div>
@@ -253,8 +253,8 @@ export function RestocksClient() {
           </li>
           <li>
             <strong className="text-foreground">Pokémon Center</strong> — use{" "}
-            <Link href="/queue-watch" className="text-primary hover:underline">
-              Queue Watch
+            <Link href="/pokewatch" className="text-primary hover:underline">
+              PokeWatch
             </Link>{" "}
             for queue-live alerts (not this board).
           </li>

@@ -148,7 +148,7 @@ export async function syncWalmartRestocks(options?: {
   }
 }
 
-/** Apply a manual stock report for one product (kept for ops; PC focus is Queue Watch). */
+/** Apply a manual stock report for one product (kept for ops; PC focus is PokeWatch). */
 export async function applyExternalStockReport(
   product: RestockProduct,
   snapshot: Omit<StockSnapshot, "source"> & { source?: string },

@@ -7,7 +7,7 @@ export const SEO_SITE_NAME = LEGAL_SITE_NAME
 export const SEO_DEFAULT_TITLE = "CollecTools — Pokémon TCG Collector Toolkit"
 
 export const SEO_DEFAULT_DESCRIPTION =
-  "Free and Premium tools for Pokémon TCG collectors: SlabCrack graded arbitrage, SlabLab PSA 10 spreads, PokeMatch trading, and Pokemon Center Queue Watch."
+  "Free and Premium tools for Pokémon TCG collectors: SlabCrack graded arbitrage, SlabLab PSA 10 spreads, PokeMatch trading, and PokeWatch Pokemon Center queue alerts."
 
 export const SEO_KEYWORDS = [
   "Pokémon TCG",
@@ -22,7 +22,7 @@ export const SEO_KEYWORDS = [
   "SlabCrack",
   "PokeMatch",
   "SlabLab",
-  "Queue Watch",
+  "PokeWatch",
 ] as const
 
 type PageSeoInput = {

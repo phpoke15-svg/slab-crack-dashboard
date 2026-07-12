@@ -59,7 +59,7 @@ export default function OpenGraphImage() {
               lineHeight: 1.15,
             }}
           >
-            SlabCrack · SlabLab · PokeMatch · Queue Watch
+            SlabCrack · SlabLab · PokeMatch · PokeWatch
           </div>
           <div style={{ fontSize: 26, color: "rgba(244,247,251,0.72)", lineHeight: 1.4 }}>
             Graded arbitrage, PSA 10 spreads, trading matches, and Pokemon Center queue alerts.

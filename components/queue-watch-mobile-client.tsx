@@ -8,9 +8,9 @@ export function QueueWatchMobileClient() {
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-8">
-        <CollecToolsBrand href="/" size="lg" subtitle="Queue Watch · Mobile APK" />
+        <CollecToolsBrand href="/" size="lg" subtitle="PokeWatch · Mobile APK" />
         <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          Queue Watch is built into the CollecTools Android app. It opens Pokemon Center in-app so you can
+          PokeWatch is built into the CollecTools Android app. It opens Pokemon Center in-app so you can
           pass Imperva, then watches Queue-it from that real browser session — same idea as the desktop
           bookmarklet, with native push.
         </p>
@@ -38,7 +38,7 @@ export function QueueWatchMobileClient() {
               <li>Install the APK from the EAS build page (allow unknown sources if asked)</li>
               <li>
                 Open <strong className="text-foreground">CollecTools</strong>, sign in on the site
-                tab, visit Queue Watch once (Pro) so the app can sync
+                tab, visit PokeWatch once (Pro) so the app can sync
               </li>
               <li>
                 Open <strong className="text-foreground">Queue</strong>, allow notifications,{" "}
@@ -71,20 +71,20 @@ export function QueueWatchMobileClient() {
           </li>
         </ul>
         <p className="mt-3 text-xs">
-          Requires CollecTools Pro for the web Queue Watch page; the native APK monitor runs on-device.
+          Requires CollecTools Pro for the web PokeWatch page; the native APK monitor runs on-device.
           Keep the Queue tab open for best results — background headless checks are a weak fallback.
         </p>
         <Link
-          href="/queue-watch"
+          href="/pokewatch"
           className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
         >
-          Desktop Queue Watch <ExternalLink className="size-3.5" />
+          Desktop PokeWatch <ExternalLink className="size-3.5" />
         </Link>
       </section>
 
       <footer className="mt-auto pt-10 text-center text-[11px] text-muted-foreground">
-        <Link href="/queue-watch" className="hover:text-foreground">
-          Desktop Queue Watch
+        <Link href="/pokewatch" className="hover:text-foreground">
+          Desktop PokeWatch
         </Link>
       </footer>
     </div>

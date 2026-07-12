@@ -5,7 +5,7 @@ Custom domain (target): `https://collectools.app`
 
 ## Green (on Vercel production)
 
-- Supabase + PokeMatch + Queue Watch reports + Web Push tables
+- Supabase + PokeMatch + PokeWatch reports + Web Push tables
 - Stripe billing (`stripeConfigured`)
 - SoldComps eBay sold comps
 - EPN Campaign ID on SlabCrack eBay links

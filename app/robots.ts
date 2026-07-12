@@ -9,6 +9,7 @@ export default function robots(): MetadataRoute.Robots {
     "/sign-in",
     "/supreme",
     "/grade-check",
+    "/pokewatch/mobile",
     "/queue-watch/mobile",
   ]
   if (!RESTOCKS_ENABLED) disallow.push("/restocks")

@@ -113,7 +113,7 @@ export default function QueueWatchScreen() {
       <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
         <View style={styles.header}>
           <Text style={styles.kicker}>Pro only</Text>
-          <Text style={styles.title}>Queue Watch</Text>
+          <Text style={styles.title}>PokeWatch</Text>
           <Text style={styles.subtitle}>
             Native Pokémon Center monitoring and alerts are included with CollecTools Pro.
           </Text>
@@ -123,8 +123,8 @@ export default function QueueWatchScreen() {
             <Text style={styles.lockBody}>
               1. Go back to CollecTools and sign in{"\n"}
               2. Upgrade to Pro if needed{"\n"}
-              3. Open Queue Watch on the site (links your Pro token){"\n"}
-              4. Tap “Open native Queue Watch”, then Refresh access here
+              3. Open PokeWatch on the site (links your Pro token){"\n"}
+              4. Tap “Open native PokeWatch”, then Refresh access here
             </Text>
           </View>
 
@@ -153,7 +153,7 @@ export default function QueueWatchScreen() {
     <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
       <View style={styles.header}>
         <Text style={styles.kicker}>Native · Imperva-safe · Pro</Text>
-        <Text style={styles.title}>Queue Watch</Text>
+        <Text style={styles.title}>PokeWatch</Text>
         <Text style={styles.subtitle}>
           Opens Pokemon Center in-app so you can pass Imperva, then watches Queue-it from that real
           browser session. Leave this screen open during drops.

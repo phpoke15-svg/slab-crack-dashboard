@@ -43,7 +43,7 @@ export const PLAN_TIERS: PlanTier[] = [
     features: [
       "7-day free trial",
       "Everything in Premium",
-      "Pokemon Center Queue Watch (web + phone alerts)",
+      "Pokemon Center PokeWatch (web + phone alerts)",
       "Cancel anytime",
     ],
   },

@@ -71,7 +71,7 @@ class QueueWatchService {
         lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
       })
       await Notifications.setNotificationChannelAsync("queue-watch-running", {
-        name: "Queue Watch running",
+        name: "PokeWatch running",
         importance: Notifications.AndroidImportance.LOW,
         sound: undefined,
       })
@@ -136,7 +136,7 @@ class QueueWatchService {
         await Notifications.scheduleNotificationAsync({
           identifier: "queue-watch-running",
           content: {
-            title: "Queue Watch is running",
+            title: "PokeWatch is running",
             body: "Keep the Queue tab open. Pass any bot check on Pokemon Center, then leave it.",
             data: { url: POKEMON_CENTER_URL },
             sticky: true,

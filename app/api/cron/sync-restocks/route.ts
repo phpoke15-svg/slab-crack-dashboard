@@ -9,7 +9,7 @@ export const maxDuration = 60
  * 1) Auto-discover sealed Pokémon TCG SKUs via Walmart Affiliate search
  * 2) Poll stock for all active Walmart watchlist items
  *
- * Pokémon Center live drops stay on Queue Watch — not this cron.
+ * Pokémon Center live drops stay on PokeWatch — not this cron.
  */
 export async function GET(request: Request) {
   const denied = requireCronAuth(request)

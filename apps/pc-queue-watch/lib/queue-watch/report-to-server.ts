@@ -61,7 +61,7 @@ export const BRIDGE_INJECT = `
 let lastReportAt = 0
 const REPORT_MIN_MS = 8_000
 
-/** Sync WebView queue state to CollecTools so /queue-watch shows connected. */
+/** Sync WebView queue state to CollecTools so /pokewatch shows connected. */
 export async function reportQueueStateToServer(report: WebViewReport): Promise<void> {
   const now = Date.now()
   const force = Boolean(report.live)

@@ -39,7 +39,7 @@ Copy from [`.env.example`](./.env.example). Minimum for public:
 | `NEXT_PUBLIC_ADSENSE_CLIENT_ID` | Ads (fallback exists in code) |
 | `NEXT_PUBLIC_ADSENSE_FEED_SLOT_ID` | Feed unit (fallback `7057947062`) |
 | `REPORTS_DISCORD_WEBHOOK` | Optional — Discord alert on user reports |
-| `POKEMON_CENTER_DISCORD_WEBHOOK` | Queue Watch alerts (also used as report fallback) |
+| `POKEMON_CENTER_DISCORD_WEBHOOK` | PokeWatch alerts (also used as report fallback) |
 | `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` | Optional Search Console |
 | `STRIPE_SECRET_KEY` | Checkout + portal (paid launch) |
 | `STRIPE_WEBHOOK_SECRET` | Subscription sync webhook |
@@ -62,7 +62,7 @@ After changing env vars, **Redeploy**.
 1. Run [`supabase/billing-plans.sql`](./supabase/billing-plans.sql) in Supabase.
 2. Create Stripe products/prices:
    - **Premium** — $4.99/mo + $39.99/yr (full SlabCrack + ad-free)
-   - **Pro** — $9.99/mo + $99.99/yr (everything, including Queue Watch)
+   - **Pro** — $9.99/mo + $99.99/yr (everything, including PokeWatch)
 3. Set Vercel env: `STRIPE_SECRET_KEY` (**must** be `sk_live_…` or `sk_test_…` from Stripe → Developers → API keys — not `pk_`, `mk_`, or other keys), `STRIPE_WEBHOOK_SECRET`, and the four `STRIPE_PRICE_*` IDs.
 4. Stripe webhook endpoint: `https://YOUR_HOST/api/billing/webhook` (events: `checkout.session.completed`, `customer.subscription.*`).
 5. Pricing page: `/pricing`
@@ -84,16 +84,16 @@ After changing env vars, **Redeploy**.
    - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
    - `VAPID_PRIVATE_KEY`
    - `VAPID_SUBJECT` (e.g. `mailto:support@collectools.app`)
-4. Redeploy. Users enable **Phone alerts** on `/queue-watch` or `/restocks`.
+4. Redeploy. Users enable **Phone alerts** on `/pokewatch` or `/restocks`.
 5. Sends:
    - Pokémon Center queue live → **all Pro members** who enabled queue phone alerts (one monitor detects → everyone notified)
    - Walmart Wednesday 9pm ET reminder (anyone who opted in)
 6. **iOS:** Add to Home Screen first, then enable alerts from the home-screen icon.
 
-## Queue Watch (Pokémon Center bookmarklet)
+## PokeWatch (Pokémon Center bookmarklet)
 
 1. Run [`supabase/queue-watch.sql`](./supabase/queue-watch.sql) (required — Vercel cannot share in-memory reports).
-2. Pro user opens `/queue-watch` → **Copy bookmarklet** → run on `pokemoncenter.com`.
+2. Pro user opens `/pokewatch` → **Copy bookmarklet** → run on `pokemoncenter.com`.
 3. Badge must say **active · synced**. `/api/health` → `queueWatchReportsReady: true`.
 4. Optional Discord: `POKEMON_CENTER_DISCORD_WEBHOOK`.
 
@@ -106,7 +106,7 @@ After changing env vars, **Redeploy**.
    - **Checks** stock and can Discord-alert on restock (`RESTOCKS_DISCORD_WEBHOOK`)
 4. Optional: `WALMART_DISCOVERY_QUERIES` (pipe-separated search strings).
 5. UI: `/restocks`
-6. **Pokémon Center** live queues stay on **Queue Watch** (`/queue-watch`) — not this board.
+6. **Pokémon Center** live queues stay on **PokeWatch** (`/pokewatch`) — not this board.
 7. Set `RESTOCKS_REPORT_SECRET` in production so `/api/restocks/report` is not open.
 
 Uptime / config probe (no auth):
@@ -133,9 +133,9 @@ curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/walmart
 - [ ] `/privacy` and `/terms` load; footer links work
 - [ ] Setup banner absent on `/binder`
 - [ ] `/pricing` loads; Start Premium/Pro trial when Stripe is configured
-- [ ] Live-mode checkout; Premium hides ads; Pro unlocks Queue Watch
+- [ ] Live-mode checkout; Premium hides ads; Pro unlocks PokeWatch
 - [ ] `/api/health` shows `ok: true` and `launchReady.billing: true`
-- [ ] Phone alerts: VAPID env set (`launchReady.phoneAlerts: true`) and opt-in works on `/queue-watch`
+- [ ] Phone alerts: VAPID env set (`launchReady.phoneAlerts: true`) and opt-in works on `/pokewatch`
 - [ ] Restocks: Walmart Affiliate env set if you want auto-discovery (`launchReady.restocksWalmart`)
 - [ ] Only one Vercel project deploys Production for this domain
 

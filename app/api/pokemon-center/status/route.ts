@@ -66,7 +66,7 @@ export async function GET(request: Request) {
   const proUserId = await resolveProUserId(request)
   if (!proUserId) {
     return NextResponse.json(
-      { error: "Queue Watch requires a Pro subscription.", upgradeUrl: "/pricing" },
+      { error: "PokeWatch requires a Pro subscription.", upgradeUrl: "/pricing" },
       { status: 403 },
     )
   }
@@ -110,7 +110,7 @@ export async function GET(request: Request) {
   if (!bookmarkletFresh) {
     if (!reportsTableReady) {
       guidance =
-        "Queue Watch storage is missing. Run supabase/queue-watch.sql in the Supabase SQL editor, then re-copy the bookmarklet and click it on pokemoncenter.com."
+        "PokeWatch storage is missing. Run supabase/queue-watch.sql in the Supabase SQL editor, then re-copy the bookmarklet and click it on pokemoncenter.com."
     } else {
       guidance =
         "Start the bookmarklet on an open pokemoncenter.com tab (or click the orange badge once and allow the CollecTools pop-up). Server probes from Vercel are blocked by Imperva and are not used for LIVE detection."

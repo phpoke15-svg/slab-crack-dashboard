@@ -11,7 +11,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/slabcrack`, lastModified, changeFrequency: "daily", priority: 0.95 },
     { url: `${base}/slablab`, lastModified, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/binder`, lastModified, changeFrequency: "daily", priority: 0.85 },
-    { url: `${base}/queue-watch`, lastModified, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${base}/pokewatch`, lastModified, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/pricing`, lastModified, changeFrequency: "monthly", priority: 0.75 },
     { url: `${base}/privacy`, lastModified, changeFrequency: "yearly", priority: 0.2 },
     { url: `${base}/terms`, lastModified, changeFrequency: "yearly", priority: 0.2 },

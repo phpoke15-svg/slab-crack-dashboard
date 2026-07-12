@@ -21,7 +21,7 @@ export async function maybeSendRestockDiscordAlert(product: RestockProduct): Pro
       `@everyone **Restock — ${retailer}**`,
       product.name + price,
       product.productUrl,
-      product.queueLikely ? "_Queue likely on Pokémon Center — open Queue Watch._" : null,
+      product.queueLikely ? "_Queue likely on Pokémon Center — open PokeWatch._" : null,
       `_Detected ${new Date(product.lastRestockAt ?? product.updatedAt).toLocaleString("en-US", { timeZone: "America/New_York" })} ET_`,
     ]
       .filter(Boolean)

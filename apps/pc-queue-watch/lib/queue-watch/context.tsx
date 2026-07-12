@@ -85,7 +85,7 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
     const allowed = await verifyProAccess()
     setHasPro(allowed.hasPro)
     if (!allowed.hasPro) {
-      setError("Queue Watch requires CollecTools Pro. Sign in on the site, open Queue Watch once, then open native Queue Watch.")
+      setError("PokeWatch requires CollecTools Pro. Sign in on the site, open PokeWatch once, then open native PokeWatch.")
       stop()
       return
     }
