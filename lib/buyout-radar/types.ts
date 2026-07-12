@@ -51,8 +51,14 @@ export type BuyoutAlert = {
 
 export type BuyoutRadarResponse = {
   ok: true
-  source: "database" | "seed"
+  source: "database" | "seed" | "market-scan"
   asOf: string
   alertCount: number
   alerts: BuyoutAlert[]
+  scan?: {
+    cardsScanned: number
+    salesIngested: number
+    lastScanAt: string | null
+    mode: "demo" | "live"
+  }
 }

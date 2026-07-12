@@ -678,6 +678,7 @@ function AlertCard({
 export function BuyoutRadarDashboard() {
   const [data, setData] = useState<BuyoutRadarResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<BuyoutPriority | "all">("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -709,6 +710,28 @@ export function BuyoutRadarDashboard() {
       setLoading(false)
     }
   }, [])
+
+  const runMarketScan = useCallback(async () => {
+    setScanning(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/buyout-radar/scan", {
+        method: "POST",
+        credentials: "same-origin",
+      })
+      const json = (await res.json().catch(() => null)) as
+        | { ok?: boolean; error?: string; alertCount?: number }
+        | null
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "Market scan failed")
+      }
+      await load()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Market scan failed")
+    } finally {
+      setScanning(false)
+    }
+  }, [load])
 
   useEffect(() => {
     void load()
@@ -744,13 +767,12 @@ export function BuyoutRadarDashboard() {
             </div>
             <h2 className="mt-1 text-lg font-bold text-foreground">Buyout & Speculation Radar</h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
-              Not a full-market crawl yet. Right now this runs on a small Supreme demo catalog
-              (seed transactions) to prove the detector. A card flags when 24h buy volume is{" "}
-              <span className="font-medium text-foreground">5×+</span> its 14-day daily average and
-              only 1–2 buyer fingerprints are involved — often before retail listings reprice.
+              {data?.scan?.mode === "live"
+                ? "Live daily market scan of chase-card raw NM sold comps. Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average."
+                : "Demo mode until the first daily market scan runs. After scan, cards are classified Critical / High / Warning from real eBay sold volume spikes (chase catalog, not every card in existence)."}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={() => setShowGuide((v) => !v)}
@@ -762,8 +784,17 @@ export function BuyoutRadarDashboard() {
             </button>
             <button
               type="button"
+              onClick={() => void runMarketScan()}
+              disabled={loading || scanning}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/15 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/25 disabled:opacity-60"
+            >
+              <Radar className={cn("size-3.5", scanning && "animate-spin")} aria-hidden />
+              {scanning ? "Scanning market…" : "Run market scan"}
+            </button>
+            <button
+              type="button"
               onClick={() => void load()}
-              disabled={loading}
+              disabled={loading || scanning}
               className="inline-flex items-center gap-1.5 rounded-xl border border-border bg-secondary/50 px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground disabled:opacity-60"
             >
               <RefreshCw className={cn("size-3.5", loading && "animate-spin")} aria-hidden />
@@ -789,6 +820,11 @@ export function BuyoutRadarDashboard() {
             <p>
               <strong className="text-foreground">4. Recommended action</strong> — what to consider
               doing if you trust the signal (not financial advice).
+            </p>
+            <p>
+              <strong className="text-foreground">5. Daily market scan</strong> — Vercel cron runs
+              each day (~09:00 UTC) against the chase catalog via eBay sold comps. Use{" "}
+              <em>Run market scan</em> to trigger it now (can take a few minutes).
             </p>
           </div>
         ) : null}
@@ -840,9 +876,13 @@ export function BuyoutRadarDashboard() {
 
         <p className="mt-3 text-[10px] text-muted-foreground">
           {data
-            ? `Source · ${data.source} · as of ${new Date(data.asOf).toLocaleString()}`
+            ? `Source · ${data.source} · ${data.scan?.cardsScanned ?? 0} cards · ${data.scan?.salesIngested ?? 0} sales · as of ${new Date(data.asOf).toLocaleString()}`
             : "Waiting for first scan…"}
-          {data?.source === "seed" ? " · demo seed with approx. NM market prices" : ""}
+          {data?.source === "seed"
+            ? " · demo seed until you run a market scan (requires Supabase buyout tables + EBAY_SOLD_API_KEY)"
+            : data?.scan?.mode === "live"
+              ? " · live sold-comp volume classification"
+              : ""}
         </p>
       </section>
 

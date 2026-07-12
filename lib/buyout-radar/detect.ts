@@ -78,6 +78,11 @@ export function detectBuyoutRisks(
     baselineDays?: number
     volumeMultipleThreshold?: number
     maxUniqueBuyers?: number
+    /**
+     * Market sold-comps lack real buyer IDs. When true, classify from volume
+     * (and price) spikes only — still compute concentration for display.
+     */
+    marketVolumeOnly?: boolean
   },
 ): BuyoutAlert[] {
   const now = opts?.now ?? new Date()
@@ -86,6 +91,7 @@ export function detectBuyoutRisks(
   const baselineDays = opts?.baselineDays ?? DEFAULT_BASELINE_DAYS
   const volumeThreshold = opts?.volumeMultipleThreshold ?? VOLUME_MULTIPLE_THRESHOLD
   const maxBuyers = opts?.maxUniqueBuyers ?? MAX_UNIQUE_BUYERS
+  const marketVolumeOnly = opts?.marketVolumeOnly === true
 
   const windowStart = nowMs - windowHours * 60 * 60 * 1000
   const baselineStart = nowMs - baselineDays * 24 * 60 * 60 * 1000
@@ -119,17 +125,27 @@ export function detectBuyoutRisks(
     }
 
     if (volumeMultiple < volumeThreshold) continue
-    if (uniqueBuyers <= 0 || uniqueBuyers > maxBuyers) continue
+    if (!marketVolumeOnly) {
+      if (uniqueBuyers <= 0 || uniqueBuyers > maxBuyers) continue
+    }
 
-    const buyerConcentrationIndex = 1 - uniqueBuyers / currentVolume
+    const buyerConcentrationIndex =
+      currentVolume <= 0 ? 0 : Math.max(0, Math.min(1, 1 - uniqueBuyers / currentVolume))
+
     const buyoutProbabilityPercentage = Math.min(
       99.9,
       Math.max(
         0,
         Math.round(
           (Math.min(volumeMultiple / 10, 1) * 55 +
-            buyerConcentrationIndex * 30 +
-            (uniqueBuyers <= maxBuyers ? 15 : uniqueBuyers <= 4 ? 8 : 0)) *
+            buyerConcentrationIndex * (marketVolumeOnly ? 15 : 30) +
+            (marketVolumeOnly
+              ? Math.min(currentVolume, 20)
+              : uniqueBuyers <= maxBuyers
+                ? 15
+                : uniqueBuyers <= 4
+                  ? 8
+                  : 0)) *
             100,
         ) / 100,
       ),
@@ -167,7 +183,9 @@ export function detectBuyoutRisks(
       priority,
       recommendedAction,
       hourlyVolume: hourlyVolumeSeries(sales, card.id, nowMs),
-      notes: `Live window volume ${currentVolume} vs baseline daily avg ${baselineVolume.toFixed(2)} (${volumeMultiple.toFixed(1)}×). ${uniqueBuyers} unique buyer hash(es). Avg paid $${avgPrice24h.toFixed(2)} (was $${avgPriceBaseline.toFixed(2)}).`,
+      notes: marketVolumeOnly
+        ? `Market scan: ${currentVolume} raw sales in 24h vs ~${baselineVolume.toFixed(1)}/day baseline (${volumeMultiple.toFixed(1)}×). Avg paid $${avgPrice24h.toFixed(2)} (was $${avgPriceBaseline.toFixed(2)}). Buyer IDs unavailable from public sold comps — ranked by volume spike.`
+        : `Live window volume ${currentVolume} vs baseline daily avg ${baselineVolume.toFixed(2)} (${volumeMultiple.toFixed(1)}×). ${uniqueBuyers} unique buyer hash(es). Avg paid $${avgPrice24h.toFixed(2)} (was $${avgPriceBaseline.toFixed(2)}).`,
       detectedAt: now.toISOString(),
     })
   }

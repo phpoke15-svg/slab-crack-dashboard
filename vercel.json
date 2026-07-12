@@ -19,6 +19,10 @@
       "schedule": "0 8 * * *"
     },
     {
+      "path": "/api/cron/scan-buyout-radar",
+      "schedule": "0 9 * * *"
+    },
+    {
       "path": "/api/cron/walmart-wednesday-reminder",
       "schedule": "0 1 * * 4"
     }

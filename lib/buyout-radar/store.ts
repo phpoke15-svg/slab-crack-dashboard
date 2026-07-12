@@ -95,10 +95,20 @@ async function loadFromDatabase(): Promise<{
 
 export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
   const db = await loadFromDatabase()
-  const source = db ? "database" : "seed"
-  const cards = db?.cards ?? SEED_BUYOUT_CARDS
   const sales = db?.sales ?? buildSeedBuyoutSales()
-  const alerts = detectBuyoutRisks(cards, sales)
+  const cards = db?.cards ?? SEED_BUYOUT_CARDS
+  const marketDerived = sales.some((s) => s.buyerIpHash.startsWith("mkt-"))
+  const source = !db ? "seed" : marketDerived ? "market-scan" : "database"
+
+  const alerts = detectBuyoutRisks(cards, sales, {
+    // Public sold comps have no buyer IDs — classify live scans by volume spike.
+    marketVolumeOnly: marketDerived,
+  })
+
+  const lastSale = sales.reduce<string | null>((latest, s) => {
+    if (!latest || s.purchasedAt > latest) return s.purchasedAt
+    return latest
+  }, null)
 
   return {
     ok: true,
@@ -106,16 +116,24 @@ export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
     asOf: new Date().toISOString(),
     alertCount: alerts.length,
     alerts,
+    scan: {
+      cardsScanned: cards.length,
+      salesIngested: sales.length,
+      lastScanAt: source === "seed" ? null : lastSale,
+      mode: source === "seed" ? "demo" : "live",
+    },
   }
 }
 
-/** Optional: persist detector hits when SQL migration is live. */
+/** Persist detector hits when SQL migration is live. Clears prior active rows. */
 export async function persistBuyoutAnomalies(alerts: BuyoutAlert[]): Promise<number> {
-  if (!isSupabaseConfigured() || alerts.length === 0) return 0
+  if (!isSupabaseConfigured()) return 0
 
   try {
     const admin = createAdminClient()
     await admin.from("buyout_anomalies_log").update({ active: false }).eq("active", true)
+
+    if (alerts.length === 0) return 0
 
     const rows = alerts.map((a) => ({
       card_id: a.cardId,
