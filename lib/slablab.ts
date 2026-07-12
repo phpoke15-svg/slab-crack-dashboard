@@ -155,6 +155,9 @@ async function loadNormalizedFeed(): Promise<MockCardEntry[]> {
 /**
  * Top grading opportunities: PSA 10 price above raw, ranked by gross spread.
  * Caps at TOP_CARDS_LIMIT (200).
+ *
+ * Artwork enrichment is sync-only here so the feed stays fast — client CardImage
+ * can still upgrade fronts without blocking /api/slablab.
  */
 export async function getSlabLabOpportunities(
   limit = TOP_CARDS_LIMIT,
@@ -166,5 +169,11 @@ export async function getSlabLabOpportunities(
 
   cards.sort((a, b) => b.psa10Price - b.rawPrice - (a.psa10Price - a.rawPrice))
   const top = cards.slice(0, Math.max(1, limit))
-  return mapWithConcurrency(top, 6, ensureFrontArtwork)
+
+  return top.map((card) => ({
+    ...card,
+    image: isPokemonTcgFront(card.image)
+      ? upgradeCardImageUrlSync(card.image)
+      : card.image,
+  }))
 }
