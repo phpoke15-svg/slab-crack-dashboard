@@ -1,14 +1,21 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { PricingClient } from "@/components/pricing-client"
+import { JsonLd } from "@/components/seo/json-ld"
+import { pageMetadata, SEO_SITE_NAME } from "@/lib/seo"
+import { getSiteUrl } from "@/lib/site-url"
 
-export const metadata: Metadata = {
-  title: "Pricing — CollecTools",
-  description:
-    "Never miss a Pokémon Center queue again. Premium $4.99/mo and Pro $9.99/mo — both with a 7-day free trial.",
-}
+const description =
+  "CollecTools pricing: Premium from $4.99/mo for full SlabCrack and ad-free browsing, Pro from $9.99/mo for Pokemon Center Queue Watch. 7-day free trial."
+
+export const metadata: Metadata = pageMetadata({
+  title: "Pricing",
+  description,
+  path: "/pricing",
+})
 
 export default function PricingPage() {
+  const base = getSiteUrl().replace(/\/$/, "")
   return (
     <Suspense
       fallback={
@@ -17,6 +24,31 @@ export default function PricingPage() {
         </div>
       }
     >
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "OfferCatalog",
+          name: `${SEO_SITE_NAME} plans`,
+          url: `${base}/pricing`,
+          description,
+          itemListElement: [
+            {
+              "@type": "Offer",
+              name: "Premium",
+              price: "4.99",
+              priceCurrency: "USD",
+              description: "Full SlabCrack feed and ad-free browsing",
+            },
+            {
+              "@type": "Offer",
+              name: "Pro",
+              price: "9.99",
+              priceCurrency: "USD",
+              description: "Premium plus Pokemon Center Queue Watch",
+            },
+          ],
+        }}
+      />
       <PricingClient />
     </Suspense>
   )

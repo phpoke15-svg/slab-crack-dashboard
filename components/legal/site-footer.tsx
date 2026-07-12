@@ -1,18 +1,39 @@
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { LEGAL_CONTACT_EMAIL, LEGAL_SITE_NAME } from "@/lib/legal/config"
+import { RESTOCKS_ENABLED } from "@/lib/collectools-tools"
 
 type SiteFooterProps = {
   className?: string
 }
 
+const PRODUCT_LINKS = [
+  { href: "/slabcrack", label: "SlabCrack" },
+  { href: "/slablab", label: "SlabLab" },
+  { href: "/binder", label: "PokeMatch" },
+  { href: "/queue-watch", label: "Queue Watch" },
+  ...(RESTOCKS_ENABLED ? [{ href: "/restocks", label: "Restocks" }] : []),
+  { href: "/pricing", label: "Pricing" },
+] as const
+
 export function SiteFooter({ className }: SiteFooterProps) {
   return (
     <footer className={cn("text-center text-[11px] leading-relaxed text-muted-foreground", className)}>
-      <nav aria-label="Legal" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-        <Link href="/pricing" className="transition-colors hover:text-foreground">
-          Pricing
-        </Link>
+      <nav aria-label="Tools" className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+        {PRODUCT_LINKS.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="transition-colors hover:text-foreground"
+          >
+            {link.label}
+          </Link>
+        ))}
+      </nav>
+      <nav
+        aria-label="Legal"
+        className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1"
+      >
         <Link href="/privacy" className="transition-colors hover:text-foreground">
           Privacy Policy
         </Link>

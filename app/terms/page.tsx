@@ -9,8 +9,9 @@ import {
 } from "@/lib/legal/config"
 
 export const metadata: Metadata = {
-  title: `Terms of Service — ${LEGAL_SITE_NAME}`,
+  title: "Terms of Service",
   description: `Terms governing use of ${LEGAL_SITE_NAME} and ${LEGAL_PRODUCT_NAME}.`,
+  alternates: { canonical: `${LEGAL_SITE_URL.replace(/\/$/, "")}/terms` },
 }
 
 export default function TermsPage() {

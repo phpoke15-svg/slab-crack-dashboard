@@ -6,6 +6,8 @@ type CollecToolsBrandProps = {
   subtitle?: string
   size?: "sm" | "md" | "lg"
   className?: string
+  /** Render the brand name as an h1 (homepage only). */
+  asHeading?: boolean
 }
 
 export function CollecToolsBrand({
@@ -13,6 +15,7 @@ export function CollecToolsBrand({
   subtitle,
   size = "md",
   className,
+  asHeading = false,
 }: CollecToolsBrandProps) {
   const titleClass =
     size === "lg"
@@ -28,6 +31,8 @@ export function CollecToolsBrand({
         ? "size-8 text-sm"
         : "size-9 text-base"
 
+  const TitleTag = asHeading ? "h1" : "p"
+
   const content = (
     <div className={cn("flex items-center gap-2.5", className)}>
       <span
@@ -41,9 +46,9 @@ export function CollecToolsBrand({
         <span className="text-primary">T</span>
       </span>
       <div className="leading-tight">
-        <p className={cn("font-bold tracking-tight text-foreground", titleClass)}>
+        <TitleTag className={cn("font-bold tracking-tight text-foreground", titleClass)}>
           Collec<span className="text-primary">Tools</span>
-        </p>
+        </TitleTag>
         {subtitle ? (
           <p className="text-[11px] text-muted-foreground">{subtitle}</p>
         ) : null}
@@ -59,3 +64,4 @@ export function CollecToolsBrand({
     </Link>
   )
 }
+

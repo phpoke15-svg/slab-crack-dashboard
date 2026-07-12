@@ -6,7 +6,7 @@ import { getEntitlementsForUser } from "@/lib/billing/stripe"
 export const dynamic = "force-dynamic"
 
 export const metadata = {
-  title: "Grade Check — CollecTools",
+  title: "Grade Check",
   description: "Condition helper for PSA submissions (Supreme preview).",
   robots: { index: false, follow: false },
 }

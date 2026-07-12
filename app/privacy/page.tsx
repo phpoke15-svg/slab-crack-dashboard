@@ -8,8 +8,9 @@ import {
 } from "@/lib/legal/config"
 
 export const metadata: Metadata = {
-  title: `Privacy Policy — ${LEGAL_SITE_NAME}`,
+  title: "Privacy Policy",
   description: `How ${LEGAL_SITE_NAME} collects, uses, and protects your information.`,
+  alternates: { canonical: `${LEGAL_SITE_URL.replace(/\/$/, "")}/privacy` },
 }
 
 export default function PrivacyPage() {

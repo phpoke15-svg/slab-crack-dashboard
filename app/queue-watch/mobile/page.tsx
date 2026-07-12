@@ -1,14 +1,17 @@
 import { QueueWatchMobileClient } from "@/components/queue-watch-mobile-client"
+import { pageMetadata } from "@/lib/seo"
 
-export const metadata = {
-  title: "Queue Watch Mobile — CollecTools",
-  description: "Mobile Pokemon Center queue alerts with Expo and ntfy push.",
-}
+export const metadata = pageMetadata({
+  title: "Queue Watch Mobile",
+  description: "Install Queue Watch mobile alerts for Pokemon Center with Expo and ntfy push.",
+  path: "/queue-watch/mobile",
+  noIndex: true,
+})
 
 export default function QueueWatchMobilePage() {
   return (
-    <div className="min-h-dvh bg-background">
+    <main className="min-h-dvh bg-background">
       <QueueWatchMobileClient />
-    </div>
+    </main>
   )
 }

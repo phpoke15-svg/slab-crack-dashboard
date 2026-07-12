@@ -3,7 +3,16 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { AdSenseScript } from '@/components/adsense-script'
 import { AppProviders } from '@/components/app-providers'
+import { JsonLd } from '@/components/seo/json-ld'
 import { getSiteUrl } from '@/lib/site-url'
+import {
+  organizationJsonLd,
+  SEO_DEFAULT_DESCRIPTION,
+  SEO_DEFAULT_TITLE,
+  SEO_KEYWORDS,
+  SEO_SITE_NAME,
+  websiteJsonLd,
+} from '@/lib/seo'
 import './globals.css'
 
 const geistSans = Geist({
@@ -21,25 +30,42 @@ const siteUrl = getSiteUrl()
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: 'CollecTools — TCG Collector Toolkit',
-    template: '%s · CollecTools',
+    default: SEO_DEFAULT_TITLE,
+    template: `%s · ${SEO_SITE_NAME}`,
   },
-  description:
-    'SlabCrack arbitrage, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
-  applicationName: 'CollecTools',
+  description: SEO_DEFAULT_DESCRIPTION,
+  applicationName: SEO_SITE_NAME,
+  keywords: [...SEO_KEYWORDS],
+  authors: [{ name: SEO_SITE_NAME, url: siteUrl }],
+  creator: SEO_SITE_NAME,
+  publisher: SEO_SITE_NAME,
+  category: 'collectibles',
+  alternates: {
+    canonical: siteUrl,
+  },
   openGraph: {
     type: 'website',
-    siteName: 'CollecTools',
-    title: 'CollecTools — TCG Collector Toolkit',
-    description:
-      'SlabCrack arbitrage, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
+    locale: 'en_US',
+    siteName: SEO_SITE_NAME,
+    title: SEO_DEFAULT_TITLE,
+    description: SEO_DEFAULT_DESCRIPTION,
     url: siteUrl,
   },
   twitter: {
-    card: 'summary',
-    title: 'CollecTools — TCG Collector Toolkit',
-    description:
-      'SlabCrack arbitrage, PokeMatch trading, and Queue Watch for Pokémon TCG collectors.',
+    card: 'summary_large_image',
+    title: SEO_DEFAULT_TITLE,
+    description: SEO_DEFAULT_DESCRIPTION,
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
   },
   other: {
     'google-adsense-account': 'ca-pub-8023063687308230',
@@ -67,6 +93,7 @@ export default function RootLayout({
     <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <head>
         <AdSenseScript />
+        <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
         <AppProviders>{children}</AppProviders>

@@ -22,9 +22,15 @@ export function CollecToolsHub() {
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-10 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <CollecToolsBrand href={undefined} size="lg" subtitle="Tools for TCG collectors" />
+          <CollecToolsBrand
+            href={undefined}
+            size="lg"
+            asHeading
+            subtitle="Pokémon TCG collector toolkit"
+          />
           <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Pick a tool to get started!
+            Free tools for Pokémon TCG collectors — graded arbitrage, PSA 10 spreads, trade
+            matching, and Pokemon Center queue alerts. Pick a tool to get started.
           </p>
         </div>
         <SiteAuthButton className="shrink-0" />
