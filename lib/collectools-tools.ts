@@ -5,6 +5,7 @@ import {
   BookOpen,
   Layers,
   Package,
+  Radar,
   Ratio,
   ScanSearch,
 } from "lucide-react"
@@ -90,6 +91,21 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     description:
       "Condition / centering helper for submission decisions. Supreme preview while the UX is unfinished.",
     icon: ScanSearch,
+    supremeOnly: true,
+  },
+  {
+    id: "buyout-radar",
+    href: "/buyout-radar",
+    name: "Buyout Radar",
+    tagline: "Supreme · in development",
+    description:
+      "Detect high-volume buyout clusters and speculation spikes before retail prices move.",
+    highlights: [
+      "24h volume vs 14-day baseline with buyer-concentration scoring",
+      "Critical / High / Warning priority alerts",
+      "Recommended action badges for speculative buys",
+    ],
+    icon: Radar,
     supremeOnly: true,
   },
   {
