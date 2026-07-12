@@ -95,6 +95,20 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     supremeOnly: true,
   },
   {
+    id: "card-lounge",
+    href: "/card-lounge",
+    name: "CardLounge",
+    tagline: "Collector social feed",
+    description:
+      "Twitter-style collector feed — short posts, photos, videos, follows, likes, and replies.",
+    highlights: [
+      "280-character posts with photo & video uploads",
+      "Follow other collectors · Starter through Supreme badges",
+      "CardLounge feed + Following timeline",
+    ],
+    icon: MessageSquare,
+  },
+  {
     id: "buyout-radar",
     href: "/buyout-radar",
     name: "Buyout Radar",
@@ -107,21 +121,6 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Recommended action badges for speculative buys",
     ],
     icon: Radar,
-    supremeOnly: true,
-  },
-  {
-    id: "card-lounge",
-    href: "/card-lounge",
-    name: "CardLounge",
-    tagline: "Supreme · in development",
-    description:
-      "Private Twitter-style collector feed — short posts, photos, videos, follows, likes, and replies for Supreme only.",
-    highlights: [
-      "280-character posts with photo & video uploads",
-      "Follow other Supreme collectors",
-      "CardLounge feed + Following timeline",
-    ],
-    icon: MessageSquare,
     supremeOnly: true,
   },
   {

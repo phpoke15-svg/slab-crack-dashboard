@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server"
-import { requireSupreme } from "@/lib/lounge/auth"
+import { requireLoungeAuth } from "@/lib/lounge/auth"
 import { createLoungePost, getLoungeFeed } from "@/lib/lounge/store"
 import type { LoungeFeedMode } from "@/lib/lounge/types"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-/** Supreme Lounge feed — top-level posts or replies for a parent. */
+/** CardLounge feed — top-level posts or replies for a parent. */
 export async function GET(request: Request) {
-  const auth = await requireSupreme()
+  const auth = await requireLoungeAuth()
   if (!auth.ok) return auth.response
 
   try {
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
 
 /** Create a post or reply (JSON text-only, or multipart with photos/videos). */
 export async function POST(request: Request) {
-  const auth = await requireSupreme()
+  const auth = await requireLoungeAuth()
   if (!auth.ok) return auth.response
 
   try {

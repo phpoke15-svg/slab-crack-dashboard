@@ -67,6 +67,7 @@ export const PLAN_TIERS: PlanTier[] = [
 
 export const FREE_PLAN_FEATURES = [
   "SlabCrack preview: 10 mid-deficit cards",
+  "CardLounge collector social feed",
   "PokeMatch with ads",
   "Upgrade anytime for the full feed",
 ] as const

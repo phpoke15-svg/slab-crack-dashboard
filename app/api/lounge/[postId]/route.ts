@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireSupreme } from "@/lib/lounge/auth"
+import { requireLoungeAuth } from "@/lib/lounge/auth"
 import { deleteLoungePost } from "@/lib/lounge/store"
 
 export const dynamic = "force-dynamic"
@@ -8,7 +8,7 @@ type Params = { params: Promise<{ postId: string }> }
 
 /** Delete your own Lounge post. */
 export async function DELETE(_request: Request, { params }: Params) {
-  const auth = await requireSupreme()
+  const auth = await requireLoungeAuth()
   if (!auth.ok) return auth.response
 
   try {

@@ -1,15 +1,14 @@
 import "server-only"
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
-import { getEntitlementsForUser } from "@/lib/billing/stripe"
 import type { User } from "@supabase/supabase-js"
 
-export type SupremeAuth =
+export type LoungeAuth =
   | { ok: true; user: User }
   | { ok: false; response: NextResponse }
 
-/** Sign-in + Supreme entitlement gate for Lounge APIs. */
-export async function requireSupreme(): Promise<SupremeAuth> {
+/** Sign-in required for CardLounge APIs (all account tiers). */
+export async function requireLoungeAuth(): Promise<LoungeAuth> {
   const auth = await requireUser()
   if (!auth.ok) {
     return {
@@ -18,16 +17,10 @@ export async function requireSupreme(): Promise<SupremeAuth> {
     }
   }
 
-  const entitlements = await getEntitlementsForUser(auth.user.id)
-  if (!entitlements.supreme) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { ok: false, error: "Supreme access required" },
-        { status: 403 },
-      ),
-    }
-  }
-
   return { ok: true, user: auth.user }
+}
+
+/** @deprecated Use requireLoungeAuth — CardLounge is open to all signed-in users. */
+export async function requireSupreme(): Promise<LoungeAuth> {
+  return requireLoungeAuth()
 }

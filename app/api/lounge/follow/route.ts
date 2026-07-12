@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
-import { requireSupreme } from "@/lib/lounge/auth"
+import { requireLoungeAuth } from "@/lib/lounge/auth"
 import { setLoungeFollow } from "@/lib/lounge/store"
 
 export const dynamic = "force-dynamic"
 
 /** Follow / unfollow another collector in the Lounge. */
 export async function POST(request: Request) {
-  const auth = await requireSupreme()
+  const auth = await requireLoungeAuth()
   if (!auth.ok) return auth.response
 
   try {
