@@ -20,11 +20,11 @@ export const SEED_BUYOUT_CARDS: BuyoutCard[] = [
     imageUrl: "https://images.pokemontcg.io/sv8pt5/161_hires.png",
   },
   {
-    id: "sv3-215",
+    id: "sv3-223",
     name: "Charizard ex",
     setName: "Obsidian Flames",
     releaseDate: "2023-08-11",
-    imageUrl: "https://images.pokemontcg.io/sv3/215_hires.png",
+    imageUrl: "https://images.pokemontcg.io/sv3/223_hires.png",
   },
   {
     id: "sv3pt5-151",
@@ -56,14 +56,17 @@ export const SEED_BUYOUT_CARDS: BuyoutCard[] = [
   },
 ]
 
-/** Typical NM raw unit prices used for demo baselines / buyout spikes. */
+/**
+ * Approximate NM raw market unit prices for demo seeds (mid-2026 ballpark).
+ * Spike = slightly elevated paid price during the synthetic buyout window.
+ */
 const SEED_UNIT_PRICE: Record<string, { baseline: number; spike: number }> = {
-  "sv8pt5-161": { baseline: 78, spike: 95 },
-  "sv3-215": { baseline: 105, spike: 120 },
-  "sv3pt5-151": { baseline: 42, spike: 48 },
-  "swsh4-44": { baseline: 55, spike: 62 },
-  "sv6-214": { baseline: 28, spike: 35 },
-  "sv1-244": { baseline: 32, spike: 34 },
+  "sv8pt5-161": { baseline: 1485, spike: 1540 }, // Umbreon ex SIR · Prismatic Evolutions (~$1.5k raw)
+  "sv3-223": { baseline: 118, spike: 135 }, // Charizard ex SIR · Obsidian Flames
+  "sv3pt5-151": { baseline: 42, spike: 48 }, // Mew ex · 151
+  "swsh4-44": { baseline: 24, spike: 28 }, // Pikachu VMAX · Vivid Voltage
+  "sv6-214": { baseline: 345, spike: 372 }, // Greninja ex SIR · Twilight Masquerade
+  "sv1-244": { baseline: 58, spike: 62 }, // Miraidon ex SIR · Scarlet & Violet
 }
 
 /**
@@ -82,7 +85,7 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
   for (const card of SEED_BUYOUT_CARDS) {
     const unit = SEED_UNIT_PRICE[card.id]?.baseline ?? 25
     for (let day = 14; day >= 2; day -= 1) {
-      const qty = card.id === "sv8pt5-161" || card.id === "sv3-215" ? 2 : 1
+      const qty = card.id === "sv8pt5-161" || card.id === "sv3-223" ? 2 : 1
       const jitter = ((day % 5) - 2) * 0.8
       push({
         cardId: card.id,
@@ -125,10 +128,10 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
   }
 
   // HIGH: Charizard — concentrated 1-buyer sweep overnight.
-  const zardSpike = SEED_UNIT_PRICE["sv3-215"]!.spike
+  const zardSpike = SEED_UNIT_PRICE["sv3-223"]!.spike
   for (let i = 0; i < 14; i += 1) {
     push({
-      cardId: "sv3-215",
+      cardId: "sv3-223",
       quantityPurchased: 2,
       totalPrice: zardSpike * 2,
       buyerIpHash: "whale-char-7c01",

@@ -99,7 +99,11 @@ type MetricKey =
 
 function money(n: number): string {
   if (!Number.isFinite(n) || n <= 0) return "—"
-  return `$${n >= 100 ? n.toFixed(0) : n.toFixed(2)}`
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: n >= 100 ? 0 : 2,
+  }).format(n)
 }
 
 function metricExplainers(alert: BuyoutAlert): Record<
@@ -837,7 +841,7 @@ export function BuyoutRadarDashboard() {
           {data
             ? `Source · ${data.source} · as of ${new Date(data.asOf).toLocaleString()}`
             : "Waiting for first scan…"}
-          {data?.source === "seed" ? " · demo seed until SQL tables are applied" : ""}
+          {data?.source === "seed" ? " · demo seed with approx. NM market prices" : ""}
         </p>
       </section>
 
