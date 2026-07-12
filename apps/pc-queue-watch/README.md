@@ -1,10 +1,13 @@
 # CollecTools Mobile App
 
-Installable **Android / iOS** app (v1.3.3) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
+Installable **Android / iOS** app (v1.3.5) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
 
 **PokeWatch is Pro-only** — sign in on the site, open PokeWatch once to link your token, then start native monitoring.
 
-Theme: dark background + **white / mint-green** accents (same as the website). Rebuild the APK after UI changes.
+Theme: dark background (`#0b0e14`) + **white / mint-green** (`#4ade80`) accents (same as the website). Brand mark is white **C** + mint **T**.
+
+> **Do not use the old solid-blue asset wipe.** `npm run verify:assets` only checks that the mint brand PNGs are intact. If icons look solid blue, restore with:
+> `git checkout HEAD -- apps/pc-queue-watch/assets/`
 
 Store path: see **[STORE.md](./STORE.md)**.
 
@@ -29,10 +32,14 @@ Opens the full website:
 
 ```bash
 cd apps/pc-queue-watch
+git pull
 npm install
+npm run verify:assets   # must say mint/dark brand package intact
 npx eas-cli login
 npm run build:apk
 ```
+
+Uninstall the old APK before installing the new one so Android refreshes the launcher icon.
 
 Production store binaries:
 
