@@ -1,6 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
-import { resolvePlansForUserIds } from "@/lib/billing/resolve-plans"
-import type { PlanId } from "@/lib/billing/plans"
 import {
   formatHandleInput,
   profileRowToTrader,
@@ -8,17 +6,6 @@ import {
   type ProfileRow,
   type TraderProfile,
 } from "@/lib/trade-binder/profile"
-
-async function withPlan(profile: TraderProfile): Promise<TraderProfile> {
-  const plans = await resolvePlansForUserIds([profile.id])
-  return { ...profile, plan: plans.get(profile.id) ?? "free" }
-}
-
-async function withPlans(profiles: TraderProfile[]): Promise<TraderProfile[]> {
-  if (profiles.length === 0) return []
-  const plans = await resolvePlansForUserIds(profiles.map((p) => p.id))
-  return profiles.map((p) => ({ ...p, plan: plans.get(p.id) ?? ("free" as PlanId) }))
-}
 
 export async function fetchProfile(
   supabase: SupabaseClient,
@@ -30,7 +17,7 @@ export async function fetchProfile(
     .eq("id", userId)
     .maybeSingle()
   if (error || !data) return null
-  return withPlan(profileRowToTrader(data as ProfileRow))
+  return profileRowToTrader(data as ProfileRow)
 }
 
 export async function ensureProfile(
@@ -63,7 +50,7 @@ export async function ensureProfile(
     .single()
 
   if (error || !data) {
-    return withPlan({
+    return {
       id: userId,
       name: displayName,
       handle: `@${handle}`,
@@ -72,9 +59,9 @@ export async function ensureProfile(
       bio: "",
       binderVisibility: "public",
       plan: "free",
-    })
+    }
   }
-  return withPlan(profileRowToTrader(data as ProfileRow))
+  return profileRowToTrader(data as ProfileRow)
 }
 
 export async function searchProfiles(
@@ -96,7 +83,7 @@ export async function searchProfiles(
 
   const { data, error } = await builder
   if (error || !data) return []
-  return withPlans((data as ProfileRow[]).map((row) => profileRowToTrader(row)))
+  return (data as ProfileRow[]).map((row) => profileRowToTrader(row))
 }
 
 export async function updateProfile(
@@ -127,5 +114,5 @@ export async function updateProfile(
     .single()
 
   if (error) return { profile: null, error: error.message }
-  return { profile: await withPlan(profileRowToTrader(data as ProfileRow)), error: null }
+  return { profile: profileRowToTrader(data as ProfileRow), error: null }
 }

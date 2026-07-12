@@ -10,6 +10,8 @@ export type ProfileRow = {
   location: string
   avatar_url: string
   binder_visibility: BinderVisibility
+  /** Synced account tier when present on the profiles row. */
+  plan?: PlanId | null
   created_at: string
   updated_at: string
 }
@@ -26,7 +28,8 @@ export type TraderProfile = {
   plan: PlanId
 }
 
-export function profileRowToTrader(row: ProfileRow, plan: PlanId = "free"): TraderProfile {
+export function profileRowToTrader(row: ProfileRow, plan?: PlanId): TraderProfile {
+  const resolved = plan ?? row.plan ?? "free"
   return {
     id: row.id,
     name: row.display_name || row.handle,
@@ -35,7 +38,7 @@ export function profileRowToTrader(row: ProfileRow, plan: PlanId = "free"): Trad
     location: row.location,
     bio: row.bio,
     binderVisibility: row.binder_visibility,
-    plan,
+    plan: resolved === "free" ? "free" : resolved,
   }
 }
 
