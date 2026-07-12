@@ -24,7 +24,7 @@ export function CardImage({
   className?: string
   upgrade?: boolean
 }) {
-  const originalSrc = bestDisplayCardImageUrl(card.image)
+  const originalSrc = bestDisplayCardImageUrl(card.image, { upgrade })
   const upgradedSrc = useCardImage(card, { upgrade })
   const preferredSrc = upgrade ? upgradedSrc : originalSrc
   const [useOriginal, setUseOriginal] = useState(false)

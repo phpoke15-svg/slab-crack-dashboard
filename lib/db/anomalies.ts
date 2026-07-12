@@ -30,6 +30,7 @@ type SlabCardRow = {
   card_number: string
   rarity: string | null
   image_large: string | null
+  release_date?: string | null
 }
 
 type AnomalyRow = {
@@ -95,6 +96,7 @@ function rowToMockEntry(row: AnomalyRow): MockCardEntry | null {
 
   return normalizeCardEntry({
     id: row.watchlist_id,
+    pokemonTcgId: card.id,
     cardName: formatCardName(card.name, card.rarity),
     setName: card.set_name,
     cardNumber: card.card_number,
@@ -110,6 +112,7 @@ function rowToMockEntry(row: AnomalyRow): MockCardEntry | null {
     sampleCounts: row.sample_counts ?? undefined,
     hasPricing: true,
     gradeQuotes: gradeQuotesFromRow(row),
+    releaseDate: card.release_date ?? undefined,
   })
 }
 
@@ -141,7 +144,8 @@ export async function getAnomaliesFromDb(): Promise<MockCardEntry[]> {
           set_name,
           card_number,
           rarity,
-          image_large
+          image_large,
+          release_date
         )
       )
     `,
@@ -176,7 +180,8 @@ export async function getAnomaliesFromDb(): Promise<MockCardEntry[]> {
           set_name,
           card_number,
           rarity,
-          image_large
+          image_large,
+          release_date
         )
       )
     `,

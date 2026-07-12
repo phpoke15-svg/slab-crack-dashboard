@@ -50,6 +50,8 @@ export interface MockCardEntry {
   hasPricing?: boolean
   /** ISO date from PriceCharting set release (YYYY-MM-DD). */
   releaseDate?: string
+  /** Pokémon TCG API card id when known (for front artwork lookup). */
+  pokemonTcgId?: string
 }
 
 export const PSA_GRADE_NUMBERS = [7, 8, 9, 10] as const

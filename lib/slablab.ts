@@ -3,6 +3,8 @@ import { readAnomaliesCache } from "@/lib/sync-anomalies"
 import mockData from "@/lib/mockData.json"
 import { getGradeQuotes, normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
+import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
+import { resolvePokemonCardImage } from "@/lib/pokemon-tcg"
 
 export type SlabLabCard = {
   id: string
@@ -34,6 +36,10 @@ function eraFromYears(yearsAgo: number): string {
   return "Vintage"
 }
 
+function isPokemonTcgFront(url: string): boolean {
+  return /images\.pokemontcg\.io/i.test(url)
+}
+
 /** Rough gem-rate proxy from PSA 9 vs 10 sold-comp mix when available. */
 export function estimateGemRate(entry: MockCardEntry): number {
   const sc = entry.sampleCounts
@@ -53,8 +59,10 @@ export function toSlabLabCard(entry: MockCardEntry): SlabLabCard | null {
   if (raw <= 0 || psa10 <= 0 || psa10 <= raw) return null
 
   const yearsAgo = yearsAgoFromRelease(entry.releaseDate)
+  const pokemonId = entry.pokemonTcgId?.trim() || undefined
+
   return {
-    id: entry.id,
+    id: pokemonId || entry.id,
     name: entry.cardName,
     set: entry.setName,
     era: eraFromYears(yearsAgo),
@@ -66,6 +74,55 @@ export function toSlabLabCard(entry: MockCardEntry): SlabLabCard | null {
     image: entry.imageUrl || "/placeholder.svg",
     cardNumber: entry.cardNumber || "",
   }
+}
+
+/** Prefer official Pokémon TCG API front art over PriceCharting scans (often backs). */
+async function ensureFrontArtwork(card: SlabLabCard): Promise<SlabLabCard> {
+  if (isPokemonTcgFront(card.image)) {
+    return { ...card, image: upgradeCardImageUrlSync(card.image) }
+  }
+
+  try {
+    const hit = await resolvePokemonCardImage({
+      cardName: card.name,
+      setName: card.set,
+      cardNumber: card.cardNumber,
+      pokemonTcgId: card.id.includes("-") && !card.id.startsWith("pc-") ? card.id : undefined,
+    })
+    const front = hit?.imageLarge || hit?.imageSmall
+    if (front) {
+      return {
+        ...card,
+        id: hit?.id || card.id,
+        image: upgradeCardImageUrlSync(front),
+      }
+    }
+  } catch (error) {
+    console.warn("[slablab] front art lookup failed:", card.name, error)
+  }
+
+  return card
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length)
+  let next = 0
+
+  async function worker() {
+    while (next < items.length) {
+      const index = next
+      next += 1
+      results[index] = await mapper(items[index]!)
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker())
+  await Promise.all(workers)
+  return results
 }
 
 async function loadNormalizedFeed(): Promise<MockCardEntry[]> {
@@ -97,5 +154,6 @@ export async function getSlabLabOpportunities(
     .filter((c): c is SlabLabCard => c != null)
 
   cards.sort((a, b) => b.psa10Price - b.rawPrice - (a.psa10Price - a.rawPrice))
-  return cards.slice(0, Math.max(1, limit))
+  const top = cards.slice(0, Math.max(1, limit))
+  return mapWithConcurrency(top, 6, ensureFrontArtwork)
 }

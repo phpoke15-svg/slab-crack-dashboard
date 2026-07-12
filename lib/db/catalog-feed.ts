@@ -88,6 +88,7 @@ function watchlistToEntry(row: WatchlistRow, anomaly: AnomalyRow | undefined): M
   const cardName = formatCardName(card.name, card.rarity)
   const base = {
     id: row.id,
+    pokemonTcgId: card.id,
     cardName,
     setName: card.set_name,
     cardNumber: card.card_number,
@@ -95,6 +96,7 @@ function watchlistToEntry(row: WatchlistRow, anomaly: AnomalyRow | undefined): M
       card.image_large ??
       "https://placehold.co/150x210",
     marketInsight: row.market_insight,
+    releaseDate: card.release_date ?? undefined,
   }
 
   if (anomaly) {
