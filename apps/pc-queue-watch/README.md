@@ -59,5 +59,5 @@ Use Expo Go for UI. **Verify push + WebView monitoring on a real APK.**
 ## Env
 
 ```
-EXPO_PUBLIC_COLLECTOOLS_URL=https://collectools.app
+EXPO_PUBLIC_COLLECTOOLS_URL=https://www.collectools.app
 ```

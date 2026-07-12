@@ -2,7 +2,7 @@
 
 Privacy policy (live): https://collectools.app/privacy  
 Package / bundle ID: `com.collectools.app`  
-Version: **1.3.5** (Android `versionCode` 10). EAS slug is `pokepax` (legacy project id); app display name stays **CollecTools**. Brand: dark `#0b0e14` + mint `#4ade80` (white C / mint T icons).
+Version: **1.3.6** (Android `versionCode` 11). EAS slug is `pokepax` (legacy project id); app display name stays **CollecTools**. Brand: dark `#0b0e14` + mint `#4ade80` (white C / mint T icons). WebView loads `https://www.collectools.app` (apex redirects there).
 
 ## Done in repo
 

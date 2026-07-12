@@ -2,7 +2,7 @@
   "expo": {
     "name": "CollecTools",
     "slug": "pokepax",
-    "version": "1.3.5",
+    "version": "1.3.6",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "collectools",
@@ -13,11 +13,11 @@
       "backgroundColor": "#0b0e14"
     },
     "primaryColor": "#4ade80",
-    "privacyPolicyUrl": "https://collectools.app/privacy",
+    "privacyPolicyUrl": "https://www.collectools.app/privacy",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.collectools.app",
-      "buildNumber": "10",
+      "buildNumber": "11",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -29,7 +29,7 @@
     },
     "android": {
       "package": "com.collectools.app",
-      "versionCode": 10,
+      "versionCode": 11,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b0e14"
@@ -61,8 +61,8 @@
       "eas": {
         "projectId": "36c104de-8e81-4804-86b5-5d5a0d70ae18"
       },
-      "privacyPolicyUrl": "https://collectools.app/privacy",
-      "collectoolsUrl": "https://collectools.app"
+      "privacyPolicyUrl": "https://www.collectools.app/privacy",
+      "collectoolsUrl": "https://www.collectools.app"
     },
     "owner": "phpoke15s-team"
   }

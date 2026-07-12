@@ -12,7 +12,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes"
-import { COLLECTOOLS_BASE_URL } from "../lib/config"
+import { COLLECTOOLS_BASE_URL, isCollectoolsHost } from "../lib/config"
 import type { RootStackParamList } from "../lib/navigation"
 import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
@@ -49,11 +49,9 @@ function isAllowedInApp(url: string) {
   try {
     const target = new URL(url)
     if (target.protocol !== "http:" && target.protocol !== "https:") return true
-    const base = new URL(COLLECTOOLS_BASE_URL)
-    if (target.origin === base.origin) return true
-    const host = target.hostname.toLowerCase()
-    if (host.endsWith(".supabase.co")) return true
-    if (host === "supabase.co") return true
+    // Apex collectools.app 308s to www — both must stay in the WebView or Android
+    // opens Chrome and the APK looks like a browser bookmark.
+    if (isCollectoolsHost(target.hostname)) return true
     return false
   } catch {
     return true
