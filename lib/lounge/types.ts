@@ -1,8 +1,12 @@
 import type { TraderProfile } from "@/lib/trade-binder/profile"
+import type { PlanId } from "@/lib/billing/plans"
 
 export type LoungeFeedMode = "all" | "following"
 
-export type LoungeAuthor = Pick<TraderProfile, "id" | "name" | "handle" | "avatar">
+export type LoungeAuthor = Pick<TraderProfile, "id" | "name" | "handle" | "avatar"> & {
+  /** Account tier for CardLounge badges (free displays as Starter). */
+  plan: PlanId
+}
 
 export type LoungeMediaItem = {
   id: string

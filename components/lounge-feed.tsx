@@ -12,6 +12,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react"
+import { PlanBadge } from "@/components/plan-badge"
 import { UserAvatar } from "@/components/trade-binder/social/user-avatar"
 import { cn } from "@/lib/utils"
 import type {
@@ -329,7 +330,10 @@ export function LoungeFeed() {
       <div className="rounded-2xl border border-border bg-card/60 p-4">
         <div className="flex gap-3">
           {me ? (
-            <UserAvatar user={asUser(me)} size="sm" />
+            <div className="flex flex-col items-center gap-1">
+              <UserAvatar user={asUser(me)} size="sm" />
+              <PlanBadge plan={me.plan ?? "free"} />
+            </div>
           ) : (
             <div className="size-9 shrink-0 rounded-xl bg-muted" />
           )}
@@ -516,6 +520,7 @@ function PostCard({
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className="truncate text-sm font-semibold text-foreground">{post.author.name}</span>
             <span className="truncate text-[11px] text-muted-foreground">{post.author.handle}</span>
+            <PlanBadge plan={post.author.plan ?? "free"} />
             <span className="text-[11px] text-muted-foreground">· {timeAgo(post.createdAt)}</span>
           </div>
           {post.body ? (
@@ -600,10 +605,14 @@ function PostCard({
                     <div className="flex gap-2">
                       <UserAvatar user={asUser(reply.author)} size="sm" />
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-2">
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                           <span className="text-xs font-semibold">{reply.author.name}</span>
                           <span className="text-[10px] text-muted-foreground">
-                            {reply.author.handle} · {timeAgo(reply.createdAt)}
+                            {reply.author.handle}
+                          </span>
+                          <PlanBadge plan={reply.author.plan ?? "free"} />
+                          <span className="text-[10px] text-muted-foreground">
+                            · {timeAgo(reply.createdAt)}
                           </span>
                         </div>
                         {reply.body ? (

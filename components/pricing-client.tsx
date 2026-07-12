@@ -270,7 +270,7 @@ export function PricingClient() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Free
+                  Starter
                 </p>
                 <h2 className="mt-1 text-xl font-bold text-foreground">Start with a preview</h2>
                 <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">

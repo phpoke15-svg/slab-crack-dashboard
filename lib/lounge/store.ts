@@ -8,6 +8,8 @@ import {
   uploadLoungeMediaFiles,
   type LoungeMediaUpload,
 } from "@/lib/lounge/media"
+import { resolvePlansForUserIds } from "@/lib/billing/resolve-plans"
+import type { PlanId } from "@/lib/billing/plans"
 import type {
   LoungeAuthor,
   LoungeFeedMode,
@@ -36,17 +38,21 @@ type MediaRow = {
   sort_order: number
 }
 
-function toAuthor(profile: {
-  id: string
-  name: string
-  handle: string
-  avatar: string
-}): LoungeAuthor {
+function toAuthor(
+  profile: {
+    id: string
+    name: string
+    handle: string
+    avatar: string
+  },
+  plan: PlanId = "free",
+): LoungeAuthor {
   return {
     id: profile.id,
     name: profile.name,
     handle: profile.handle,
     avatar: profile.avatar,
+    plan,
   }
 }
 
@@ -65,10 +71,25 @@ async function loadAuthors(
   const map = new Map<string, LoungeAuthor>()
   if (unique.length === 0) return map
 
-  const { data } = await admin.from("profiles").select("*").in("id", unique)
+  const [{ data }, plans] = await Promise.all([
+    admin.from("profiles").select("*").in("id", unique),
+    resolvePlansForUserIds(unique),
+  ])
   for (const row of data ?? []) {
     const trader = profileRowToTrader(row as ProfileRow)
-    map.set(trader.id, toAuthor(trader))
+    map.set(trader.id, toAuthor(trader, plans.get(trader.id) ?? "free"))
+  }
+
+  // Authors missing a profile row still get a badge tier.
+  for (const id of unique) {
+    if (map.has(id)) continue
+    map.set(
+      id,
+      toAuthor(
+        { id, name: "Collector", handle: "@collector", avatar: "" },
+        plans.get(id) ?? "free",
+      ),
+    )
   }
   return map
 }
@@ -159,6 +180,7 @@ async function enrichPosts(
     name: "Collector",
     handle: "@collector",
     avatar: "",
+    plan: "free",
   }
 
   return rows.map((row) => ({
@@ -187,7 +209,8 @@ export async function getLoungeFeed(opts: {
 
   const admin = createAdminClient()
   const meProfile = await ensureProfile(admin, opts.viewerId, opts.viewerEmail)
-  const me = toAuthor(meProfile)
+  const myPlan = (await resolvePlansForUserIds([opts.viewerId])).get(opts.viewerId) ?? "free"
+  const me = toAuthor(meProfile, myPlan)
   const mode: LoungeFeedMode = opts.mode === "following" ? "following" : "all"
 
   let query = admin

@@ -1,5 +1,21 @@
 export type PlanId = "free" | "premium" | "pro" | "supreme"
 
+/** Public display name for each plan (free is branded as Starter). */
+export function planDisplayName(plan: PlanId): string {
+  switch (plan) {
+    case "free":
+      return "Starter"
+    case "premium":
+      return "Premium"
+    case "pro":
+      return "Pro"
+    case "supreme":
+      return "Supreme"
+    default:
+      return "Starter"
+  }
+}
+
 export type BillingInterval = "month" | "year"
 
 export type PlanTier = {
