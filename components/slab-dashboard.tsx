@@ -504,7 +504,7 @@ export function SlabDashboard() {
           {feed === "watchlist"
             ? "Watchlist is saved on this device. Search any card for PSA 7–10 comps from PriceCharting."
             : pricedCount > 0
-              ? "Top Deficits shows EN/JP slab < raw opportunities from sets released in the last 3 years."
+              ? "Top Deficits shows EN/JP slab < raw opportunities across all set ages."
               : "Search any card for PSA 7–10 pricing, or run discover-arbitrage to refresh the feed."}
         </p>
       </main>

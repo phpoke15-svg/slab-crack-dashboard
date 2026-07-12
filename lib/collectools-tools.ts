@@ -37,7 +37,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     description:
       "Rank modern cards by PSA 10 gross spread, graded multiplier, and gem-rate-weighted submission yield.",
     highlights: [
-      "Toggle past 3 vs 5 years of releases",
+      "Scan all set ages for PSA 10 submission edges",
       "Filter by minimum PSA 10 gem rate from pop reports",
       "Flag Prime Submission Slots and 10-or-Bust danger zones",
     ],

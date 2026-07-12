@@ -63,20 +63,25 @@ function isAllowedLanguage(input: { setName: string; genre?: string }): boolean 
   return true
 }
 
-export function getDefaultSetAgeYears(): number {
-  const fromEnv = Number(process.env.DISCOVERY_MAX_SET_AGE_YEARS)
-  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 3
+/** Max set age for discovery/feed. `null` = all time (no age cutoff). */
+export function getDefaultSetAgeYears(): number | null {
+  const raw = process.env.DISCOVERY_MAX_SET_AGE_YEARS?.trim()
+  if (!raw || raw === "0" || /^all$/i.test(raw)) return null
+  const fromEnv = Number(raw)
+  return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : null
 }
 
-export function getSetAgeCutoff(years = getDefaultSetAgeYears(), now = new Date()): Date {
+export function getSetAgeCutoff(years: number, now = new Date()): Date {
   // Jan 1 of (current year - years), so "3 years" in 2026 includes all of 2023–2026.
   return new Date(now.getFullYear() - years, 0, 1)
 }
 
 export function isRecentSetRelease(
   releaseDate: string | undefined | null,
-  years = getDefaultSetAgeYears(),
+  years: number | null = getDefaultSetAgeYears(),
 ): boolean {
+  // All-time mode: keep every card (including missing/unknown release dates).
+  if (years == null) return true
   if (!releaseDate?.trim()) return false
   const parsed = Date.parse(releaseDate.trim())
   if (!Number.isFinite(parsed)) return false

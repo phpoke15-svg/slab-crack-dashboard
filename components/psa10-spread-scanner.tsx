@@ -23,7 +23,6 @@ const GRADING_PRESETS = [
   { id: "super", label: "Super", cost: 150 },
 ] as const
 
-type ReleaseEra = "3y" | "5y"
 type SortMode = "spread" | "multiplier" | "roi"
 
 type ScannerCard = {
@@ -333,17 +332,15 @@ function cardEbayUrl(row: Pick<ScannerCard, "id" | "name" | "cardNumber">): stri
 }
 
 export function Psa10SpreadScanner() {
-  const [era, setEra] = useState<ReleaseEra>("3y")
   const [minGemRate, setMinGemRate] = useState(25)
   const [gradingCost, setGradingCost] = useState(DEFAULT_GRADING_COST)
   const [sortMode, setSortMode] = useState<SortMode>("roi")
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const rows = useMemo(() => {
-    const maxYears = era === "3y" ? 3 : 5
-    const filtered = MOCK_CARDS.filter(
-      (c) => c.yearsAgo <= maxYears && c.gemRate >= minGemRate,
-    ).map((c) => computeRow(c, gradingCost))
+    const filtered = MOCK_CARDS.filter((c) => c.gemRate >= minGemRate).map((c) =>
+      computeRow(c, gradingCost),
+    )
 
     filtered.sort((a, b) => {
       if (sortMode === "spread") return b.grossSpread - a.grossSpread
@@ -351,7 +348,7 @@ export function Psa10SpreadScanner() {
       return b.trueRoiScore - a.trueRoiScore
     })
     return filtered
-  }, [era, minGemRate, gradingCost, sortMode])
+  }, [minGemRate, gradingCost, sortMode])
 
   const selected = rows.find((r) => r.id === selectedId) ?? null
 
@@ -366,18 +363,12 @@ export function Psa10SpreadScanner() {
       {/* Compact controls */}
       <section className="sticky top-0 z-20 space-y-3 rounded-2xl border border-border bg-background/90 p-3 backdrop-blur-xl sm:p-4">
         <div className="flex flex-wrap items-center gap-2">
-          <select
-            value={era}
-            onChange={(e) => setEra(e.target.value as ReleaseEra)}
-            aria-label="Release era"
-            className="h-9 min-w-0 flex-1 rounded-xl border border-border bg-secondary/60 px-3 text-xs font-medium text-foreground outline-none focus:border-primary/50 sm:flex-none sm:text-sm"
-          >
-            <option value="3y">Past 3 years</option>
-            <option value="5y">Past 5 years</option>
-          </select>
+          <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+            All-time scan
+          </p>
 
           <div
-            className="flex rounded-xl border border-border bg-secondary/40 p-0.5"
+            className="ml-auto flex rounded-xl border border-border bg-secondary/40 p-0.5"
             role="tablist"
             aria-label="Sort"
           >

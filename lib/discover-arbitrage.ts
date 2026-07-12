@@ -142,7 +142,14 @@ export async function discoverArbitrageFromMarket(options?: {
     }
   }
 
-  log(`[discover] Scanned ${products.length} EN/JP TCG products from sets released in the last ${process.env.DISCOVERY_MAX_SET_AGE_YEARS ?? 3} years`)
+  log(
+    `[discover] Scanned ${products.length} EN/JP TCG products` +
+      (process.env.DISCOVERY_MAX_SET_AGE_YEARS?.trim() &&
+      process.env.DISCOVERY_MAX_SET_AGE_YEARS.trim() !== "0" &&
+      !/^all$/i.test(process.env.DISCOVERY_MAX_SET_AGE_YEARS.trim())
+        ? ` from sets released in the last ${process.env.DISCOVERY_MAX_SET_AGE_YEARS.trim()} years`
+        : " (all-time set age)"),
+  )
 
   let candidates = findArbitrageCandidates(products, { minRawPrice, minDeficit })
 
