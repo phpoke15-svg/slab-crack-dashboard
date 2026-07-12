@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react"
 import {
   BookOpen,
   CreditCard,
+  FlaskConical,
   LogOut,
   MessageSquare,
   Package,
@@ -202,6 +203,18 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
               ? `Plan: ${entitlements.plan}`
               : "Upgrade"}
           </Link>
+
+          {entitlements?.supreme ? (
+            <Link
+              href="/supreme"
+              role="menuitem"
+              onClick={() => setMenuOpen(false)}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-accent"
+            >
+              <FlaskConical className="size-4 text-primary" aria-hidden="true" />
+              Supreme Console
+            </Link>
+          ) : null}
 
           {social && (
             <button

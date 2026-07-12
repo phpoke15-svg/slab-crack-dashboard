@@ -1,9 +1,9 @@
-export type PlanId = "free" | "premium" | "pro"
+export type PlanId = "free" | "premium" | "pro" | "supreme"
 
 export type BillingInterval = "month" | "year"
 
 export type PlanTier = {
-  id: Exclude<PlanId, "free">
+  id: Exclude<PlanId, "free" | "supreme">
   name: string
   tagline: string
   monthlyPrice: number
@@ -80,7 +80,7 @@ export function parsePriceKey(key: string): PriceKey | null {
   return PRICE_KEYS.includes(key as PriceKey) ? (key as PriceKey) : null
 }
 
-export function planFromPriceKey(key: PriceKey): Exclude<PlanId, "free"> {
+export function planFromPriceKey(key: PriceKey): Exclude<PlanId, "free" | "supreme"> {
   return key.startsWith("pro") ? "pro" : "premium"
 }
 
@@ -102,31 +102,53 @@ export type Entitlements = {
   queueWatch: boolean
   /** Full SlabCrack feed; free users get a mid-deficit preview only. */
   fullSlabCrack: boolean
+  /** In-development tools + site metrics console (Supreme only). */
+  supreme: boolean
   status: string | null
   currentPeriodEnd: string | null
   cancelAtPeriodEnd: boolean
 }
 
+/** Comma-separated allowlist. Supreme is never sold via Stripe. */
+export function getSupremeEmails(): string[] {
+  const raw =
+    process.env.SUPREME_EMAILS?.trim() ||
+    process.env.SUPREME_EMAIL?.trim() ||
+    ""
+  return raw
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+}
+
+export function isSupremeEmail(email: string | null | undefined): boolean {
+  if (!email?.trim()) return false
+  return getSupremeEmails().includes(email.trim().toLowerCase())
+}
+
 export function entitlementsForPlan(plan: PlanId, extras?: Partial<Entitlements>): Entitlements {
   const tier = PLAN_TIERS.find((t) => t.id === plan)
-  const paid = plan === "premium" || plan === "pro"
+  const paid = plan === "premium" || plan === "pro" || plan === "supreme"
+  const supreme = plan === "supreme"
   return {
     plan,
-    adFree: Boolean(tier?.adFree),
-    queueWatch: Boolean(tier?.includesQueueWatch),
+    adFree: supreme || Boolean(tier?.adFree),
+    queueWatch: supreme || Boolean(tier?.includesQueueWatch),
     fullSlabCrack: paid || Boolean(tier?.fullSlabCrack),
+    supreme,
     status: extras?.status ?? (plan === "free" ? null : "active"),
     currentPeriodEnd: extras?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: extras?.cancelAtPeriodEnd ?? false,
   }
 }
 
-export function isPaidPlan(plan: PlanId): plan is "premium" | "pro" {
-  return plan === "premium" || plan === "pro"
+export function isPaidPlan(plan: PlanId): plan is "premium" | "pro" | "supreme" {
+  return plan === "premium" || plan === "pro" || plan === "supreme"
 }
 
 /** Rank for upgrades / webhook race resolution. */
 export function planRank(plan: PlanId): number {
+  if (plan === "supreme") return 3
   if (plan === "pro") return 2
   if (plan === "premium") return 1
   return 0

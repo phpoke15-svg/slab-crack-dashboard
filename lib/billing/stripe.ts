@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/server"
 import {
   entitlementsForPlan,
   getStripePriceId,
+  isSupremeEmail,
   planFromStripePriceId,
   planRank,
   PRICE_KEYS,
@@ -86,6 +87,21 @@ export async function getEntitlementsForUser(userId: string): Promise<Entitlemen
     }
   }
 
+  if (profilePlan === "supreme") {
+    best = "supreme"
+    bestMeta = { ...bestMeta, status: bestMeta.status ?? "active" }
+  }
+
+  try {
+    const { data: authUser } = await admin.auth.admin.getUserById(userId)
+    if (isSupremeEmail(authUser.user?.email)) {
+      best = "supreme"
+      bestMeta = { ...bestMeta, status: "active" }
+    }
+  } catch {
+    // Ignore auth lookup failures; fall through with plan from profile/subs.
+  }
+
   return entitlementsForPlan(best, bestMeta)
 }
 
@@ -138,6 +154,21 @@ export async function upsertSubscriptionFromStripe(
     if (!ACTIVE_STATUSES.has(String(row.status))) continue
     const candidate = (row.plan as PlanId) || "free"
     if (planRank(candidate) > planRank(best)) best = candidate
+  }
+
+  const { data: currentProfile } = await admin
+    .from("profiles")
+    .select("plan")
+    .eq("id", input.userId)
+    .maybeSingle()
+  if ((currentProfile?.plan as PlanId | undefined) === "supreme") {
+    best = "supreme"
+  }
+  try {
+    const { data: authUser } = await admin.auth.admin.getUserById(input.userId)
+    if (isSupremeEmail(authUser.user?.email)) best = "supreme"
+  } catch {
+    // keep best from subs/profile
   }
 
   const { error: profileError } = await admin

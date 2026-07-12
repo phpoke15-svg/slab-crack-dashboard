@@ -7,7 +7,7 @@ import { SiteFooter } from "@/components/legal/site-footer"
 import { FooterAd } from "@/components/footer-ad"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
-import { COLLECTOOLS } from "@/lib/collectools-tools"
+import { hubToolsForUser } from "@/lib/collectools-tools"
 import { cn } from "@/lib/utils"
 
 export function CollecToolsHub() {
@@ -16,6 +16,7 @@ export function CollecToolsHub() {
     !entitlements?.isLoading && entitlements?.signedIn && entitlements.plan === "free"
   const showProNudge =
     !entitlements?.isLoading && entitlements?.signedIn && entitlements.plan === "premium"
+  const tools = hubToolsForUser({ supreme: Boolean(entitlements?.supreme) })
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
@@ -47,7 +48,7 @@ export function CollecToolsHub() {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-1">
-        {COLLECTOOLS.map((tool) => {
+        {tools.map((tool) => {
           const Icon = tool.icon
           return (
             <Link
@@ -56,6 +57,7 @@ export function CollecToolsHub() {
               className={cn(
                 "group relative overflow-hidden rounded-2xl border border-border bg-card/60 p-5 transition-all",
                 "hover:border-primary/40 hover:bg-card hover:shadow-[0_0_40px_-12px] hover:shadow-primary/25",
+                tool.supremeOnly && "border-primary/25 bg-primary/[0.03]",
               )}
             >
               <div className="flex items-start gap-4">
@@ -63,11 +65,16 @@ export function CollecToolsHub() {
                   <Icon className="size-6" strokeWidth={2} />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <h2 className="text-lg font-semibold text-foreground">{tool.name}</h2>
                     <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
                       {tool.tagline}
                     </span>
+                    {tool.supremeOnly ? (
+                      <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                        Supreme
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                     {tool.description}

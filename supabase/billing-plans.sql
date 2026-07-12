@@ -9,7 +9,7 @@ alter table public.profiles
 
 alter table public.profiles
   add constraint profiles_plan_check
-  check (plan in ('free', 'premium', 'pro'));
+  check (plan in ('free', 'premium', 'pro', 'supreme'));
 
 alter table public.profiles
   add column if not exists stripe_customer_id text;
@@ -29,7 +29,7 @@ create table if not exists public.subscriptions (
   stripe_product_id text,
   status text not null default 'inactive',
   plan text not null default 'free'
-    check (plan in ('free', 'premium', 'pro')),
+    check (plan in ('free', 'premium', 'pro', 'supreme')),
   cancel_at_period_end boolean not null default false,
   current_period_end timestamptz,
   updated_at timestamptz not null default now(),
