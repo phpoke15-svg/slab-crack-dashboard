@@ -3,6 +3,8 @@ import { GradeCheckClient } from "@/components/grade-check-client"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { getEntitlementsForUser } from "@/lib/billing/stripe"
 
+export const dynamic = "force-dynamic"
+
 export const metadata = {
   title: "Grade Check — CollecTools",
   description: "Condition helper for PSA submissions (Supreme preview).",

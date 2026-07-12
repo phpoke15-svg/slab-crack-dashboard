@@ -4,6 +4,8 @@ import { RESTOCKS_ENABLED } from "@/lib/collectools-tools"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { getEntitlementsForUser } from "@/lib/billing/stripe"
 
+export const dynamic = "force-dynamic"
+
 export const metadata = {
   title: "Restocks — CollecTools",
   description: "Walmart sealed Pokémon TCG stock tracker.",
