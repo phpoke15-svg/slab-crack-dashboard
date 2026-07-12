@@ -7,17 +7,18 @@ describe("detectBuyoutRisks", () => {
     const alerts = detectBuyoutRisks(SEED_BUYOUT_CARDS, buildSeedBuyoutSales())
     expect(alerts.length).toBeGreaterThanOrEqual(2)
 
-    const umbreon = alerts.find((a) => a.cardId === "sv8-161")
+    const umbreon = alerts.find((a) => a.cardId === "sv8pt5-161")
     expect(umbreon).toBeTruthy()
     expect(umbreon!.volumeMultiple).toBeGreaterThanOrEqual(5)
     expect(umbreon!.uniqueBuyers).toBeLessThanOrEqual(2)
     expect(umbreon!.buyoutProbabilityPercentage).toBeGreaterThan(50)
+    expect(umbreon!.avgPrice24h).toBeGreaterThan(0)
     expect(umbreon!.hourlyVolume).toHaveLength(24)
     expect(["critical", "high", "warning"]).toContain(umbreon!.priority)
   })
 
   it("does not flag quiet cards like Miraidon", () => {
     const alerts = detectBuyoutRisks(SEED_BUYOUT_CARDS, buildSeedBuyoutSales())
-    expect(alerts.some((a) => a.cardId === "sv2-215")).toBe(false)
+    expect(alerts.some((a) => a.cardId === "sv1-244")).toBe(false)
   })
 })

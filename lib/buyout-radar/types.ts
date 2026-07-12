@@ -35,6 +35,12 @@ export type BuyoutAlert = {
   uniqueBuyers: number
   buyerConcentrationIndex: number
   buyoutProbabilityPercentage: number
+  /** Average $ paid per copy in the last 24h (from transactions). */
+  avgPrice24h: number
+  /** Average $ paid per copy over the prior baseline window. */
+  avgPriceBaseline: number
+  /** % change: 24h avg vs baseline avg (positive = paying up). */
+  priceDeltaPct: number
   priority: BuyoutPriority
   recommendedAction: RecommendedAction
   /** Hourly quantity series for the last 24 hours (oldest → newest). */

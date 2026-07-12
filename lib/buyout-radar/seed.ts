@@ -13,7 +13,7 @@ function daysAgo(days: number, hour = 12, now = Date.now()): string {
 /** Catalog cards used by the buyout radar seed + detector demos. */
 export const SEED_BUYOUT_CARDS: BuyoutCard[] = [
   {
-    id: "sv8-161",
+    id: "sv8pt5-161",
     name: "Umbreon ex",
     setName: "Prismatic Evolutions",
     releaseDate: "2025-01-17",
@@ -27,34 +27,44 @@ export const SEED_BUYOUT_CARDS: BuyoutCard[] = [
     imageUrl: "https://images.pokemontcg.io/sv3/215_hires.png",
   },
   {
-    id: "sv4-253",
+    id: "sv3pt5-151",
     name: "Mew ex",
-    setName: "Paradox Rift",
-    releaseDate: "2023-11-03",
-    imageUrl: "https://images.pokemontcg.io/sv4/253_hires.png",
+    setName: "151",
+    releaseDate: "2023-09-22",
+    imageUrl: "https://images.pokemontcg.io/sv3pt5/151_hires.png",
   },
   {
-    id: "swsh12-TG06",
+    id: "swsh4-44",
     name: "Pikachu VMAX",
-    setName: "Silver Tempest Trainer Gallery",
-    releaseDate: "2022-11-11",
-    imageUrl: "https://images.pokemontcg.io/swsh12tg/TG06_hires.png",
+    setName: "Vivid Voltage",
+    releaseDate: "2020-11-13",
+    imageUrl: "https://images.pokemontcg.io/swsh4/44_hires.png",
   },
   {
-    id: "sv6-167",
+    id: "sv6-214",
     name: "Greninja ex",
     setName: "Twilight Masquerade",
     releaseDate: "2024-05-24",
-    imageUrl: "https://images.pokemontcg.io/sv6/167_hires.png",
+    imageUrl: "https://images.pokemontcg.io/sv6/214_hires.png",
   },
   {
-    id: "sv2-215",
+    id: "sv1-244",
     name: "Miraidon ex",
-    setName: "Paldea Evolved",
-    releaseDate: "2023-06-09",
-    imageUrl: "https://images.pokemontcg.io/sv2/215_hires.png",
+    setName: "Scarlet & Violet",
+    releaseDate: "2023-03-31",
+    imageUrl: "https://images.pokemontcg.io/sv1/244_hires.png",
   },
 ]
+
+/** Typical NM raw unit prices used for demo baselines / buyout spikes. */
+const SEED_UNIT_PRICE: Record<string, { baseline: number; spike: number }> = {
+  "sv8pt5-161": { baseline: 78, spike: 95 },
+  "sv3-215": { baseline: 105, spike: 120 },
+  "sv3pt5-151": { baseline: 42, spike: 48 },
+  "swsh4-44": { baseline: 55, spike: 62 },
+  "sv6-214": { baseline: 28, spike: 35 },
+  "sv1-244": { baseline: 32, spike: 34 },
+}
 
 /**
  * Synthetic sales history: quiet 14-day baseline + active buyout patterns
@@ -70,12 +80,14 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
 
   // Quiet daily drip for every card over ~14 days (baseline).
   for (const card of SEED_BUYOUT_CARDS) {
+    const unit = SEED_UNIT_PRICE[card.id]?.baseline ?? 25
     for (let day = 14; day >= 2; day -= 1) {
-      const qty = card.id === "sv8-161" || card.id === "sv3-215" ? 2 : 1
+      const qty = card.id === "sv8pt5-161" || card.id === "sv3-215" ? 2 : 1
+      const jitter = ((day % 5) - 2) * 0.8
       push({
         cardId: card.id,
         quantityPurchased: qty,
-        totalPrice: qty * (18 + (day % 5)),
+        totalPrice: Math.round(qty * (unit + jitter) * 100) / 100,
         buyerIpHash: `retail-${card.id.slice(0, 4)}-${day}`,
         purchasedAt: daysAgo(day, 10 + (day % 6), now),
       })
@@ -83,7 +95,7 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
         push({
           cardId: card.id,
           quantityPurchased: 1,
-          totalPrice: 22,
+          totalPrice: Math.round((unit - 1.5) * 100) / 100,
           buyerIpHash: `retail-b-${card.id.slice(-3)}-${day}`,
           purchasedAt: daysAgo(day, 18, now),
         })
@@ -92,53 +104,57 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
   }
 
   // CRITICAL: Umbreon — ~40 copies in 24h from 2 buyer hashes (>> 5× baseline).
+  const umbreonSpike = SEED_UNIT_PRICE["sv8pt5-161"]!.spike
   for (let h = 0; h < 18; h += 1) {
     push({
-      cardId: "sv8-161",
+      cardId: "sv8pt5-161",
       quantityPurchased: 2,
-      totalPrice: 190,
+      totalPrice: umbreonSpike * 2,
       buyerIpHash: "buyout-alpha-91f2",
       purchasedAt: hoursAgo(h * 1.1, now),
     })
   }
   for (let i = 0; i < 6; i += 1) {
     push({
-      cardId: "sv8-161",
+      cardId: "sv8pt5-161",
       quantityPurchased: 1,
-      totalPrice: 95,
+      totalPrice: umbreonSpike,
       buyerIpHash: "buyout-beta-44aa",
       purchasedAt: hoursAgo(i * 2.5 + 0.4, now),
     })
   }
 
   // HIGH: Charizard — concentrated 1-buyer sweep overnight.
+  const zardSpike = SEED_UNIT_PRICE["sv3-215"]!.spike
   for (let i = 0; i < 14; i += 1) {
     push({
       cardId: "sv3-215",
       quantityPurchased: 2,
-      totalPrice: 240,
+      totalPrice: zardSpike * 2,
       buyerIpHash: "whale-char-7c01",
       purchasedAt: hoursAgo(i * 1.4 + 0.2, now),
     })
   }
 
   // WARNING: Greninja — elevated volume, two hashes, milder multiple.
+  const grenSpike = SEED_UNIT_PRICE["sv6-214"]!.spike
   for (let i = 0; i < 8; i += 1) {
     push({
-      cardId: "sv6-167",
+      cardId: "sv6-214",
       quantityPurchased: 2,
-      totalPrice: 70,
+      totalPrice: grenSpike * 2,
       buyerIpHash: i % 2 === 0 ? "spec-gren-a1" : "spec-gren-b2",
       purchasedAt: hoursAgo(i * 2.2, now),
     })
   }
 
   // Noise on Miraidon so it stays below threshold.
+  const mira = SEED_UNIT_PRICE["sv1-244"]!.baseline
   for (let i = 0; i < 3; i += 1) {
     push({
-      cardId: "sv2-215",
+      cardId: "sv1-244",
       quantityPurchased: 1,
-      totalPrice: 35,
+      totalPrice: mira,
       buyerIpHash: `casual-mira-${i}`,
       purchasedAt: hoursAgo(i * 5 + 1, now),
     })

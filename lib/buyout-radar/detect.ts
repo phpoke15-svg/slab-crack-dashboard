@@ -31,6 +31,18 @@ function priorityFor(
   return "warning"
 }
 
+function averageUnitPrice(sales: BuyoutSale[]): number {
+  let spend = 0
+  let qty = 0
+  for (const sale of sales) {
+    if (sale.quantityPurchased <= 0 || sale.totalPrice < 0) continue
+    spend += sale.totalPrice
+    qty += sale.quantityPurchased
+  }
+  if (qty <= 0) return 0
+  return Math.round((spend / qty) * 100) / 100
+}
+
 function hourlyVolumeSeries(
   sales: BuyoutSale[],
   cardId: string,
@@ -126,6 +138,13 @@ export function detectBuyoutRisks(
       buyerConcentrationIndex,
     )
 
+    const avgPrice24h = averageUnitPrice(windowSales)
+    const avgPriceBaseline = averageUnitPrice(baselineSales)
+    const priceDeltaPct =
+      avgPriceBaseline > 0
+        ? Math.round(((avgPrice24h - avgPriceBaseline) / avgPriceBaseline) * 1000) / 10
+        : 0
+
     alerts.push({
       cardId: card.id,
       cardName: card.name,
@@ -138,10 +157,13 @@ export function detectBuyoutRisks(
       uniqueBuyers,
       buyerConcentrationIndex: Math.round(buyerConcentrationIndex * 10000) / 10000,
       buyoutProbabilityPercentage,
+      avgPrice24h,
+      avgPriceBaseline,
+      priceDeltaPct,
       priority,
       recommendedAction,
       hourlyVolume: hourlyVolumeSeries(sales, card.id, nowMs),
-      notes: `Live window volume ${currentVolume} vs baseline daily avg ${baselineVolume.toFixed(2)} (${volumeMultiple.toFixed(1)}×). ${uniqueBuyers} unique buyer hash(es).`,
+      notes: `Live window volume ${currentVolume} vs baseline daily avg ${baselineVolume.toFixed(2)} (${volumeMultiple.toFixed(1)}×). ${uniqueBuyers} unique buyer hash(es). Avg paid $${avgPrice24h.toFixed(2)} (was $${avgPriceBaseline.toFixed(2)}).`,
       detectedAt: now.toISOString(),
     })
   }
