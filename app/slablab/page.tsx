@@ -7,7 +7,7 @@ import { JsonLd } from "@/components/seo/json-ld"
 import { pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
 
 const description =
-  "SlabLab ranks modern Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and probability-weighted submission ROI."
+  "SlabLab ranks the top 200 Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and probability-weighted submission ROI using live market comps."
 
 export const metadata: Metadata = pageMetadata({
   title: "SlabLab",
@@ -37,8 +37,8 @@ export default function SlabLabPage() {
               SlabLab
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Browse PSA 10 submission candidates, then tap a card for spread, multiplier, and
-              grading-cost breakdown.
+              Top 200 PSA 10 submission candidates from live market comps. Tap a card for spread,
+              multiplier, and grading-cost breakdown.
             </p>
           </div>
           <SiteAuthButton className="shrink-0" />

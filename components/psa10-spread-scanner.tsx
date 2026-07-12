@@ -19,6 +19,8 @@ import {
   PSA_AVAILABLE_GRADING_TIERS,
   PSA_GRADING_TIERS,
 } from "@/lib/psa-grading-tiers"
+import type { SlabLabCard } from "@/lib/slablab"
+import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 
 const DEFAULT_GRADING_COST = DEFAULT_PSA_GRADING_FEE
 
@@ -35,256 +37,7 @@ const GRADING_SLIDER_MIN = Math.floor(Math.min(...AVAILABLE_FEES))
 const GRADING_SLIDER_MAX = Math.ceil(Math.max(...AVAILABLE_FEES))
 type SortMode = "spread" | "multiplier" | "roi"
 
-type ScannerCard = {
-  id: string
-  name: string
-  set: string
-  era: string
-  yearsAgo: number
-  rawPrice: number
-  psa10Price: number
-  psa9Price: number
-  gemRate: number
-  image: string
-  cardNumber: string
-}
-
-const MOCK_CARDS: ScannerCard[] = [
-  {
-    id: "charizard-151",
-    name: "Charizard ex",
-    set: "151",
-    cardNumber: "223",
-    era: "SV",
-    yearsAgo: 2,
-    rawPrice: 185,
-    psa10Price: 620,
-    psa9Price: 210,
-    gemRate: 38,
-    image: "https://images.pokemontcg.io/sv3pt5/223_hires.png",
-  },
-  {
-    id: "mew-151",
-    name: "Mew ex",
-    set: "151",
-    cardNumber: "205",
-    era: "SV",
-    yearsAgo: 2,
-    rawPrice: 72,
-    psa10Price: 285,
-    psa9Price: 68,
-    gemRate: 42,
-    image: "https://images.pokemontcg.io/sv3pt5/205_hires.png",
-  },
-  {
-    id: "alakazam-151",
-    name: "Alakazam ex",
-    set: "151",
-    cardNumber: "201",
-    era: "SV",
-    yearsAgo: 2,
-    rawPrice: 28,
-    psa10Price: 145,
-    psa9Price: 34,
-    gemRate: 51,
-    image: "https://images.pokemontcg.io/sv3pt5/201_hires.png",
-  },
-  {
-    id: "ivysaur-151",
-    name: "Ivysaur",
-    set: "151",
-    cardNumber: "167",
-    era: "SV",
-    yearsAgo: 2,
-    rawPrice: 18,
-    psa10Price: 95,
-    psa9Price: 22,
-    gemRate: 55,
-    image: "https://images.pokemontcg.io/sv3pt5/167_hires.png",
-  },
-  {
-    id: "mireidon-pei",
-    name: "Miraidon ex",
-    set: "Paldea Evolved",
-    cardNumber: "253",
-    era: "SV",
-    yearsAgo: 3,
-    rawPrice: 48,
-    psa10Price: 210,
-    psa9Price: 55,
-    gemRate: 44,
-    image: "https://images.pokemontcg.io/sv2/253_hires.png",
-  },
-  {
-    id: "magikarp-pei",
-    name: "Magikarp",
-    set: "Paldea Evolved",
-    cardNumber: "203",
-    era: "SV",
-    yearsAgo: 3,
-    rawPrice: 95,
-    psa10Price: 410,
-    psa9Price: 88,
-    gemRate: 29,
-    image: "https://images.pokemontcg.io/sv2/203_hires.png",
-  },
-  {
-    id: "iono-pei",
-    name: "Iono",
-    set: "Paldea Evolved",
-    cardNumber: "269",
-    era: "SV",
-    yearsAgo: 3,
-    rawPrice: 42,
-    psa10Price: 175,
-    psa9Price: 48,
-    gemRate: 47,
-    image: "https://images.pokemontcg.io/sv2/269_hires.png",
-  },
-  {
-    id: "giratina-cz",
-    name: "Giratina VSTAR",
-    set: "Crown Zenith",
-    cardNumber: "GG70",
-    era: "SWSH",
-    yearsAgo: 3,
-    rawPrice: 210,
-    psa10Price: 780,
-    psa9Price: 240,
-    gemRate: 33,
-    image: "https://images.pokemontcg.io/swsh12pt5/GG70_hires.png",
-  },
-  {
-    id: "pikachu-cz",
-    name: "Pikachu",
-    set: "Crown Zenith",
-    cardNumber: "GG20",
-    era: "SWSH",
-    yearsAgo: 3,
-    rawPrice: 55,
-    psa10Price: 240,
-    psa9Price: 62,
-    gemRate: 48,
-    image: "https://images.pokemontcg.io/swsh12pt5/GG20_hires.png",
-  },
-  {
-    id: "arceus-cz",
-    name: "Arceus VSTAR",
-    set: "Crown Zenith",
-    cardNumber: "GG70",
-    era: "SWSH",
-    yearsAgo: 3,
-    rawPrice: 68,
-    psa10Price: 295,
-    psa9Price: 75,
-    gemRate: 40,
-    image: "https://images.pokemontcg.io/swsh12pt5/GG63_hires.png",
-  },
-  {
-    id: "umbreon-evs",
-    name: "Umbreon VMAX",
-    set: "Evolving Skies",
-    cardNumber: "215",
-    era: "SWSH",
-    yearsAgo: 4,
-    rawPrice: 520,
-    psa10Price: 1850,
-    psa9Price: 480,
-    gemRate: 22,
-    image: "https://images.pokemontcg.io/swsh7/215_hires.png",
-  },
-  {
-    id: "rayquaza-evs",
-    name: "Rayquaza VMAX",
-    set: "Evolving Skies",
-    cardNumber: "218",
-    era: "SWSH",
-    yearsAgo: 4,
-    rawPrice: 310,
-    psa10Price: 1120,
-    psa9Price: 295,
-    gemRate: 26,
-    image: "https://images.pokemontcg.io/swsh7/218_hires.png",
-  },
-  {
-    id: "sylveon-evs",
-    name: "Sylveon VMAX",
-    set: "Evolving Skies",
-    cardNumber: "212",
-    era: "SWSH",
-    yearsAgo: 4,
-    rawPrice: 145,
-    psa10Price: 520,
-    psa9Price: 155,
-    gemRate: 35,
-    image: "https://images.pokemontcg.io/swsh7/212_hires.png",
-  },
-  {
-    id: "moonbreon-sm",
-    name: "Umbreon GX",
-    set: "Sun & Moon",
-    cardNumber: "60",
-    era: "SM",
-    yearsAgo: 5,
-    rawPrice: 95,
-    psa10Price: 420,
-    psa9Price: 110,
-    gemRate: 31,
-    image: "https://images.pokemontcg.io/sm5/60_hires.png",
-  },
-  {
-    id: "lunala-sm",
-    name: "Lunala GX",
-    set: "Sun & Moon",
-    cardNumber: "66",
-    era: "SM",
-    yearsAgo: 5,
-    rawPrice: 58,
-    psa10Price: 265,
-    psa9Price: 52,
-    gemRate: 36,
-    image: "https://images.pokemontcg.io/sm1/66_hires.png",
-  },
-  {
-    id: "tapu-lele-sm",
-    name: "Tapu Lele GX",
-    set: "Guardians Rising",
-    cardNumber: "60",
-    era: "SM",
-    yearsAgo: 5,
-    rawPrice: 42,
-    psa10Price: 190,
-    psa9Price: 48,
-    gemRate: 41,
-    image: "https://images.pokemontcg.io/sm2/60_hires.png",
-  },
-  {
-    id: "charizard-obs",
-    name: "Charizard ex",
-    set: "Obsidian Flames",
-    cardNumber: "223",
-    era: "SV",
-    yearsAgo: 2,
-    rawPrice: 125,
-    psa10Price: 455,
-    psa9Price: 140,
-    gemRate: 37,
-    image: "https://images.pokemontcg.io/sv3/223_hires.png",
-  },
-  {
-    id: "pidgeot-obs",
-    name: "Pidgeot ex",
-    set: "Obsidian Flames",
-    cardNumber: "225",
-    era: "SV",
-    yearsAgo: 2,
-    rawPrice: 32,
-    psa10Price: 155,
-    psa9Price: 28,
-    gemRate: 49,
-    image: "https://images.pokemontcg.io/sv3/225_hires.png",
-  },
-]
+type ScannerCard = SlabLabCard
 
 type ComputedRow = ScannerCard & {
   grossSpread: number
@@ -342,23 +95,55 @@ function cardEbayUrl(row: Pick<ScannerCard, "id" | "name" | "cardNumber">): stri
 }
 
 export function Psa10SpreadScanner() {
+  const [cards, setCards] = useState<ScannerCard[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [minGemRate, setMinGemRate] = useState(25)
   const [gradingCost, setGradingCost] = useState(DEFAULT_GRADING_COST)
   const [sortMode, setSortMode] = useState<SortMode>("roi")
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError(null)
+      try {
+        const res = await fetch("/api/slablab", { credentials: "same-origin" })
+        const json = (await res.json().catch(() => null)) as
+          | { ok?: boolean; cards?: ScannerCard[]; error?: string }
+          | null
+        if (!res.ok || !json?.cards) {
+          throw new Error(json?.error || "Could not load grading opportunities")
+        }
+        if (!cancelled) setCards(json.cards)
+      } catch (err) {
+        if (!cancelled) {
+          setCards([])
+          setError(err instanceof Error ? err.message : "Could not load grading opportunities")
+        }
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const rows = useMemo(() => {
-    const filtered = MOCK_CARDS.filter((c) => c.gemRate >= minGemRate).map((c) =>
-      computeRow(c, gradingCost),
-    )
+    const filtered = cards
+      .filter((c) => c.gemRate >= minGemRate)
+      .map((c) => computeRow(c, gradingCost))
 
     filtered.sort((a, b) => {
       if (sortMode === "spread") return b.grossSpread - a.grossSpread
       if (sortMode === "multiplier") return b.gradedMultiplier - a.gradedMultiplier
       return b.trueRoiScore - a.trueRoiScore
     })
-    return filtered
-  }, [minGemRate, gradingCost, sortMode])
+    return filtered.slice(0, TOP_CARDS_LIMIT)
+  }, [cards, minGemRate, gradingCost, sortMode])
 
   const selected = rows.find((r) => r.id === selectedId) ?? null
 
@@ -458,14 +243,24 @@ export function Psa10SpreadScanner() {
       </section>
 
       <p className="px-0.5 text-[11px] text-muted-foreground">
-        {rows.length} cards · tap a card for full breakdown · mock comps
+        {loading
+          ? "Loading top grading opportunities…"
+          : error
+            ? error
+            : `Top ${rows.length} of ${TOP_CARDS_LIMIT} · tap a card for full breakdown`}
       </p>
 
       {/* Simplified feed */}
       <div className="flex flex-col gap-2.5">
-        {rows.length === 0 ? (
+        {loading ? (
           <div className="rounded-2xl border border-dashed border-border px-4 py-16 text-center text-sm text-muted-foreground">
-            No cards match these filters.
+            Scanning catalog for PSA 10 grading opportunities…
+          </div>
+        ) : rows.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border px-4 py-16 text-center text-sm text-muted-foreground">
+            {error
+              ? "Could not load opportunities. Try refresh."
+              : "No cards match these filters. Lower the gem-rate floor or wait for price sync."}
           </div>
         ) : (
           rows.map((row, index) => {
@@ -700,7 +495,7 @@ function SlabLabDetailDrawer({
           </a>
 
           <p className="mt-4 text-[11px] text-muted-foreground">
-            Yield uses your selected grading cost. Mock market comps for demo — not live pricing.
+            Yield uses your selected grading cost and gem-rate estimate from sold comps when available.
           </p>
         </div>
       </div>
