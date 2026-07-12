@@ -45,7 +45,13 @@ function timeAgo(iso: string): string {
 }
 
 function asUser(author: LoungePost["author"]) {
-  return { ...author, location: "", bio: "", binderVisibility: "public" as const }
+  return {
+    ...author,
+    location: "",
+    bio: "",
+    binderVisibility: "public" as const,
+    plan: author.plan ?? "free",
+  }
 }
 
 function MediaGrid({ items, compact }: { items: LoungeMediaItem[]; compact?: boolean }) {

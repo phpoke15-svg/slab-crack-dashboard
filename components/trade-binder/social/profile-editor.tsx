@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Loader2, Save } from "lucide-react"
 import type { User } from "@/lib/trade-binder/users"
 import type { BinderVisibility } from "@/lib/trade-binder/profile"
+import { PlanBadge } from "@/components/plan-badge"
 import { UserAvatar } from "./user-avatar"
 
 export function ProfileEditor({
@@ -57,7 +58,10 @@ export function ProfileEditor({
       <div className="flex items-start gap-4">
         <UserAvatar user={profile} size="lg" />
         <div className="min-w-0 flex-1">
-          <p className="text-lg font-semibold text-foreground">Your profile</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-lg font-semibold text-foreground">Your profile</p>
+            <PlanBadge plan={profile.plan ?? "free"} />
+          </div>
           <p className="text-[11px] text-muted-foreground">Visible to other collectors on PokeMatch</p>
         </div>
       </div>

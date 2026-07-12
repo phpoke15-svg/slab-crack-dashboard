@@ -1,3 +1,5 @@
+import type { PlanId } from "@/lib/billing/plans"
+
 export type BinderVisibility = "private" | "friends" | "public"
 
 export type ProfileRow = {
@@ -20,9 +22,11 @@ export type TraderProfile = {
   location: string
   bio: string
   binderVisibility: BinderVisibility
+  /** Account tier — free displays as Starter. */
+  plan: PlanId
 }
 
-export function profileRowToTrader(row: ProfileRow): TraderProfile {
+export function profileRowToTrader(row: ProfileRow, plan: PlanId = "free"): TraderProfile {
   return {
     id: row.id,
     name: row.display_name || row.handle,
@@ -31,6 +35,7 @@ export function profileRowToTrader(row: ProfileRow): TraderProfile {
     location: row.location,
     bio: row.bio,
     binderVisibility: row.binder_visibility,
+    plan,
   }
 }
 

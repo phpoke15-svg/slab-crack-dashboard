@@ -162,6 +162,7 @@ function fallbackProfile(userId: string): TraderProfile {
     location: "",
     bio: "",
     binderVisibility: "public",
+    plan: "free",
   }
 }
 

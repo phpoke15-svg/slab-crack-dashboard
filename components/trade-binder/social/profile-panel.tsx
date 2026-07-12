@@ -25,6 +25,7 @@ import {
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useSocial } from "./social-provider"
 import { PanelShell } from "./panel-shell"
+import { PlanBadge } from "@/components/plan-badge"
 import { UserAvatar } from "./user-avatar"
 import { StarRating, StarInput } from "./star-rating"
 import { ProfileEditor } from "./profile-editor"
@@ -210,9 +211,12 @@ export function ProfilePanel({ userId }: { userId: string }) {
             <div className="flex items-start gap-4">
               <UserAvatar user={profile} size="lg" />
               <div className="min-w-0 flex-1">
-                <h3 className="text-lg font-semibold leading-tight text-foreground text-balance">
-                  {profile.name}
-                </h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-lg font-semibold leading-tight text-foreground text-balance">
+                    {profile.name}
+                  </h3>
+                  <PlanBadge plan={profile.plan ?? "free"} />
+                </div>
                 <p className="text-[11px] text-muted-foreground">{profile.handle}</p>
                 {profile.location && (
                   <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
