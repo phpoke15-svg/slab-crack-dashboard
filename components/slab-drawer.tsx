@@ -19,7 +19,7 @@ import {
 } from "@/lib/slab-data"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
-import { DeficitTechnicalChart } from "@/components/deficit-technical-chart"
+import { PriceHistoryChart } from "@/components/price-history-chart"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
@@ -257,16 +257,13 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
             <div className="mt-4">
               <div className="mb-2 flex items-center gap-2 px-0.5">
                 <Activity className="size-4 text-primary" />
-                <h4 className="font-semibold text-foreground">Deal Intelligence</h4>
+                <h4 className="font-semibold text-foreground">Price History</h4>
               </div>
-              <DeficitTechnicalChart
+              <PriceHistoryChart
                 cardId={selectedCard.id}
                 grade={salesGrade}
-                currentDeficit={
-                  activeQuote.deficit > 0
-                    ? activeQuote.deficit
-                    : selectedCard.rawPrice - activeQuote.slabPrice
-                }
+                currentRaw={selectedCard.rawPrice}
+                currentSlab={activeQuote.slabPrice}
               />
             </div>
           )}

@@ -62,14 +62,39 @@ export async function appendPriceSnapshots(entries: MockCardEntry[]): Promise<vo
   }
 }
 
+/** Resolve watchlist id when callers pass a Pokémon TCG catalog id. */
+export async function resolveWatchlistIdForHistory(id: string): Promise<string> {
+  if (!isSupabaseConfigured()) return id
+
+  const supabase = createReadClient()
+
+  const { data: direct } = await supabase
+    .from("slab_price_snapshots")
+    .select("watchlist_id")
+    .eq("watchlist_id", id)
+    .limit(1)
+  if (direct && direct.length > 0) return id
+
+  const { data: byCard } = await supabase
+    .from("slab_watchlist_cards")
+    .select("id")
+    .eq("card_id", id)
+    .limit(1)
+  const mapped = byCard?.[0]?.id
+  if (typeof mapped === "string" && mapped.length > 0) return mapped
+
+  return id
+}
+
 export async function getDeficitHistoryForCard(
-  watchlistId: string,
+  cardOrWatchlistId: string,
   grade: PsaGradeNumber,
   days = 30,
 ): Promise<PriceSnapshotPoint[]> {
   if (!isSupabaseConfigured()) return []
 
   const supabase = createReadClient()
+  const watchlistId = await resolveWatchlistIdForHistory(cardOrWatchlistId)
   const since = new Date()
   since.setUTCDate(since.getUTCDate() - days)
   const sinceDate = since.toISOString().slice(0, 10)

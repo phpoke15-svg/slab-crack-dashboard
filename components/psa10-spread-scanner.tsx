@@ -20,6 +20,7 @@ import {
   PSA_GRADING_TIERS,
 } from "@/lib/psa-grading-tiers"
 import type { SlabLabCard } from "@/lib/slablab"
+import { PriceHistoryChart } from "@/components/price-history-chart"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 
 const DEFAULT_GRADING_COST = DEFAULT_PSA_GRADING_FEE
@@ -266,85 +267,102 @@ export function Psa10SpreadScanner() {
           rows.map((row, index) => {
             const metric = primaryMetric(row, sortMode)
             return (
-              <button
-                key={row.id}
-                type="button"
+              <div
+                key={row.watchlistId || row.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedId(row.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    setSelectedId(row.id)
+                  }
+                }}
                 className={cn(
-                  "group flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition-all",
+                  "group flex w-full cursor-pointer flex-col gap-2.5 rounded-2xl border border-border bg-card p-3 text-left transition-all",
                   "hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
                   row.primeSlot && "border-primary/25",
                 )}
               >
-                <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground">
-                  {index + 1}
-                </span>
-                <div className="relative aspect-[3/4] w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-muted/40 sm:w-16">
-                  <CardImage
-                    card={{
-                      id: row.id,
-                      name: row.name,
-                      set: row.set,
-                      image: row.image,
-                      cardNumber: row.cardNumber,
-                    }}
-                    alt={`${row.name} card`}
-                    sizes="64px"
-                    className="object-contain p-0.5 transition-transform duration-300 group-hover:scale-105"
-                    upgrade={false}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="truncate font-semibold text-foreground">{row.name}</h3>
-                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                      #{row.cardNumber}
+                <div className="flex w-full items-center gap-3">
+                  <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <div className="relative aspect-[3/4] w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-muted/40 sm:w-16">
+                    <CardImage
+                      card={{
+                        id: row.id,
+                        name: row.name,
+                        set: row.set,
+                        image: row.image,
+                        cardNumber: row.cardNumber,
+                      }}
+                      alt={`${row.name} card`}
+                      sizes="64px"
+                      className="object-contain p-0.5 transition-transform duration-300 group-hover:scale-105"
+                      upgrade={false}
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate font-semibold text-foreground">{row.name}</h3>
+                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
+                        #{row.cardNumber}
+                      </span>
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {row.set} · {row.era}
+                    </p>
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {row.primeSlot && (
+                        <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                          Prime
+                        </span>
+                      )}
+                      {row.dangerZone && (
+                        <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                          10-or-bust
+                        </span>
+                      )}
+                      <span className="text-[10px] text-muted-foreground">{row.gemRate}% gem</span>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      {metric.label}
                     </span>
+                    <span
+                      className={cn(
+                        "font-mono text-sm font-bold tabular-nums",
+                        sortMode === "roi" && row.trueRoiScore < 0
+                          ? "text-destructive"
+                          : "text-primary",
+                      )}
+                    >
+                      {metric.value}
+                    </span>
+                    <a
+                      href={cardEbayUrl(row)}
+                      target="_blank"
+                      rel="noopener noreferrer sponsored"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-secondary/50 px-2 py-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+                    >
+                      eBay
+                      <ExternalLink className="size-3" aria-hidden="true" />
+                    </a>
                   </div>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {row.set} · {row.era}
-                  </p>
-                  <div className="mt-1.5 flex flex-wrap gap-1">
-                    {row.primeSlot && (
-                      <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                        Prime
-                      </span>
-                    )}
-                    {row.dangerZone && (
-                      <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-                        10-or-bust
-                      </span>
-                    )}
-                    <span className="text-[10px] text-muted-foreground">{row.gemRate}% gem</span>
-                  </div>
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                    {metric.label}
-                  </span>
-                  <span
-                    className={cn(
-                      "font-mono text-sm font-bold tabular-nums",
-                      sortMode === "roi" && row.trueRoiScore < 0
-                        ? "text-destructive"
-                        : "text-primary",
-                    )}
-                  >
-                    {metric.value}
-                  </span>
-                  <a
-                    href={cardEbayUrl(row)}
-                    target="_blank"
-                    rel="noopener noreferrer sponsored"
-                    onClick={(e) => e.stopPropagation()}
-                    className="inline-flex items-center gap-1 rounded-lg border border-border bg-secondary/50 px-2 py-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-                  >
-                    eBay
-                    <ExternalLink className="size-3" aria-hidden="true" />
-                  </a>
-                </div>
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-              </button>
+                <PriceHistoryChart
+                  cardId={row.watchlistId || row.id}
+                  grade={10}
+                  currentRaw={row.rawPrice}
+                  currentSlab={row.psa10Price}
+                  compact
+                  title="30-day prices · PSA 10"
+                />
+              </div>
             )
           })
         )}
@@ -456,6 +474,20 @@ function SlabLabDetailDrawer({
             <Stat label="Net after grade" value={money(row.netSpread)} accent={row.netSpread >= 0} danger={row.netSpread < 0} />
             <Stat label="Multiplier" value={`${row.gradedMultiplier.toFixed(2)}×`} />
             <Stat label="Grading cost" value={money(row.gradingCost)} />
+          </div>
+
+          <div className="mt-4">
+            <div className="mb-2 flex items-center gap-2 px-0.5">
+              <TrendingUp className="size-4 text-primary" />
+              <h4 className="font-semibold text-foreground">Price History</h4>
+            </div>
+            <PriceHistoryChart
+              cardId={row.watchlistId || row.id}
+              grade={10}
+              currentRaw={row.rawPrice}
+              currentSlab={row.psa10Price}
+              title="30-day prices · PSA 10"
+            />
           </div>
 
           <div className="mt-4 rounded-2xl border border-primary/30 bg-primary/5 p-4">

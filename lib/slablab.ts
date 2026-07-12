@@ -8,6 +8,8 @@ import { resolvePokemonCardImage } from "@/lib/pokemon-tcg"
 
 export type SlabLabCard = {
   id: string
+  /** Watchlist / snapshot key — prefer this for price history APIs. */
+  watchlistId: string
   name: string
   set: string
   era: string
@@ -63,6 +65,7 @@ export function toSlabLabCard(entry: MockCardEntry): SlabLabCard | null {
 
   return {
     id: pokemonId || entry.id,
+    watchlistId: entry.id,
     name: entry.cardName,
     set: entry.setName,
     era: eraFromYears(yearsAgo),

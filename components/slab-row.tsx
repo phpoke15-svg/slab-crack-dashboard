@@ -12,7 +12,7 @@ import {
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
-import { DeficitTechnicalChart } from "@/components/deficit-technical-chart"
+import { PriceHistoryChart } from "@/components/price-history-chart"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 
 interface SlabRowProps {
@@ -138,10 +138,11 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
       />
 
       {priced && activeQuote && activeQuote.slabPrice > 0 && (
-        <DeficitTechnicalChart
+        <PriceHistoryChart
           cardId={card.id}
           grade={activeGrade}
-          currentDeficit={activeQuote.deficit > 0 ? activeQuote.deficit : card.rawPrice - activeQuote.slabPrice}
+          currentRaw={card.rawPrice}
+          currentSlab={activeQuote.slabPrice}
           compact
         />
       )}
