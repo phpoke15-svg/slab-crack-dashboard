@@ -10,6 +10,7 @@ export default function robots(): MetadataRoute.Robots {
     "/supreme",
     "/grade-check",
     "/buyout-radar",
+    "/card-lounge",
     "/lounge",
     "/pokewatch/mobile",
     "/queue-watch/mobile",

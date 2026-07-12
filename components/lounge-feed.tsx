@@ -113,10 +113,10 @@ export function LoungeFeed() {
       try {
         const res = await fetch(`/api/lounge?mode=${nextMode}`, { cache: "no-store" })
         const json = await res.json()
-        if (!res.ok || !json.ok) throw new Error(json.error || "Could not load lounge")
+        if (!res.ok || !json.ok) throw new Error(json.error || "Could not load CardLounge")
         setData(json as LoungeFeedResponse)
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not load lounge")
+        setError(err instanceof Error ? err.message : "Could not load CardLounge")
       } finally {
         setLoading(false)
       }
@@ -313,7 +313,7 @@ export function LoungeFeed() {
                 : "border border-border bg-card/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
             )}
           >
-            {m === "all" ? "Lounge" : "Following"}
+            {m === "all" ? "CardLounge" : "Following"}
           </button>
         ))}
         <button
@@ -449,7 +449,7 @@ export function LoungeFeed() {
       {!loading && data && data.posts.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
           {mode === "following"
-            ? "No posts from people you follow yet. Switch to Lounge and follow collectors."
+            ? "No posts from people you follow yet. Switch to CardLounge and follow collectors."
             : "No posts yet — be the first to say something."}
         </p>
       ) : null}
