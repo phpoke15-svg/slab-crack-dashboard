@@ -44,27 +44,77 @@ async function groupByField(
   }
 }
 
-async function countAuthUsers(admin: Admin): Promise<number | null> {
+async function summarizeAuthUsers(admin: Admin): Promise<{
+  total: number | null
+  signedIn1d: number | null
+  signedIn7d: number | null
+  signedIn30d: number | null
+  created1d: number | null
+  created7d: number | null
+  created30d: number | null
+}> {
+  const empty = {
+    total: null as number | null,
+    signedIn1d: null as number | null,
+    signedIn7d: null as number | null,
+    signedIn30d: null as number | null,
+    created1d: null as number | null,
+    created7d: null as number | null,
+    created30d: null as number | null,
+  }
   try {
-    const listed = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 })
-    let total = listed.data.users.length
-    if (listed.data.users.length === 1000) {
-      let page = 2
-      while (page <= 20) {
-        const next = await admin.auth.admin.listUsers({ page, perPage: 1000 })
-        total += next.data.users.length
-        if (next.data.users.length < 1000) break
-        page += 1
+    const now = Date.now()
+    const t1 = now - 1 * 24 * 60 * 60 * 1000
+    const t7 = now - 7 * 24 * 60 * 60 * 1000
+    const t30 = now - 30 * 24 * 60 * 60 * 1000
+
+    let total = 0
+    let signedIn1d = 0
+    let signedIn7d = 0
+    let signedIn30d = 0
+    let created1d = 0
+    let created7d = 0
+    let created30d = 0
+
+    let page = 1
+    while (page <= 20) {
+      const listed = await admin.auth.admin.listUsers({ page, perPage: 1000 })
+      const users = listed.data.users
+      total += users.length
+      for (const u of users) {
+        const signIn = u.last_sign_in_at ? new Date(u.last_sign_in_at).getTime() : 0
+        if (signIn >= t1) signedIn1d += 1
+        if (signIn >= t7) signedIn7d += 1
+        if (signIn >= t30) signedIn30d += 1
+        const created = u.created_at ? new Date(u.created_at).getTime() : 0
+        if (created >= t1) created1d += 1
+        if (created >= t7) created7d += 1
+        if (created >= t30) created30d += 1
       }
+      if (users.length < 1000) break
+      page += 1
     }
-    return total
+
+    return {
+      total,
+      signedIn1d,
+      signedIn7d,
+      signedIn30d,
+      created1d,
+      created7d,
+      created30d,
+    }
   } catch {
-    return null
+    return empty
   }
 }
 
 function daysAgoIso(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+}
+
+function minutesAgoIso(minutes: number): string {
+  return new Date(Date.now() - minutes * 60 * 1000).toISOString()
 }
 
 export async function GET() {
@@ -105,6 +155,22 @@ export async function GET() {
 
   const counts: Record<string, number | null> = {}
   let authUserCount: number | null = null
+  let accounts = {
+    total: null as number | null,
+    created1d: null as number | null,
+    created7d: null as number | null,
+    created30d: null as number | null,
+    signedIn1d: null as number | null,
+    signedIn7d: null as number | null,
+    signedIn30d: null as number | null,
+  }
+  let activity = {
+    activeNow: null as number | null,
+    active1d: null as number | null,
+    active7d: null as number | null,
+    active30d: null as number | null,
+    everSeen: null as number | null,
+  }
   let planBreakdown: Record<string, number> = {}
   let subscriptionStatus: Record<string, number> = {}
   let subscriptionPlan: Record<string, number> = {}
@@ -128,7 +194,20 @@ export async function GET() {
       }),
     )
 
-    authUserCount = await countAuthUsers(admin)
+    const authSummary = await summarizeAuthUsers(admin)
+    authUserCount = authSummary.total
+    accounts = {
+      total: authSummary.total,
+      created1d: authSummary.created1d,
+      created7d: authSummary.created7d,
+      created30d: authSummary.created30d,
+      signedIn1d: authSummary.signedIn1d,
+      signedIn7d: authSummary.signedIn7d,
+      signedIn30d: authSummary.signedIn30d,
+    }
+
+    const since15m = minutesAgoIso(15)
+    const since1 = daysAgoIso(1)
     const since7 = daysAgoIso(7)
     const since30 = daysAgoIso(30)
 
@@ -148,6 +227,11 @@ export async function GET() {
       inStock,
       liveQueue,
       highAnomalies,
+      seenNow,
+      seen1d,
+      seen7d,
+      seen30d,
+      everSeen,
     ] = await Promise.all([
       groupByField(admin, "profiles", "plan"),
       groupByField(admin, "subscriptions", "status"),
@@ -196,6 +280,31 @@ export async function GET() {
         .select("*", { count: "exact", head: true })
         .gte("percentage_savings", 20)
         .then(({ count, error }) => (error ? null : (count ?? 0))),
+      admin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .gte("last_seen_at", since15m)
+        .then(({ count, error }) => (error ? null : (count ?? 0))),
+      admin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .gte("last_seen_at", since1)
+        .then(({ count, error }) => (error ? null : (count ?? 0))),
+      admin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .gte("last_seen_at", since7)
+        .then(({ count, error }) => (error ? null : (count ?? 0))),
+      admin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .gte("last_seen_at", since30)
+        .then(({ count, error }) => (error ? null : (count ?? 0))),
+      admin
+        .from("profiles")
+        .select("*", { count: "exact", head: true })
+        .not("last_seen_at", "is", null)
+        .then(({ count, error }) => (error ? null : (count ?? 0))),
     ])
 
     planBreakdown = planBd
@@ -213,6 +322,13 @@ export async function GET() {
     restockInStock = inStock
     queueWatchLive = liveQueue
     anomaliesHigh = highAnomalies
+    activity = {
+      activeNow: seenNow,
+      active1d: seen1d,
+      active7d: seen7d,
+      active30d: seen30d,
+      everSeen,
+    }
   }
 
   let pokematchReady: boolean | null = null
@@ -277,6 +393,8 @@ export async function GET() {
       queueReports: counts.queue_watch_reports ?? null,
       restockProducts: counts.restock_products ?? null,
     },
+    accounts,
+    activity,
     growth: {
       profilesLast7d,
       profilesLast30d,

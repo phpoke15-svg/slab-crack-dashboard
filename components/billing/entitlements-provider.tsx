@@ -87,6 +87,27 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     void refresh()
   }, [authLoading, userId, refresh])
 
+  // Heartbeat for Site Insights active-user counts (throttled server-side).
+  useEffect(() => {
+    if (!userId) return
+
+    const ping = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return
+      void fetch("/api/presence", { method: "POST", credentials: "same-origin" })
+    }
+
+    ping()
+    const interval = window.setInterval(ping, 5 * 60 * 1000)
+    const onVisible = () => {
+      if (document.visibilityState === "visible") ping()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [userId])
+
   const startCheckout = useCallback(async (priceKey: string) => {
     const res = await fetch("/api/billing/checkout", {
       method: "POST",

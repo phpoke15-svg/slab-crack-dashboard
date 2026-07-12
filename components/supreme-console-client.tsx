@@ -45,6 +45,22 @@ type MetricsPayload = {
     queueReports: number | null
     restockProducts: number | null
   }
+  accounts: {
+    total: number | null
+    created1d: number | null
+    created7d: number | null
+    created30d: number | null
+    signedIn1d: number | null
+    signedIn7d: number | null
+    signedIn30d: number | null
+  }
+  activity: {
+    activeNow: number | null
+    active1d: number | null
+    active7d: number | null
+    active30d: number | null
+    everSeen: number | null
+  }
   growth: {
     profilesLast7d: number | null
     profilesLast30d: number | null
@@ -281,21 +297,25 @@ export function SupremeConsoleClient() {
                   <SectionLabel icon={Activity} title="Overview" />
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <Kpi
-                      label="Auth users"
-                      value={fmt(data.overview.authUsers)}
-                      hint={`${fmt(data.growth.profilesLast7d)} new · 7d`}
+                      label="Accounts"
+                      value={fmt(data.accounts?.total ?? data.overview.authUsers)}
+                      hint={`${fmt(data.accounts?.created7d)} new · 7d`}
                     />
                     <Kpi
-                      label="Profiles"
-                      value={fmt(data.overview.profiles)}
-                      hint={`${fmt(data.growth.profilesLast30d)} · 30d`}
+                      label="Active now"
+                      value={fmt(data.activity?.activeNow)}
+                      hint="seen in last 15 min"
+                    />
+                    <Kpi
+                      label="Active · 7d"
+                      value={fmt(data.activity?.active7d)}
+                      hint={`${fmt(data.accounts?.signedIn7d)} signed in · 7d`}
                     />
                     <Kpi
                       label="Paying plans"
                       value={fmt(data.overview.payingProfiles)}
                       hint={`${fmt(data.overview.activeSubscriptions)} active subs`}
                     />
-                    <Kpi label="Trades" value={fmt(data.overview.trades)} hint="all statuses" />
                     <Kpi
                       label="Slab anomalies"
                       value={fmt(data.overview.anomalies)}
@@ -303,6 +323,50 @@ export function SupremeConsoleClient() {
                     />
                   </div>
                 </section>
+
+                {/* Accounts & activity */}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <section className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
+                    <SectionLabel icon={Users} title="Accounts" />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Auth accounts (sign-ups and last sign-in from Supabase Auth).
+                    </p>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <MiniStat label="Total accounts" value={fmt(data.accounts?.total)} />
+                      <MiniStat label="Profiles" value={fmt(data.overview.profiles)} />
+                      <MiniStat label="Created · 1d" value={fmt(data.accounts?.created1d)} />
+                      <MiniStat label="Created · 7d" value={fmt(data.accounts?.created7d)} />
+                      <MiniStat label="Created · 30d" value={fmt(data.accounts?.created30d)} />
+                      <MiniStat label="Signed in · 1d" value={fmt(data.accounts?.signedIn1d)} />
+                      <MiniStat label="Signed in · 7d" value={fmt(data.accounts?.signedIn7d)} />
+                      <MiniStat label="Signed in · 30d" value={fmt(data.accounts?.signedIn30d)} />
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
+                    <SectionLabel icon={Activity} title="Active users" />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      On-site activity from signed-in sessions (updates about every 5 minutes).
+                    </p>
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      <MiniStat label="Active now · 15m" value={fmt(data.activity?.activeNow)} />
+                      <MiniStat label="Active · 1d" value={fmt(data.activity?.active1d)} />
+                      <MiniStat label="Active · 7d" value={fmt(data.activity?.active7d)} />
+                      <MiniStat label="Active · 30d" value={fmt(data.activity?.active30d)} />
+                      <MiniStat
+                        label="Ever tracked"
+                        value={fmt(data.activity?.everSeen)}
+                        className="col-span-2"
+                      />
+                    </div>
+                    {data.activity?.everSeen == null && (
+                      <p className="mt-3 text-[11px] text-amber-600 dark:text-amber-400">
+                        Run <span className="font-mono">supabase/profile-last-seen.sql</span> in
+                        Supabase to enable on-site activity tracking.
+                      </p>
+                    )}
+                  </section>
+                </div>
 
                 {/* Growth + billing */}
                 <div className="grid gap-6 lg:grid-cols-2">

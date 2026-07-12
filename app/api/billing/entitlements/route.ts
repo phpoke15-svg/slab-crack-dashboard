@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { getEntitlementsForUser, isStripeConfigured } from "@/lib/billing/stripe"
 import { entitlementsForPlan } from "@/lib/billing/plans"
+import { touchLastSeen } from "@/lib/presence"
 
 export const dynamic = "force-dynamic"
 
@@ -16,6 +17,7 @@ export async function GET() {
   }
 
   try {
+    void touchLastSeen(auth.user.id)
     const entitlements = await getEntitlementsForUser(auth.user.id)
     return NextResponse.json({
       ...entitlements,
