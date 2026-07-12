@@ -467,7 +467,10 @@ function SlabLabDetailDrawer({
 
           <div className="mt-5 grid grid-cols-2 gap-2.5">
             <Stat label="Raw NM" value={money(row.rawPrice)} />
-            <Stat label="PSA 10" value={money(row.psa10Price)} />
+            <Stat
+              label={row.psa10Estimated ? "PSA 10 (est.)" : "PSA 10"}
+              value={money(row.psa10Price)}
+            />
             <Stat label="PSA 9" value={money(row.psa9Price)} danger={row.dangerZone} />
             <Stat label="Gem rate" value={`${row.gemRate}%`} />
             <Stat label="Gross spread" value={money(row.grossSpread)} accent />

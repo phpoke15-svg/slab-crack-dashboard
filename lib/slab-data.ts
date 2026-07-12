@@ -350,6 +350,32 @@ export const GRADE_MULTIPLIER: Record<number, number> = {
   10: 1,
 }
 
+/**
+ * PSA 10 sold comps are often sparse on eBay. When missing, imply PSA 10 from the
+ * highest available grade price using GRADE_MULTIPLIER (e.g. PSA 9 / 0.45).
+ */
+export function resolvePsa10Price(entry: MockCardEntry): {
+  price: number
+  estimated: boolean
+} {
+  const quotes = getGradeQuotes(entry)
+  const direct = quotes.find((q) => q.grade === 10)?.slabPrice ?? 0
+  if (direct > 0) return { price: direct, estimated: false }
+
+  const anchors = quotes
+    .filter((q) => q.slabPrice > 0 && q.grade !== 10)
+    .sort((a, b) => b.grade - a.grade)
+
+  for (const quote of anchors) {
+    const mult = GRADE_MULTIPLIER[quote.grade]
+    if (!mult || mult <= 0) continue
+    const implied = quote.slabPrice / mult
+    if (implied > 0) return { price: implied, estimated: true }
+  }
+
+  return { price: 0, estimated: false }
+}
+
 function gradeNum(grade: Grade): number {
   return Number(grade.replace("PSA ", ""))
 }

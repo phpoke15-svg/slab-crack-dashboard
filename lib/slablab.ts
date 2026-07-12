@@ -1,7 +1,12 @@
 import { getCatalogFeedFromDb, isSupabaseConfigured } from "@/lib/db/catalog-feed"
 import { readAnomaliesCache } from "@/lib/sync-anomalies"
 import mockData from "@/lib/mockData.json"
-import { getGradeQuotes, normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
+import {
+  getGradeQuotes,
+  normalizeCardEntry,
+  resolvePsa10Price,
+  type MockCardEntry,
+} from "@/lib/slab-data"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { resolvePokemonCardImage } from "@/lib/pokemon-tcg"
@@ -16,6 +21,8 @@ export type SlabLabCard = {
   yearsAgo: number
   rawPrice: number
   psa10Price: number
+  /** True when PSA 10 was implied from a lower grade (sold comps sparse). */
+  psa10Estimated?: boolean
   psa9Price: number
   gemRate: number
   image: string
@@ -55,7 +62,7 @@ export function estimateGemRate(entry: MockCardEntry): number {
 
 export function toSlabLabCard(entry: MockCardEntry): SlabLabCard | null {
   const quotes = getGradeQuotes(entry)
-  const psa10 = quotes.find((q) => q.grade === 10)?.slabPrice ?? 0
+  const { price: psa10, estimated: psa10Estimated } = resolvePsa10Price(entry)
   const psa9 = quotes.find((q) => q.grade === 9)?.slabPrice ?? 0
   const raw = Number(entry.rawPrice) || 0
   if (raw <= 0 || psa10 <= 0 || psa10 <= raw) return null
@@ -71,7 +78,8 @@ export function toSlabLabCard(entry: MockCardEntry): SlabLabCard | null {
     era: eraFromYears(yearsAgo),
     yearsAgo,
     rawPrice: raw,
-    psa10Price: psa10,
+    psa10Price: Math.round(psa10 * 100) / 100,
+    psa10Estimated,
     psa9Price: psa9,
     gemRate: estimateGemRate(entry),
     image: entry.imageUrl || "/placeholder.svg",
