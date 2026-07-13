@@ -27,11 +27,51 @@ import {
   type MockCardEntry,
 } from "@/lib/slab-data"
 
-type Phase = "camera" | "identify" | "hud"
+type Phase = "camera" | "identifying" | "manual" | "hud"
+
+type IdentifyResponse = {
+  ok?: boolean
+  error?: string
+  detected?: {
+    cardName: string
+    setName: string
+    cardNumber: string
+    confidence: number
+    notes?: string
+  }
+  query?: string
+  hit?: CardSearchHit | null
+  candidates?: CardSearchHit[]
+  card?: MockCardEntry | null
+}
 
 function formatMoney(n: number) {
   if (!Number.isFinite(n) || n <= 0) return "—"
   return `$${n.toFixed(2)}`
+}
+
+/** Downscale/compress camera photos so vision API stays fast + under body limits. */
+async function compressImageDataUrl(dataUrl: string, maxEdge = 1280, quality = 0.72): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
+      const w = Math.max(1, Math.round(img.width * scale))
+      const h = Math.max(1, Math.round(img.height * scale))
+      const canvas = document.createElement("canvas")
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext("2d")
+      if (!ctx) {
+        resolve(dataUrl)
+        return
+      }
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL("image/jpeg", quality))
+    }
+    img.onerror = () => resolve(dataUrl)
+    img.src = dataUrl
+  })
 }
 
 export function SlabcrackScanClient() {
@@ -46,12 +86,14 @@ export function SlabcrackScanClient() {
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraStarting, setCameraStarting] = useState(false)
   const [snapshot, setSnapshot] = useState<string | null>(null)
+  const [identifyStatus, setIdentifyStatus] = useState("Reading card…")
 
   const [query, setQuery] = useState("")
   const [hits, setHits] = useState<CardSearchHit[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
+  const [detectedLabel, setDetectedLabel] = useState<string | null>(null)
 
   const [card, setCard] = useState<MockCardEntry | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -124,7 +166,7 @@ export function SlabcrackScanClient() {
 
   useEffect(() => {
     const q = query.trim()
-    if (phase !== "identify" || q.length < 2) {
+    if (phase !== "manual" || q.length < 2) {
       setHits([])
       setSearchLoading(false)
       return
@@ -142,13 +184,56 @@ export function SlabcrackScanClient() {
     return () => window.clearTimeout(timer)
   }, [phase, query])
 
+  const autoIdentify = useCallback(async (dataUrl: string) => {
+    setPhase("identifying")
+    setIdentifyStatus("Detecting card with AI…")
+    setLookupError(null)
+    setDetectedLabel(null)
+    setCard(null)
+
+    try {
+      const compressed = await compressImageDataUrl(dataUrl)
+      setIdentifyStatus("Matching catalog + pulling prices…")
+      const res = await fetch("/api/slabcrack/identify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: compressed }),
+      })
+      const json = (await res.json().catch(() => null)) as IdentifyResponse | null
+
+      if (!res.ok || !json?.ok) {
+        const message = json?.error || "Could not identify this card automatically."
+        setLookupError(message)
+        setQuery(json?.query || json?.detected?.cardName || "")
+        if (json?.candidates?.length) setHits(json.candidates)
+        setPhase("manual")
+        return
+      }
+
+      const label = [json.detected?.cardName, json.detected?.cardNumber ? `#${json.detected.cardNumber}` : null]
+        .filter(Boolean)
+        .join(" ")
+      setDetectedLabel(label || null)
+
+      if (json.card) {
+        setCard(normalizeCardEntry(json.card))
+        setPhase("hud")
+        return
+      }
+
+      setQuery(json.query || label || "")
+      setHits(json.candidates ?? [])
+      setLookupError("Detected the card but couldn’t load prices. Pick a match below.")
+      setPhase("manual")
+    } catch {
+      setLookupError("Identification failed. Search manually below.")
+      setPhase("manual")
+    }
+  }, [])
+
   const goIdentify = (dataUrl: string) => {
     setSnapshot(dataUrl)
-    setPhase("identify")
-    setQuery("")
-    setHits([])
-    setCard(null)
-    setLookupError(null)
+    void autoIdentify(dataUrl)
   }
 
   const captureFrame = () => {
@@ -211,6 +296,7 @@ export function SlabcrackScanClient() {
     setHits([])
     setQuery("")
     setLookupError(null)
+    setDetectedLabel(null)
     setDrawerOpen(false)
     setCameraError(null)
     setPhase("camera")
@@ -258,7 +344,6 @@ export function SlabcrackScanClient() {
         <SiteAuthButton className="shrink-0" />
       </header>
 
-      {/* Preview — never overlaps controls (video can't steal taps) */}
       <div className="relative z-0 min-h-0 flex-1 overflow-hidden bg-zinc-950">
         {phase === "camera" ? (
           <>
@@ -275,9 +360,9 @@ export function SlabcrackScanClient() {
             {!cameraReady ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950 px-6 text-center">
                 <Camera className="size-10 text-primary" />
-                <p className="text-sm font-medium text-white">Scan a card for live prices</p>
+                <p className="text-sm font-medium text-white">Snap a card — AI identifies it</p>
                 <p className="max-w-xs text-xs text-white/55">
-                  Start the live camera, or use Take photo / Upload — both work on phone.
+                  Take a photo and we’ll detect the card, then open live SlabCrack prices automatically.
                 </p>
               </div>
             ) : (
@@ -295,6 +380,13 @@ export function SlabcrackScanClient() {
         ) : snapshot ? (
           <div className="relative size-full">
             <Image src={snapshot} alt="Captured card" fill className="object-cover" unoptimized priority />
+            {phase === "identifying" ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/65 px-6 text-center backdrop-blur-sm">
+                <Loader2 className="size-8 animate-spin text-primary" />
+                <p className="text-sm font-semibold text-white">{identifyStatus}</p>
+                <p className="text-xs text-white/60">Usually a few seconds</p>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-white/60">No snapshot</div>
@@ -303,6 +395,9 @@ export function SlabcrackScanClient() {
         {phase === "hud" && card ? (
           <div className="absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black via-black/95 to-transparent px-4 pb-5 pt-14">
             <div className="rounded-2xl border border-white/15 bg-black/70 p-3 backdrop-blur-md">
+              {detectedLabel ? (
+                <p className="mb-2 text-[11px] font-medium text-primary">AI match · {detectedLabel}</p>
+              ) : null}
               <div className="flex items-start gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-900">
                   {card.imageUrl ? (
@@ -352,7 +447,6 @@ export function SlabcrackScanClient() {
         ) : null}
       </div>
 
-      {/* Controls sit in document flow under the preview — always tappable */}
       {phase === "camera" ? (
         <div className="relative z-40 shrink-0 border-t border-white/10 bg-zinc-950 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
           {cameraError ? (
@@ -411,19 +505,15 @@ export function SlabcrackScanClient() {
               </>
             )}
           </div>
-
-          <p className="mt-3 text-center text-[11px] text-white/45">
-            Take photo works everywhere · live camera needs permission
-          </p>
         </div>
       ) : null}
 
-      {phase === "identify" ? (
+      {phase === "manual" ? (
         <div className="relative z-40 flex max-h-[50vh] shrink-0 flex-col border-t border-white/10 bg-zinc-950">
           <div className="flex items-center justify-between px-4 pt-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <ScanLine className="size-4 text-primary" />
-              Identify card
+              Confirm card
             </div>
             <button
               type="button"
@@ -435,7 +525,7 @@ export function SlabcrackScanClient() {
             </button>
           </div>
           <p className="px-4 pt-1 text-xs text-white/55">
-            Type the name and number (e.g. Umbreon 161).
+            Auto-detect needed a handoff — pick the right card (or edit the search).
           </p>
 
           <div className="relative px-4 pt-3">
@@ -443,14 +533,13 @@ export function SlabcrackScanClient() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              autoFocus
               placeholder="Card name, set, or number…"
               className="h-11 w-full rounded-xl border border-white/15 bg-white/5 pl-10 pr-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-primary/50"
             />
           </div>
 
           {lookupError ? (
-            <p className="mx-4 mt-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-200">
+            <p className="mx-4 mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs text-amber-100">
               {lookupError}
             </p>
           ) : null}

@@ -39,7 +39,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Buy, crack, and sell — spot slabs where cracking and selling raw beats the market price",
       "Buy high-end cards under market for your personal collection",
       "Market awareness — track graded vs raw pricing gaps and stay ahead of the market",
-      "Camera scan — snap a card and pull live raw vs PSA prices on the spot",
+      "Camera snap — AI identifies the card, then live SlabCrack prices open automatically",
     ],
     icon: Layers,
   },
@@ -49,9 +49,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     name: "SlabScan",
     tagline: "Camera price HUD",
     description:
-      "Point your camera at a card, identify it, and see live SlabCrack raw vs PSA grade prices.",
+      "Point your camera at a card — AI detects it and opens live SlabCrack raw vs PSA prices.",
     highlights: [
-      "Live camera capture with identify search",
+      "AI card detection from a single photo",
       "Raw price plus PSA 7–9 deficit grid",
       "Open full SlabCrack analysis from the HUD",
     ],
