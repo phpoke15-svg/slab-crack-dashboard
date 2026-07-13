@@ -38,11 +38,11 @@ export default function OpenGraphImage() {
             }}
           >
             <span style={{ color: "#f4f7fb" }}>C</span>
-            <span style={{ color: "#3ecf8e" }}>T</span>
+            <span style={{ color: "#4ade80" }}>T</span>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ fontSize: 42, fontWeight: 800, letterSpacing: -1.5 }}>
-              Collec<span style={{ color: "#3ecf8e" }}>Tools</span>
+              Collec<span style={{ color: "#4ade80" }}>Tools</span>
             </div>
             <div style={{ fontSize: 22, color: "rgba(244,247,251,0.65)", marginTop: 4 }}>
               Pokémon TCG collector toolkit
