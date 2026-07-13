@@ -23,6 +23,8 @@ type AuthContextValue = {
   getSupabase: () => SupabaseClient
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
   signUp: (email: string, password: string) => Promise<{ error: string | null }>
+  requestPasswordReset: (email: string) => Promise<{ error: string | null }>
+  updatePassword: (password: string) => Promise<{ error: string | null }>
   signOut: () => Promise<void>
   runWithAuth: (action: () => void | Promise<void>) => void
 }
@@ -121,6 +123,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!error) {
           void fetch("/api/profile").catch(() => {})
         }
+        return { error: error?.message ?? null }
+      },
+      requestPasswordReset: async (email) => {
+        if (!isConfigured) return { error: "Supabase is not configured." }
+        const origin =
+          typeof window !== "undefined" ? window.location.origin : "https://www.collectools.app"
+        const { error } = await getSupabase().auth.resetPasswordForEmail(email.trim(), {
+          redirectTo: `${origin}/reset-password`,
+        })
+        return { error: error?.message ?? null }
+      },
+      updatePassword: async (password) => {
+        if (!isConfigured) return { error: "Supabase is not configured." }
+        const { error } = await getSupabase().auth.updateUser({ password })
         return { error: error?.message ?? null }
       },
       signOut: async () => {
