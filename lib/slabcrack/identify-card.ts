@@ -23,8 +23,20 @@ export type IdentifyCardResult = {
   hit: CardSearchHit | null
   candidates: CardSearchHit[]
   card: MockCardEntry | null
-  source: "openai"
+  source: "gemini" | "openai"
 }
+
+const IDENTIFY_PROMPT = [
+  "Identify the Pokémon trading card in this photo.",
+  "Return JSON with keys:",
+  'cardName (string, pokemon name + stage like "Umbreon ex"),',
+  "setName (string, English set name if visible, else empty string),",
+  'cardNumber (string, collector number like "161" or "161/131", else empty),',
+  "confidence (number 0-1),",
+  "notes (short string).",
+  "Prefer the English name when bilingual. Ignore PSA slabs labels for the card identity.",
+  "If unsure, still guess the most likely cardName + cardNumber and lower confidence.",
+].join(" ")
 
 function cleanNumber(raw: string): string {
   const trimmed = raw.trim()
@@ -73,12 +85,93 @@ function scoreHit(hit: CardSearchHit, detected: DetectedCard): number {
   return score
 }
 
+function parseDetectedJson(raw: string, provider: string): DetectedCard {
+  let parsed: Record<string, unknown>
+  try {
+    parsed = JSON.parse(raw) as Record<string, unknown>
+  } catch {
+    throw new Error(`${provider} returned invalid JSON for card identity.`)
+  }
+
+  const cardName = String(parsed.cardName ?? "").trim()
+  const setName = String(parsed.setName ?? "").trim()
+  const cardNumber = cleanNumber(String(parsed.cardNumber ?? ""))
+  const confidenceRaw = Number(parsed.confidence)
+  const confidence = Number.isFinite(confidenceRaw)
+    ? Math.max(0, Math.min(1, confidenceRaw))
+    : 0.5
+  const notes = String(parsed.notes ?? "").trim() || undefined
+
+  if (!cardName && !cardNumber) {
+    throw new Error("Could not read a card name or number from the photo.")
+  }
+
+  return { cardName, setName, cardNumber, confidence, notes }
+}
+
+function splitDataUrl(imageDataUrl: string): { mimeType: string; base64: string } {
+  const match = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
+  if (!match) {
+    throw new Error("Expected a data:image base64 URL from the camera capture.")
+  }
+  return { mimeType: match[1], base64: match[2] }
+}
+
+async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is not configured.")
+  }
+
+  const model = process.env.GEMINI_VISION_MODEL?.trim() || "gemini-2.5-flash"
+  const { mimeType, base64 } = splitDataUrl(imageDataUrl)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: IDENTIFY_PROMPT },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: base64,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0,
+        responseMimeType: "application/json",
+      },
+    }),
+  })
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => "")
+    throw new Error(`Gemini vision failed (${response.status}): ${body.slice(0, 240)}`)
+  }
+
+  const json = (await response.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+  }
+  const raw = json.candidates?.[0]?.content?.parts
+    ?.map((p) => p.text ?? "")
+    .join("")
+    .trim()
+  if (!raw) throw new Error("Gemini returned an empty identification.")
+  return parseDetectedJson(raw, "Gemini")
+}
+
 async function detectWithOpenAI(imageDataUrl: string): Promise<DetectedCard> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) {
-    throw new Error(
-      "OPENAI_API_KEY is not configured. Add it in Vercel env to enable automatic card detection.",
-    )
+    throw new Error("OPENAI_API_KEY is not configured.")
   }
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -100,20 +193,7 @@ async function detectWithOpenAI(imageDataUrl: string): Promise<DetectedCard> {
         {
           role: "user",
           content: [
-            {
-              type: "text",
-              text: [
-                "Identify the Pokémon trading card in this photo.",
-                "Return JSON with keys:",
-                'cardName (string, pokemon name + stage like "Umbreon ex"),',
-                "setName (string, English set name if visible, else empty string),",
-                'cardNumber (string, collector number like "161" or "161/131", else empty),',
-                "confidence (number 0-1),",
-                "notes (short string).",
-                "Prefer the English name when bilingual. Ignore PSA slabs labels for the card identity.",
-                "If unsure, still guess the most likely cardName + cardNumber and lower confidence.",
-              ].join(" "),
-            },
+            { type: "text", text: IDENTIFY_PROMPT },
             {
               type: "image_url",
               image_url: {
@@ -137,28 +217,37 @@ async function detectWithOpenAI(imageDataUrl: string): Promise<DetectedCard> {
   }
   const raw = json.choices?.[0]?.message?.content?.trim()
   if (!raw) throw new Error("OpenAI returned an empty identification.")
+  return parseDetectedJson(raw, "OpenAI")
+}
 
-  let parsed: Record<string, unknown>
-  try {
-    parsed = JSON.parse(raw) as Record<string, unknown>
-  } catch {
-    throw new Error("OpenAI returned invalid JSON for card identity.")
+async function detectCard(
+  imageDataUrl: string,
+): Promise<{ detected: DetectedCard; source: "gemini" | "openai" }> {
+  const prefer = (process.env.SLABCRACK_VISION_PROVIDER?.trim() || "auto").toLowerCase()
+  const hasGemini = Boolean(process.env.GEMINI_API_KEY?.trim())
+  const hasOpenAI = Boolean(process.env.OPENAI_API_KEY?.trim())
+
+  if (prefer === "openai") {
+    if (!hasOpenAI) throw new Error("OPENAI_API_KEY is not configured.")
+    return { detected: await detectWithOpenAI(imageDataUrl), source: "openai" }
   }
 
-  const cardName = String(parsed.cardName ?? "").trim()
-  const setName = String(parsed.setName ?? "").trim()
-  const cardNumber = cleanNumber(String(parsed.cardNumber ?? ""))
-  const confidenceRaw = Number(parsed.confidence)
-  const confidence = Number.isFinite(confidenceRaw)
-    ? Math.max(0, Math.min(1, confidenceRaw))
-    : 0.5
-  const notes = String(parsed.notes ?? "").trim() || undefined
-
-  if (!cardName && !cardNumber) {
-    throw new Error("Could not read a card name or number from the photo.")
+  if (prefer === "gemini") {
+    if (!hasGemini) throw new Error("GEMINI_API_KEY is not configured.")
+    return { detected: await detectWithGemini(imageDataUrl), source: "gemini" }
   }
 
-  return { cardName, setName, cardNumber, confidence, notes }
+  // auto: Gemini first (usable free tier), then OpenAI paid
+  if (hasGemini) {
+    return { detected: await detectWithGemini(imageDataUrl), source: "gemini" }
+  }
+  if (hasOpenAI) {
+    return { detected: await detectWithOpenAI(imageDataUrl), source: "openai" }
+  }
+
+  throw new Error(
+    "No vision API key configured. Add GEMINI_API_KEY (free at Google AI Studio) or a paid OPENAI_API_KEY in Vercel env.",
+  )
 }
 
 async function priceHit(hit: CardSearchHit): Promise<MockCardEntry> {
@@ -185,12 +274,11 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
     throw new Error("Expected a data:image URL from the camera capture.")
   }
 
-  // Keep payloads small for Vercel / OpenAI.
   if (imageDataUrl.length > 4_500_000) {
     throw new Error("Photo is too large. Retake closer or use a smaller image.")
   }
 
-  const detected = await detectWithOpenAI(imageDataUrl)
+  const { detected, source } = await detectCard(imageDataUrl)
   const query = buildSearchQuery(detected)
   const candidates = await searchCatalogCards(query, 8)
   const ranked = [...candidates].sort(
@@ -206,6 +294,6 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
     hit,
     candidates: ranked,
     card,
-    source: "openai",
+    source,
   }
 }

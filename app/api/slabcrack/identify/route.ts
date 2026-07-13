@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Card identification failed"
-    const status = /OPENAI_API_KEY/i.test(message) ? 503 : 422
+    const status = /API_KEY is not configured|No vision API key/i.test(message) ? 503 : 422
     console.error("[slabcrack-identify]", message)
     return NextResponse.json({ ok: false, error: message }, { status })
   }
