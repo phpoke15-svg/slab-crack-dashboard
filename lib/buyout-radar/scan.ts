@@ -42,22 +42,18 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function batchSize(explicit?: number): number {
+/**
+ * Cards scraped per run. Prefer BUYOUT_SCAN_BATCH_SIZE (default 200).
+ * Intentionally ignores BUYOUT_SCAN_LIMIT — that env is often still set to
+ * the old chase-mode "40" on Vercel and was capping full-market scans.
+ */
+function resolveBatchSize(explicit?: number): number {
   if (explicit != null && Number.isFinite(explicit) && explicit > 0) {
     return Math.min(2000, Math.floor(explicit))
   }
   const raw = Number(process.env.BUYOUT_SCAN_BATCH_SIZE?.trim() || DEFAULT_BATCH_SIZE)
   if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_BATCH_SIZE
   return Math.min(2000, Math.floor(raw))
-}
-
-/** @deprecated Prefer batchSize — kept so older callers using BUYOUT_SCAN_LIMIT still work. */
-function legacyLimit(): number | undefined {
-  const raw = process.env.BUYOUT_SCAN_LIMIT?.trim()
-  if (!raw) return undefined
-  const n = Number(raw)
-  if (!Number.isFinite(n) || n <= 0) return undefined
-  return Math.floor(n)
 }
 
 function listingFingerprint(item: EbaySoldItem): string {
@@ -294,10 +290,13 @@ export async function scanBuyoutMarket(options?: {
     throw new Error("Supabase is not configured — cannot persist buyout scan results")
   }
 
-  const size = batchSize(options?.limit ?? legacyLimit())
+  const size = resolveBatchSize(options?.limit)
   const universe = await loadBuyoutScanUniverse()
   const cursor = options?.resetCursor ? 0 : await readScanCursor()
   const { batch, nextOffset } = sliceBatch(universe, cursor, size)
+  console.log(
+    `[buyout-scan] universe=${universe.length} batchSize=${size} offset=${cursor} targeting=${batch.length}`,
+  )
 
   const errors: string[] = []
   let salesIngested = 0

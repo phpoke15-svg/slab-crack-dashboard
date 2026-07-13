@@ -109,8 +109,40 @@ export async function loadBuyoutMarketFromDatabase(): Promise<{
   }
 }
 
+async function loadScanProgress(): Promise<{
+  cursorOffset: number
+  marketUniverseSize: number
+} | null> {
+  if (!isSupabaseConfigured()) return null
+  try {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from("buyout_scan_state")
+      .select("cursor_offset, last_universe_size")
+      .eq("id", 1)
+      .maybeSingle()
+    if (error || !data) return null
+    const row = data as { cursor_offset: number; last_universe_size: number }
+    return {
+      cursorOffset: Number(row.cursor_offset) || 0,
+      marketUniverseSize: Number(row.last_universe_size) || 0,
+    }
+  } catch {
+    return null
+  }
+}
+
+function defaultBatchSize(): number {
+  const raw = Number(process.env.BUYOUT_SCAN_BATCH_SIZE?.trim() || 200)
+  if (!Number.isFinite(raw) || raw <= 0) return 200
+  return Math.min(2000, Math.floor(raw))
+}
+
 export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
-  const db = await loadBuyoutMarketFromDatabase()
+  const [db, progress] = await Promise.all([
+    loadBuyoutMarketFromDatabase(),
+    loadScanProgress(),
+  ])
   const sales = db?.sales ?? buildSeedBuyoutSales()
   const cards = db?.cards ?? SEED_BUYOUT_CARDS
   const marketDerived = sales.some((s) => s.buyerIpHash.startsWith("mkt-"))
@@ -137,6 +169,9 @@ export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
       salesIngested: sales.length,
       lastScanAt: source === "seed" ? null : lastSale,
       mode: source === "seed" ? "demo" : "live",
+      marketUniverseSize: progress?.marketUniverseSize,
+      cursorOffset: progress?.cursorOffset,
+      batchSize: defaultBatchSize(),
     },
   }
 }

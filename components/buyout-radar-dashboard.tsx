@@ -900,7 +900,9 @@ export function BuyoutRadarDashboard() {
 
         <p className="mt-3 text-[10px] text-muted-foreground">
           {data
-            ? `Source · ${data.source} · ${data.scan?.cardsScanned ?? 0} cards · ${data.scan?.salesIngested ?? 0} sales · as of ${new Date(data.asOf).toLocaleString()}`
+            ? data.scan?.marketUniverseSize && data.scan.marketUniverseSize > 0
+              ? `Source · ${data.source} · covered ${data.scan.cardsScanned} of ${data.scan.marketUniverseSize} catalog · next offset ${data.scan.cursorOffset ?? 0} · ~${data.scan.batchSize ?? 200}/batch · ${data.scan.salesIngested} sales · as of ${new Date(data.asOf).toLocaleString()}`
+              : `Source · ${data.source} · ${data.scan?.cardsScanned ?? 0} cards with sales data · ${data.scan?.salesIngested ?? 0} sales · as of ${new Date(data.asOf).toLocaleString()}`
             : "Waiting for first scan…"}
           {data?.source === "seed"
             ? " · demo seed until you run a market scan (requires Supabase buyout tables + EBAY_SOLD_API_KEY)"

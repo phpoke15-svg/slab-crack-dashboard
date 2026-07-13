@@ -56,9 +56,16 @@ export type BuyoutRadarResponse = {
   alertCount: number
   alerts: BuyoutAlert[]
   scan?: {
+    /** Cards with ingested sold comps so far (buyout_cards rows). */
     cardsScanned: number
     salesIngested: number
     lastScanAt: string | null
     mode: "demo" | "live"
+    /** Full catalog size last recorded by the scanner. */
+    marketUniverseSize?: number
+    /** Next offset into the catalog for the following batch. */
+    cursorOffset?: number
+    /** Cards scraped per cron/manual batch. */
+    batchSize?: number
   }
 }
