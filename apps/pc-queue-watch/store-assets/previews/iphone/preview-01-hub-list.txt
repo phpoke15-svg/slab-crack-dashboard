@@ -1,0 +1,7 @@
+file 'C:/Users/phdet/Downloads/slab-crack-dashboard/apps/pc-queue-watch/store-assets/screenshots/01-home.png'
+duration 5
+file 'C:/Users/phdet/Downloads/slab-crack-dashboard/apps/pc-queue-watch/store-assets/screenshots/09-home-tools.png'
+duration 5
+file 'C:/Users/phdet/Downloads/slab-crack-dashboard/apps/pc-queue-watch/store-assets/screenshots/07-pricing.png'
+duration 5
+file 'C:/Users/phdet/Downloads/slab-crack-dashboard/apps/pc-queue-watch/store-assets/screenshots/07-pricing.png'

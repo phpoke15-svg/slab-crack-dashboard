@@ -1,0 +1,7 @@
+file 'C:/Users/phdet/Downloads/slab-crack-dashboard/apps/pc-queue-watch/store-assets/ipad-13/05-pokewatch.png'
+duration 5
+file 'C:/Users/phdet/Downloads/slab-crack-dashboard/apps/pc-queue-watch/store-assets/ipad-13/09-slablab-cards.png'
+duration 5
+file 'C:/Users/phdet/Downloads/slab-crack-dashboard/apps/pc-queue-watch/store-assets/ipad-13/07-signin.png'
+duration 5
+file 'C:/Users/phdet/Downloads/slab-crack-dashboard/apps/pc-queue-watch/store-assets/ipad-13/07-signin.png'

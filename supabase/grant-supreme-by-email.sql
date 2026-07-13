@@ -1,18 +1,18 @@
 -- Grant CollecTools Supreme (owner tier) by email.
 -- 1) Run supabase/supreme-plan.sql first (plan check constraint).
--- 2) Replace YOUR_EMAIL_HERE, then run this in Supabase SQL Editor.
+-- 2) Replace phpoke15@gmail.com, then run this in Supabase SQL Editor.
 -- Also set Vercel env SUPREME_EMAILS=your@email.com (comma-separated allowlist).
 
 select u.id, u.email, p.plan as profile_plan
 from auth.users u
 left join public.profiles p on p.id = u.id
-where lower(u.email) = lower('YOUR_EMAIL_HERE');
+where lower(u.email) = lower('phpoke15@gmail.com');
 
 do $$
 declare
   uid uuid;
 begin
-  select id into uid from auth.users where lower(email) = lower('YOUR_EMAIL_HERE');
+  select id into uid from auth.users where lower(email) = lower('phpoke15@gmail.com');
   if uid is null then
     raise exception 'No auth.users row for that email';
   end if;
@@ -40,4 +40,4 @@ select u.email, p.plan as profile_plan, s.stripe_subscription_id, s.status, s.pl
 from auth.users u
 join public.profiles p on p.id = u.id
 left join public.subscriptions s on s.user_id = u.id
-where lower(u.email) = lower('YOUR_EMAIL_HERE');
+where lower(u.email) = lower('phpoke15@gmail.com');

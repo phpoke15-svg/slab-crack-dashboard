@@ -6,7 +6,7 @@ import { pageMetadata, SEO_SITE_NAME } from "@/lib/seo"
 import { getSiteUrl } from "@/lib/site-url"
 
 const description =
-  "CollecTools pricing: Premium from $4.99/mo for full SlabCrack and ad-free browsing, Pro from $9.99/mo for Pokemon Center PokeWatch. 7-day free trial."
+  "CollecTools pricing: Premium from $4.99/mo for full SlabCrack and ad-free browsing, Pro from $9.99/mo for Pokemon Center Queue Watch. 7-day free trial."
 
 export const metadata: Metadata = pageMetadata({
   title: "Pricing",
@@ -44,7 +44,7 @@ export default function PricingPage() {
               name: "Pro",
               price: "9.99",
               priceCurrency: "USD",
-              description: "Premium plus Pokemon Center PokeWatch",
+              description: "Premium plus Pokemon Center Queue Watch",
             },
           ],
         }}

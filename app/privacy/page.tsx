@@ -17,14 +17,14 @@ export default function PrivacyPage() {
   return (
     <LegalPageShell
       title="Privacy Policy"
-      description={`This policy describes how ${LEGAL_SITE_NAME} ("we", "us") handles information when you use our website, mobile apps, and tools, including ${LEGAL_PRODUCT_NAME}, SlabCrack, and PokeWatch.`}
+      description={`This policy describes how ${LEGAL_SITE_NAME} ("we", "us") handles information when you use our website, mobile apps, and tools, including ${LEGAL_PRODUCT_NAME}, SlabCrack, and Queue Watch.`}
     >
       <LegalSection title="1. Who we are">
         <p>
           {LEGAL_SITE_NAME} operates collector tools at{" "}
           <a href={LEGAL_SITE_URL}>{LEGAL_SITE_URL}</a>, including {LEGAL_PRODUCT_NAME} for
           organizing binders and coordinating trades with other collectors, SlabCrack for graded-card
-          research, and PokeWatch for Pokémon Center virtual-queue alerts (web and native apps).
+          research, and Queue Watch for Pokémon Center virtual-queue alerts (web and native apps).
         </p>
         <p>
           Questions about this policy:{" "}
@@ -73,11 +73,11 @@ export default function PrivacyPage() {
           identifiers, and a Stripe customer ID. We do not store your full card number.
         </p>
         <p>
-          <strong className="text-foreground">Mobile app &amp; PokeWatch.</strong> The CollecTools
+          <strong className="text-foreground">Mobile app &amp; Queue Watch.</strong> The CollecTools
           Android/iOS app may load our website in a WebView and open Pokémon Center in an in-app
-          browser so you can complete bot checks. While PokeWatch monitoring is on, the app
+          browser so you can complete bot checks. While Queue Watch monitoring is on, the app
           detects queue-related page signals on-device and may send queue status pings to our servers
-          so your web PokeWatch page stays in sync. We do not ask you to enter Pokémon Center
+          so your web Queue Watch page stays in sync. We do not ask you to enter Pokémon Center
           account passwords into CollecTools. Local device notifications may alert you when a queue
           appears live. Optional web push subscriptions (if you enable phone alerts on the website)
           store a push endpoint and related keys so we can deliver alerts.

@@ -124,7 +124,7 @@ export default function TermsPage() {
         <p>
           Paid <strong className="text-foreground">Premium</strong> and{" "}
           <strong className="text-foreground">Pro</strong> plans remove in-app Sponsored ad slots
-          while the subscription is active. PokeWatch features require Pro.
+          while the subscription is active. Queue Watch features require Pro.
         </p>
       </LegalSection>
 
@@ -140,7 +140,7 @@ export default function TermsPage() {
           </li>
           <li>
             <strong className="text-foreground">Pro</strong> — everything in Premium, plus Pokemon
-            Center PokeWatch and related Pro features ($9.99/mo or $99.99/yr).
+            Center Queue Watch and related Pro features ($9.99/mo or $99.99/yr).
           </li>
         </ul>
         <p>

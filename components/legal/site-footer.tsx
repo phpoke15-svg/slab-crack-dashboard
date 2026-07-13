@@ -11,7 +11,7 @@ const PRODUCT_LINKS = [
   { href: "/slabcrack", label: "SlabCrack" },
   { href: "/slablab", label: "SlabLab" },
   { href: "/binder", label: "PokeMatch" },
-  { href: "/pokewatch", label: "PokeWatch" },
+  { href: "/queue-watch", label: "Queue Watch" },
   ...(RESTOCKS_ENABLED ? [{ href: "/restocks", label: "Restocks" }] : []),
   { href: "/pricing", label: "Pricing" },
 ] as const

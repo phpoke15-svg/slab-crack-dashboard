@@ -25,13 +25,15 @@
     },
     "production": {
       "env": {
-        "EXPO_PUBLIC_COLLECTOOLS_URL": "https://www.collectools.app"
+        "EXPO_PUBLIC_COLLECTOOLS_URL": "https://www.collectools.app",
+        "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
       },
       "android": {
         "buildType": "app-bundle"
       },
       "ios": {
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "image": "macos-sequoia-15.6-xcode-26.2"
       }
     },
     "apk": {
@@ -52,7 +54,7 @@
         "releaseStatus": "draft"
       },
       "ios": {
-        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID"
+        "ascAppId": "6790246131"
       }
     }
   }
