@@ -8,6 +8,7 @@ import {
   Package,
   Radar,
   Ratio,
+  ScanLine,
   ScanSearch,
 } from "lucide-react"
 
@@ -38,8 +39,23 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Buy, crack, and sell — spot slabs where cracking and selling raw beats the market price",
       "Buy high-end cards under market for your personal collection",
       "Market awareness — track graded vs raw pricing gaps and stay ahead of the market",
+      "Camera scan — snap a card and pull live raw vs PSA prices on the spot",
     ],
     icon: Layers,
+  },
+  {
+    id: "slabcrack-scan",
+    href: "/slabcrack/scan",
+    name: "SlabScan",
+    tagline: "Camera price HUD",
+    description:
+      "Point your camera at a card, identify it, and see live SlabCrack raw vs PSA grade prices.",
+    highlights: [
+      "Live camera capture with identify search",
+      "Raw price plus PSA 7–9 deficit grid",
+      "Open full SlabCrack analysis from the HUD",
+    ],
+    icon: ScanLine,
   },
   {
     id: "slablab",
