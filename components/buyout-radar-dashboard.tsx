@@ -840,7 +840,7 @@ export function BuyoutRadarDashboard() {
             </p>
             <p>
               <strong className="text-foreground">5. Market scan</strong> — Vercel cron runs
-              every ~4 hours across the full catalog via eBay sold comps (≈200 cards
+              daily (~09:00 UTC) across the full catalog via eBay sold comps (≈200 cards
               per run, then continues next run). Use{" "}
               <em>Run market scan</em> to trigger the next batch now (can take a few minutes).
             </p>
