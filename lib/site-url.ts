@@ -14,5 +14,5 @@ export function getSiteUrl(): string {
   if (process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim()) {
     return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.trim()}`
   }
-  return "https://collectools.app"
+  return "https://www.collectools.app"
 }

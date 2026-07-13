@@ -24,8 +24,8 @@
           "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false,
-        "NSCameraUsageDescription": "CollecTools uses the camera to photograph cards for SlabCrack Scan price lookups.",
-        "NSPhotoLibraryUsageDescription": "CollecTools lets you pick card photos for SlabCrack Scan price lookups.",
+        "NSCameraUsageDescription": "CollecTools uses the camera to photograph cards for Grade Check and collector tools.",
+        "NSPhotoLibraryUsageDescription": "CollecTools lets you pick card photos for Grade Check and collector tools.",
         "NSUserTrackingUsageDescription": "CollecTools does not track you across apps. This permission is unused."
       }
     },

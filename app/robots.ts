@@ -7,9 +7,11 @@ export default function robots(): MetadataRoute.Robots {
   const disallow = [
     "/api/",
     "/sign-in",
+    "/reset-password",
     "/supreme",
     "/grade-check",
     "/buyout-radar",
+    "/slabcrack/scan",
     "/pokewatch/mobile",
     "/queue-watch/mobile",
   ]

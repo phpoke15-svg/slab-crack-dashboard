@@ -9,10 +9,10 @@ import type {
 const DEFAULT_WINDOW_HOURS = 24
 const DEFAULT_BASELINE_DAYS = 14
 /** Flag cards when 24h volume clears this multiple of the prior daily baseline. */
-const VOLUME_MULTIPLE_THRESHOLD = 2.5
+const VOLUME_MULTIPLE_THRESHOLD = 2.0
 const MAX_UNIQUE_BUYERS = 2
 /** Cold-start (no baseline): need at least this many 24h sales to flag. */
-const COLD_START_MIN_VOLUME = 6
+const COLD_START_MIN_VOLUME = 4
 
 function recommendAction(
   probability: number,
@@ -70,7 +70,7 @@ function hourlyVolumeSeries(
 
 /**
  * TypeScript mirror of `public.detect_buyout_risks()` for seed / offline mode.
- * Flags cards when 24h volume > 2.5× 14-day daily average (and unique buyers ≤ 2
+ * Flags cards when 24h volume > 2× 14-day daily average (and unique buyers ≤ 2
  * when buyer hashes are available).
  */
 export function detectBuyoutRisks(

@@ -53,7 +53,7 @@ const PRIORITY_META: Record<
     className: "border-sky-500/40 bg-sky-500/15 text-sky-200",
     bar: "bg-sky-400",
     meaning:
-      "Clears the 2.5× volume threshold — early elevated demand. Watch closely before it becomes High/Critical.",
+      "Clears the 2× volume threshold — early elevated demand. Watch closely before it becomes High/Critical.",
   },
 }
 
@@ -138,7 +138,7 @@ function metricExplainers(alert: BuyoutAlert): Record<
       label: "How hot vs normal",
       value: `${alert.volumeMultiple.toFixed(1)}×`,
       plain: `Today is about ${copiesVsNormal}× the usual daily volume.`,
-      why: "We flag cards when this multiple clears 2.5× the recent daily norm — so quieter spikes still surface as Warnings.",
+      why: "We flag cards when this multiple clears 2× the recent daily norm — so quieter spikes still surface as Warnings.",
     },
     buyoutProbability: {
       label: "Buyout likelihood",
@@ -785,7 +785,7 @@ export function BuyoutRadarDashboard() {
             <h2 className="mt-1 text-lg font-bold text-foreground">Buyout & Speculation Radar</h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
               {data?.scan?.mode === "live"
-                ? "Live market scan of the full catalog (batched each run). Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average (alerts from 2.5× upward)."
+                ? "Live market scan of the full catalog (batched each run). Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average (alerts from 2× upward)."
                 : "Demo mode until the first daily market scan runs. After scan, cards are classified Critical / High / Warning from real eBay sold volume spikes across the full catalog."}
             </p>
           </div>
@@ -922,9 +922,27 @@ export function BuyoutRadarDashboard() {
         </div>
       ) : !visible.length ? (
         <div className="rounded-2xl border border-dashed border-border px-4 py-16 text-center text-sm text-muted-foreground">
-          {filter === "all"
-            ? "No buyout-risk anomalies in the current window."
-            : `No ${PRIORITY_META[filter].label.toLowerCase()} alerts right now. Try All alerts.`}
+          {filter === "all" ? (
+            <div className="mx-auto max-w-md space-y-2">
+              <p>No buyout-risk anomalies in the current 24h window.</p>
+              {data?.scan?.mode === "live" &&
+              data.scan.marketUniverseSize &&
+              data.scan.marketUniverseSize > 0 ? (
+                <p className="text-xs leading-relaxed">
+                  Covered{" "}
+                  <span className="font-semibold text-foreground">
+                    {data.scan.cardsScanned}
+                  </span>{" "}
+                  of {data.scan.marketUniverseSize} catalog cards so far (~
+                  {data.scan.batchSize ?? 200}/day). Quiet markets below 2× baseline
+                  won&apos;t flag — run another market scan or wait for the next cron
+                  batch.
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            `No ${PRIORITY_META[filter].label.toLowerCase()} alerts right now. Try All alerts.`
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-3">

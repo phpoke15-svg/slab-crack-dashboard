@@ -213,6 +213,9 @@ async function upsertBuyoutCards(cards: BuyoutCard[]): Promise<void> {
 
 async function replaceCardSales(cardId: string, sales: BuyoutSale[]): Promise<number> {
   if (!isSupabaseConfigured()) return 0
+  // Empty scrapes (API flake / rate limit) must not wipe prior history.
+  if (sales.length === 0) return 0
+
   const admin = createAdminClient()
   const since = new Date()
   since.setUTCDate(since.getUTCDate() - SOLD_LOOKBACK_DAYS)
@@ -222,8 +225,6 @@ async function replaceCardSales(cardId: string, sales: BuyoutSale[]): Promise<nu
     .delete()
     .eq("card_id", cardId)
     .gte("purchased_at", since.toISOString())
-
-  if (sales.length === 0) return 0
 
   const rows = sales.map((s) => ({
     card_id: s.cardId,
