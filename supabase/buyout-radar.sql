@@ -73,7 +73,7 @@ create index if not exists buyout_anomalies_card_idx
 create or replace function public.detect_buyout_risks(
   p_window_hours integer default 24,
   p_baseline_days integer default 14,
-  p_volume_multiple_threshold numeric default 5.0,
+  p_volume_multiple_threshold numeric default 2.5,
   p_max_unique_buyers integer default 2
 )
 returns table (
@@ -193,8 +193,8 @@ as $$
     f.buyer_concentration_index,
     f.buyout_probability_percentage,
     case
-      when f.volume_multiple >= 10 and f.buyout_probability_percentage >= 80 then 'critical'
-      when f.volume_multiple >= 7 or f.buyout_probability_percentage >= 78 then 'high'
+      when f.volume_multiple >= 8 and f.buyout_probability_percentage >= 75 then 'critical'
+      when f.volume_multiple >= 5 or f.buyout_probability_percentage >= 72 then 'high'
       else 'warning'
     end as priority,
     case

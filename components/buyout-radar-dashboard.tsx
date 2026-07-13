@@ -53,7 +53,7 @@ const PRIORITY_META: Record<
     className: "border-sky-500/40 bg-sky-500/15 text-sky-200",
     bar: "bg-sky-400",
     meaning:
-      "Clears the 5× volume threshold with concentrated buyers, but the spike is milder. Early signal — watch closely.",
+      "Clears the 2.5× volume threshold — early elevated demand. Watch closely before it becomes High/Critical.",
   },
 }
 
@@ -138,7 +138,7 @@ function metricExplainers(alert: BuyoutAlert): Record<
       label: "How hot vs normal",
       value: `${alert.volumeMultiple.toFixed(1)}×`,
       plain: `Today is about ${copiesVsNormal}× the usual daily volume.`,
-      why: "We flag cards only when this multiple clears 5× — meaning demand is far above the recent norm.",
+      why: "We flag cards when this multiple clears 2.5× the recent daily norm — so quieter spikes still surface as Warnings.",
     },
     buyoutProbability: {
       label: "Buyout likelihood",
@@ -768,7 +768,7 @@ export function BuyoutRadarDashboard() {
             <h2 className="mt-1 text-lg font-bold text-foreground">Buyout & Speculation Radar</h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
               {data?.scan?.mode === "live"
-                ? "Live daily market scan of chase-card raw NM sold comps. Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average."
+                ? "Live daily market scan of chase-card raw NM sold comps. Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average (alerts from 2.5× upward)."
                 : "Demo mode until the first daily market scan runs. After scan, cards are classified Critical / High / Warning from real eBay sold volume spikes (chase catalog, not every card in existence)."}
             </p>
           </div>

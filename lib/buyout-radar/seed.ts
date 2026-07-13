@@ -139,9 +139,9 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
     })
   }
 
-  // WARNING: Greninja — just clears the 5× threshold with two buyer hashes.
+  // WARNING: Greninja — mild spike (~3–4×) so it stays in Warning under the 2.5× floor.
   const grenSpike = SEED_UNIT_PRICE["sv6-214"]!.spike
-  for (let i = 0; i < 4; i += 1) {
+  for (let i = 0; i < 2; i += 1) {
     push({
       cardId: "sv6-214",
       quantityPurchased: 2,
