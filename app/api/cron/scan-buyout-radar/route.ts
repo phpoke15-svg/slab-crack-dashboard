@@ -7,8 +7,8 @@ export const maxDuration = 300
 
 /**
  * Daily Buyout Radar market scan.
- * Scrapes raw NM eBay sold comps for the chase universe, ingests transactions,
- * then classifies Critical / High / Warning by 24h vs 14-day volume spike.
+ * Walks the full slab_cards catalog in batches (~200/run), scrapes raw NM
+ * eBay sold comps, then classifies Critical / High / Warning by volume spike.
  */
 export async function GET(request: Request) {
   const denied = requireCronAuth(request)
@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   try {
     const result = await scanBuyoutMarket()
     console.log(
-      `[buyout-scan] done cards=${result.cardsScanned}/${result.cardsTargeted} sales=${result.salesIngested} alerts=${result.alertCount} errors=${result.errors.length}`,
+      `[buyout-scan] done batch=${result.cardsScanned}/${result.cardsTargeted} universe=${result.marketUniverseSize} offset=${result.batchOffset}->${result.nextOffset} sales=${result.salesIngested} alerts=${result.alertCount} errors=${result.errors.length}`,
     )
     return NextResponse.json(result)
   } catch (error) {

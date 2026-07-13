@@ -6,7 +6,7 @@ import { scanBuyoutMarket } from "@/lib/buyout-radar/scan"
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
-/** Supreme-only manual trigger for the daily Buyout Radar market scan. */
+/** Supreme-only manual trigger for the Buyout Radar full-market batch scan. */
 export async function POST() {
   const auth = await requireUser()
   if (!auth.ok) {

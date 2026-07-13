@@ -116,7 +116,8 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     description:
       "Detect high-volume buyout clusters and speculation spikes before retail prices move.",
     highlights: [
-      "24h volume vs 14-day baseline with buyer-concentration scoring",
+      "Full catalog market scan (batched) via eBay sold comps",
+      "24h volume vs 14-day baseline with spike scoring",
       "Critical / High / Warning priority alerts",
       "Recommended action badges for speculative buys",
     ],

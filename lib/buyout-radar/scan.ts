@@ -1,27 +1,33 @@
 import "server-only"
 import { createHash } from "crypto"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
-import { getCatalogFeedFromDb } from "@/lib/db/catalog-feed"
-import { getWatchlistFromDb } from "@/lib/db/watchlist"
+import { isMainlinePokemonTcg, isRecentSetRelease } from "@/lib/pokemon-tcg-filter"
 import {
   defaultEbayQueries,
   fetchEbaySoldComps,
   filterSoldItems,
   type EbaySoldItem,
 } from "@/lib/ebay-sold"
-import { detectBuyoutRisks } from "@/lib/buyout-radar/detect"
-import { persistBuyoutAnomalies } from "@/lib/buyout-radar/store"
+import { refreshBuyoutAnomaliesFromDatabase } from "@/lib/buyout-radar/store"
 import { SEED_BUYOUT_CARDS } from "@/lib/buyout-radar/seed"
 import type { BuyoutAlert, BuyoutCard, BuyoutSale } from "@/lib/buyout-radar/types"
-import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 
-const DEFAULT_SCAN_LIMIT = 40
+/** Per-run batch size. ~1.1s/card → ~200 cards fits Vercel maxDuration 300s. */
+const DEFAULT_BATCH_SIZE = 200
 const SOLD_LOOKBACK_DAYS = 30
 const REQUEST_GAP_MS = 1100
+/** Soft deadline so we finish detection/persist before the route times out. */
+const RUN_BUDGET_MS = 270_000
 
 export type BuyoutScanResult = {
   ok: true
   scannedAt: string
+  /** Cards in the full market universe (catalog). */
+  marketUniverseSize: number
+  /** Offset into the universe for this batch. */
+  batchOffset: number
+  /** Next offset for the following cron run. */
+  nextOffset: number
   cardsTargeted: number
   cardsScanned: number
   salesIngested: number
@@ -29,16 +35,29 @@ export type BuyoutScanResult = {
   alerts: BuyoutAlert[]
   errors: string[]
   source: "ebay-sold"
+  coverageNote: string
 }
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-function scanLimit(): number {
-  const raw = Number(process.env.BUYOUT_SCAN_LIMIT?.trim() || DEFAULT_SCAN_LIMIT)
-  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_SCAN_LIMIT
-  return Math.min(TOP_CARDS_LIMIT, Math.floor(raw))
+function batchSize(explicit?: number): number {
+  if (explicit != null && Number.isFinite(explicit) && explicit > 0) {
+    return Math.min(2000, Math.floor(explicit))
+  }
+  const raw = Number(process.env.BUYOUT_SCAN_BATCH_SIZE?.trim() || DEFAULT_BATCH_SIZE)
+  if (!Number.isFinite(raw) || raw <= 0) return DEFAULT_BATCH_SIZE
+  return Math.min(2000, Math.floor(raw))
+}
+
+/** @deprecated Prefer batchSize — kept so older callers using BUYOUT_SCAN_LIMIT still work. */
+function legacyLimit(): number | undefined {
+  const raw = process.env.BUYOUT_SCAN_LIMIT?.trim()
+  if (!raw) return undefined
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n <= 0) return undefined
+  return Math.floor(n)
 }
 
 function listingFingerprint(item: EbaySoldItem): string {
@@ -60,56 +79,126 @@ function itemPurchasedAt(item: EbaySoldItem): string | null {
   return new Date(t).toISOString()
 }
 
-/** Prefer high-value chase cards from catalog/watchlist for the daily scan universe. */
-export async function loadBuyoutScanUniverse(limit = scanLimit()): Promise<BuyoutCard[]> {
+type SlabCardRow = {
+  id: string
+  name: string
+  set_name: string
+  card_number: string
+  rarity: string | null
+  image_large: string | null
+  release_date: string | null
+}
+
+/**
+ * Full market universe: every mainline Pokémon TCG card in `slab_cards`
+ * (recent sets when age filter is on). Not limited to a 40-card chase list.
+ */
+export async function loadBuyoutScanUniverse(): Promise<BuyoutCard[]> {
   const byId = new Map<string, BuyoutCard>()
 
   for (const seed of SEED_BUYOUT_CARDS) {
     byId.set(seed.id, seed)
   }
 
-  if (isSupabaseConfigured()) {
-    try {
-      const watchlist = await getWatchlistFromDb()
-      for (const entry of watchlist) {
-        const id = entry.pokemonTcgId?.trim() || entry.id
-        if (!id || byId.has(id)) continue
-        byId.set(id, {
-          id,
-          name: entry.cardName.replace(/\s+\([^)]+\)\s*$/, "").trim() || entry.cardName,
-          setName: entry.setName,
-          releaseDate: null,
-          imageUrl: entry.imageUrl || null,
-        })
-      }
-    } catch (error) {
-      console.warn("[buyout-scan] watchlist load failed:", error)
-    }
-
-    try {
-      const feed = await getCatalogFeedFromDb()
-      const priced = feed
-        .filter((c) => (c.rawPrice ?? 0) > 0)
-        .sort((a, b) => (b.rawPrice ?? 0) - (a.rawPrice ?? 0))
-
-      for (const entry of priced) {
-        const id = entry.pokemonTcgId?.trim() || entry.id
-        if (!id || byId.has(id)) continue
-        byId.set(id, {
-          id,
-          name: entry.cardName.replace(/\s+\([^)]+\)\s*$/, "").trim() || entry.cardName,
-          setName: entry.setName,
-          releaseDate: entry.releaseDate ?? null,
-          imageUrl: entry.imageUrl || null,
-        })
-        if (byId.size >= Math.max(limit * 3, limit)) break
-      }
-    } catch (error) {
-      console.warn("[buyout-scan] catalog load failed:", error)
-    }
+  if (!isSupabaseConfigured()) {
+    return [...byId.values()]
   }
 
-  return [...byId.values()].slice(0, limit)
+  const admin = createAdminClient()
+  const pageSize = 1000
+  let from = 0
+
+  for (;;) {
+    const { data, error } = await admin
+      .from("slab_cards")
+      .select("id, name, set_name, card_number, rarity, image_large, release_date")
+      .order("id", { ascending: true })
+      .range(from, from + pageSize - 1)
+
+    if (error) {
+      console.warn("[buyout-scan] slab_cards load failed:", error.message)
+      break
+    }
+
+    const rows = (data ?? []) as SlabCardRow[]
+    if (rows.length === 0) break
+
+    for (const row of rows) {
+      if (
+        !isMainlinePokemonTcg({
+          setName: row.set_name,
+          genre: "Pokemon Card",
+          productName: row.name,
+        })
+      ) {
+        continue
+      }
+      if (!isRecentSetRelease(row.release_date)) continue
+      if (byId.has(row.id)) continue
+
+      const label = row.rarity ? `${row.name} (${row.rarity})` : row.name
+      byId.set(row.id, {
+        id: row.id,
+        name: label,
+        setName: row.set_name,
+        releaseDate: row.release_date,
+        imageUrl: row.image_large,
+      })
+    }
+
+    if (rows.length < pageSize) break
+    from += pageSize
+  }
+
+  return [...byId.values()]
+}
+
+async function readScanCursor(): Promise<number> {
+  if (!isSupabaseConfigured()) return 0
+  try {
+    const admin = createAdminClient()
+    const { data, error } = await admin
+      .from("buyout_scan_state")
+      .select("cursor_offset")
+      .eq("id", 1)
+      .maybeSingle()
+    if (error || !data) return 0
+    const offset = Number((data as { cursor_offset: number }).cursor_offset)
+    return Number.isFinite(offset) && offset >= 0 ? Math.floor(offset) : 0
+  } catch {
+    return 0
+  }
+}
+
+async function writeScanCursor(offset: number, universeSize: number): Promise<void> {
+  if (!isSupabaseConfigured()) return
+  try {
+    const admin = createAdminClient()
+    await admin.from("buyout_scan_state").upsert(
+      {
+        id: 1,
+        cursor_offset: offset,
+        last_universe_size: universeSize,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "id" },
+    )
+  } catch (error) {
+    console.warn("[buyout-scan] failed to persist cursor:", error)
+  }
+}
+
+function sliceBatch(
+  universe: BuyoutCard[],
+  offset: number,
+  size: number,
+): { batch: BuyoutCard[]; nextOffset: number } {
+  if (universe.length === 0) return { batch: [], nextOffset: 0 }
+  const start = offset % universe.length
+  const end = Math.min(start + size, universe.length)
+  const batch = universe.slice(start, end)
+  const nextOffset = end >= universe.length ? 0 : end
+  return { batch, nextOffset }
 }
 
 async function upsertBuyoutCards(cards: BuyoutCard[]): Promise<void> {
@@ -171,13 +260,11 @@ function salesFromSoldItems(cardId: string, items: EbaySoldItem[]): BuyoutSale[]
   return out
 }
 
-async function scrapeCardSales(
-  apiKey: string,
-  card: BuyoutCard,
-): Promise<BuyoutSale[]> {
+async function scrapeCardSales(apiKey: string, card: BuyoutCard): Promise<BuyoutSale[]> {
+  const numberGuess = card.id.includes("-") ? card.id.split("-").pop() || "" : ""
   const queries = defaultEbayQueries({
-    cardName: card.name,
-    cardNumber: card.id.includes("-") ? card.id.split("-").pop() || "" : "",
+    cardName: card.name.replace(/\s+\([^)]+\)\s*$/, "").trim() || card.name,
+    cardNumber: numberGuess,
     searchQuery: `${card.name} ${card.setName} pokemon`,
   })
   const data = await fetchEbaySoldComps(apiKey, queries.raw, {
@@ -188,12 +275,16 @@ async function scrapeCardSales(
 }
 
 /**
- * Daily market scan: scrape raw NM sold comps for the chase universe,
- * ingest as transactions, then classify Critical / High / Warning by volume spike.
+ * Market scan over the full slab_cards catalog (mainline / recent).
+ * Each run processes one batch (~200 cards) and advances a cursor so the
+ * whole market is covered across successive cron / manual runs.
  */
 export async function scanBuyoutMarket(options?: {
+  /** Cards to scrape this run (default BUYOUT_SCAN_BATCH_SIZE or 200). */
   limit?: number
   apiKey?: string
+  /** If true, ignore saved cursor and start at offset 0. */
+  resetCursor?: boolean
 }): Promise<BuyoutScanResult> {
   const apiKey = options?.apiKey ?? process.env.EBAY_SOLD_API_KEY?.trim()
   if (!apiKey) {
@@ -203,51 +294,78 @@ export async function scanBuyoutMarket(options?: {
     throw new Error("Supabase is not configured — cannot persist buyout scan results")
   }
 
-  const limit = options?.limit ?? scanLimit()
-  const universe = await loadBuyoutScanUniverse(limit)
+  const size = batchSize(options?.limit ?? legacyLimit())
+  const universe = await loadBuyoutScanUniverse()
+  const cursor = options?.resetCursor ? 0 : await readScanCursor()
+  const { batch, nextOffset } = sliceBatch(universe, cursor, size)
+
   const errors: string[] = []
   let salesIngested = 0
   let cardsScanned = 0
-  const scannedCards: BuyoutCard[] = []
-  const allSales: BuyoutSale[] = []
+  const started = Date.now()
 
-  await upsertBuyoutCards(universe)
+  await upsertBuyoutCards(batch)
 
-  for (let i = 0; i < universe.length; i += 1) {
-    const card = universe[i]!
+  for (let i = 0; i < batch.length; i += 1) {
+    if (Date.now() - started > RUN_BUDGET_MS) {
+      errors.push(`Time budget reached after ${cardsScanned} cards — remaining cards deferred to next run`)
+      // Rewind cursor so unprocessed cards in this batch are retried next time.
+      const resumedOffset = (cursor + cardsScanned) % Math.max(universe.length, 1)
+      await writeScanCursor(resumedOffset, universe.length)
+      break
+    }
+
+    const card = batch[i]!
     try {
       const sales = await scrapeCardSales(apiKey, card)
       const written = await replaceCardSales(card.id, sales)
       salesIngested += written
       cardsScanned += 1
-      scannedCards.push(card)
-      allSales.push(...sales)
       console.log(
-        `[buyout-scan] ${i + 1}/${universe.length} ${card.name}: ${sales.length} raw sold comps`,
+        `[buyout-scan] ${cursor + i + 1}/${universe.length} ${card.name}: ${sales.length} raw sold comps`,
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       errors.push(`${card.name}: ${message}`)
       console.warn(`[buyout-scan] failed ${card.id}:`, message)
+      cardsScanned += 1
     }
 
-    if (i < universe.length - 1) await delay(REQUEST_GAP_MS)
+    if (i < batch.length - 1) await delay(REQUEST_GAP_MS)
   }
 
-  const alerts = detectBuyoutRisks(scannedCards, allSales, {
-    marketVolumeOnly: true,
-  })
-  await persistBuyoutAnomalies(alerts)
+  // Advance cursor only if we finished the planned batch (or empty universe).
+  const finishedBatch = cardsScanned >= batch.length || batch.length === 0
+  if (finishedBatch) {
+    await writeScanCursor(nextOffset, universe.length)
+  }
+
+  // Detect across the whole accumulated market DB, not just this batch —
+  // otherwise anomalies_log would wipe prior batches' alerts each run.
+  const alerts = await refreshBuyoutAnomaliesFromDatabase()
+
+  const resumedNext = finishedBatch
+    ? nextOffset
+    : (cursor + cardsScanned) % Math.max(universe.length, 1)
+
+  const coverageNote =
+    universe.length === 0
+      ? "No catalog cards available to scan."
+      : `Full-market mode: scanned ${cardsScanned} of ${universe.length} catalog cards this run (offset ${cursor} → ${resumedNext}). Cron continues through the rest (~${size}/batch).`
 
   return {
     ok: true,
     scannedAt: new Date().toISOString(),
-    cardsTargeted: universe.length,
+    marketUniverseSize: universe.length,
+    batchOffset: cursor,
+    nextOffset: resumedNext,
+    cardsTargeted: batch.length,
     cardsScanned,
     salesIngested,
     alertCount: alerts.length,
     alerts,
     errors,
     source: "ebay-sold",
+    coverageNote,
   }
 }

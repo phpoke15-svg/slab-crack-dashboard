@@ -680,6 +680,7 @@ export function BuyoutRadarDashboard() {
   const [loading, setLoading] = useState(true)
   const [scanning, setScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [scanNote, setScanNote] = useState<string | null>(null)
   const [filter, setFilter] = useState<BuyoutPriority | "all">("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [showGuide, setShowGuide] = useState(false)
@@ -714,16 +715,32 @@ export function BuyoutRadarDashboard() {
   const runMarketScan = useCallback(async () => {
     setScanning(true)
     setError(null)
+    setScanNote(null)
     try {
       const res = await fetch("/api/buyout-radar/scan", {
         method: "POST",
         credentials: "same-origin",
       })
       const json = (await res.json().catch(() => null)) as
-        | { ok?: boolean; error?: string; alertCount?: number }
+        | {
+            ok?: boolean
+            error?: string
+            alertCount?: number
+            coverageNote?: string
+            marketUniverseSize?: number
+            cardsScanned?: number
+            nextOffset?: number
+          }
         | null
       if (!res.ok || !json?.ok) {
         throw new Error(json?.error || "Market scan failed")
+      }
+      if (json.coverageNote) {
+        setScanNote(json.coverageNote)
+      } else if (json.marketUniverseSize != null) {
+        setScanNote(
+          `Scanned ${json.cardsScanned ?? 0} cards · universe ${json.marketUniverseSize} · next offset ${json.nextOffset ?? 0}`,
+        )
       }
       await load()
     } catch (err) {
@@ -768,8 +785,8 @@ export function BuyoutRadarDashboard() {
             <h2 className="mt-1 text-lg font-bold text-foreground">Buyout & Speculation Radar</h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
               {data?.scan?.mode === "live"
-                ? "Live daily market scan of chase-card raw NM sold comps. Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average (alerts from 2.5× upward)."
-                : "Demo mode until the first daily market scan runs. After scan, cards are classified Critical / High / Warning from real eBay sold volume spikes (chase catalog, not every card in existence)."}
+                ? "Live market scan of the full catalog (batched each run). Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average (alerts from 2.5× upward)."
+                : "Demo mode until the first daily market scan runs. After scan, cards are classified Critical / High / Warning from real eBay sold volume spikes across the full catalog."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -822,11 +839,18 @@ export function BuyoutRadarDashboard() {
               doing if you trust the signal (not financial advice).
             </p>
             <p>
-              <strong className="text-foreground">5. Daily market scan</strong> — Vercel cron runs
-              each day (~09:00 UTC) against the chase catalog via eBay sold comps. Use{" "}
-              <em>Run market scan</em> to trigger it now (can take a few minutes).
+              <strong className="text-foreground">5. Market scan</strong> — Vercel cron runs
+              every ~4 hours across the full catalog via eBay sold comps (≈200 cards
+              per run, then continues next run). Use{" "}
+              <em>Run market scan</em> to trigger the next batch now (can take a few minutes).
             </p>
           </div>
+        ) : null}
+
+        {scanNote ? (
+          <p className="mt-3 rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs leading-relaxed text-foreground/90">
+            {scanNote}
+          </p>
         ) : null}
 
         <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">

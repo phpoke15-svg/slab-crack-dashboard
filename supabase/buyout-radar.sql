@@ -42,6 +42,20 @@ create index if not exists buyout_sales_buyer_idx
   on public.buyout_sales_transactions (buyer_ip_hash);
 
 -- ---------------------------------------------------------------------------
+-- Scan cursor: full-market catalog is walked in batches across cron runs
+-- ---------------------------------------------------------------------------
+create table if not exists public.buyout_scan_state (
+  id integer primary key check (id = 1),
+  cursor_offset integer not null default 0,
+  last_universe_size integer not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.buyout_scan_state (id, cursor_offset, last_universe_size)
+values (1, 0, 0)
+on conflict (id) do nothing;
+
+-- ---------------------------------------------------------------------------
 -- 3) anomalies_log
 -- ---------------------------------------------------------------------------
 create table if not exists public.buyout_anomalies_log (
@@ -262,14 +276,17 @@ $$;
 alter table public.buyout_cards enable row level security;
 alter table public.buyout_sales_transactions enable row level security;
 alter table public.buyout_anomalies_log enable row level security;
+alter table public.buyout_scan_state enable row level security;
 
 -- Service role writes; authenticated Supreme access goes through Next.js API (admin client).
 revoke all on public.buyout_cards from anon, authenticated;
 revoke all on public.buyout_sales_transactions from anon, authenticated;
 revoke all on public.buyout_anomalies_log from anon, authenticated;
+revoke all on public.buyout_scan_state from anon, authenticated;
 
 grant all on public.buyout_cards to service_role;
 grant all on public.buyout_sales_transactions to service_role;
 grant all on public.buyout_anomalies_log to service_role;
+grant all on public.buyout_scan_state to service_role;
 grant execute on function public.detect_buyout_risks(integer, integer, numeric, integer) to service_role;
 grant execute on function public.refresh_buyout_anomalies() to service_role;

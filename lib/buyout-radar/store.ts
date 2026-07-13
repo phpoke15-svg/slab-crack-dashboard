@@ -49,7 +49,8 @@ function mapSale(row: DbSaleRow): BuyoutSale {
   }
 }
 
-async function loadFromDatabase(): Promise<{
+/** Load all buyout cards + recent sales from Supabase (paged). */
+export async function loadBuyoutMarketFromDatabase(): Promise<{
   cards: BuyoutCard[]
   sales: BuyoutSale[]
 } | null> {
@@ -60,33 +61,48 @@ async function loadFromDatabase(): Promise<{
     const since = new Date()
     since.setUTCDate(since.getUTCDate() - 16)
 
-    const [{ data: cards, error: cardError }, { data: sales, error: saleError }] =
-      await Promise.all([
-        admin.from("buyout_cards").select("id, name, set_name, release_date, image_url"),
-        admin
-          .from("buyout_sales_transactions")
-          .select(
-            "id, card_id, quantity_purchased, total_price, buyer_ip_hash, purchased_at",
-          )
-          .gte("purchased_at", since.toISOString())
-          .order("purchased_at", { ascending: true }),
-      ])
+    const cards: BuyoutCard[] = []
+    const sales: BuyoutSale[] = []
+    const pageSize = 1000
 
-    if (cardError || saleError) {
-      // Tables may not exist until buyout-radar.sql is applied.
-      console.warn(
-        "[buyout-radar] DB load failed, using seed:",
-        cardError?.message || saleError?.message,
-      )
-      return null
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await admin
+        .from("buyout_cards")
+        .select("id, name, set_name, release_date, image_url")
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1)
+      if (error) {
+        console.warn("[buyout-radar] DB load failed, using seed:", error.message)
+        return null
+      }
+      const rows = (data ?? []) as DbCardRow[]
+      if (rows.length === 0) break
+      cards.push(...rows.map(mapCard))
+      if (rows.length < pageSize) break
     }
 
-    if (!cards || cards.length === 0) return null
+    if (cards.length === 0) return null
 
-    return {
-      cards: (cards as DbCardRow[]).map(mapCard),
-      sales: ((sales ?? []) as DbSaleRow[]).map(mapSale),
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await admin
+        .from("buyout_sales_transactions")
+        .select(
+          "id, card_id, quantity_purchased, total_price, buyer_ip_hash, purchased_at",
+        )
+        .gte("purchased_at", since.toISOString())
+        .order("purchased_at", { ascending: true })
+        .range(from, from + pageSize - 1)
+      if (error) {
+        console.warn("[buyout-radar] DB load failed, using seed:", error.message)
+        return null
+      }
+      const rows = (data ?? []) as DbSaleRow[]
+      if (rows.length === 0) break
+      sales.push(...rows.map(mapSale))
+      if (rows.length < pageSize) break
     }
+
+    return { cards, sales }
   } catch (error) {
     console.warn("[buyout-radar] DB unavailable:", error)
     return null
@@ -94,7 +110,7 @@ async function loadFromDatabase(): Promise<{
 }
 
 export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
-  const db = await loadFromDatabase()
+  const db = await loadBuyoutMarketFromDatabase()
   const sales = db?.sales ?? buildSeedBuyoutSales()
   const cards = db?.cards ?? SEED_BUYOUT_CARDS
   const marketDerived = sales.some((s) => s.buyerIpHash.startsWith("mkt-"))
@@ -123,6 +139,21 @@ export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
       mode: source === "seed" ? "demo" : "live",
     },
   }
+}
+
+/**
+ * Re-run detection across every card with stored sales and refresh anomalies_log.
+ * Used after each batch ingest so alerts aren't wiped to only the latest batch.
+ */
+export async function refreshBuyoutAnomaliesFromDatabase(): Promise<BuyoutAlert[]> {
+  const db = await loadBuyoutMarketFromDatabase()
+  if (!db) return []
+  const marketDerived = db.sales.some((s) => s.buyerIpHash.startsWith("mkt-"))
+  const alerts = detectBuyoutRisks(db.cards, db.sales, {
+    marketVolumeOnly: marketDerived,
+  })
+  await persistBuyoutAnomalies(alerts)
+  return alerts
 }
 
 /** Persist detector hits when SQL migration is live. Clears prior active rows. */
