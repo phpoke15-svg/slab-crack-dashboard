@@ -123,49 +123,70 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
     throw new Error("GEMINI_API_KEY is not configured.")
   }
 
-  const model = process.env.GEMINI_VISION_MODEL?.trim() || "gemini-2.5-flash"
+  const configured = process.env.GEMINI_VISION_MODEL?.trim()
+  const models = [
+    configured,
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
+    "gemini-flash-latest",
+  ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i)
+
   const { mimeType, base64 } = splitDataUrl(imageDataUrl)
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+  let lastError = "Gemini vision failed."
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: IDENTIFY_PROMPT },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64,
+  for (const model of models) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: IDENTIFY_PROMPT },
+              {
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64,
+                },
               },
-            },
-          ],
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: "application/json",
         },
-      ],
-      generationConfig: {
-        temperature: 0,
-        responseMimeType: "application/json",
-      },
-    }),
-  })
+      }),
+    })
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "")
-    throw new Error(`Gemini vision failed (${response.status}): ${body.slice(0, 240)}`)
+    if (!response.ok) {
+      const body = await response.text().catch(() => "")
+      lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 240)}`
+      // Try next model if this one is gone / unavailable to new users.
+      if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
+        continue
+      }
+      throw new Error(lastError)
+    }
+
+    const json = (await response.json()) as {
+      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+    }
+    const raw = json.candidates?.[0]?.content?.parts
+      ?.map((p) => p.text ?? "")
+      .join("")
+      .trim()
+    if (!raw) {
+      lastError = `Gemini returned an empty identification from ${model}.`
+      continue
+    }
+    return parseDetectedJson(raw, "Gemini")
   }
 
-  const json = (await response.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
-  }
-  const raw = json.candidates?.[0]?.content?.parts
-    ?.map((p) => p.text ?? "")
-    .join("")
-    .trim()
-  if (!raw) throw new Error("Gemini returned an empty identification.")
-  return parseDetectedJson(raw, "Gemini")
+  throw new Error(lastError)
 }
 
 async function detectWithOpenAI(imageDataUrl: string): Promise<DetectedCard> {
