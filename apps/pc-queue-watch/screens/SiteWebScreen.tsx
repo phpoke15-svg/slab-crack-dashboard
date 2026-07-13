@@ -167,6 +167,9 @@ export default function SiteWebScreen() {
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         originWhitelist={["https://*", "http://*", "about:blank"]}
         allowsBackForwardNavigationGestures
+        allowsInlineMediaPlayback
+        mediaPlaybackRequiresUserAction={false}
+        mediaCapturePermissionGrantType="grant"
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         javaScriptEnabled

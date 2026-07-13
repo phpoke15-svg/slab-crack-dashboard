@@ -37,12 +37,14 @@ function formatMoney(n: number) {
 export function SlabcrackScanClient() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
   const [phase, setPhase] = useState<Phase>("camera")
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
+  const [cameraStarting, setCameraStarting] = useState(false)
   const [snapshot, setSnapshot] = useState<string | null>(null)
 
   const [query, setQuery] = useState("")
@@ -63,11 +65,19 @@ export function SlabcrackScanClient() {
 
   const startCamera = useCallback(async () => {
     setCameraError(null)
+    setCameraStarting(true)
     setCameraReady(false)
     stopCamera()
 
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setCameraError("Camera needs HTTPS. Use Take photo / Upload instead.")
+      setCameraStarting(false)
+      return
+    }
+
     if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError("Camera not supported in this browser. Upload a photo instead.")
+      setCameraError("Live camera isn’t available here. Use Take photo or Upload.")
+      setCameraStarting(false)
       return
     }
 
@@ -76,29 +86,41 @@ export function SlabcrackScanClient() {
         audio: false,
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
         },
       })
       streamRef.current = stream
       const video = videoRef.current
-      if (!video) return
+      if (!video) {
+        setCameraError("Camera preview failed to load.")
+        stream.getTracks().forEach((t) => t.stop())
+        setCameraStarting(false)
+        return
+      }
       video.srcObject = stream
+      video.setAttribute("playsinline", "true")
+      video.muted = true
       await video.play()
       setCameraReady(true)
-    } catch {
-      setCameraError("Could not open the camera. Check permissions, or upload a photo.")
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : ""
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        setCameraError("Camera permission blocked. Use Take photo instead, or allow camera in settings.")
+      } else {
+        setCameraError("Could not open live camera. Use Take photo or Upload.")
+      }
+    } finally {
+      setCameraStarting(false)
     }
   }, [stopCamera])
 
   useEffect(() => {
     if (phase !== "camera") {
       stopCamera()
-      return
     }
-    void startCamera()
     return () => stopCamera()
-  }, [phase, startCamera, stopCamera])
+  }, [phase, stopCamera])
 
   useEffect(() => {
     const q = query.trim()
@@ -120,6 +142,15 @@ export function SlabcrackScanClient() {
     return () => window.clearTimeout(timer)
   }, [phase, query])
 
+  const goIdentify = (dataUrl: string) => {
+    setSnapshot(dataUrl)
+    setPhase("identify")
+    setQuery("")
+    setHits([])
+    setCard(null)
+    setLookupError(null)
+  }
+
   const captureFrame = () => {
     const video = videoRef.current
     const canvas = canvasRef.current
@@ -132,26 +163,13 @@ export function SlabcrackScanClient() {
     const ctx = canvas.getContext("2d")
     if (!ctx) return
     ctx.drawImage(video, 0, 0, w, h)
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.88)
-    setSnapshot(dataUrl)
-    setPhase("identify")
-    setQuery("")
-    setHits([])
-    setCard(null)
-    setLookupError(null)
+    goIdentify(canvas.toDataURL("image/jpeg", 0.88))
   }
 
-  const onPickFile = async (file: File | null) => {
+  const onPickFile = (file: File | null) => {
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => {
-      setSnapshot(String(reader.result))
-      setPhase("identify")
-      setQuery("")
-      setHits([])
-      setCard(null)
-      setLookupError(null)
-    }
+    reader.onload = () => goIdentify(String(reader.result))
     reader.readAsDataURL(file)
   }
 
@@ -194,6 +212,7 @@ export function SlabcrackScanClient() {
     setQuery("")
     setLookupError(null)
     setDrawerOpen(false)
+    setCameraError(null)
     setPhase("camera")
   }
 
@@ -201,22 +220,35 @@ export function SlabcrackScanClient() {
   const quotes = card ? getGradeQuotes(card) : []
 
   return (
-    <div className="relative mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-black text-white">
+    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-black text-white">
       <canvas ref={canvasRef} className="hidden" aria-hidden />
       <input
-        ref={fileRef}
+        ref={cameraInputRef}
         type="file"
         accept="image/*"
         capture="environment"
         className="hidden"
-        onChange={(e) => void onPickFile(e.target.files?.[0] ?? null)}
+        onChange={(e) => {
+          onPickFile(e.target.files?.[0] ?? null)
+          e.target.value = ""
+        }}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          onPickFile(e.target.files?.[0] ?? null)
+          e.target.value = ""
+        }}
       />
 
-      <header className="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-3 bg-gradient-to-b from-black/80 to-transparent px-4 pb-8 pt-4">
+      <header className="relative z-40 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-zinc-950 px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <Link
             href="/slabcrack"
-            className="flex size-9 items-center justify-center rounded-full border border-white/15 bg-black/40 text-white/80 backdrop-blur"
+            className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/80"
             aria-label="Back to SlabCrack"
           >
             <ArrowLeft className="size-4" />
@@ -226,8 +258,8 @@ export function SlabcrackScanClient() {
         <SiteAuthButton className="shrink-0" />
       </header>
 
-      {/* Camera / snapshot stage */}
-      <div className="relative flex-1 overflow-hidden bg-zinc-950">
+      {/* Preview — never overlaps controls (video can't steal taps) */}
+      <div className="relative z-0 min-h-0 flex-1 overflow-hidden bg-zinc-950">
         {phase === "camera" ? (
           <>
             <video
@@ -235,26 +267,42 @@ export function SlabcrackScanClient() {
               playsInline
               muted
               autoPlay
-              className="absolute inset-0 size-full object-cover"
+              className={cn(
+                "pointer-events-none absolute inset-0 size-full object-cover",
+                !cameraReady && "opacity-0",
+              )}
             />
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
-            <div className="pointer-events-none absolute inset-x-[12%] top-[18%] bottom-[28%] rounded-[1.5rem] border-2 border-primary/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
-            <div className="pointer-events-none absolute inset-x-0 top-[18%] flex justify-center">
-              <span className="rounded-full border border-white/20 bg-black/50 px-3 py-1 text-[11px] font-medium text-white/90 backdrop-blur">
-                Line up the card face
-              </span>
-            </div>
+            {!cameraReady ? (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950 px-6 text-center">
+                <Camera className="size-10 text-primary" />
+                <p className="text-sm font-medium text-white">Scan a card for live prices</p>
+                <p className="max-w-xs text-xs text-white/55">
+                  Start the live camera, or use Take photo / Upload — both work on phone.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.5)_100%)]" />
+                <div className="pointer-events-none absolute inset-x-[12%] top-[14%] bottom-[14%] rounded-[1.5rem] border-2 border-primary/70" />
+                <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center">
+                  <span className="rounded-full border border-white/20 bg-black/55 px-3 py-1 text-[11px] font-medium text-white/90">
+                    Line up the card face
+                  </span>
+                </div>
+              </>
+            )}
           </>
         ) : snapshot ? (
-          <Image src={snapshot} alt="Captured card" fill className="object-cover" unoptimized priority />
+          <div className="relative size-full">
+            <Image src={snapshot} alt="Captured card" fill className="object-cover" unoptimized priority />
+          </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-white/60">No snapshot</div>
         )}
 
-        {/* HUD overlay */}
         {phase === "hud" && card ? (
-          <div className="absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black via-black/90 to-transparent px-4 pb-6 pt-16">
-            <div className="rounded-2xl border border-white/15 bg-black/55 p-3 backdrop-blur-md">
+          <div className="absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black via-black/95 to-transparent px-4 pb-5 pt-14">
+            <div className="rounded-2xl border border-white/15 bg-black/70 p-3 backdrop-blur-md">
               <div className="flex items-start gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-900">
                   {card.imageUrl ? (
@@ -304,9 +352,74 @@ export function SlabcrackScanClient() {
         ) : null}
       </div>
 
-      {/* Identify sheet */}
+      {/* Controls sit in document flow under the preview — always tappable */}
+      {phase === "camera" ? (
+        <div className="relative z-40 shrink-0 border-t border-white/10 bg-zinc-950 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
+          {cameraError ? (
+            <p className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-center text-xs text-amber-100">
+              {cameraError}
+            </p>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+            >
+              <Camera className="size-4" />
+              Take photo
+            </button>
+            <button
+              type="button"
+              onClick={() => galleryInputRef.current?.click()}
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 text-sm font-semibold text-white"
+            >
+              <ImagePlus className="size-4" />
+              Upload
+            </button>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
+            {!cameraReady ? (
+              <button
+                type="button"
+                disabled={cameraStarting}
+                onClick={() => void startCamera()}
+                className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 text-sm font-semibold text-primary disabled:opacity-60"
+              >
+                {cameraStarting ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
+                {cameraStarting ? "Starting…" : "Start live camera"}
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={captureFrame}
+                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-white bg-white text-sm font-bold text-black"
+                >
+                  <Camera className="size-4" />
+                  Capture live
+                </button>
+                <button
+                  type="button"
+                  onClick={stopCamera}
+                  className="inline-flex h-11 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm text-white"
+                >
+                  Stop
+                </button>
+              </>
+            )}
+          </div>
+
+          <p className="mt-3 text-center text-[11px] text-white/45">
+            Take photo works everywhere · live camera needs permission
+          </p>
+        </div>
+      ) : null}
+
       {phase === "identify" ? (
-        <div className="absolute inset-x-0 bottom-0 z-30 max-h-[55vh] overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur-xl">
+        <div className="relative z-40 flex max-h-[50vh] shrink-0 flex-col border-t border-white/10 bg-zinc-950">
           <div className="flex items-center justify-between px-4 pt-3">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <ScanLine className="size-4 text-primary" />
@@ -322,7 +435,7 @@ export function SlabcrackScanClient() {
             </button>
           </div>
           <p className="px-4 pt-1 text-xs text-white/55">
-            Type the name and number (e.g. Umbreon 161). We’ll pull live SlabCrack prices.
+            Type the name and number (e.g. Umbreon 161).
           </p>
 
           <div className="relative px-4 pt-3">
@@ -342,7 +455,7 @@ export function SlabcrackScanClient() {
             </p>
           ) : null}
 
-          <div className="mt-2 max-h-[32vh] overflow-y-auto px-2 pb-4">
+          <div className="mt-2 min-h-0 flex-1 overflow-y-auto px-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
             {searchLoading || lookupLoading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-sm text-white/60">
                 <Loader2 className="size-4 animate-spin" />
@@ -380,47 +493,6 @@ export function SlabcrackScanClient() {
               </ul>
             )}
           </div>
-        </div>
-      ) : null}
-
-      {/* Camera controls */}
-      {phase === "camera" ? (
-        <div className="absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-black via-black/80 to-transparent px-4 pb-8 pt-10">
-          {cameraError ? (
-            <p className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-center text-xs text-amber-100">
-              {cameraError}
-            </p>
-          ) : null}
-          <div className="flex items-center justify-center gap-8">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex size-12 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white"
-              aria-label="Upload photo"
-            >
-              <ImagePlus className="size-5" />
-            </button>
-            <button
-              type="button"
-              onClick={captureFrame}
-              disabled={!cameraReady}
-              className="flex size-[4.5rem] items-center justify-center rounded-full border-4 border-white/90 bg-white text-black shadow-lg disabled:opacity-40"
-              aria-label="Capture card"
-            >
-              <Camera className="size-7" />
-            </button>
-            <button
-              type="button"
-              onClick={() => void startCamera()}
-              className="flex size-12 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white"
-              aria-label="Retry camera"
-            >
-              <RefreshCw className="size-5" />
-            </button>
-          </div>
-          <p className="mt-3 text-center text-[11px] text-white/50">
-            Snap → identify → live raw vs PSA prices
-          </p>
         </div>
       ) : null}
 
