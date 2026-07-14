@@ -58,6 +58,8 @@ type IdentifyResponse = {
   card?: MockCardEntry | null
   matchScore?: number
   source?: "gemini" | "openai"
+  pricingSource?: "local" | "live"
+  needsLiveRefresh?: boolean
 }
 
 function formatMoney(n: number) {
@@ -141,6 +143,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const seededHitsRef = useRef<CardSearchHit[]>([])
   const seedQueryRef = useRef("")
   const aiCandidatesRef = useRef<CardSearchHit[]>([])
+  const presentedCardIdRef = useRef<string | null>(null)
+  const priceRefreshGenRef = useRef(0)
 
   const [phase, setPhase] = useState<Phase>("camera")
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -282,7 +286,9 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
   /** Jump straight into full SlabCrack / SlabLab card data for the closest match. */
   const presentMatch = useCallback((entry: MockCardEntry, opts?: { openDrawer?: boolean }) => {
-    setCard(normalizeCardEntry(entry))
+    const normalized = normalizeCardEntry(entry)
+    presentedCardIdRef.current = normalized.id
+    setCard(normalized)
     setPhase("hud")
     setDrawerOpen(opts?.openDrawer !== false)
   }, [])
@@ -317,11 +323,13 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     async (dataUrl: string) => {
       if (identifyingRef.current) return
       identifyingRef.current = true
+      priceRefreshGenRef.current += 1
       setPhase("identifying")
       setIdentifyStatus("Detecting card with AI…")
       setLookupError(null)
       setDetectedLabel(null)
       setCard(null)
+      presentedCardIdRef.current = null
       seededHitsRef.current = []
       seedQueryRef.current = ""
       aiCandidatesRef.current = []
@@ -394,7 +402,43 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         aiCandidatesRef.current = json.candidates ?? []
 
         if (json.card) {
-          presentMatch(normalizeCardEntry(json.card))
+          const localCard = normalizeCardEntry(json.card)
+          presentMatch(localCard)
+
+          // Local-first match: open drawer immediately, then quietly refresh live comps.
+          if (json.needsLiveRefresh && json.hit) {
+            const hit = json.hit
+            const refreshGen = ++priceRefreshGenRef.current
+            setLookupLoading(true)
+            setIdentifyStatus(
+              json.pricingSource === "local"
+                ? "Refreshing live slab comps…"
+                : "Loading live prices…",
+            )
+            void fetchPricedCard(hit)
+              .then((priced) => {
+                if (priceRefreshGenRef.current !== refreshGen) return
+                presentMatch(priced, { openDrawer: true })
+                if (priced.hasPricing === false) {
+                  setLookupError(
+                    "Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.",
+                  )
+                } else {
+                  setLookupError(null)
+                }
+              })
+              .catch(() => {
+                if (priceRefreshGenRef.current !== refreshGen) return
+                if (localCard.hasPricing === false) {
+                  setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
+                }
+              })
+              .finally(() => {
+                if (priceRefreshGenRef.current === refreshGen) setLookupLoading(false)
+              })
+            return
+          }
+
           if (json.card.hasPricing === false) {
             setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
           }
@@ -403,19 +447,22 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
         if (json.candidates?.length) {
           const top = json.candidates[0]!
-          presentMatch(searchHitToPlaceholder(top))
+          const placeholder = searchHitToPlaceholder(top)
+          presentMatch(placeholder)
           setLookupLoading(true)
           try {
             const priced = await fetchPricedCard(top)
+            if (presentedCardIdRef.current !== placeholder.id) return
             setCard(priced)
             if (priced.hasPricing === false) {
               setLookupError("Matched the card, but live prices are unavailable. Try another match via Wrong card.")
             }
           } catch {
-            setCard(normalizeCardEntry(searchHitToPlaceholder(top)))
+            if (presentedCardIdRef.current !== placeholder.id) return
+            setCard(normalizeCardEntry(placeholder))
             setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
           } finally {
-            setLookupLoading(false)
+            if (presentedCardIdRef.current === placeholder.id) setLookupLoading(false)
           }
           return
         }
@@ -474,25 +521,30 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   }
 
   const lookupHit = async (hit: CardSearchHit) => {
+    const refreshGen = ++priceRefreshGenRef.current
     setLookupLoading(true)
     setLookupError(null)
     presentMatch(searchHitToPlaceholder(hit))
     try {
       const priced = await fetchPricedCard(hit)
-      setCard(priced)
+      if (priceRefreshGenRef.current !== refreshGen) return
+      presentMatch(priced, { openDrawer: true })
       if (priced.hasPricing === false) {
         setLookupError("Catalog match loaded, but live PriceCharting comps are missing for this card.")
       }
     } catch {
+      if (priceRefreshGenRef.current !== refreshGen) return
       setCard(normalizeCardEntry(searchHitToPlaceholder(hit)))
       setLookupError("Price lookup failed — showing the catalog match without live comps.")
     } finally {
-      setLookupLoading(false)
+      if (priceRefreshGenRef.current === refreshGen) setLookupLoading(false)
     }
   }
 
   const resetScan = () => {
     identifyingRef.current = false
+    priceRefreshGenRef.current += 1
+    presentedCardIdRef.current = null
     seededHitsRef.current = []
     seedQueryRef.current = ""
     aiCandidatesRef.current = []
