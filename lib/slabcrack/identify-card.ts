@@ -389,12 +389,22 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
   )
   const top = ranked[0] ?? null
   const matchScore = top ? scoreHit(top, detected) : 0
-  const minScore = minAutoMatchScore(detected)
-  const hit = top && matchScore >= minScore ? top : null
+  // Always attach the best catalog hit when search finds anything. A weak score
+  // should prompt "Wrong card", not a dead-end "couldn't load prices" handoff.
+  const hit = top
+  const lowConfidence = Boolean(hit && matchScore < minAutoMatchScore(detected))
 
   let card: MockCardEntry | null = null
   if (hit) {
     card = normalizeCardEntry(await priceHit(hit))
+    if (lowConfidence) {
+      card = {
+        ...card,
+        marketInsight: card.marketInsight
+          ? `${card.marketInsight} Confirm this is the right card — tap Wrong card if not.`
+          : "Confirm this is the right card — tap Wrong card if not.",
+      }
+    }
   }
 
   return {

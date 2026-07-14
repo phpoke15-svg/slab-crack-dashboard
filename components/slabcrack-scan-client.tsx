@@ -269,6 +269,32 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     return () => window.clearTimeout(timer)
   }, [phase, query])
 
+  const fetchPricedCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry> => {
+    const params = hit.id.startsWith("pc-")
+      ? new URLSearchParams({ id: hit.id })
+      : new URLSearchParams({
+          pokemonTcgId: hit.pokemonTcgId || hit.id.replace(/^poke-/, ""),
+          cardName: hit.cardName,
+          setName: hit.setName,
+          cardNumber: hit.cardNumber,
+        })
+    if (!hit.id.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl)
+    if (hit.id.startsWith("pc-")) {
+      // Also pass name context so the API can recover if the PC id fetch fails.
+      params.set("cardName", hit.cardName)
+      params.set("setName", hit.setName)
+      params.set("cardNumber", hit.cardNumber)
+      if (hit.pokemonTcgId) params.set("pokemonTcgId", hit.pokemonTcgId)
+    }
+
+    const res = await fetch(`/api/cards/lookup?${params.toString()}`)
+    if (!res.ok) {
+      return normalizeCardEntry(searchHitToPlaceholder(hit))
+    }
+    const data = (await res.json()) as MockCardEntry
+    return normalizeCardEntry(data)
+  }, [])
+
   const autoIdentify = useCallback(
     async (dataUrl: string) => {
       if (identifyingRef.current) return
@@ -313,17 +339,51 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         aiCandidatesRef.current = json.candidates ?? []
 
         if (json.card) {
-          setCard(normalizeCardEntry(json.card))
+          let priced = normalizeCardEntry(json.card)
+          // Identify sometimes returns a catalog placeholder — refresh live comps.
+          if (priced.hasPricing === false && json.hit) {
+            setIdentifyStatus("Loading live prices…")
+            setCard(priced)
+            setPhase("hud")
+            try {
+              priced = await fetchPricedCard(json.hit)
+              setCard(priced)
+            } catch {
+              /* keep placeholder */
+            }
+            if (priced.hasPricing === false) {
+              setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
+            }
+            return
+          }
+          setCard(priced)
           setPhase("hud")
+          return
+        }
+
+        // No attached card, but search found matches — price the top hit instead of stalling.
+        if (json.candidates?.length) {
+          const top = json.candidates[0]!
+          setIdentifyStatus("Loading live prices…")
+          setPhase("hud")
+          setCard(searchHitToPlaceholder(top))
+          try {
+            const priced = await fetchPricedCard(top)
+            setCard(priced)
+            if (priced.hasPricing === false) {
+              setLookupError("Matched the card, but live prices are unavailable. Try another match via Wrong card.")
+            }
+          } catch {
+            setCard(normalizeCardEntry(searchHitToPlaceholder(top)))
+            setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
+          }
           return
         }
 
         enterManualHandoff({
           query: json.query || label || "",
           candidates: json.candidates,
-          error: json.candidates?.length
-            ? "AI found likely matches — pick the right card below."
-            : "AI read the card, but catalog search found no match. Edit the search and pick one.",
+          error: "AI read the card, but catalog search found no match. Edit the search and pick one.",
           label: label || null,
         })
       } catch (error) {
@@ -338,7 +398,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         identifyingRef.current = false
       }
     },
-    [enterManualHandoff],
+    [enterManualHandoff, fetchPricedCard],
   )
 
   const goIdentify = (dataUrl: string) => {
@@ -377,29 +437,16 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     setLookupLoading(true)
     setLookupError(null)
     setCard(searchHitToPlaceholder(hit))
+    setPhase("hud")
     try {
-      const params = hit.id.startsWith("pc-")
-        ? new URLSearchParams({ id: hit.id })
-        : new URLSearchParams({
-            pokemonTcgId: hit.pokemonTcgId,
-            cardName: hit.cardName,
-            setName: hit.setName,
-            cardNumber: hit.cardNumber,
-          })
-      if (!hit.id.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl)
-
-      const res = await fetch(`/api/cards/lookup?${params.toString()}`)
-      if (!res.ok) {
-        setCard(normalizeCardEntry(searchHitToPlaceholder(hit)))
-        setPhase("hud")
-        return
+      const priced = await fetchPricedCard(hit)
+      setCard(priced)
+      if (priced.hasPricing === false) {
+        setLookupError("Catalog match loaded, but live PriceCharting comps are missing for this card.")
       }
-      const data = (await res.json()) as MockCardEntry
-      setCard(normalizeCardEntry(data))
-      setPhase("hud")
     } catch {
-      setLookupError("Price lookup failed. Try another match.")
-      setCard(null)
+      setCard(normalizeCardEntry(searchHitToPlaceholder(hit)))
+      setLookupError("Price lookup failed — showing the catalog match without live comps.")
     } finally {
       setLookupLoading(false)
     }
@@ -532,6 +579,17 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
             <div className="rounded-2xl border border-white/15 bg-black/70 p-3 backdrop-blur-md">
               {detectedLabel ? (
                 <p className="mb-2 text-[11px] font-medium text-primary">AI match · {detectedLabel}</p>
+              ) : null}
+              {lookupError ? (
+                <p className="mb-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-1.5 text-[11px] text-amber-100">
+                  {lookupError}
+                </p>
+              ) : null}
+              {lookupLoading ? (
+                <p className="mb-2 flex items-center gap-1.5 text-[11px] text-white/60">
+                  <Loader2 className="size-3 animate-spin" />
+                  Loading live prices…
+                </p>
               ) : null}
               <div className="flex items-start gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-900">
