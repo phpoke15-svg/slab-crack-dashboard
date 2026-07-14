@@ -32,21 +32,32 @@ import {
 type ScanTool = "slabcrack" | "slablab"
 type Phase = "camera" | "identifying" | "manual" | "hud"
 
+type DetectedPayload = {
+  cardName: string
+  setName: string
+  cardNumber: string
+  confidence: number
+  notes?: string
+}
+
+type VisionResponse = {
+  ok?: boolean
+  error?: string
+  detected?: DetectedPayload
+  query?: string
+  source?: "gemini" | "openai"
+}
+
 type IdentifyResponse = {
   ok?: boolean
   error?: string
-  detected?: {
-    cardName: string
-    setName: string
-    cardNumber: string
-    confidence: number
-    notes?: string
-  }
+  detected?: DetectedPayload
   query?: string
   hit?: CardSearchHit | null
   candidates?: CardSearchHit[]
   card?: MockCardEntry | null
   matchScore?: number
+  source?: "gemini" | "openai"
 }
 
 function formatMoney(n: number) {
@@ -62,7 +73,7 @@ function formatSigned(n: number) {
 }
 
 /** Downscale/compress camera photos so vision API stays fast + under body limits. */
-async function compressImageDataUrl(dataUrl: string, maxEdge = 960, quality = 0.58): Promise<string> {
+async function compressImageDataUrl(dataUrl: string, maxEdge = 768, quality = 0.52): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new window.Image()
     img.onload = () => {
@@ -318,26 +329,62 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       try {
         setIdentifyStatus("Preparing photo…")
         const compressed = await compressImageDataUrl(dataUrl)
+
+        // Step 1: vision only — surface the AI name as soon as Gemini answers.
         setIdentifyStatus("AI identifying card…")
-        const res = await fetch("/api/slabcrack/identify", {
+        const visionRes = await fetch("/api/slabcrack/identify/vision", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image: compressed }),
         })
-        const json = (await res.json().catch(() => null)) as IdentifyResponse | null
-
-        const label = [
-          json?.detected?.cardName,
-          json?.detected?.cardNumber ? `#${json.detected.cardNumber}` : null,
+        const vision = (await visionRes.json().catch(() => null)) as VisionResponse | null
+        const visionLabel = [
+          vision?.detected?.cardName,
+          vision?.detected?.cardNumber ? `#${vision.detected.cardNumber}` : null,
         ]
           .filter(Boolean)
           .join(" ")
 
-        if (!res.ok || !json?.ok) {
+        if (!visionRes.ok || !vision?.ok || !vision.detected) {
           enterManualHandoff({
-            query: json?.query || json?.detected?.cardName || "",
+            query: vision?.query || vision?.detected?.cardName || "",
+            error: vision?.error || "Could not identify this card automatically.",
+            label: visionLabel || null,
+          })
+          return
+        }
+
+        setDetectedLabel(visionLabel || null)
+        setIdentifyStatus(
+          visionLabel
+            ? `Found ${visionLabel} — loading prices…`
+            : "Loading catalog + prices…",
+        )
+
+        // Step 2: catalog match + pricing (user already sees the AI hit).
+        const matchRes = await fetch("/api/slabcrack/identify/match", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            detected: vision.detected,
+            source: vision.source,
+          }),
+        })
+        const json = (await matchRes.json().catch(() => null)) as IdentifyResponse | null
+        const label = [
+          json?.detected?.cardName || vision.detected.cardName,
+          (json?.detected?.cardNumber || vision.detected.cardNumber)
+            ? `#${json?.detected?.cardNumber || vision.detected.cardNumber}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+
+        if (!matchRes.ok || !json?.ok) {
+          enterManualHandoff({
+            query: vision.query || label,
             candidates: json?.candidates,
-            error: json?.error || "Could not identify this card automatically.",
+            error: json?.error || "Found the card, but catalog match failed. Search manually below.",
             label: label || null,
           })
           return
@@ -347,7 +394,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         aiCandidatesRef.current = json.candidates ?? []
 
         if (json.card) {
-          // Server already priced the match — open immediately (no second lookup).
           presentMatch(normalizeCardEntry(json.card))
           if (json.card.hasPricing === false) {
             setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
@@ -355,7 +401,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
           return
         }
 
-        // No attached card, but search found matches — open top hit data immediately.
         if (json.candidates?.length) {
           const top = json.candidates[0]!
           presentMatch(searchHitToPlaceholder(top))
@@ -376,7 +421,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         }
 
         enterManualHandoff({
-          query: json.query || label || "",
+          query: json.query || vision.query || label || "",
           candidates: json.candidates,
           error: "AI read the card, but catalog search found no match. Edit the search and pick one.",
           label: label || null,
@@ -560,7 +605,13 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/65 px-6 text-center backdrop-blur-sm">
                 <Loader2 className="size-8 animate-spin text-primary" />
                 <p className="text-sm font-semibold text-white">{identifyStatus}</p>
-                <p className="text-xs text-white/60">Usually a few seconds</p>
+                {detectedLabel ? (
+                  <p className="rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
+                    {detectedLabel}
+                  </p>
+                ) : (
+                  <p className="text-xs text-white/60">AI first, then prices</p>
+                )}
               </div>
             ) : null}
           </div>
