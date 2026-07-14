@@ -204,6 +204,39 @@ export async function sendWebPushToTopic(
     }
   }
 
+  return deliverWebPush(subs, payload)
+}
+
+async function listAllSubscriptions(): Promise<PushSubscriptionRecord[]> {
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = createAdminClient()
+      const { data, error } = await supabase
+        .from("push_subscriptions")
+        .select("endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday")
+
+      if (!error && data) {
+        return data.map((row) => ({
+          endpoint: row.endpoint as string,
+          p256dh: row.p256dh as string,
+          auth: row.auth as string,
+          userId: (row.user_id as string | null) ?? null,
+          queueLive: Boolean(row.queue_live),
+          walmartWednesday: Boolean(row.walmart_wednesday),
+        }))
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  return [...memorySubs.values()]
+}
+
+async function deliverWebPush(
+  subs: PushSubscriptionRecord[],
+  payload: PushPayload,
+): Promise<{ sent: number; failed: number; skipped: boolean; reason?: string }> {
   const body = JSON.stringify(payload)
   let sent = 0
   let failed = 0
@@ -234,4 +267,43 @@ export async function sendWebPushToTopic(
   )
 
   return { sent, failed, skipped: false }
+}
+
+/**
+ * Supreme-only broadcast: notify every stored push subscription
+ * (anyone who enabled browser/phone web push on the site).
+ */
+export async function sendWebPushBroadcast(
+  payload: PushPayload,
+): Promise<{
+  sent: number
+  failed: number
+  skipped: boolean
+  reason?: string
+  audience: number
+}> {
+  if (!isWebPushConfigured()) {
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: true,
+      reason: "not_configured",
+      audience: 0,
+    }
+  }
+
+  configureWebPush()
+  const subs = await listAllSubscriptions()
+  if (subs.length === 0) {
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: true,
+      reason: "no_subscribers",
+      audience: 0,
+    }
+  }
+
+  const result = await deliverWebPush(subs, payload)
+  return { ...result, audience: subs.length }
 }
