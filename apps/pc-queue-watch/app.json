@@ -2,7 +2,7 @@
   "expo": {
     "name": "CollecTools",
     "slug": "pokepax",
-    "version": "1.3.10",
+    "version": "1.3.11",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "collectools",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.collectools.app",
-      "buildNumber": "15",
+      "buildNumber": "16",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -31,7 +31,7 @@
     },
     "android": {
       "package": "com.collectools.app",
-      "versionCode": 14,
+      "versionCode": 16,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b0e14"
@@ -51,6 +51,17 @@
       "backgroundColor": "#0b0e14"
     },
     "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0",
+            "minSdkVersion": 24
+          }
+        }
+      ],
       "expo-background-fetch",
       [
         "expo-notifications",
@@ -59,17 +70,7 @@
           "color": "#4ade80"
         }
       ],
-      "expo-asset",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "compileSdkVersion": 35,
-            "targetSdkVersion": 35,
-            "buildToolsVersion": "35.0.0"
-          }
-        }
-      ]
+      "expo-asset"
     ],
     "extra": {
       "eas": {
