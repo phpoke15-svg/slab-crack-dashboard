@@ -269,6 +269,13 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     return () => window.clearTimeout(timer)
   }, [phase, query])
 
+  /** Jump straight into full SlabCrack / SlabLab card data for the closest match. */
+  const presentMatch = useCallback((entry: MockCardEntry, opts?: { openDrawer?: boolean }) => {
+    setCard(normalizeCardEntry(entry))
+    setPhase("hud")
+    setDrawerOpen(opts?.openDrawer !== false)
+  }, [])
+
   const fetchPricedCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry> => {
     const params = hit.id.startsWith("pc-")
       ? new URLSearchParams({ id: hit.id })
@@ -340,33 +347,32 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
         if (json.card) {
           let priced = normalizeCardEntry(json.card)
-          // Identify sometimes returns a catalog placeholder — refresh live comps.
+          // Show full card data immediately, then refresh comps if needed.
+          presentMatch(priced)
           if (priced.hasPricing === false && json.hit) {
             setIdentifyStatus("Loading live prices…")
-            setCard(priced)
-            setPhase("hud")
+            setLookupLoading(true)
             try {
               priced = await fetchPricedCard(json.hit)
               setCard(priced)
             } catch {
-              /* keep placeholder */
+              /* keep placeholder already shown */
+            } finally {
+              setLookupLoading(false)
             }
             if (priced.hasPricing === false) {
               setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
             }
-            return
           }
-          setCard(priced)
-          setPhase("hud")
           return
         }
 
-        // No attached card, but search found matches — price the top hit instead of stalling.
+        // No attached card, but search found matches — open top hit data immediately.
         if (json.candidates?.length) {
           const top = json.candidates[0]!
+          presentMatch(searchHitToPlaceholder(top))
           setIdentifyStatus("Loading live prices…")
-          setPhase("hud")
-          setCard(searchHitToPlaceholder(top))
+          setLookupLoading(true)
           try {
             const priced = await fetchPricedCard(top)
             setCard(priced)
@@ -376,6 +382,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
           } catch {
             setCard(normalizeCardEntry(searchHitToPlaceholder(top)))
             setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
+          } finally {
+            setLookupLoading(false)
           }
           return
         }
@@ -398,7 +406,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         identifyingRef.current = false
       }
     },
-    [enterManualHandoff, fetchPricedCard],
+    [enterManualHandoff, fetchPricedCard, presentMatch],
   )
 
   const goIdentify = (dataUrl: string) => {
@@ -436,8 +444,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const lookupHit = async (hit: CardSearchHit) => {
     setLookupLoading(true)
     setLookupError(null)
-    setCard(searchHitToPlaceholder(hit))
-    setPhase("hud")
+    presentMatch(searchHitToPlaceholder(hit))
     try {
       const priced = await fetchPricedCard(hit)
       setCard(priced)
@@ -665,22 +672,21 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
               )}
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {tool === "slabcrack" ? (
-                  <button
-                    type="button"
-                    onClick={() => setDrawerOpen(true)}
-                    className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
-                  >
-                    Full SlabCrack data
-                  </button>
-                ) : (
+                <button
+                  type="button"
+                  onClick={() => setDrawerOpen(true)}
+                  className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+                >
+                  {tool === "slablab" ? "Full SlabLab data" : "Full SlabCrack data"}
+                </button>
+                {tool === "slablab" ? (
                   <Link
                     href="/slablab"
-                    className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+                    className="inline-flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm font-medium text-white"
                   >
-                    Open SlabLab board
+                    Board
                   </Link>
-                )}
+                ) : null}
                 <button
                   type="button"
                   onClick={showWrongCardPicker}
@@ -844,6 +850,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         <SlabDrawer
           selectedCard={card}
           watched={false}
+          focus={tool}
           onClose={() => setDrawerOpen(false)}
           onToggleWatch={() => {}}
         />

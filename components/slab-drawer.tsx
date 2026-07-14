@@ -13,10 +13,12 @@ import { cn } from "@/lib/utils"
 import {
   getBestGradeQuote,
   getGradeQuotes,
+  resolvePsa10Price,
   type MockCardEntry,
   type PsaGradeNumber,
   type RecentSale,
 } from "@/lib/slab-data"
+import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { PriceHistoryChart } from "@/components/price-history-chart"
@@ -29,6 +31,8 @@ interface SlabDrawerProps {
   watched: boolean
   onClose: () => void
   onToggleWatch: (card: MockCardEntry) => void
+  /** When opened from SlabLab Scan, lead with PSA 10 ROI. */
+  focus?: "slabcrack" | "slablab"
 }
 
 type CardSalesResponse = {
@@ -37,7 +41,13 @@ type CardSalesResponse = {
   error?: string
 }
 
-export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: SlabDrawerProps) {
+export function SlabDrawer({
+  selectedCard,
+  watched,
+  onClose,
+  onToggleWatch,
+  focus = "slabcrack",
+}: SlabDrawerProps) {
   const [salesGrade, setSalesGrade] = useState<PsaGradeNumber>(9)
   const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
   const [liveSlabSales, setLiveSlabSales] = useState<RecentSale[] | null>(null)
@@ -111,6 +121,11 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
   const gradeQuotes = getGradeQuotes(selectedCard)
   const best = getBestGradeQuote(gradeQuotes)
   const activeQuote = gradeQuotes.find((q) => q.grade === salesGrade) ?? best
+  const labPsa10 = resolvePsa10Price(selectedCard).price
+  const labGross = labPsa10 - (selectedCard.rawPrice ?? 0)
+  const labNet = labGross - DEFAULT_PSA_GRADING_FEE
+  const labMult =
+    selectedCard.rawPrice > 0 && labPsa10 > 0 ? labPsa10 / selectedCard.rawPrice : 0
 
   const cachedSlabSales =
     activeQuote?.recentSlabSales ?? selectedCard.recentSlabSales ?? []
@@ -121,6 +136,13 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
     `${selectedCard.cardName} ${selectedCard.cardNumber} PSA ${salesGrade}`,
     `slabcrack-${selectedCard.id}-psa${salesGrade}`,
   )
+
+  const formatSigned = (n: number) => {
+    if (!Number.isFinite(n)) return "—"
+    const abs = Math.abs(n)
+    const formatted = abs >= 100 ? abs.toFixed(0) : abs.toFixed(2)
+    return `${n < 0 ? "-" : ""}$${formatted}`
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
@@ -186,6 +208,18 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
               <div className="mt-3">
                 {pricingLoading ? (
                   <p className="text-sm text-muted-foreground">Loading PSA 7–10 comps…</p>
+                ) : focus === "slablab" ? (
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-medium text-muted-foreground">
+                      PSA 10 vs raw NM
+                    </span>
+                    <p className="font-mono text-lg font-semibold text-foreground">
+                      {labPsa10 > 0 ? `$${labPsa10.toFixed(2)}` : "—"}
+                      <span className="ml-2 text-sm font-medium text-muted-foreground">
+                        raw {priced && selectedCard.rawPrice > 0 ? `$${selectedCard.rawPrice.toFixed(2)}` : "—"}
+                      </span>
+                    </p>
+                  </div>
                 ) : priced && activeQuote?.isArbitrage ? (
                   <div className="flex flex-col gap-1">
                     <span className="text-[11px] font-medium text-muted-foreground">
@@ -205,6 +239,35 @@ export function SlabDrawer({ selectedCard, watched, onClose, onToggleWatch }: Sl
               </div>
             </div>
           </div>
+
+          {focus === "slablab" ? (
+            <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl border border-border bg-secondary/40 p-3">
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Gross</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-foreground">{formatSigned(labGross)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Net ROI</p>
+                <p
+                  className={cn(
+                    "mt-1 font-mono text-sm font-semibold",
+                    labNet >= 0 ? "text-primary" : "text-amber-600",
+                  )}
+                >
+                  {formatSigned(labNet)}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Mult</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-foreground">
+                  {labMult > 0 ? `${labMult.toFixed(2)}×` : "—"}
+                </p>
+              </div>
+              <p className="col-span-3 text-[10px] text-muted-foreground">
+                Net uses PSA Regular grading fee (${DEFAULT_PSA_GRADING_FEE.toFixed(2)}).
+              </p>
+            </div>
+          ) : null}
 
           <div className="mt-5 rounded-2xl border border-border bg-secondary/40 p-3">
             <div className="mb-3 flex items-center justify-between gap-2">
