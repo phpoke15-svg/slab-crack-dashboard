@@ -22,17 +22,16 @@ Version: **1.3.10** (Android `versionCode` 15, iOS `buildNumber` 15). EAS slug i
 
 ### 2. Expo / EAS (10 min)
 
-EAS **must** run inside `apps/pc-queue-watch` (where `app.json` / `eas.json` live). From the monorepo root, use the `mobile:*` npm scripts so you do not hit `Run this command inside a project directory.` A Node `punycode` deprecation line from `eas-cli` is harmless noise and is suppressed by those scripts.
+EAS **must** see `apps/pc-queue-watch` (where `app.json` / `eas.json` live). Prefer the root `mobile:*` scripts — they call `scripts/run-eas.mjs`, which forces that directory on Windows/macOS/Linux and avoids `Run this command inside a project directory.` A Node `punycode` deprecation line from `eas-cli` is harmless and is suppressed by the runner.
 
 ```bash
-cd apps/pc-queue-watch
-npm install
-npx eas-cli login
-npm run build:apk          # internal test APK
-npm run build:android      # Play AAB
-npm run build:ios          # needs Apple team
-npm run submit:android     # Play (internal/draft track)
-# Or from repo root: npm run mobile:build:android && npm run mobile:submit:android
+# from repo root
+npm run mobile:install
+cd apps/pc-queue-watch && npx eas-cli login && cd ../..
+npm run mobile:build:apk          # internal test APK
+npm run mobile:build:android      # Play AAB
+npm run mobile:build:ios          # needs Apple team
+npm run mobile:submit:android     # Play (internal/draft track, --latest)
 ```
 
 ### 3. Google Play Console

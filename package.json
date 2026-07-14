@@ -19,11 +19,12 @@
     "enrich-images": "npx tsx scripts/enrich-images.ts",
     "seed-catalog": "node scripts/seed-catalog.mjs",
     "seed-top-200": "node scripts/seed-top-200.mjs",
-    "mobile:build:apk": "npm run build:apk --prefix apps/pc-queue-watch",
-    "mobile:build:android": "npm run build:android --prefix apps/pc-queue-watch",
-    "mobile:build:ios": "npm run build:ios --prefix apps/pc-queue-watch",
-    "mobile:submit:android": "npm run submit:android --prefix apps/pc-queue-watch",
-    "mobile:submit:ios": "npm run submit:ios --prefix apps/pc-queue-watch"
+    "mobile:install": "npm install --prefix apps/pc-queue-watch",
+    "mobile:build:apk": "node apps/pc-queue-watch/scripts/run-eas.mjs build -p android --profile apk",
+    "mobile:build:android": "node apps/pc-queue-watch/scripts/run-eas.mjs build -p android --profile production",
+    "mobile:build:ios": "node apps/pc-queue-watch/scripts/run-eas.mjs build -p ios --profile production",
+    "mobile:submit:android": "node apps/pc-queue-watch/scripts/run-eas.mjs submit -p android --profile production --latest",
+    "mobile:submit:ios": "node apps/pc-queue-watch/scripts/run-eas.mjs submit -p ios --profile production --latest"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",

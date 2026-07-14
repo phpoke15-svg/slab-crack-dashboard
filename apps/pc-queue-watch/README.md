@@ -30,6 +30,17 @@ Opens the full website:
 
 ## Build internal APK
 
+From the **repo root** (recommended — works on Windows/macOS/Linux):
+
+```bash
+git pull
+npm run mobile:install
+cd apps/pc-queue-watch && npx eas-cli login && cd ../..
+npm run mobile:build:apk
+```
+
+Or from this app folder:
+
 ```bash
 cd apps/pc-queue-watch
 git pull
@@ -41,15 +52,19 @@ npm run build:apk
 
 Uninstall the old APK before installing the new one so Android refreshes the launcher icon.
 
-Production store binaries (run from this directory, or use `npm run mobile:*` from the repo root):
+Production store binaries:
 
 ```bash
-npm run build:android    # AAB for Play
-npm run build:ios        # IPA for App Store / TestFlight (Apple team required)
-npm run submit:android   # upload latest Android build to Play (draft/internal)
+# from repo root
+npm run mobile:build:android    # AAB for Play
+npm run mobile:submit:android   # upload latest Android build to Play (draft/internal)
+
+# or from this directory
+npm run build:android
+npm run submit:android
 ```
 
-Do not run bare `eas submit` from the monorepo root — EAS needs this Expo app folder. Ignore any Node `punycode` deprecation warning from `eas-cli`; the npm scripts silence it.
+Do **not** run bare `eas submit` / `eas build` from the monorepo root or Desktop — EAS needs this Expo app folder (`app.json` + `eas.json`). Use the `mobile:*` / `run-eas.mjs` scripts instead. A Node `punycode` deprecation line from `eas-cli` is harmless; the runner suppresses it.
 
 ## Dev preview
 
