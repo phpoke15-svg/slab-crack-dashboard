@@ -121,6 +121,13 @@ async function sleep(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+class GeminiOverloadedError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "GeminiOverloadedError"
+  }
+}
+
 async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) {
@@ -128,16 +135,15 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
   }
 
   const configured = process.env.GEMINI_VISION_MODEL?.trim()
-  // Paid Gemini 3.5 Flash first; fall through only if a model id is unavailable.
-  const models = [
-    configured,
-    "gemini-3.5-flash",
-    "gemini-2.5-flash",
-    "gemini-flash-latest",
-  ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i)
+  // Paid Gemini Flash family only. Do not cascade to gemini-flash-latest on 429 —
+  // that alias usually shares the same quota and just delays the failure.
+  const models = [configured, "gemini-3.5-flash", "gemini-2.5-flash"].filter(
+    (m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i,
+  )
 
   const { mimeType, base64 } = splitDataUrl(imageDataUrl)
   let lastError = "Gemini vision failed."
+  let sawOverload = false
 
   for (const model of models) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -169,14 +175,17 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
       })
 
       if (response.status === 429 || response.status === 503) {
+        sawOverload = true
         lastError = `Gemini vision overloaded (${response.status}) on ${model}`
-        await sleep(400 * (attempt + 1))
+        // Longer backoff — free/paid rate limits cool down slower than 400ms.
+        await sleep(1200 * (attempt + 1))
         continue
       }
 
       if (!response.ok) {
         const body = await response.text().catch(() => "")
         lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 240)}`
+        // Model id missing / unavailable for this key → try the next candidate.
         if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
           break
         }
@@ -196,6 +205,15 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
       }
       return parseDetectedJson(raw, "Gemini")
     }
+
+    // 429/503 is usually account-wide — don't burn more Gemini models.
+    if (sawOverload) break
+  }
+
+  if (sawOverload) {
+    throw new GeminiOverloadedError(
+      `${lastError}. Wait a few seconds and try again, or we’ll use OpenAI fallback if configured.`,
+    )
   }
 
   throw new Error(lastError)
@@ -255,7 +273,7 @@ async function detectWithOpenAI(imageDataUrl: string): Promise<DetectedCard> {
 async function detectCard(
   imageDataUrl: string,
 ): Promise<{ detected: DetectedCard; source: "gemini" | "openai" }> {
-  const prefer = (process.env.SLABCRACK_VISION_PROVIDER?.trim() || "gemini").toLowerCase()
+  const prefer = (process.env.SLABCRACK_VISION_PROVIDER?.trim() || "auto").toLowerCase()
   const hasGemini = Boolean(process.env.GEMINI_API_KEY?.trim())
   const hasOpenAI = Boolean(process.env.OPENAI_API_KEY?.trim())
 
@@ -264,17 +282,35 @@ async function detectCard(
     return { detected: await detectWithOpenAI(imageDataUrl), source: "openai" }
   }
 
-  if (prefer === "gemini" || prefer === "auto") {
-    if (hasGemini) {
-      try {
-        return { detected: await detectWithGemini(imageDataUrl), source: "gemini" }
-      } catch (error) {
-        if (prefer === "gemini" || !hasOpenAI) throw error
+  if (prefer === "gemini") {
+    if (!hasGemini) throw new Error("GEMINI_API_KEY is not configured.")
+    try {
+      return { detected: await detectWithGemini(imageDataUrl), source: "gemini" }
+    } catch (error) {
+      // Rate limits / overload → use OpenAI if available instead of failing the scan.
+      if (hasOpenAI && error instanceof GeminiOverloadedError) {
+        console.warn("[slabcrack-identify] Gemini overloaded — falling back to OpenAI")
+        return { detected: await detectWithOpenAI(imageDataUrl), source: "openai" }
       }
+      throw error
     }
-    if (hasOpenAI) {
-      return { detected: await detectWithOpenAI(imageDataUrl), source: "openai" }
+  }
+
+  // auto: Gemini first, then OpenAI on any Gemini failure when both are configured.
+  if (hasGemini) {
+    try {
+      return { detected: await detectWithGemini(imageDataUrl), source: "gemini" }
+    } catch (error) {
+      if (!hasOpenAI) throw error
+      console.warn(
+        "[slabcrack-identify] Gemini failed — falling back to OpenAI:",
+        error instanceof Error ? error.message : error,
+      )
     }
+  }
+
+  if (hasOpenAI) {
+    return { detected: await detectWithOpenAI(imageDataUrl), source: "openai" }
   }
 
   throw new Error(
