@@ -32,8 +32,9 @@ export type IdentifyCardResult = {
   matchScore: number
 }
 
-/** Tight budget for Scan — prefer a fast miss + alt query over a long wait. */
-const IDENTIFY_SEARCH_BUDGET_MS = 4_000
+/** Fast pass budget; misses fall through to a wider PriceCharting-backed pass. */
+const IDENTIFY_SEARCH_FAST_MS = 4_000
+const IDENTIFY_SEARCH_WIDE_MS = 7_000
 
 const IDENTIFY_PROMPT = [
   "Identify the Pokemon TCG card in this photo.",
@@ -58,12 +59,19 @@ function buildAlternateQueries(detected: DetectedCard, primary: string): string[
   const fullName = detected.cardName.trim()
   const simpleName = simplifyCardName(fullName)
   const setName = detected.setName.trim()
+  const firstName =
+    simpleName
+      .split(/\s+/)
+      .find((t) => t.length > 2 && !/^(ex|gx|v|vmax|vstar|lv\.?x|break)$/i.test(t)) ?? ""
   const alts = [
     primary,
     simpleName && number ? `${simpleName} ${number}` : "",
+    firstName && number ? `${firstName} ${number}` : "",
     fullName && number ? `${fullName} ${number}` : "",
     simpleName && setName ? `${simpleName} ${setName}` : "",
+    firstName && setName ? `${firstName} ${setName}` : "",
     simpleName,
+    firstName,
     number && setName ? `${setName} ${number}` : "",
     number,
   ]
@@ -360,23 +368,37 @@ async function searchWithFallbacks(
   detected: DetectedCard,
   primaryQuery: string,
 ): Promise<CardSearchHit[]> {
-  const searchOpts = { pokemonOnly: true, fast: true } as const
-  let candidates = await searchCatalogCards(
-    primaryQuery,
-    5,
-    IDENTIFY_SEARCH_BUDGET_MS,
-    searchOpts,
-  )
-  if (candidates.length) return candidates
+  const queries = [primaryQuery, ...buildAlternateQueries(detected, primaryQuery)]
 
-  // At most two quick alternates — don't cascade through every rewrite.
-  for (const alt of buildAlternateQueries(detected, primaryQuery).slice(0, 2)) {
-    candidates = await searchCatalogCards(alt, 5, IDENTIFY_SEARCH_BUDGET_MS, searchOpts)
+  // Pass 1: fast Pokémon TCG-only search (keeps Scan snappy on common hits).
+  for (const query of queries.slice(0, 4)) {
+    const candidates = await searchCatalogCards(query, 6, IDENTIFY_SEARCH_FAST_MS, {
+      pokemonOnly: true,
+      fast: true,
+    })
+    if (candidates.length) return candidates
+  }
+
+  // Pass 2: include PriceCharting — recovers cards the Pokémon API misses.
+  for (const query of queries.slice(0, 3)) {
+    const candidates = await searchCatalogCards(query, 8, IDENTIFY_SEARCH_WIDE_MS, {
+      fast: true,
+    })
     if (candidates.length) {
-      console.warn("[slabcrack-identify] primary catalog query empty — matched via", alt)
+      console.warn("[slabcrack-identify] recovered catalog match via wide search:", query)
       return candidates
     }
   }
+
+  console.warn(
+    "[slabcrack-identify] catalog miss after fallbacks",
+    JSON.stringify({
+      primaryQuery,
+      cardName: detected.cardName,
+      setName: detected.setName,
+      cardNumber: detected.cardNumber,
+    }),
+  )
   return []
 }
 

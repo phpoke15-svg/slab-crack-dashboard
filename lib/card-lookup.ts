@@ -725,19 +725,43 @@ async function fetchPokemonCardsForParsed(
       return fetchBySetAndNumber(parsed.setHint, parsed.setId, parsed.number, limit)
     case "name": {
       const escaped = escapeLucene(parsed.name)
+      const nameQuery =
+        /\s/.test(parsed.name) ? `name:"${escaped}"` : `name:${escaped}`
       const pageSize = fast ? Math.min(24, Math.max(limit * 2, 12)) : Math.min(80, Math.max(limit * 2, 40))
-      const mainTimeout = fast ? 2500 : 5000
+      const mainTimeout = fast ? 2800 : 5000
       if (fast) {
-        return withTimeout(fetchPokemonCardsByQuery(`name:${escaped}`, pageSize), mainTimeout, [])
+        return withTimeout(fetchPokemonCardsByQuery(nameQuery, pageSize), mainTimeout, [])
       }
       const [main, supplemental] = await Promise.all([
-        withTimeout(fetchPokemonCardsByQuery(`name:${escaped}`, pageSize), mainTimeout, []),
+        withTimeout(fetchPokemonCardsByQuery(nameQuery, pageSize), mainTimeout, []),
         fetchSupplementalPokemonForName(parsed.name, limit),
       ])
       return dedupeCatalogCards([...main, ...supplemental])
     }
-    case "name-hints":
+    case "name-hints": {
+      if (fast) {
+        // Scan path: one tight name+number/set query instead of the full hint fan-out.
+        const escapedName = escapeLucene(parsed.name)
+        const nameClause = /\s/.test(parsed.name) ? `name:"${escapedName}"` : `name:${escapedName}`
+        const first = parsed.name.split(/\s+/).find((t) => t.length > 2) ?? parsed.name
+        const firstClause = `name:${escapeLucene(first)}`
+        const numberHint = parsed.hints.find((h) => /^\d{1,4}[a-z]?$/i.test(h))
+        const setHint = parsed.hints.find((h) => !/^\d{1,4}[a-z]?$/i.test(h))
+        const queries = [
+          numberHint ? `${nameClause} number:${numberHint}` : "",
+          numberHint ? `${firstClause} number:${numberHint}` : "",
+          setHint ? `${nameClause} set.name:"${escapeLucene(setHint)}"` : "",
+          nameClause,
+        ].filter(Boolean)
+        const batches = await Promise.all(
+          queries.map((query) =>
+            withTimeout(fetchPokemonCardsByQuery(query, Math.min(limit, 20)), 2800, []),
+          ),
+        )
+        return dedupeCatalogCards(batches.flat())
+      }
       return fetchCardsForHints(parsed.name, expandSearchHints(parsed.hints), limit)
+    }
     case "name-set-combo":
       return fetchNameSetCombos(parsed.tokens, limit)
     case "set-or-name": {
