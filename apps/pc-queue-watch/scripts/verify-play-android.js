@@ -16,8 +16,8 @@ const plugins = expo.plugins || []
 const errors = []
 
 const versionCode = android.versionCode
-if (!Number.isInteger(versionCode) || versionCode < 16) {
-  errors.push(`android.versionCode must be an integer >= 16 (got ${JSON.stringify(versionCode)})`)
+if (!Number.isInteger(versionCode) || versionCode < 21) {
+  errors.push(`android.versionCode must be an integer >= 21 (got ${JSON.stringify(versionCode)})`)
 }
 
 const buildPropsEntry = plugins.find(
