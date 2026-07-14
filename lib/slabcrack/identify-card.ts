@@ -6,15 +6,17 @@ import {
   searchHitToPlaceholder,
   type CardSearchHit,
 } from "@/lib/card-lookup"
+import {
+  cleanNumber,
+  extractGeminiAnswerText,
+  parseDetectedJson,
+  thinkingConfigForModel,
+  type DetectedCard,
+  type GeminiGenerateResponse,
+} from "@/lib/slabcrack/identify-parse"
 import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
 
-export type DetectedCard = {
-  cardName: string
-  setName: string
-  cardNumber: string
-  confidence: number
-  notes?: string
-}
+export type { DetectedCard }
 
 export type IdentifyCardResult = {
   ok: true
@@ -37,15 +39,6 @@ const IDENTIFY_PROMPT = [
   "Prefer the English name when bilingual. Ignore PSA slab labels for the card identity.",
   "If unsure, still guess the most likely cardName + cardNumber and lower confidence.",
 ].join(" ")
-
-function cleanNumber(raw: string): string {
-  const trimmed = raw.trim()
-  const slash = trimmed.match(/^#?(\d{1,4})\s*\/\s*\d{1,4}$/)
-  if (slash) return slash[1]!
-  const bare = trimmed.match(/^#?(\d{1,4}[a-z]?)$/i)
-  if (bare) return bare[1]!
-  return trimmed.replace(/^#/, "").trim()
-}
 
 function buildSearchQuery(detected: DetectedCard): string {
   const number = cleanNumber(detected.cardNumber)
@@ -85,30 +78,6 @@ function scoreHit(hit: CardSearchHit, detected: DetectedCard): number {
   return score
 }
 
-function parseDetectedJson(raw: string, provider: string): DetectedCard {
-  let parsed: Record<string, unknown>
-  try {
-    parsed = JSON.parse(raw) as Record<string, unknown>
-  } catch {
-    throw new Error(`${provider} returned invalid JSON for card identity.`)
-  }
-
-  const cardName = String(parsed.cardName ?? "").trim()
-  const setName = String(parsed.setName ?? "").trim()
-  const cardNumber = cleanNumber(String(parsed.cardNumber ?? ""))
-  const confidenceRaw = Number(parsed.confidence)
-  const confidence = Number.isFinite(confidenceRaw)
-    ? Math.max(0, Math.min(1, confidenceRaw))
-    : 0.5
-  const notes = String(parsed.notes ?? "").trim() || undefined
-
-  if (!cardName && !cardNumber) {
-    throw new Error("Could not read a card name or number from the photo.")
-  }
-
-  return { cardName, setName, cardNumber, confidence, notes }
-}
-
 function splitDataUrl(imageDataUrl: string): { mimeType: string; base64: string } {
   const match = imageDataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
   if (!match) {
@@ -125,6 +94,20 @@ class GeminiOverloadedError extends Error {
   constructor(message: string) {
     super(message)
     this.name = "GeminiOverloadedError"
+  }
+}
+
+type GeminiRequestMode = "preferred" | "more-tokens"
+
+function buildGenerationConfig(model: string, mode: GeminiRequestMode) {
+  const thinking = thinkingConfigForModel(model)
+
+  return {
+    responseMimeType: "application/json",
+    // Thinking tokens count against maxOutputTokens — keep headroom for JSON.
+    maxOutputTokens: mode === "more-tokens" ? 8192 : 2048,
+    temperature: 0,
+    ...(thinking ? { thinkingConfig: thinking } : {}),
   }
 }
 
@@ -145,85 +128,89 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
   let sawOverload = false
 
   for (const model of models) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
-      const useThinkingConfig = !model.includes("2.5") // 3.5+ supports thinkingLevel
+    const modes: GeminiRequestMode[] = ["preferred", "more-tokens"]
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: IDENTIFY_PROMPT },
-                {
-                  inlineData: {
-                    mimeType,
-                    data: base64,
-                  },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            ...(useThinkingConfig
-              ? {
-                  thinkingConfig: {
-                    thinkingLevel: "MINIMAL",
-                  },
-                }
-              : { temperature: 0 }),
+    for (const mode of modes) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
-        }),
-      })
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: IDENTIFY_PROMPT },
+                  {
+                    inlineData: {
+                      mimeType,
+                      data: base64,
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig: buildGenerationConfig(model, mode),
+          }),
+        })
 
-      if (response.status === 429 || response.status === 503) {
-        sawOverload = true
-        lastError = `Gemini vision overloaded (${response.status}) on ${model}`
-        await sleep(1200 * (attempt + 1))
-        continue
-      }
-
-      if (!response.ok) {
-        const body = await response.text().catch(() => "")
-        lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 280)}`
-        console.warn("[slabcrack-identify]", lastError)
-        // Model id missing / unavailable for this key → try the next candidate.
-        if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
-          break
+        if (response.status === 429 || response.status === 503) {
+          sawOverload = true
+          lastError = `Gemini vision overloaded (${response.status}) on ${model}`
+          await sleep(1200 * (attempt + 1))
+          continue
         }
-        // Invalid thinkingConfig on older models → retry without it on next model.
-        if (response.status === 400 && /thinking/i.test(body)) {
-          break
-        }
-        throw new Error(lastError)
-      }
 
-      const json = (await response.json()) as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{ text?: string; thought?: boolean }>
+        if (!response.ok) {
+          const body = await response.text().catch(() => "")
+          lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 280)}`
+          console.warn("[slabcrack-identify]", lastError)
+
+          // Model id missing / unavailable for this key → try the next candidate.
+          if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
+            break
           }
-        }>
+          // Invalid thinkingConfig → try next mode / model.
+          if (response.status === 400 && /thinking/i.test(body)) {
+            break
+          }
+          throw new Error(lastError)
+        }
+
+        const json = (await response.json()) as GeminiGenerateResponse
+        const { text: raw, finishReason, blockReason } = extractGeminiAnswerText(json)
+
+        if (blockReason) {
+          lastError = `Gemini blocked the photo (${blockReason}) on ${model}.`
+          console.warn("[slabcrack-identify]", lastError)
+          break
+        }
+
+        if (!raw) {
+          lastError = `Gemini returned an empty identification from ${model}${
+            finishReason ? ` (${finishReason})` : ""
+          }.`
+          console.warn("[slabcrack-identify]", lastError, JSON.stringify(json).slice(0, 400))
+          // Empty / MAX_TOKENS usually means thinking ate the output budget — try next mode.
+          break
+        }
+
+        try {
+          return parseDetectedJson(raw, "Gemini")
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : "Gemini JSON parse failed."
+          console.warn("[slabcrack-identify]", lastError, raw.slice(0, 240))
+          break
+        }
       }
-      // Gemini 3.x may return thought parts — only join visible answer text.
-      const raw = json.candidates?.[0]?.content?.parts
-        ?.filter((p) => !p.thought)
-        ?.map((p) => p.text ?? "")
-        .join("")
-        .trim()
-      if (!raw) {
-        lastError = `Gemini returned an empty identification from ${model}.`
-        console.warn("[slabcrack-identify]", lastError, JSON.stringify(json).slice(0, 400))
-        break
-      }
-      return parseDetectedJson(raw, "Gemini")
+
+      // Don't keep retrying modes once the account is rate-limited.
+      if (sawOverload) break
     }
 
     // 429/503 is usually account-wide — don't burn more Gemini models.
@@ -307,9 +294,12 @@ async function detectCard(
     try {
       return { detected: await detectWithGemini(imageDataUrl), source: "gemini" }
     } catch (error) {
-      // Rate limits / overload → use OpenAI if available instead of failing the scan.
-      if (hasOpenAI && error instanceof GeminiOverloadedError) {
-        console.warn("[slabcrack-identify] Gemini overloaded — falling back to OpenAI")
+      // Prefer Gemini, but don't leave Scan broken when OpenAI can finish the job.
+      if (hasOpenAI) {
+        console.warn(
+          "[slabcrack-identify] Gemini failed — falling back to OpenAI:",
+          error instanceof Error ? error.message : error,
+        )
         return { detected: await detectWithOpenAI(imageDataUrl), source: "openai" }
       }
       throw error
@@ -323,7 +313,10 @@ async function detectCard(
     } catch (error) {
       if (!hasOpenAI) throw error
       console.warn(
-        "[slabcrack-identify] Gemini failed — falling back to OpenAI:",
+        "[slabcrack-identify]",
+        error instanceof GeminiOverloadedError
+          ? "Gemini overloaded — falling back to OpenAI"
+          : "Gemini failed — falling back to OpenAI:",
         error instanceof Error ? error.message : error,
       )
     }
