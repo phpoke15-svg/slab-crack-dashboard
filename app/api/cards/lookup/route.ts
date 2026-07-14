@@ -30,9 +30,21 @@ export async function GET(request: Request) {
       : undefined
 
   try {
-    const card = id
+    let card = id
       ? await lookupCardById(id)
       : await lookupCardByPokemonId(pokemonTcgId!, catalogContext)
+
+    // PriceCharting id miss / missing key — fall back to Pokémon TCG + name resolve.
+    if (!card && id?.startsWith("pc-") && pokemonTcgId && catalogContext) {
+      card = await lookupCardByPokemonId(pokemonTcgId, catalogContext)
+    } else if (!card && id?.startsWith("pc-") && cardName && setName) {
+      card = await lookupCardByPokemonId(`pc-fallback-${id}`, {
+        cardName,
+        setName,
+        cardNumber: cardNumber ?? "",
+        imageUrl: imageUrl || undefined,
+      })
+    }
 
     if (!card) {
       return NextResponse.json({ error: "Card not found" }, { status: 404 })

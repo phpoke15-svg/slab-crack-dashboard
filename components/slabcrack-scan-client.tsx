@@ -46,6 +46,7 @@ type IdentifyResponse = {
   hit?: CardSearchHit | null
   candidates?: CardSearchHit[]
   card?: MockCardEntry | null
+  matchScore?: number
 }
 
 function formatMoney(n: number) {
@@ -62,7 +63,7 @@ function formatSigned(n: number) {
 
 /** Downscale/compress camera photos so vision API stays fast + under body limits. */
 async function compressImageDataUrl(dataUrl: string, maxEdge = 1280, quality = 0.72): Promise<string> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const img = new window.Image()
     img.onload = () => {
       const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
@@ -73,14 +74,40 @@ async function compressImageDataUrl(dataUrl: string, maxEdge = 1280, quality = 0
       canvas.height = h
       const ctx = canvas.getContext("2d")
       if (!ctx) {
-        resolve(dataUrl)
+        reject(new Error("Could not process this photo. Try Take photo again as JPEG."))
         return
       }
       ctx.drawImage(img, 0, 0, w, h)
       resolve(canvas.toDataURL("image/jpeg", quality))
     }
-    img.onerror = () => resolve(dataUrl)
+    img.onerror = () =>
+      reject(new Error("Could not read this image. Use Take photo (not HEIC/Live Photo)."))
     img.src = dataUrl
+  })
+}
+
+function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 4000): Promise<void> {
+  if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      window.clearTimeout(timer)
+      video.removeEventListener("loadeddata", onReady)
+      video.removeEventListener("loadedmetadata", onReady)
+    }
+    const onReady = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
+        cleanup()
+        resolve()
+      }
+    }
+    const timer = window.setTimeout(() => {
+      cleanup()
+      if (video.videoWidth > 0 && video.videoHeight > 0) resolve()
+      else reject(new Error("Camera preview never produced a frame."))
+    }, timeoutMs)
+    video.addEventListener("loadeddata", onReady)
+    video.addEventListener("loadedmetadata", onReady)
   })
 }
 
@@ -99,6 +126,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const identifyingRef = useRef(false)
+  const seededHitsRef = useRef<CardSearchHit[]>([])
+  const seedQueryRef = useRef("")
+  const aiCandidatesRef = useRef<CardSearchHit[]>([])
 
   const [phase, setPhase] = useState<Phase>("camera")
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -163,8 +194,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       video.setAttribute("playsinline", "true")
       video.muted = true
       await video.play()
+      await waitForVideoFrame(video)
       setCameraReady(true)
     } catch (err) {
+      stopCamera()
       const name = err instanceof DOMException ? err.name : ""
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
         setCameraError("Camera permission blocked. Use Take photo instead, or allow camera in settings.")
@@ -183,10 +216,43 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     return () => stopCamera()
   }, [phase, stopCamera])
 
+  const enterManualHandoff = useCallback(
+    (opts: {
+      query: string
+      candidates?: CardSearchHit[]
+      error: string
+      label?: string | null
+    }) => {
+      const nextQuery = opts.query.trim()
+      const nextHits = opts.candidates ?? []
+      seedQueryRef.current = nextQuery
+      seededHitsRef.current = nextHits
+      aiCandidatesRef.current = nextHits
+      setQuery(nextQuery)
+      setHits(nextHits)
+      setLookupError(opts.error)
+      if (opts.label) setDetectedLabel(opts.label)
+      setPhase("manual")
+    },
+    [],
+  )
+
   useEffect(() => {
+    if (phase !== "manual") return
+
     const q = query.trim()
-    if (phase !== "manual" || q.length < 2) {
-      setHits([])
+    const seeded = seededHitsRef.current
+    const seedQuery = seedQueryRef.current.trim()
+
+    // Keep AI candidates until the user edits away from the seeded query.
+    if (q === seedQuery && seeded.length) {
+      setHits(seeded)
+      setSearchLoading(false)
+      return
+    }
+
+    if (q.length < 2) {
+      setHits(seeded.length ? seeded : [])
       setSearchLoading(false)
       return
     }
@@ -196,61 +262,147 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
         .then((res) => (res.ok ? res.json() : { results: [] }))
         .then((data: { results?: CardSearchHit[] }) => setHits(data.results ?? []))
-        .catch(() => setHits([]))
+        .catch(() => setHits(seeded))
         .finally(() => setSearchLoading(false))
     }, 320)
 
     return () => window.clearTimeout(timer)
   }, [phase, query])
 
-  const autoIdentify = useCallback(async (dataUrl: string) => {
-    setPhase("identifying")
-    setIdentifyStatus("Detecting card with AI…")
-    setLookupError(null)
-    setDetectedLabel(null)
-    setCard(null)
-
-    try {
-      const compressed = await compressImageDataUrl(dataUrl)
-      setIdentifyStatus("Matching catalog + pulling prices…")
-      const res = await fetch("/api/slabcrack/identify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: compressed }),
-      })
-      const json = (await res.json().catch(() => null)) as IdentifyResponse | null
-
-      if (!res.ok || !json?.ok) {
-        const message = json?.error || "Could not identify this card automatically."
-        setLookupError(message)
-        setQuery(json?.query || json?.detected?.cardName || "")
-        if (json?.candidates?.length) setHits(json.candidates)
-        setPhase("manual")
-        return
-      }
-
-      const label = [json.detected?.cardName, json.detected?.cardNumber ? `#${json.detected.cardNumber}` : null]
-        .filter(Boolean)
-        .join(" ")
-      setDetectedLabel(label || null)
-
-      if (json.card) {
-        setCard(normalizeCardEntry(json.card))
-        setPhase("hud")
-        return
-      }
-
-      setQuery(json.query || label || "")
-      setHits(json.candidates ?? [])
-      setLookupError("Detected the card but couldn’t load prices. Pick a match below.")
-      setPhase("manual")
-    } catch {
-      setLookupError("Identification failed. Search manually below.")
-      setPhase("manual")
+  const fetchPricedCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry> => {
+    const params = hit.id.startsWith("pc-")
+      ? new URLSearchParams({ id: hit.id })
+      : new URLSearchParams({
+          pokemonTcgId: hit.pokemonTcgId || hit.id.replace(/^poke-/, ""),
+          cardName: hit.cardName,
+          setName: hit.setName,
+          cardNumber: hit.cardNumber,
+        })
+    if (!hit.id.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl)
+    if (hit.id.startsWith("pc-")) {
+      // Also pass name context so the API can recover if the PC id fetch fails.
+      params.set("cardName", hit.cardName)
+      params.set("setName", hit.setName)
+      params.set("cardNumber", hit.cardNumber)
+      if (hit.pokemonTcgId) params.set("pokemonTcgId", hit.pokemonTcgId)
     }
+
+    const res = await fetch(`/api/cards/lookup?${params.toString()}`)
+    if (!res.ok) {
+      return normalizeCardEntry(searchHitToPlaceholder(hit))
+    }
+    const data = (await res.json()) as MockCardEntry
+    return normalizeCardEntry(data)
   }, [])
 
+  const autoIdentify = useCallback(
+    async (dataUrl: string) => {
+      if (identifyingRef.current) return
+      identifyingRef.current = true
+      setPhase("identifying")
+      setIdentifyStatus("Detecting card with AI…")
+      setLookupError(null)
+      setDetectedLabel(null)
+      setCard(null)
+      seededHitsRef.current = []
+      seedQueryRef.current = ""
+      aiCandidatesRef.current = []
+
+      try {
+        const compressed = await compressImageDataUrl(dataUrl)
+        setIdentifyStatus("Matching catalog + pulling prices…")
+        const res = await fetch("/api/slabcrack/identify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: compressed }),
+        })
+        const json = (await res.json().catch(() => null)) as IdentifyResponse | null
+
+        const label = [
+          json?.detected?.cardName,
+          json?.detected?.cardNumber ? `#${json.detected.cardNumber}` : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+
+        if (!res.ok || !json?.ok) {
+          enterManualHandoff({
+            query: json?.query || json?.detected?.cardName || "",
+            candidates: json?.candidates,
+            error: json?.error || "Could not identify this card automatically.",
+            label: label || null,
+          })
+          return
+        }
+
+        setDetectedLabel(label || null)
+        aiCandidatesRef.current = json.candidates ?? []
+
+        if (json.card) {
+          let priced = normalizeCardEntry(json.card)
+          // Identify sometimes returns a catalog placeholder — refresh live comps.
+          if (priced.hasPricing === false && json.hit) {
+            setIdentifyStatus("Loading live prices…")
+            setCard(priced)
+            setPhase("hud")
+            try {
+              priced = await fetchPricedCard(json.hit)
+              setCard(priced)
+            } catch {
+              /* keep placeholder */
+            }
+            if (priced.hasPricing === false) {
+              setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
+            }
+            return
+          }
+          setCard(priced)
+          setPhase("hud")
+          return
+        }
+
+        // No attached card, but search found matches — price the top hit instead of stalling.
+        if (json.candidates?.length) {
+          const top = json.candidates[0]!
+          setIdentifyStatus("Loading live prices…")
+          setPhase("hud")
+          setCard(searchHitToPlaceholder(top))
+          try {
+            const priced = await fetchPricedCard(top)
+            setCard(priced)
+            if (priced.hasPricing === false) {
+              setLookupError("Matched the card, but live prices are unavailable. Try another match via Wrong card.")
+            }
+          } catch {
+            setCard(normalizeCardEntry(searchHitToPlaceholder(top)))
+            setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
+          }
+          return
+        }
+
+        enterManualHandoff({
+          query: json.query || label || "",
+          candidates: json.candidates,
+          error: "AI read the card, but catalog search found no match. Edit the search and pick one.",
+          label: label || null,
+        })
+      } catch (error) {
+        enterManualHandoff({
+          query: "",
+          error:
+            error instanceof Error
+              ? error.message
+              : "Identification failed. Search manually below.",
+        })
+      } finally {
+        identifyingRef.current = false
+      }
+    },
+    [enterManualHandoff, fetchPricedCard],
+  )
+
   const goIdentify = (dataUrl: string) => {
+    if (identifyingRef.current) return
     setSnapshot(dataUrl)
     void autoIdentify(dataUrl)
   }
@@ -259,9 +411,13 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas || !cameraReady) return
+    if (video.videoWidth <= 0 || video.videoHeight <= 0) {
+      setCameraError("Camera isn’t ready yet — wait a second, then Capture again.")
+      return
+    }
 
-    const w = video.videoWidth || 1280
-    const h = video.videoHeight || 720
+    const w = video.videoWidth
+    const h = video.videoHeight
     canvas.width = w
     canvas.height = h
     const ctx = canvas.getContext("2d")
@@ -281,35 +437,26 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     setLookupLoading(true)
     setLookupError(null)
     setCard(searchHitToPlaceholder(hit))
+    setPhase("hud")
     try {
-      const params = hit.id.startsWith("pc-")
-        ? new URLSearchParams({ id: hit.id })
-        : new URLSearchParams({
-            pokemonTcgId: hit.pokemonTcgId,
-            cardName: hit.cardName,
-            setName: hit.setName,
-            cardNumber: hit.cardNumber,
-          })
-      if (!hit.id.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl)
-
-      const res = await fetch(`/api/cards/lookup?${params.toString()}`)
-      if (!res.ok) {
-        setCard(normalizeCardEntry(searchHitToPlaceholder(hit)))
-        setPhase("hud")
-        return
+      const priced = await fetchPricedCard(hit)
+      setCard(priced)
+      if (priced.hasPricing === false) {
+        setLookupError("Catalog match loaded, but live PriceCharting comps are missing for this card.")
       }
-      const data = (await res.json()) as MockCardEntry
-      setCard(normalizeCardEntry(data))
-      setPhase("hud")
     } catch {
-      setLookupError("Price lookup failed. Try another match.")
-      setCard(null)
+      setCard(normalizeCardEntry(searchHitToPlaceholder(hit)))
+      setLookupError("Price lookup failed — showing the catalog match without live comps.")
     } finally {
       setLookupLoading(false)
     }
   }
 
   const resetScan = () => {
+    identifyingRef.current = false
+    seededHitsRef.current = []
+    seedQueryRef.current = ""
+    aiCandidatesRef.current = []
     setSnapshot(null)
     setCard(null)
     setHits([])
@@ -319,6 +466,17 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     setDrawerOpen(false)
     setCameraError(null)
     setPhase("camera")
+  }
+
+  const showWrongCardPicker = () => {
+    enterManualHandoff({
+      query: detectedLabel?.replace(/#/g, "") || card?.cardName || "",
+      candidates: aiCandidatesRef.current,
+      error: "Pick a different catalog match.",
+      label: detectedLabel,
+    })
+    setCard(null)
+    setDrawerOpen(false)
   }
 
   const best = card ? getBestGradeQuote(getGradeQuotes(card)) : null
@@ -422,6 +580,17 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
               {detectedLabel ? (
                 <p className="mb-2 text-[11px] font-medium text-primary">AI match · {detectedLabel}</p>
               ) : null}
+              {lookupError ? (
+                <p className="mb-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-1.5 text-[11px] text-amber-100">
+                  {lookupError}
+                </p>
+              ) : null}
+              {lookupLoading ? (
+                <p className="mb-2 flex items-center gap-1.5 text-[11px] text-white/60">
+                  <Loader2 className="size-3 animate-spin" />
+                  Loading live prices…
+                </p>
+              ) : null}
               <div className="flex items-start gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-900">
                   {card.imageUrl ? (
@@ -495,23 +664,30 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                 </div>
               )}
 
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
                 {tool === "slabcrack" ? (
                   <button
                     type="button"
                     onClick={() => setDrawerOpen(true)}
-                    className="inline-flex h-10 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+                    className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
                   >
                     Full SlabCrack data
                   </button>
                 ) : (
                   <Link
                     href="/slablab"
-                    className="inline-flex h-10 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
+                    className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
                   >
                     Open SlabLab board
                   </Link>
                 )}
+                <button
+                  type="button"
+                  onClick={showWrongCardPicker}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm font-medium text-white"
+                >
+                  Wrong card
+                </button>
                 <button
                   type="button"
                   onClick={resetScan}

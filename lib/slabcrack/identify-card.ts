@@ -6,15 +6,20 @@ import {
   searchHitToPlaceholder,
   type CardSearchHit,
 } from "@/lib/card-lookup"
+import {
+  cleanNumber,
+  extractGeminiAnswerText,
+  minAutoMatchScore,
+  parseDetectedJson,
+  scoreHit,
+  simplifyCardName,
+  thinkingConfigForModel,
+  type DetectedCard,
+  type GeminiGenerateResponse,
+} from "@/lib/slabcrack/identify-parse"
 import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
 
-export type DetectedCard = {
-  cardName: string
-  setName: string
-  cardNumber: string
-  confidence: number
-  notes?: string
-}
+export type { DetectedCard }
 
 export type IdentifyCardResult = {
   ok: true
@@ -24,7 +29,11 @@ export type IdentifyCardResult = {
   candidates: CardSearchHit[]
   card: MockCardEntry | null
   source: "gemini" | "openai"
+  matchScore: number
 }
+
+/** Identify runs after vision — allow more time than the default UI search budget. */
+const IDENTIFY_SEARCH_BUDGET_MS = 12_000
 
 const IDENTIFY_PROMPT = [
   "Identify the Pokemon trading card in this photo.",
@@ -38,18 +47,9 @@ const IDENTIFY_PROMPT = [
   "If unsure, still guess the most likely cardName + cardNumber and lower confidence.",
 ].join(" ")
 
-function cleanNumber(raw: string): string {
-  const trimmed = raw.trim()
-  const slash = trimmed.match(/^#?(\d{1,4})\s*\/\s*\d{1,4}$/)
-  if (slash) return slash[1]!
-  const bare = trimmed.match(/^#?(\d{1,4}[a-z]?)$/i)
-  if (bare) return bare[1]!
-  return trimmed.replace(/^#/, "").trim()
-}
-
 function buildSearchQuery(detected: DetectedCard): string {
   const number = cleanNumber(detected.cardNumber)
-  const name = detected.cardName.trim()
+  const name = simplifyCardName(detected.cardName)
   const setName = detected.setName.trim()
   if (name && number) return `${name} ${number}`
   if (name && setName) return `${name} ${setName}`
@@ -58,55 +58,21 @@ function buildSearchQuery(detected: DetectedCard): string {
   return number || setName
 }
 
-function scoreHit(hit: CardSearchHit, detected: DetectedCard): number {
-  const name = detected.cardName.toLowerCase()
-  const setName = detected.setName.toLowerCase()
-  const number = cleanNumber(detected.cardNumber).toLowerCase()
-  const hitName = hit.cardName.toLowerCase()
-  const hitSet = hit.setName.toLowerCase()
-  const hitNum = (hit.cardNumber.split("/")[0] ?? "").toLowerCase()
-
-  let score = 0
-  if (number && hitNum === number) score += 50
-  else if (number && hitNum.includes(number)) score += 20
-
-  if (name && hitName.includes(name)) score += 35
-  else if (name) {
-    const first = name.split(/\s+/)[0] ?? ""
-    if (first && hitName.includes(first)) score += 15
-  }
-
-  if (setName && hitSet.includes(setName)) score += 20
-  else if (setName) {
-    const token = setName.split(/\s+/).find((t) => t.length > 3)
-    if (token && hitSet.includes(token.toLowerCase())) score += 10
-  }
-
-  return score
-}
-
-function parseDetectedJson(raw: string, provider: string): DetectedCard {
-  let parsed: Record<string, unknown>
-  try {
-    parsed = JSON.parse(raw) as Record<string, unknown>
-  } catch {
-    throw new Error(`${provider} returned invalid JSON for card identity.`)
-  }
-
-  const cardName = String(parsed.cardName ?? "").trim()
-  const setName = String(parsed.setName ?? "").trim()
-  const cardNumber = cleanNumber(String(parsed.cardNumber ?? ""))
-  const confidenceRaw = Number(parsed.confidence)
-  const confidence = Number.isFinite(confidenceRaw)
-    ? Math.max(0, Math.min(1, confidenceRaw))
-    : 0.5
-  const notes = String(parsed.notes ?? "").trim() || undefined
-
-  if (!cardName && !cardNumber) {
-    throw new Error("Could not read a card name or number from the photo.")
-  }
-
-  return { cardName, setName, cardNumber, confidence, notes }
+function buildAlternateQueries(detected: DetectedCard, primary: string): string[] {
+  const number = cleanNumber(detected.cardNumber)
+  const fullName = detected.cardName.trim()
+  const simpleName = simplifyCardName(fullName)
+  const setName = detected.setName.trim()
+  const alts = [
+    primary,
+    simpleName && number ? `${simpleName} ${number}` : "",
+    fullName && number ? `${fullName} ${number}` : "",
+    simpleName && setName ? `${simpleName} ${setName}` : "",
+    simpleName,
+    number && setName ? `${setName} ${number}` : "",
+    number,
+  ]
+  return alts.filter((q, i, arr): q is string => Boolean(q) && arr.indexOf(q) === i && q !== primary)
 }
 
 function splitDataUrl(imageDataUrl: string): { mimeType: string; base64: string } {
@@ -128,6 +94,20 @@ class GeminiOverloadedError extends Error {
   }
 }
 
+type GeminiRequestMode = "preferred" | "more-tokens"
+
+function buildGenerationConfig(model: string, mode: GeminiRequestMode) {
+  const thinking = thinkingConfigForModel(model)
+
+  return {
+    responseMimeType: "application/json",
+    // Thinking tokens count against maxOutputTokens — keep headroom for JSON.
+    maxOutputTokens: mode === "more-tokens" ? 8192 : 2048,
+    temperature: 0,
+    ...(thinking ? { thinkingConfig: thinking } : {}),
+  }
+}
+
 async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) {
@@ -145,85 +125,89 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
   let sawOverload = false
 
   for (const model of models) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
-      const useThinkingConfig = !model.includes("2.5") // 3.5+ supports thinkingLevel
+    const modes: GeminiRequestMode[] = ["preferred", "more-tokens"]
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: "user",
-              parts: [
-                { text: IDENTIFY_PROMPT },
-                {
-                  inlineData: {
-                    mimeType,
-                    data: base64,
-                  },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            responseMimeType: "application/json",
-            ...(useThinkingConfig
-              ? {
-                  thinkingConfig: {
-                    thinkingLevel: "MINIMAL",
-                  },
-                }
-              : { temperature: 0 }),
+    for (const mode of modes) {
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
+
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
-        }),
-      })
+          body: JSON.stringify({
+            contents: [
+              {
+                role: "user",
+                parts: [
+                  { text: IDENTIFY_PROMPT },
+                  {
+                    inlineData: {
+                      mimeType,
+                      data: base64,
+                    },
+                  },
+                ],
+              },
+            ],
+            generationConfig: buildGenerationConfig(model, mode),
+          }),
+        })
 
-      if (response.status === 429 || response.status === 503) {
-        sawOverload = true
-        lastError = `Gemini vision overloaded (${response.status}) on ${model}`
-        await sleep(1200 * (attempt + 1))
-        continue
-      }
-
-      if (!response.ok) {
-        const body = await response.text().catch(() => "")
-        lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 280)}`
-        console.warn("[slabcrack-identify]", lastError)
-        // Model id missing / unavailable for this key → try the next candidate.
-        if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
-          break
+        if (response.status === 429 || response.status === 503) {
+          sawOverload = true
+          lastError = `Gemini vision overloaded (${response.status}) on ${model}`
+          await sleep(1200 * (attempt + 1))
+          continue
         }
-        // Invalid thinkingConfig on older models → retry without it on next model.
-        if (response.status === 400 && /thinking/i.test(body)) {
-          break
-        }
-        throw new Error(lastError)
-      }
 
-      const json = (await response.json()) as {
-        candidates?: Array<{
-          content?: {
-            parts?: Array<{ text?: string; thought?: boolean }>
+        if (!response.ok) {
+          const body = await response.text().catch(() => "")
+          lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 280)}`
+          console.warn("[slabcrack-identify]", lastError)
+
+          // Model id missing / unavailable for this key → try the next candidate.
+          if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
+            break
           }
-        }>
+          // Invalid thinkingConfig → try next mode / model.
+          if (response.status === 400 && /thinking/i.test(body)) {
+            break
+          }
+          throw new Error(lastError)
+        }
+
+        const json = (await response.json()) as GeminiGenerateResponse
+        const { text: raw, finishReason, blockReason } = extractGeminiAnswerText(json)
+
+        if (blockReason) {
+          lastError = `Gemini blocked the photo (${blockReason}) on ${model}.`
+          console.warn("[slabcrack-identify]", lastError)
+          break
+        }
+
+        if (!raw) {
+          lastError = `Gemini returned an empty identification from ${model}${
+            finishReason ? ` (${finishReason})` : ""
+          }.`
+          console.warn("[slabcrack-identify]", lastError, JSON.stringify(json).slice(0, 400))
+          // Empty / MAX_TOKENS usually means thinking ate the output budget — try next mode.
+          break
+        }
+
+        try {
+          return parseDetectedJson(raw, "Gemini")
+        } catch (error) {
+          lastError = error instanceof Error ? error.message : "Gemini JSON parse failed."
+          console.warn("[slabcrack-identify]", lastError, raw.slice(0, 240))
+          break
+        }
       }
-      // Gemini 3.x may return thought parts — only join visible answer text.
-      const raw = json.candidates?.[0]?.content?.parts
-        ?.filter((p) => !p.thought)
-        ?.map((p) => p.text ?? "")
-        .join("")
-        .trim()
-      if (!raw) {
-        lastError = `Gemini returned an empty identification from ${model}.`
-        console.warn("[slabcrack-identify]", lastError, JSON.stringify(json).slice(0, 400))
-        break
-      }
-      return parseDetectedJson(raw, "Gemini")
+
+      // Don't keep retrying modes once the account is rate-limited.
+      if (sawOverload) break
     }
 
     // 429/503 is usually account-wide — don't burn more Gemini models.
@@ -307,9 +291,12 @@ async function detectCard(
     try {
       return { detected: await detectWithGemini(imageDataUrl), source: "gemini" }
     } catch (error) {
-      // Rate limits / overload → use OpenAI if available instead of failing the scan.
-      if (hasOpenAI && error instanceof GeminiOverloadedError) {
-        console.warn("[slabcrack-identify] Gemini overloaded — falling back to OpenAI")
+      // Prefer Gemini, but don't leave Scan broken when OpenAI can finish the job.
+      if (hasOpenAI) {
+        console.warn(
+          "[slabcrack-identify] Gemini failed — falling back to OpenAI:",
+          error instanceof Error ? error.message : error,
+        )
         return { detected: await detectWithOpenAI(imageDataUrl), source: "openai" }
       }
       throw error
@@ -323,7 +310,10 @@ async function detectCard(
     } catch (error) {
       if (!hasOpenAI) throw error
       console.warn(
-        "[slabcrack-identify] Gemini failed — falling back to OpenAI:",
+        "[slabcrack-identify]",
+        error instanceof GeminiOverloadedError
+          ? "Gemini overloaded — falling back to OpenAI"
+          : "Gemini failed — falling back to OpenAI:",
         error instanceof Error ? error.message : error,
       )
     }
@@ -339,19 +329,44 @@ async function detectCard(
 }
 
 async function priceHit(hit: CardSearchHit): Promise<MockCardEntry> {
-  if (hit.id.startsWith("pc-")) {
-    const priced = await lookupCardById(hit.id)
-    return priced ?? searchHitToPlaceholder(hit)
-  }
+  try {
+    if (hit.id.startsWith("pc-")) {
+      const priced = await lookupCardById(hit.id)
+      return priced ?? searchHitToPlaceholder(hit)
+    }
 
-  const priced = await lookupCardByPokemonId(hit.pokemonTcgId, {
-    cardName: hit.cardName,
-    setName: hit.setName,
-    cardNumber: hit.cardNumber,
-    imageUrl: hit.imageUrl || undefined,
-    rarity: hit.rarity,
-  })
-  return priced ?? searchHitToPlaceholder(hit)
+    const priced = await lookupCardByPokemonId(hit.pokemonTcgId, {
+      cardName: hit.cardName,
+      setName: hit.setName,
+      cardNumber: hit.cardNumber,
+      imageUrl: hit.imageUrl || undefined,
+      rarity: hit.rarity,
+    })
+    return priced ?? searchHitToPlaceholder(hit)
+  } catch (error) {
+    console.warn(
+      "[slabcrack-identify] price lookup failed — using catalog placeholder:",
+      error instanceof Error ? error.message : error,
+    )
+    return searchHitToPlaceholder(hit)
+  }
+}
+
+async function searchWithFallbacks(
+  detected: DetectedCard,
+  primaryQuery: string,
+): Promise<CardSearchHit[]> {
+  let candidates = await searchCatalogCards(primaryQuery, 8, IDENTIFY_SEARCH_BUDGET_MS)
+  if (candidates.length) return candidates
+
+  for (const alt of buildAlternateQueries(detected, primaryQuery)) {
+    candidates = await searchCatalogCards(alt, 8, IDENTIFY_SEARCH_BUDGET_MS)
+    if (candidates.length) {
+      console.warn("[slabcrack-identify] primary catalog query empty — matched via", alt)
+      return candidates
+    }
+  }
+  return []
 }
 
 /**
@@ -368,12 +383,29 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
 
   const { detected, source } = await detectCard(imageDataUrl)
   const query = buildSearchQuery(detected)
-  const candidates = await searchCatalogCards(query, 8)
+  const candidates = await searchWithFallbacks(detected, query)
   const ranked = [...candidates].sort(
     (a, b) => scoreHit(b, detected) - scoreHit(a, detected),
   )
-  const hit = ranked[0] ?? null
-  const card = hit ? normalizeCardEntry(await priceHit(hit)) : null
+  const top = ranked[0] ?? null
+  const matchScore = top ? scoreHit(top, detected) : 0
+  // Always attach the best catalog hit when search finds anything. A weak score
+  // should prompt "Wrong card", not a dead-end "couldn't load prices" handoff.
+  const hit = top
+  const lowConfidence = Boolean(hit && matchScore < minAutoMatchScore(detected))
+
+  let card: MockCardEntry | null = null
+  if (hit) {
+    card = normalizeCardEntry(await priceHit(hit))
+    if (lowConfidence) {
+      card = {
+        ...card,
+        marketInsight: card.marketInsight
+          ? `${card.marketInsight} Confirm this is the right card — tap Wrong card if not.`
+          : "Confirm this is the right card — tap Wrong card if not.",
+      }
+    }
+  }
 
   return {
     ok: true,
@@ -383,5 +415,6 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
     candidates: ranked,
     card,
     source,
+    matchScore,
   }
 }

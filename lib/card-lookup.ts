@@ -977,20 +977,29 @@ export async function lookupCardById(cardId: string): Promise<MockCardEntry | nu
     if (!apiKey) return null
 
     const pcId = cardId.replace(/^pc-/, "")
-    const { fetchPriceChartingProduct } = await import("@/lib/pricecharting")
-    const product = await fetchPriceChartingProduct(apiKey, { id: pcId })
+    try {
+      const { fetchPriceChartingProduct } = await import("@/lib/pricecharting")
+      const product = await fetchPriceChartingProduct(apiKey, { id: pcId })
 
-    const catalog: CatalogCard = {
-      id: `pc-${pcId}`,
-      name: product["product-name"] ?? "Unknown card",
-      setName: product["console-name"] ?? "Unknown set",
-      cardNumber: "",
-      rarity: null,
-      imageSmall: null,
-      imageLarge: null,
+      const catalog: CatalogCard = {
+        id: `pc-${pcId}`,
+        name: product["product-name"] ?? "Unknown card",
+        setName: product["console-name"] ?? "Unknown set",
+        cardNumber: "",
+        rarity: null,
+        imageSmall: null,
+        imageLarge: null,
+      }
+
+      return productToEntry(catalog, product, pcId)
+    } catch (error) {
+      console.warn(
+        "[card-lookup] PriceCharting id lookup failed:",
+        cardId,
+        error instanceof Error ? error.message : error,
+      )
+      return null
     }
-
-    return productToEntry(catalog, product, pcId)
   }
 
   return null
