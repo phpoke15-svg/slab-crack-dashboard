@@ -31,6 +31,7 @@ export default function SlabCrackPage() {
           "Premium unlocks the full graded arbitrage feed",
         ]}
         related={[
+          { href: "/slabcrack/scan", label: "SlabScan" },
           { href: "/slablab", label: "SlabLab" },
           { href: "/binder", label: "PokeMatch" },
           { href: "/pricing", label: "Pricing" },

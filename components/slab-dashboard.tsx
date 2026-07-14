@@ -12,7 +12,9 @@ import {
   Gem,
   BarChart3,
   Crown,
+  Camera,
 } from "lucide-react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
@@ -32,7 +34,6 @@ import { useOptionalEntitlements } from "@/components/billing/entitlements-provi
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
 import { FREE_SLABCRACK_LIMIT, pickMidDeficitCards } from "@/lib/slab-free-tier"
-import Link from "next/link"
 import {
   findWatchedIdForHit,
   isSearchHitWatched,
@@ -265,6 +266,13 @@ export function SlabDashboard() {
           <div className="flex items-center justify-between">
             <CollecToolsBrand href="/" subtitle="SlabCrack · graded slab arbitrage" size="sm" />
             <div className="flex items-center gap-2">
+              <Link
+                href="/slabcrack/scan"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+              >
+                <Camera className="size-3.5" aria-hidden />
+                Scan
+              </Link>
               <div className="flex flex-col items-end">
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 <Zap className="size-3 text-primary" /> Live deficits

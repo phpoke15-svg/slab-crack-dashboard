@@ -1,4 +1,6 @@
 import type { Metadata } from "next"
+import Link from "next/link"
+import { Camera } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
@@ -38,10 +40,19 @@ export default function SlabLabPage() {
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               Top 200 PSA 10 submission candidates from live market comps. Tap a card for spread,
-              multiplier, and grading-cost breakdown.
+              multiplier, and grading-cost breakdown — or scan a card to open ROI instantly.
             </p>
           </div>
-          <SiteAuthButton className="shrink-0" />
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/slablab/scan"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/15 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+            >
+              <Camera className="size-3.5" aria-hidden />
+              Scan
+            </Link>
+            <SiteAuthButton />
+          </div>
         </header>
 
         <Psa10SpreadScanner />
