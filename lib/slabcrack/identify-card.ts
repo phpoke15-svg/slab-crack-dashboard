@@ -135,8 +135,7 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
   }
 
   const configured = process.env.GEMINI_VISION_MODEL?.trim()
-  // Paid Gemini Flash family only. Do not cascade to gemini-flash-latest on 429 —
-  // that alias usually shares the same quota and just delays the failure.
+  // Prefer paid Gemini 3.5 Flash. Skip aliases that share the same quota on 429.
   const models = [configured, "gemini-3.5-flash", "gemini-2.5-flash"].filter(
     (m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i,
   )
@@ -147,11 +146,15 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
 
   for (const model of models) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
+      const useThinkingConfig = !model.includes("2.5") // 3.5+ supports thinkingLevel
 
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
         body: JSON.stringify({
           contents: [
             {
@@ -159,8 +162,8 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
               parts: [
                 { text: IDENTIFY_PROMPT },
                 {
-                  inline_data: {
-                    mime_type: mimeType,
+                  inlineData: {
+                    mimeType,
                     data: base64,
                   },
                 },
@@ -168,8 +171,14 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
             },
           ],
           generationConfig: {
-            temperature: 0,
             responseMimeType: "application/json",
+            ...(useThinkingConfig
+              ? {
+                  thinkingConfig: {
+                    thinkingLevel: "MINIMAL",
+                  },
+                }
+              : { temperature: 0 }),
           },
         }),
       })
@@ -177,30 +186,41 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
       if (response.status === 429 || response.status === 503) {
         sawOverload = true
         lastError = `Gemini vision overloaded (${response.status}) on ${model}`
-        // Longer backoff — free/paid rate limits cool down slower than 400ms.
         await sleep(1200 * (attempt + 1))
         continue
       }
 
       if (!response.ok) {
         const body = await response.text().catch(() => "")
-        lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 240)}`
+        lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 280)}`
+        console.warn("[slabcrack-identify]", lastError)
         // Model id missing / unavailable for this key → try the next candidate.
         if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
+          break
+        }
+        // Invalid thinkingConfig on older models → retry without it on next model.
+        if (response.status === 400 && /thinking/i.test(body)) {
           break
         }
         throw new Error(lastError)
       }
 
       const json = (await response.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{ text?: string; thought?: boolean }>
+          }
+        }>
       }
+      // Gemini 3.x may return thought parts — only join visible answer text.
       const raw = json.candidates?.[0]?.content?.parts
+        ?.filter((p) => !p.thought)
         ?.map((p) => p.text ?? "")
         .join("")
         .trim()
       if (!raw) {
         lastError = `Gemini returned an empty identification from ${model}.`
+        console.warn("[slabcrack-identify]", lastError, JSON.stringify(json).slice(0, 400))
         break
       }
       return parseDetectedJson(raw, "Gemini")
@@ -212,7 +232,7 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
 
   if (sawOverload) {
     throw new GeminiOverloadedError(
-      `${lastError}. Wait a few seconds and try again, or we’ll use OpenAI fallback if configured.`,
+      `${lastError}. Wait a few seconds and try again, or we'll use OpenAI fallback if configured.`,
     )
   }
 
