@@ -58,6 +58,8 @@ type IdentifyResponse = {
   card?: MockCardEntry | null
   matchScore?: number
   source?: "gemini" | "openai"
+  pricingSource?: "local" | "live"
+  needsLiveRefresh?: boolean
 }
 
 function formatMoney(n: number) {
@@ -126,11 +128,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const backHref = tool === "slablab" ? "/slablab" : "/slabcrack"
   const toolLabel = tool === "slablab" ? "SlabLab Scan" : "SlabCrack Scan"
   const toolBlurb =
-    tool === "slablab"
-      ? "Take a photo and we'll detect the card, then open PSA 10 spread / ROI automatically."
-      : "Take a photo and we'll detect the card, then open live SlabCrack prices automatically."
-  const toolTagline =
-    tool === "slablab" ? "Snap a card — PSA 10 ROI pops up" : "Snap a card — AI identifies it"
+    "Take a photo and we'll detect the card, then open SlabCrack arbitrage and SlabLab PSA 10 ROI together."
+  const toolTagline = "Snap a card — Crack + Lab data"
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -141,6 +140,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const seededHitsRef = useRef<CardSearchHit[]>([])
   const seedQueryRef = useRef("")
   const aiCandidatesRef = useRef<CardSearchHit[]>([])
+  const presentedCardIdRef = useRef<string | null>(null)
+  const priceRefreshGenRef = useRef(0)
 
   const [phase, setPhase] = useState<Phase>("camera")
   const [cameraError, setCameraError] = useState<string | null>(null)
@@ -282,7 +283,9 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
   /** Jump straight into full SlabCrack / SlabLab card data for the closest match. */
   const presentMatch = useCallback((entry: MockCardEntry, opts?: { openDrawer?: boolean }) => {
-    setCard(normalizeCardEntry(entry))
+    const normalized = normalizeCardEntry(entry)
+    presentedCardIdRef.current = normalized.id
+    setCard(normalized)
     setPhase("hud")
     setDrawerOpen(opts?.openDrawer !== false)
   }, [])
@@ -317,11 +320,13 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     async (dataUrl: string) => {
       if (identifyingRef.current) return
       identifyingRef.current = true
+      priceRefreshGenRef.current += 1
       setPhase("identifying")
       setIdentifyStatus("Detecting card with AI…")
       setLookupError(null)
       setDetectedLabel(null)
       setCard(null)
+      presentedCardIdRef.current = null
       seededHitsRef.current = []
       seedQueryRef.current = ""
       aiCandidatesRef.current = []
@@ -394,7 +399,43 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         aiCandidatesRef.current = json.candidates ?? []
 
         if (json.card) {
-          presentMatch(normalizeCardEntry(json.card))
+          const localCard = normalizeCardEntry(json.card)
+          presentMatch(localCard)
+
+          // Local-first match: open drawer immediately, then quietly refresh live comps.
+          if (json.needsLiveRefresh && json.hit) {
+            const hit = json.hit
+            const refreshGen = ++priceRefreshGenRef.current
+            setLookupLoading(true)
+            setIdentifyStatus(
+              json.pricingSource === "local"
+                ? "Refreshing live slab comps…"
+                : "Loading live prices…",
+            )
+            void fetchPricedCard(hit)
+              .then((priced) => {
+                if (priceRefreshGenRef.current !== refreshGen) return
+                presentMatch(priced, { openDrawer: true })
+                if (priced.hasPricing === false) {
+                  setLookupError(
+                    "Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.",
+                  )
+                } else {
+                  setLookupError(null)
+                }
+              })
+              .catch(() => {
+                if (priceRefreshGenRef.current !== refreshGen) return
+                if (localCard.hasPricing === false) {
+                  setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
+                }
+              })
+              .finally(() => {
+                if (priceRefreshGenRef.current === refreshGen) setLookupLoading(false)
+              })
+            return
+          }
+
           if (json.card.hasPricing === false) {
             setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
           }
@@ -403,19 +444,22 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
         if (json.candidates?.length) {
           const top = json.candidates[0]!
-          presentMatch(searchHitToPlaceholder(top))
+          const placeholder = searchHitToPlaceholder(top)
+          presentMatch(placeholder)
           setLookupLoading(true)
           try {
             const priced = await fetchPricedCard(top)
+            if (presentedCardIdRef.current !== placeholder.id) return
             setCard(priced)
             if (priced.hasPricing === false) {
               setLookupError("Matched the card, but live prices are unavailable. Try another match via Wrong card.")
             }
           } catch {
-            setCard(normalizeCardEntry(searchHitToPlaceholder(top)))
+            if (presentedCardIdRef.current !== placeholder.id) return
+            setCard(normalizeCardEntry(placeholder))
             setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
           } finally {
-            setLookupLoading(false)
+            if (presentedCardIdRef.current === placeholder.id) setLookupLoading(false)
           }
           return
         }
@@ -474,25 +518,30 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   }
 
   const lookupHit = async (hit: CardSearchHit) => {
+    const refreshGen = ++priceRefreshGenRef.current
     setLookupLoading(true)
     setLookupError(null)
     presentMatch(searchHitToPlaceholder(hit))
     try {
       const priced = await fetchPricedCard(hit)
-      setCard(priced)
+      if (priceRefreshGenRef.current !== refreshGen) return
+      presentMatch(priced, { openDrawer: true })
       if (priced.hasPricing === false) {
         setLookupError("Catalog match loaded, but live PriceCharting comps are missing for this card.")
       }
     } catch {
+      if (priceRefreshGenRef.current !== refreshGen) return
       setCard(normalizeCardEntry(searchHitToPlaceholder(hit)))
       setLookupError("Price lookup failed — showing the catalog match without live comps.")
     } finally {
-      setLookupLoading(false)
+      if (priceRefreshGenRef.current === refreshGen) setLookupLoading(false)
     }
   }
 
   const resetScan = () => {
     identifyingRef.current = false
+    priceRefreshGenRef.current += 1
+    presentedCardIdRef.current = null
     seededHitsRef.current = []
     seedQueryRef.current = ""
     aiCandidatesRef.current = []
@@ -648,66 +697,60 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                     {card.setName}
                     {card.cardNumber ? ` · #${card.cardNumber}` : ""}
                   </p>
-                  {tool === "slabcrack" ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-md border border-white/15 bg-white/5 px-2 py-1 font-mono text-xs text-white">
-                        Raw {formatMoney(card.rawPrice)}
-                      </span>
-                      {best?.isArbitrage ? (
-                        <DeficitBadge diff={best.deficit} pct={best.percentageSavings} size="sm" />
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-md border border-white/15 bg-white/5 px-2 py-1 font-mono text-xs text-white">
-                        Raw {formatMoney(card.rawPrice)}
-                      </span>
-                      <span className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-xs text-primary">
-                        PSA 10 {formatMoney(labPsa10)}
-                      </span>
-                    </div>
-                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-md border border-white/15 bg-white/5 px-2 py-1 font-mono text-xs text-white">
+                      Raw {formatMoney(card.rawPrice)}
+                    </span>
+                    {best?.isArbitrage ? (
+                      <DeficitBadge diff={best.deficit} pct={best.percentageSavings} size="sm" />
+                    ) : null}
+                    <span className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-xs text-primary">
+                      PSA 10 {formatMoney(labPsa10)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {tool === "slabcrack" ? (
-                <div className="mt-3">
-                  <GradePriceGrid quotes={quotes} priced={card.hasPricing !== false} compact />
+              <div className="mt-3">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/45">
+                  SlabCrack · PSA 7–9
+                </p>
+                <GradePriceGrid quotes={quotes} priced={card.hasPricing !== false} compact />
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="col-span-3 -mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/45">
+                  SlabLab · PSA 10
                 </div>
-              ) : (
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-white/50">Gross</p>
-                    <p className="mt-0.5 font-mono text-sm font-semibold text-white">
-                      {formatSigned(labGross)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-white/50">Net ROI</p>
-                    <p
-                      className={cn(
-                        "mt-0.5 font-mono text-sm font-semibold",
-                        labNet >= 0 ? "text-primary" : "text-amber-300",
-                      )}
-                    >
-                      {formatSigned(labNet)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-white/50">Mult</p>
-                    <p className="mt-0.5 font-mono text-sm font-semibold text-white">
-                      {labMult > 0 ? `${labMult.toFixed(2)}×` : "—"}
-                    </p>
-                  </div>
-                  <p className="col-span-3 text-[10px] text-white/45">
-                    Net uses PSA Regular grading fee ({formatMoney(labGradingCost)}). PSA 9{" "}
-                    {formatMoney(labPsa9)}.
-                    {!labReady
-                      ? " Pricing may be incomplete if PSA 10 comps are thin."
-                      : ""}
+                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-white/50">Gross</p>
+                  <p className="mt-0.5 font-mono text-sm font-semibold text-white">
+                    {formatSigned(labGross)}
                   </p>
                 </div>
-              )}
+                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-white/50">Net ROI</p>
+                  <p
+                    className={cn(
+                      "mt-0.5 font-mono text-sm font-semibold",
+                      labNet >= 0 ? "text-primary" : "text-amber-300",
+                    )}
+                  >
+                    {formatSigned(labNet)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-white/50">Mult</p>
+                  <p className="mt-0.5 font-mono text-sm font-semibold text-white">
+                    {labMult > 0 ? `${labMult.toFixed(2)}×` : "—"}
+                  </p>
+                </div>
+                <p className="col-span-3 text-[10px] text-white/45">
+                  Net uses PSA Regular grading fee ({formatMoney(labGradingCost)}). PSA 9{" "}
+                  {formatMoney(labPsa9)}.
+                  {!labReady ? " Pricing may be incomplete if PSA 10 comps are thin." : ""}
+                </p>
+              </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -715,16 +758,14 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   onClick={() => setDrawerOpen(true)}
                   className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
                 >
-                  {tool === "slablab" ? "Full SlabLab data" : "Full SlabCrack data"}
+                  Full Crack + Lab data
                 </button>
-                {tool === "slablab" ? (
-                  <Link
-                    href="/slablab"
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm font-medium text-white"
-                  >
-                    Board
-                  </Link>
-                ) : null}
+                <Link
+                  href={tool === "slablab" ? "/slablab" : "/slabcrack"}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm font-medium text-white"
+                >
+                  {tool === "slablab" ? "Board" : "Feed"}
+                </Link>
                 <button
                   type="button"
                   onClick={showWrongCardPicker}
@@ -888,7 +929,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         <SlabDrawer
           selectedCard={card}
           watched={false}
-          focus={tool}
+          focus="both"
           onClose={() => setDrawerOpen(false)}
           onToggleWatch={() => {}}
         />

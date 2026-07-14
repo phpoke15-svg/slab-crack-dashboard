@@ -17,6 +17,7 @@ import {
   type DetectedCard,
   type GeminiGenerateResponse,
 } from "@/lib/slabcrack/identify-parse"
+import { matchDetectedCardLocal } from "@/lib/slabcrack/local-match"
 import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
 
 export type { DetectedCard }
@@ -30,6 +31,10 @@ export type IdentifyCardResult = {
   card: MockCardEntry | null
   source: "gemini" | "openai"
   matchScore: number
+  /** Where catalog/pricing came from for this match. */
+  pricingSource: "local" | "live"
+  /** Client may background-refresh live PriceCharting comps. */
+  needsLiveRefresh: boolean
 }
 
 /** Single parallel catalog attempt budget (Pokémon + PriceCharting inside). */
@@ -438,6 +443,16 @@ export async function identifyCardVision(imageDataUrl: string): Promise<VisionId
   return { ok: true, detected, query, source }
 }
 
+function withLowConfidenceInsight(card: MockCardEntry, lowConfidence: boolean): MockCardEntry {
+  if (!lowConfidence) return card
+  return {
+    ...card,
+    marketInsight: card.marketInsight
+      ? `${card.marketInsight} Confirm this is the right card — tap Wrong card if not.`
+      : "Confirm this is the right card — tap Wrong card if not.",
+  }
+}
+
 /** Catalog + pricing step for an already-detected card. */
 export async function matchDetectedCard(
   input: Partial<DetectedCard>,
@@ -446,6 +461,28 @@ export async function matchDetectedCard(
   const detected = normalizeDetectedInput(input)
   const started = Date.now()
   const query = buildSearchQuery(detected)
+
+  // Local-first: Supabase slab_cards + cached prices (ms), then optional live refresh.
+  const local = await matchDetectedCardLocal(detected)
+  if (local?.hit && local.card) {
+    const lowConfidence = local.matchScore < minAutoMatchScore(detected)
+    console.warn(
+      `[slabcrack-identify] local-match score=${local.matchScore} refresh=${local.needsLiveRefresh} in ${Date.now() - started}ms`,
+    )
+    return {
+      ok: true,
+      detected,
+      query,
+      hit: local.hit,
+      candidates: local.candidates,
+      card: withLowConfidenceInsight(local.card, lowConfidence),
+      source,
+      matchScore: local.matchScore,
+      pricingSource: "local",
+      needsLiveRefresh: local.needsLiveRefresh,
+    }
+  }
+
   const candidates = await searchWithFallbacks(detected, query)
   const afterSearch = Date.now()
   const ranked = [...candidates].sort(
@@ -458,19 +495,11 @@ export async function matchDetectedCard(
 
   let card: MockCardEntry | null = null
   if (hit) {
-    card = normalizeCardEntry(await priceHit(hit))
-    if (lowConfidence) {
-      card = {
-        ...card,
-        marketInsight: card.marketInsight
-          ? `${card.marketInsight} Confirm this is the right card — tap Wrong card if not.`
-          : "Confirm this is the right card — tap Wrong card if not.",
-      }
-    }
+    card = withLowConfidenceInsight(normalizeCardEntry(await priceHit(hit)), lowConfidence)
   }
 
   console.warn(
-    `[slabcrack-identify] match search=${afterSearch - started}ms price=${Date.now() - afterSearch}ms total=${Date.now() - started}ms hits=${ranked.length}`,
+    `[slabcrack-identify] live-match search=${afterSearch - started}ms price=${Date.now() - afterSearch}ms total=${Date.now() - started}ms hits=${ranked.length}`,
   )
 
   return {
@@ -482,6 +511,8 @@ export async function matchDetectedCard(
     card,
     source,
     matchScore,
+    pricingSource: "live",
+    needsLiveRefresh: false,
   }
 }
 

@@ -266,13 +266,6 @@ export function SlabDashboard() {
           <div className="flex items-center justify-between">
             <CollecToolsBrand href="/" subtitle="SlabCrack · graded slab arbitrage" size="sm" />
             <div className="flex items-center gap-2">
-              <Link
-                href="/slabcrack/scan"
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-              >
-                <Camera className="size-3.5" aria-hidden />
-                Scan
-              </Link>
               <div className="flex flex-col items-end">
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                 <Zap className="size-3 text-primary" /> Live deficits
@@ -285,7 +278,7 @@ export function SlabDashboard() {
             </div>
           </div>
 
-          {/* Search */}
+          {/* Search + Scan */}
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -293,10 +286,18 @@ export function SlabDashboard() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search card, set, or set + card…"
               className={cn(
-                "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-4 text-sm text-foreground placeholder:text-muted-foreground",
+                "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
                 "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
               )}
             />
+            <Link
+              href="/slabcrack/scan"
+              className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+              aria-label="Scan a card"
+            >
+              <Camera className="size-3.5" aria-hidden />
+              Scan
+            </Link>
           </div>
         </div>
 
