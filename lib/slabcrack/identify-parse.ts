@@ -6,13 +6,39 @@ export type DetectedCard = {
   notes?: string
 }
 
+/** Normalize collector numbers: 025→25, 161/131→161, TG01→TG1, GG70→GG70. */
 export function cleanNumber(raw: string): string {
-  const trimmed = raw.trim()
-  const slash = trimmed.match(/^#?(\d{1,4})\s*\/\s*\d{1,4}$/)
-  if (slash) return slash[1]!
-  const bare = trimmed.match(/^#?(\d{1,4}[a-z]?)$/i)
-  if (bare) return bare[1]!
-  return trimmed.replace(/^#/, "").trim()
+  const trimmed = raw.trim().replace(/^#/, "")
+  if (!trimmed) return ""
+
+  const slash = trimmed.match(/^([a-z]{0,3}\d{1,4}[a-z]?)\s*\/\s*\d{1,4}$/i)
+  if (slash) return normalizeCollectorToken(slash[1]!)
+
+  const prefixed = trimmed.match(/^([a-z]{1,3})0*(\d{1,4}[a-z]?)$/i)
+  if (prefixed) {
+    return `${prefixed[1]!.toUpperCase()}${normalizeCollectorToken(prefixed[2]!)}`
+  }
+
+  const bare = trimmed.match(/^(\d{1,4}[a-z]?)$/i)
+  if (bare) return normalizeCollectorToken(bare[1]!)
+
+  return trimmed
+}
+
+function normalizeCollectorToken(token: string): string {
+  return token.replace(/^0+(?=\d)/, "")
+}
+
+/** Strip rarity fluff Gemini often appends so catalog search can match. */
+export function simplifyCardName(name: string): string {
+  return name
+    .replace(
+      /\b(special illustration rare|illustration rare|hyper rare|secret rare|ultra rare|amazing rare|radiant|full art|alt art|sir|ir)\b/gi,
+      "",
+    )
+    .replace(/[()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 /** Strip markdown fences / leading chatter so Gemini JSON still parses. */
@@ -112,4 +138,46 @@ export function thinkingConfigForModel(model: string): Record<string, unknown> |
     return { thinkingLevel: "minimal" }
   }
   return null
+}
+
+export type ScoreableHit = {
+  cardName: string
+  setName: string
+  cardNumber: string
+}
+
+export function scoreHit(hit: ScoreableHit, detected: DetectedCard): number {
+  const name = simplifyCardName(detected.cardName).toLowerCase()
+  const setName = detected.setName.toLowerCase()
+  const number = cleanNumber(detected.cardNumber).toLowerCase()
+  const hitName = hit.cardName.toLowerCase()
+  const hitSet = hit.setName.toLowerCase()
+  const hitNum = cleanNumber(hit.cardNumber.split("/")[0] ?? "").toLowerCase()
+
+  let score = 0
+  if (number && hitNum && number === hitNum) score += 50
+  else if (number && hitNum && (hitNum.includes(number) || number.includes(hitNum))) score += 20
+
+  if (name && hitName) {
+    if (hitName.includes(name) || name.includes(hitName)) score += 35
+    else {
+      const first = name.split(/\s+/).find((t) => t.length > 2) ?? ""
+      if (first && hitName.includes(first)) score += 15
+    }
+  }
+
+  if (setName && hitSet.includes(setName)) score += 20
+  else if (setName) {
+    const token = setName.split(/\s+/).find((t) => t.length > 3)
+    if (token && hitSet.includes(token.toLowerCase())) score += 10
+  }
+
+  return score
+}
+
+/** Minimum score before auto-opening HUD (avoids wrong-card "success"). */
+export function minAutoMatchScore(detected: DetectedCard): number {
+  if (cleanNumber(detected.cardNumber)) return 50
+  if (detected.setName.trim()) return 45
+  return 35
 }

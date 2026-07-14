@@ -9,7 +9,10 @@ import {
 import {
   cleanNumber,
   extractGeminiAnswerText,
+  minAutoMatchScore,
   parseDetectedJson,
+  scoreHit,
+  simplifyCardName,
   thinkingConfigForModel,
   type DetectedCard,
   type GeminiGenerateResponse,
@@ -26,7 +29,11 @@ export type IdentifyCardResult = {
   candidates: CardSearchHit[]
   card: MockCardEntry | null
   source: "gemini" | "openai"
+  matchScore: number
 }
+
+/** Identify runs after vision — allow more time than the default UI search budget. */
+const IDENTIFY_SEARCH_BUDGET_MS = 12_000
 
 const IDENTIFY_PROMPT = [
   "Identify the Pokemon trading card in this photo.",
@@ -42,7 +49,7 @@ const IDENTIFY_PROMPT = [
 
 function buildSearchQuery(detected: DetectedCard): string {
   const number = cleanNumber(detected.cardNumber)
-  const name = detected.cardName.trim()
+  const name = simplifyCardName(detected.cardName)
   const setName = detected.setName.trim()
   if (name && number) return `${name} ${number}`
   if (name && setName) return `${name} ${setName}`
@@ -51,31 +58,21 @@ function buildSearchQuery(detected: DetectedCard): string {
   return number || setName
 }
 
-function scoreHit(hit: CardSearchHit, detected: DetectedCard): number {
-  const name = detected.cardName.toLowerCase()
-  const setName = detected.setName.toLowerCase()
-  const number = cleanNumber(detected.cardNumber).toLowerCase()
-  const hitName = hit.cardName.toLowerCase()
-  const hitSet = hit.setName.toLowerCase()
-  const hitNum = (hit.cardNumber.split("/")[0] ?? "").toLowerCase()
-
-  let score = 0
-  if (number && hitNum === number) score += 50
-  else if (number && hitNum.includes(number)) score += 20
-
-  if (name && hitName.includes(name)) score += 35
-  else if (name) {
-    const first = name.split(/\s+/)[0] ?? ""
-    if (first && hitName.includes(first)) score += 15
-  }
-
-  if (setName && hitSet.includes(setName)) score += 20
-  else if (setName) {
-    const token = setName.split(/\s+/).find((t) => t.length > 3)
-    if (token && hitSet.includes(token.toLowerCase())) score += 10
-  }
-
-  return score
+function buildAlternateQueries(detected: DetectedCard, primary: string): string[] {
+  const number = cleanNumber(detected.cardNumber)
+  const fullName = detected.cardName.trim()
+  const simpleName = simplifyCardName(fullName)
+  const setName = detected.setName.trim()
+  const alts = [
+    primary,
+    simpleName && number ? `${simpleName} ${number}` : "",
+    fullName && number ? `${fullName} ${number}` : "",
+    simpleName && setName ? `${simpleName} ${setName}` : "",
+    simpleName,
+    number && setName ? `${setName} ${number}` : "",
+    number,
+  ]
+  return alts.filter((q, i, arr): q is string => Boolean(q) && arr.indexOf(q) === i && q !== primary)
 }
 
 function splitDataUrl(imageDataUrl: string): { mimeType: string; base64: string } {
@@ -332,19 +329,44 @@ async function detectCard(
 }
 
 async function priceHit(hit: CardSearchHit): Promise<MockCardEntry> {
-  if (hit.id.startsWith("pc-")) {
-    const priced = await lookupCardById(hit.id)
-    return priced ?? searchHitToPlaceholder(hit)
-  }
+  try {
+    if (hit.id.startsWith("pc-")) {
+      const priced = await lookupCardById(hit.id)
+      return priced ?? searchHitToPlaceholder(hit)
+    }
 
-  const priced = await lookupCardByPokemonId(hit.pokemonTcgId, {
-    cardName: hit.cardName,
-    setName: hit.setName,
-    cardNumber: hit.cardNumber,
-    imageUrl: hit.imageUrl || undefined,
-    rarity: hit.rarity,
-  })
-  return priced ?? searchHitToPlaceholder(hit)
+    const priced = await lookupCardByPokemonId(hit.pokemonTcgId, {
+      cardName: hit.cardName,
+      setName: hit.setName,
+      cardNumber: hit.cardNumber,
+      imageUrl: hit.imageUrl || undefined,
+      rarity: hit.rarity,
+    })
+    return priced ?? searchHitToPlaceholder(hit)
+  } catch (error) {
+    console.warn(
+      "[slabcrack-identify] price lookup failed — using catalog placeholder:",
+      error instanceof Error ? error.message : error,
+    )
+    return searchHitToPlaceholder(hit)
+  }
+}
+
+async function searchWithFallbacks(
+  detected: DetectedCard,
+  primaryQuery: string,
+): Promise<CardSearchHit[]> {
+  let candidates = await searchCatalogCards(primaryQuery, 8, IDENTIFY_SEARCH_BUDGET_MS)
+  if (candidates.length) return candidates
+
+  for (const alt of buildAlternateQueries(detected, primaryQuery)) {
+    candidates = await searchCatalogCards(alt, 8, IDENTIFY_SEARCH_BUDGET_MS)
+    if (candidates.length) {
+      console.warn("[slabcrack-identify] primary catalog query empty — matched via", alt)
+      return candidates
+    }
+  }
+  return []
 }
 
 /**
@@ -361,12 +383,19 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
 
   const { detected, source } = await detectCard(imageDataUrl)
   const query = buildSearchQuery(detected)
-  const candidates = await searchCatalogCards(query, 8)
+  const candidates = await searchWithFallbacks(detected, query)
   const ranked = [...candidates].sort(
     (a, b) => scoreHit(b, detected) - scoreHit(a, detected),
   )
-  const hit = ranked[0] ?? null
-  const card = hit ? normalizeCardEntry(await priceHit(hit)) : null
+  const top = ranked[0] ?? null
+  const matchScore = top ? scoreHit(top, detected) : 0
+  const minScore = minAutoMatchScore(detected)
+  const hit = top && matchScore >= minScore ? top : null
+
+  let card: MockCardEntry | null = null
+  if (hit) {
+    card = normalizeCardEntry(await priceHit(hit))
+  }
 
   return {
     ok: true,
@@ -376,5 +405,6 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
     candidates: ranked,
     card,
     source,
+    matchScore,
   }
 }
