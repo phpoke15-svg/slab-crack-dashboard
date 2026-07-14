@@ -32,19 +32,14 @@ export type IdentifyCardResult = {
   matchScore: number
 }
 
-/** Identify runs after vision — allow more time than the default UI search budget. */
-const IDENTIFY_SEARCH_BUDGET_MS = 12_000
+/** Tight budget for Scan — prefer a fast miss + alt query over a long wait. */
+const IDENTIFY_SEARCH_BUDGET_MS = 4_000
 
 const IDENTIFY_PROMPT = [
-  "Identify the Pokemon trading card in this photo.",
-  "Return JSON with keys:",
-  'cardName (string, pokemon name + stage like "Umbreon ex"),',
-  "setName (string, English set name if visible, else empty string),",
-  'cardNumber (string, collector number like "161" or "161/131", else empty),',
-  "confidence (number 0-1),",
-  "notes (short string).",
-  "Prefer the English name when bilingual. Ignore PSA slab labels for the card identity.",
-  "If unsure, still guess the most likely cardName + cardNumber and lower confidence.",
+  "Identify the Pokemon TCG card in this photo.",
+  "Return JSON only with keys: cardName, setName, cardNumber, confidence, notes.",
+  'cardName like "Umbreon ex"; setName English or ""; cardNumber like "161" or "161/131" or "".',
+  "Prefer English. Ignore slab labels. Guess if unsure and lower confidence.",
 ].join(" ")
 
 function buildSearchQuery(detected: DetectedCard): string {
@@ -101,8 +96,8 @@ function buildGenerationConfig(model: string, mode: GeminiRequestMode) {
 
   return {
     responseMimeType: "application/json",
-    // Thinking tokens count against maxOutputTokens — keep headroom for JSON.
-    maxOutputTokens: mode === "more-tokens" ? 8192 : 2048,
+    // Tiny JSON answer — keep output budget small for lower latency.
+    maxOutputTokens: mode === "more-tokens" ? 2048 : 768,
     temperature: 0,
     ...(thinking ? { thinkingConfig: thinking } : {}),
   }
@@ -115,20 +110,21 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
   }
 
   const configured = process.env.GEMINI_VISION_MODEL?.trim()
-  // Prefer paid Gemini 3.5 Flash. Skip aliases that share the same quota on 429.
-  const models = [configured, "gemini-3.5-flash", "gemini-2.5-flash"].filter(
+  // Fast path first: 2.5 Flash with thinkingBudget 0. Fall back to 3.5 only if needed.
+  const models = [configured, "gemini-2.5-flash", "gemini-3.5-flash"].filter(
     (m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i,
   )
 
   const { mimeType, base64 } = splitDataUrl(imageDataUrl)
   let lastError = "Gemini vision failed."
   let sawOverload = false
+  const started = Date.now()
 
   for (const model of models) {
     const modes: GeminiRequestMode[] = ["preferred", "more-tokens"]
 
     for (const mode of modes) {
-      for (let attempt = 0; attempt < 3; attempt += 1) {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
 
         const response = await fetch(url, {
@@ -159,7 +155,7 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
         if (response.status === 429 || response.status === 503) {
           sawOverload = true
           lastError = `Gemini vision overloaded (${response.status}) on ${model}`
-          await sleep(1200 * (attempt + 1))
+          await sleep(500 * (attempt + 1))
           continue
         }
 
@@ -198,7 +194,11 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
         }
 
         try {
-          return parseDetectedJson(raw, "Gemini")
+          const detected = parseDetectedJson(raw, "Gemini")
+          console.warn(
+            `[slabcrack-identify] vision ok via ${model}/${mode} in ${Date.now() - started}ms`,
+          )
+          return detected
         } catch (error) {
           lastError = error instanceof Error ? error.message : "Gemini JSON parse failed."
           console.warn("[slabcrack-identify]", lastError, raw.slice(0, 240))
@@ -335,12 +335,16 @@ async function priceHit(hit: CardSearchHit): Promise<MockCardEntry> {
       return priced ?? searchHitToPlaceholder(hit)
     }
 
+    const number = cleanNumber(hit.cardNumber)
+    const name = simplifyCardName(hit.cardName)
     const priced = await lookupCardByPokemonId(hit.pokemonTcgId, {
       cardName: hit.cardName,
       setName: hit.setName,
       cardNumber: hit.cardNumber,
       imageUrl: hit.imageUrl || undefined,
       rarity: hit.rarity,
+      fast: true,
+      searchQuery: [name, number ? `#${number}` : "", hit.setName].filter(Boolean).join(" "),
     })
     return priced ?? searchHitToPlaceholder(hit)
   } catch (error) {
@@ -356,11 +360,18 @@ async function searchWithFallbacks(
   detected: DetectedCard,
   primaryQuery: string,
 ): Promise<CardSearchHit[]> {
-  let candidates = await searchCatalogCards(primaryQuery, 8, IDENTIFY_SEARCH_BUDGET_MS)
+  const searchOpts = { pokemonOnly: true, fast: true } as const
+  let candidates = await searchCatalogCards(
+    primaryQuery,
+    5,
+    IDENTIFY_SEARCH_BUDGET_MS,
+    searchOpts,
+  )
   if (candidates.length) return candidates
 
-  for (const alt of buildAlternateQueries(detected, primaryQuery)) {
-    candidates = await searchCatalogCards(alt, 8, IDENTIFY_SEARCH_BUDGET_MS)
+  // At most two quick alternates — don't cascade through every rewrite.
+  for (const alt of buildAlternateQueries(detected, primaryQuery).slice(0, 2)) {
+    candidates = await searchCatalogCards(alt, 5, IDENTIFY_SEARCH_BUDGET_MS, searchOpts)
     if (candidates.length) {
       console.warn("[slabcrack-identify] primary catalog query empty — matched via", alt)
       return candidates
@@ -381,9 +392,12 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
     throw new Error("Photo is too large. Retake closer or use a smaller image.")
   }
 
+  const started = Date.now()
   const { detected, source } = await detectCard(imageDataUrl)
+  const afterVision = Date.now()
   const query = buildSearchQuery(detected)
   const candidates = await searchWithFallbacks(detected, query)
+  const afterSearch = Date.now()
   const ranked = [...candidates].sort(
     (a, b) => scoreHit(b, detected) - scoreHit(a, detected),
   )
@@ -406,6 +420,10 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
       }
     }
   }
+
+  console.warn(
+    `[slabcrack-identify] done source=${source} vision=${afterVision - started}ms search=${afterSearch - afterVision}ms price=${Date.now() - afterSearch}ms total=${Date.now() - started}ms`,
+  )
 
   return {
     ok: true,

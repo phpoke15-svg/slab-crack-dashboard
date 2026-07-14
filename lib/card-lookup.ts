@@ -77,6 +77,16 @@ export type LookupCatalogContext = {
   cardNumber: string
   imageUrl?: string
   rarity?: string | null
+  /** Fewer PriceCharting search round-trips (Scan/identify). */
+  fast?: boolean
+  searchQuery?: string
+}
+
+export type SearchCatalogOptions = {
+  /** Skip PriceCharting catalog search (Pokémon TCG only) — much faster for Scan. */
+  pokemonOnly?: boolean
+  /** Skip supplemental Pokémon queries / heavy fallbacks. */
+  fast?: boolean
 }
 
 function escapeLucene(value: string): string {
@@ -701,7 +711,11 @@ async function fetchSupplementalPokemonForName(name: string, limit: number): Pro
   return dedupeCatalogCards(batches.flat())
 }
 
-async function fetchPokemonCardsForParsed(parsed: ParsedSearch, limit: number): Promise<CatalogCard[]> {
+async function fetchPokemonCardsForParsed(
+  parsed: ParsedSearch,
+  limit: number,
+  fast = false,
+): Promise<CatalogCard[]> {
   switch (parsed.mode) {
     case "number":
       return fetchByNumber(parsed.number, limit)
@@ -711,9 +725,13 @@ async function fetchPokemonCardsForParsed(parsed: ParsedSearch, limit: number): 
       return fetchBySetAndNumber(parsed.setHint, parsed.setId, parsed.number, limit)
     case "name": {
       const escaped = escapeLucene(parsed.name)
-      const pageSize = Math.min(80, Math.max(limit * 2, 40))
+      const pageSize = fast ? Math.min(24, Math.max(limit * 2, 12)) : Math.min(80, Math.max(limit * 2, 40))
+      const mainTimeout = fast ? 2500 : 5000
+      if (fast) {
+        return withTimeout(fetchPokemonCardsByQuery(`name:${escaped}`, pageSize), mainTimeout, [])
+      }
       const [main, supplemental] = await Promise.all([
-        withTimeout(fetchPokemonCardsByQuery(`name:${escaped}`, pageSize), 5000, []),
+        withTimeout(fetchPokemonCardsByQuery(`name:${escaped}`, pageSize), mainTimeout, []),
         fetchSupplementalPokemonForName(parsed.name, limit),
       ])
       return dedupeCatalogCards([...main, ...supplemental])
@@ -818,19 +836,31 @@ function mergeAndRankSearchHits(hits: CardSearchHit[], query: string, limit: num
     .map((entry) => entry.hit)
 }
 
-async function runSearchCatalogCards(query: string, limit: number): Promise<CardSearchHit[]> {
+async function runSearchCatalogCards(
+  query: string,
+  limit: number,
+  options: SearchCatalogOptions = {},
+): Promise<CardSearchHit[]> {
   const parsed = parseSearchInput(query)
   if (parsed.mode === "empty") return []
 
+  const fast = Boolean(options.fast)
+  const pokemonOnly = Boolean(options.pokemonOnly)
+
   const [cards, priceChartingHits] = await Promise.all([
-    fetchPokemonCardsForParsed(parsed, limit),
-    searchPriceChartingCards(query, parsed, limit),
+    fetchPokemonCardsForParsed(parsed, limit, fast),
+    pokemonOnly ? Promise.resolve([] as CardSearchHit[]) : searchPriceChartingCards(query, parsed, limit),
   ])
 
   const pokemonHits = cards.map(catalogToSearchHit)
   let merged = mergeAndRankSearchHits([...pokemonHits, ...priceChartingHits], query, limit)
 
-  if (merged.length === 0 && (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name")) {
+  if (
+    !fast &&
+    !pokemonOnly &&
+    merged.length === 0 &&
+    (parsed.mode === "name-set-combo" || parsed.mode === "set-or-name")
+  ) {
     const name = parsed.mode === "name-set-combo" ? parsed.tokens[0] : parsed.name
     const setHint =
       parsed.mode === "name-set-combo" ? parsed.tokens.slice(1).join(" ") : parsed.hints.join(" ")
@@ -854,8 +884,9 @@ export async function searchCatalogCards(
   query: string,
   limit = 12,
   budgetMs = SEARCH_BUDGET_MS,
+  options: SearchCatalogOptions = {},
 ): Promise<CardSearchHit[]> {
-  return withTimeout(runSearchCatalogCards(query, limit), budgetMs, [])
+  return withTimeout(runSearchCatalogCards(query, limit, options), budgetMs, [])
 }
 
 function formatCardName(name: string, rarity: string | null): string {
@@ -949,7 +980,11 @@ export async function lookupCardByPokemonId(
   }
 
   try {
-    const { product, resolvedId } = await resolvePriceChartingForCard(apiKey, ctx)
+    const { product, resolvedId } = await resolvePriceChartingForCard(apiKey, {
+      ...ctx,
+      fast: catalogContext?.fast,
+      searchQuery: catalogContext?.searchQuery,
+    })
     const entry = productToEntry(catalog, product, resolvedId)
     setCachedLookup(cacheKey, entry)
     return entry

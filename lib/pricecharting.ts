@@ -180,7 +180,12 @@ export async function fetchPriceChartingProduct(
 
 export async function resolvePriceChartingForCard(
   apiKey: string,
-  card: PriceChartingCardContext & { priceChartingId?: string; searchQuery?: string },
+  card: PriceChartingCardContext & {
+    priceChartingId?: string
+    searchQuery?: string
+    /** Scan/identify path: fewer PriceCharting round-trips. */
+    fast?: boolean
+  },
 ): Promise<{ product: PriceChartingProduct; resolvedId?: string }> {
   if (card.priceChartingId) {
     const product = await fetchPriceChartingProduct(apiKey, { id: card.priceChartingId })
@@ -191,7 +196,7 @@ export async function resolvePriceChartingForCard(
     ...(card.searchQuery ? [card.searchQuery] : []),
     ...buildPriceChartingSearchQueries(card.cardName, card.setName, card.cardNumber),
   ]
-  const uniqueQueries = [...new Set(queries)].slice(0, 4)
+  const uniqueQueries = [...new Set(queries)].slice(0, card.fast ? 2 : 4)
 
   let bestId: string | undefined
   let bestScore = 0
@@ -211,7 +216,9 @@ export async function resolvePriceChartingForCard(
     return { id: localBestId, score: localBestScore }
   }
 
-  const batches = [uniqueQueries.slice(0, 2), uniqueQueries.slice(2, 4)].filter((b) => b.length > 0)
+  const batches = card.fast
+    ? [uniqueQueries].filter((b) => b.length > 0)
+    : [uniqueQueries.slice(0, 2), uniqueQueries.slice(2, 4)].filter((b) => b.length > 0)
 
   for (const batch of batches) {
     const results = await Promise.all(batch.map((query) => scoreQuery(query)))
@@ -221,7 +228,7 @@ export async function resolvePriceChartingForCard(
         bestId = result.id
       }
     }
-    if (bestScore >= 18 && bestId) break
+    if (bestScore >= (card.fast ? 12 : 18) && bestId) break
   }
 
   if (bestId && bestScore >= 10) {
