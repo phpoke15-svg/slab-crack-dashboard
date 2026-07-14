@@ -32,9 +32,8 @@ export type IdentifyCardResult = {
   matchScore: number
 }
 
-/** Fast pass budget; misses fall through to a wider PriceCharting-backed pass. */
-const IDENTIFY_SEARCH_FAST_MS = 4_000
-const IDENTIFY_SEARCH_WIDE_MS = 7_000
+/** Single parallel catalog attempt budget (Pokémon + PriceCharting inside). */
+const IDENTIFY_SEARCH_MS = 3_500
 
 const IDENTIFY_PROMPT = [
   "Identify the Pokemon TCG card in this photo.",
@@ -368,25 +367,24 @@ async function searchWithFallbacks(
   detected: DetectedCard,
   primaryQuery: string,
 ): Promise<CardSearchHit[]> {
-  const queries = [primaryQuery, ...buildAlternateQueries(detected, primaryQuery)]
+  const queries = [primaryQuery, ...buildAlternateQueries(detected, primaryQuery)].slice(0, 3)
 
-  // Pass 1: fast Pokémon TCG-only search (keeps Scan snappy on common hits).
-  for (const query of queries.slice(0, 4)) {
-    const candidates = await searchCatalogCards(query, 6, IDENTIFY_SEARCH_FAST_MS, {
-      pokemonOnly: true,
-      fast: true,
-    })
-    if (candidates.length) return candidates
-  }
+  // Primary first (Pokémon + PriceCharting in parallel inside searchCatalogCards).
+  const primaryHits = await searchCatalogCards(queries[0]!, 6, IDENTIFY_SEARCH_MS, { fast: true })
+  if (primaryHits.length) return primaryHits
 
-  // Pass 2: include PriceCharting — recovers cards the Pokémon API misses.
-  for (const query of queries.slice(0, 3)) {
-    const candidates = await searchCatalogCards(query, 8, IDENTIFY_SEARCH_WIDE_MS, {
-      fast: true,
-    })
-    if (candidates.length) {
-      console.warn("[slabcrack-identify] recovered catalog match via wide search:", query)
-      return candidates
+  // Remaining alternates in parallel — don't chain slow sequential passes.
+  const altQueries = queries.slice(1)
+  if (!altQueries.length) return []
+
+  const altResults = await Promise.all(
+    altQueries.map((query) => searchCatalogCards(query, 6, IDENTIFY_SEARCH_MS, { fast: true })),
+  )
+  for (let i = 0; i < altResults.length; i += 1) {
+    const hits = altResults[i]!
+    if (hits.length) {
+      console.warn("[slabcrack-identify] recovered catalog match via", altQueries[i])
+      return hits
     }
   }
 
@@ -402,21 +400,51 @@ async function searchWithFallbacks(
   return []
 }
 
-/**
- * Vision-identify a card photo, then resolve live SlabCrack/SlabLab pricing for the best match.
- */
-export async function identifyCardFromImage(imageDataUrl: string): Promise<IdentifyCardResult> {
+function normalizeDetectedInput(input: Partial<DetectedCard> | null | undefined): DetectedCard {
+  const cardName = String(input?.cardName ?? "").trim()
+  const setName = String(input?.setName ?? "").trim()
+  const cardNumber = cleanNumber(String(input?.cardNumber ?? ""))
+  const confidenceRaw = Number(input?.confidence)
+  const confidence = Number.isFinite(confidenceRaw)
+    ? Math.max(0, Math.min(1, confidenceRaw))
+    : 0.5
+  const notes = String(input?.notes ?? "").trim() || undefined
+  if (!cardName && !cardNumber) {
+    throw new Error("detected.cardName or detected.cardNumber is required")
+  }
+  return { cardName, setName, cardNumber, confidence, notes }
+}
+
+export type VisionIdentifyResult = {
+  ok: true
+  detected: DetectedCard
+  query: string
+  source: "gemini" | "openai"
+}
+
+/** Vision-only step — returns as soon as the model names the card. */
+export async function identifyCardVision(imageDataUrl: string): Promise<VisionIdentifyResult> {
   if (!imageDataUrl.startsWith("data:image/")) {
     throw new Error("Expected a data:image URL from the camera capture.")
   }
-
   if (imageDataUrl.length > 4_500_000) {
     throw new Error("Photo is too large. Retake closer or use a smaller image.")
   }
 
   const started = Date.now()
   const { detected, source } = await detectCard(imageDataUrl)
-  const afterVision = Date.now()
+  const query = buildSearchQuery(detected)
+  console.warn(`[slabcrack-identify] vision-only source=${source} in ${Date.now() - started}ms`)
+  return { ok: true, detected, query, source }
+}
+
+/** Catalog + pricing step for an already-detected card. */
+export async function matchDetectedCard(
+  input: Partial<DetectedCard>,
+  source: "gemini" | "openai" = "gemini",
+): Promise<IdentifyCardResult> {
+  const detected = normalizeDetectedInput(input)
+  const started = Date.now()
   const query = buildSearchQuery(detected)
   const candidates = await searchWithFallbacks(detected, query)
   const afterSearch = Date.now()
@@ -425,8 +453,6 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
   )
   const top = ranked[0] ?? null
   const matchScore = top ? scoreHit(top, detected) : 0
-  // Always attach the best catalog hit when search finds anything. A weak score
-  // should prompt "Wrong card", not a dead-end "couldn't load prices" handoff.
   const hit = top
   const lowConfidence = Boolean(hit && matchScore < minAutoMatchScore(detected))
 
@@ -444,7 +470,7 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
   }
 
   console.warn(
-    `[slabcrack-identify] done source=${source} vision=${afterVision - started}ms search=${afterSearch - afterVision}ms price=${Date.now() - afterSearch}ms total=${Date.now() - started}ms`,
+    `[slabcrack-identify] match search=${afterSearch - started}ms price=${Date.now() - afterSearch}ms total=${Date.now() - started}ms hits=${ranked.length}`,
   )
 
   return {
@@ -457,4 +483,12 @@ export async function identifyCardFromImage(imageDataUrl: string): Promise<Ident
     source,
     matchScore,
   }
+}
+
+/**
+ * Vision-identify a card photo, then resolve live SlabCrack/SlabLab pricing for the best match.
+ */
+export async function identifyCardFromImage(imageDataUrl: string): Promise<IdentifyCardResult> {
+  const vision = await identifyCardVision(imageDataUrl)
+  return matchDetectedCard(vision.detected, vision.source)
 }
