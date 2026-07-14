@@ -53,7 +53,7 @@ const PRIORITY_META: Record<
     className: "border-sky-500/40 bg-sky-500/15 text-sky-200",
     bar: "bg-sky-400",
     meaning:
-      "Clears the 2× volume threshold — early elevated demand. Watch closely before it becomes High/Critical.",
+      "Clears the 1.75× volume threshold — early elevated demand. Watch closely before it becomes High/Critical.",
   },
 }
 
@@ -138,7 +138,7 @@ function metricExplainers(alert: BuyoutAlert): Record<
       label: "How hot vs normal",
       value: `${alert.volumeMultiple.toFixed(1)}×`,
       plain: `Today is about ${copiesVsNormal}× the usual daily volume.`,
-      why: "We flag cards when this multiple clears 2× the recent daily norm — so quieter spikes still surface as Warnings.",
+      why: "We flag cards when this multiple clears 1.75× the recent daily norm — so quieter spikes still surface as Warnings.",
     },
     buyoutProbability: {
       label: "Buyout likelihood",
@@ -785,8 +785,10 @@ export function BuyoutRadarDashboard() {
             <h2 className="mt-1 text-lg font-bold text-foreground">Buyout & Speculation Radar</h2>
             <p className="mt-1 max-w-xl text-xs leading-relaxed text-muted-foreground">
               {data?.scan?.mode === "live"
-                ? "Live market scan of the full catalog (batched each run). Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average (alerts from 2× upward)."
-                : "Demo mode until the first daily market scan runs. After scan, cards are classified Critical / High / Warning from real eBay sold volume spikes across the full catalog."}
+                ? "Live market scan of the full catalog (batched each run). Cards are ranked Critical / High / Warning from 24h sales volume vs the prior 14-day daily average (alerts from 1.75× upward)."
+                : data?.scan?.cardsScanned && data.scan.cardsScanned > 0
+                  ? "No live buyout spikes above threshold yet — showing demo alert patterns while daily chase-first scans build coverage."
+                  : "Demo mode until the first daily market scan runs. After scan, cards are classified Critical / High / Warning from real eBay sold volume spikes across the full catalog."}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -840,8 +842,8 @@ export function BuyoutRadarDashboard() {
             </p>
             <p>
               <strong className="text-foreground">5. Market scan</strong> — Vercel cron runs
-              daily (~09:00 UTC) across the full catalog via eBay sold comps (≈200 cards
-              per run, then continues next run). Use{" "}
+              daily (~09:00 UTC). Each run refreshes chase cards first, then walks more of
+              the catalog via eBay sold comps (≈200 cards/run). Use{" "}
               <em>Run market scan</em> to trigger the next batch now (can take a few minutes).
             </p>
           </div>
@@ -905,7 +907,9 @@ export function BuyoutRadarDashboard() {
               : `Source · ${data.source} · ${data.scan?.cardsScanned ?? 0} cards with sales data · ${data.scan?.salesIngested ?? 0} sales · as of ${new Date(data.asOf).toLocaleString()}`
             : "Waiting for first scan…"}
           {data?.source === "seed"
-            ? " · demo seed until you run a market scan (requires Supabase buyout tables + EBAY_SOLD_API_KEY)"
+            ? data.scan?.cardsScanned && data.scan.cardsScanned > 0
+              ? " · demo alert patterns until a live spike clears 1.75× (scans keep covering the catalog)"
+              : " · demo seed until you run a market scan (requires Supabase buyout tables + EBAY_SOLD_API_KEY)"
             : data?.scan?.mode === "live"
               ? " · live sold-comp volume classification"
               : ""}
@@ -934,9 +938,9 @@ export function BuyoutRadarDashboard() {
                     {data.scan.cardsScanned}
                   </span>{" "}
                   of {data.scan.marketUniverseSize} catalog cards so far (~
-                  {data.scan.batchSize ?? 200}/day). Quiet markets below 2× baseline
+                  {data.scan.batchSize ?? 200}/day). Quiet markets below 1.75× baseline
                   won&apos;t flag — run another market scan or wait for the next cron
-                  batch.
+                  batch. Demo alerts stay on until a real spike clears the threshold.
                 </p>
               ) : null}
             </div>

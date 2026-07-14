@@ -87,7 +87,7 @@ create index if not exists buyout_anomalies_card_idx
 create or replace function public.detect_buyout_risks(
   p_window_hours integer default 24,
   p_baseline_days integer default 14,
-  p_volume_multiple_threshold numeric default 2.0,
+  p_volume_multiple_threshold numeric default 1.75,
   p_max_unique_buyers integer default 2
 )
 returns table (
@@ -150,7 +150,7 @@ as $$
       round(coalesce(b.baseline_daily_avg, 0), 4) as baseline_volume,
       case
         when coalesce(b.baseline_daily_avg, 0) <= 0 then
-          case when coalesce(w.current_volume, 0) >= 4 then 99.0 else 0.0 end
+          case when coalesce(w.current_volume, 0) >= 3 then 99.0 else 0.0 end
         else round(w.current_volume::numeric / nullif(b.baseline_daily_avg, 0), 4)
       end as volume_multiple,
       coalesce(w.unique_buyers, 0) as unique_buyers,

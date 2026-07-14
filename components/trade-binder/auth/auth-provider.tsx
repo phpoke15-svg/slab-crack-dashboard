@@ -11,6 +11,10 @@ import {
   type ReactNode,
 } from "react"
 import type { SupabaseClient, User } from "@supabase/supabase-js"
+import {
+  emailConfirmRedirectTo,
+  passwordResetRedirectTo,
+} from "@/lib/auth-redirect"
 import { createClient, isSupabaseConfigured } from "@/lib/trade-binder/supabase/client"
 
 type AuthContextValue = {
@@ -119,7 +123,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       signUp: async (email, password) => {
         if (!isConfigured) return { error: "Supabase is not configured." }
-        const { error } = await getSupabase().auth.signUp({ email, password })
+        const origin = typeof window !== "undefined" ? window.location.origin : null
+        const { error } = await getSupabase().auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: emailConfirmRedirectTo(origin),
+          },
+        })
         if (!error) {
           void fetch("/api/profile").catch(() => {})
         }
@@ -127,10 +138,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       requestPasswordReset: async (email) => {
         if (!isConfigured) return { error: "Supabase is not configured." }
-        const origin =
-          typeof window !== "undefined" ? window.location.origin : "https://www.collectools.app"
+        const origin = typeof window !== "undefined" ? window.location.origin : null
         const { error } = await getSupabase().auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${origin}/reset-password`,
+          redirectTo: passwordResetRedirectTo(origin),
         })
         return { error: error?.message ?? null }
       },

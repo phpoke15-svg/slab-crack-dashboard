@@ -145,13 +145,29 @@ export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
   ])
   const sales = db?.sales ?? buildSeedBuyoutSales()
   const cards = db?.cards ?? SEED_BUYOUT_CARDS
-  const marketDerived = sales.some((s) => s.buyerIpHash.startsWith("mkt-"))
-  const source = !db ? "seed" : marketDerived ? "market-scan" : "database"
+  const marketDerived = Boolean(db) && sales.some((s) => s.buyerIpHash.startsWith("mkt-"))
 
-  const alerts = detectBuyoutRisks(cards, sales, {
+  let alerts = detectBuyoutRisks(cards, sales, {
     // Public sold comps have no buyer IDs — classify live scans by volume spike.
     marketVolumeOnly: marketDerived,
   })
+
+  // Keep the board useful while coverage builds: if live data has no spikes yet,
+  // fall back to the demo patterns (with scan progress still attached).
+  let source: BuyoutRadarResponse["source"] = !db
+    ? "seed"
+    : marketDerived
+      ? "market-scan"
+      : "database"
+  let mode: "demo" | "live" = source === "seed" ? "demo" : "live"
+
+  if (db && alerts.length === 0) {
+    alerts = detectBuyoutRisks(SEED_BUYOUT_CARDS, buildSeedBuyoutSales(), {
+      marketVolumeOnly: false,
+    })
+    source = "seed"
+    mode = "demo"
+  }
 
   const lastSale = sales.reduce<string | null>((latest, s) => {
     if (!latest || s.purchasedAt > latest) return s.purchasedAt
@@ -165,10 +181,10 @@ export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
     alertCount: alerts.length,
     alerts,
     scan: {
-      cardsScanned: cards.length,
-      salesIngested: sales.length,
-      lastScanAt: source === "seed" ? null : lastSale,
-      mode: source === "seed" ? "demo" : "live",
+      cardsScanned: db?.cards.length ?? cards.length,
+      salesIngested: db?.sales.length ?? sales.length,
+      lastScanAt: db ? lastSale : null,
+      mode,
       marketUniverseSize: progress?.marketUniverseSize,
       cursorOffset: progress?.cursorOffset,
       batchSize: defaultBatchSize(),

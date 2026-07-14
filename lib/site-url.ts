@@ -5,6 +5,10 @@ export function getSiteUrl(): string {
     try {
       const url = new URL(raw)
       if (url.protocol === "http:" || url.protocol === "https:") {
+        // Apex redirects to www in production — keep absolute URLs on www.
+        if (url.hostname === "collectools.app") {
+          url.hostname = "www.collectools.app"
+        }
         return url.origin
       }
     } catch {

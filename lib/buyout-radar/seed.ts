@@ -139,7 +139,7 @@ export function buildSeedBuyoutSales(now = Date.now()): BuyoutSale[] {
     })
   }
 
-  // WARNING: Greninja — mild spike (~3–4×) so it stays in Warning under the 2× floor.
+  // WARNING: Greninja — mild spike (~3–4×) so it stays in Warning under the 1.75× floor.
   const grenSpike = SEED_UNIT_PRICE["sv6-214"]!.spike
   for (let i = 0; i < 2; i += 1) {
     push({

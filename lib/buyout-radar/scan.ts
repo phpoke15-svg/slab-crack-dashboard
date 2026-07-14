@@ -273,8 +273,8 @@ async function scrapeCardSales(apiKey: string, card: BuyoutCard): Promise<Buyout
 
 /**
  * Market scan over the full slab_cards catalog (mainline / recent).
- * Each run processes one batch (~200 cards) and advances a cursor so the
- * whole market is covered across successive cron / manual runs.
+ * Each run always re-scrapes the chase seed set first (so liquid cards stay fresh),
+ * then advances a cursor through the rest of the catalog.
  */
 export async function scanBuyoutMarket(options?: {
   /** Cards to scrape this run (default BUYOUT_SCAN_BATCH_SIZE or 200). */
@@ -293,15 +293,27 @@ export async function scanBuyoutMarket(options?: {
 
   const size = resolveBatchSize(options?.limit)
   const universe = await loadBuyoutScanUniverse()
+  const chaseIds = new Set(SEED_BUYOUT_CARDS.map((c) => c.id))
+  const chaseBatch = SEED_BUYOUT_CARDS.map(
+    (seed) => universe.find((card) => card.id === seed.id) ?? seed,
+  )
+  const marketUniverse = universe.filter((card) => !chaseIds.has(card.id))
+  const marketBudget = Math.max(0, size - chaseBatch.length)
   const cursor = options?.resetCursor ? 0 : await readScanCursor()
-  const { batch, nextOffset } = sliceBatch(universe, cursor, size)
+  const { batch: marketBatch, nextOffset } = sliceBatch(
+    marketUniverse,
+    cursor,
+    marketBudget,
+  )
+  const batch = [...chaseBatch, ...marketBatch]
   console.log(
-    `[buyout-scan] universe=${universe.length} batchSize=${size} offset=${cursor} targeting=${batch.length}`,
+    `[buyout-scan] universe=${universe.length} chase=${chaseBatch.length} marketBatch=${marketBatch.length} offset=${cursor}`,
   )
 
   const errors: string[] = []
   let salesIngested = 0
   let cardsScanned = 0
+  let marketCardsScanned = 0
   const started = Date.now()
 
   await upsertBuyoutCards(batch)
@@ -309,49 +321,51 @@ export async function scanBuyoutMarket(options?: {
   for (let i = 0; i < batch.length; i += 1) {
     if (Date.now() - started > RUN_BUDGET_MS) {
       errors.push(`Time budget reached after ${cardsScanned} cards — remaining cards deferred to next run`)
-      // Rewind cursor so unprocessed cards in this batch are retried next time.
-      const resumedOffset = (cursor + cardsScanned) % Math.max(universe.length, 1)
+      const resumedOffset =
+        (cursor + marketCardsScanned) % Math.max(marketUniverse.length, 1)
       await writeScanCursor(resumedOffset, universe.length)
       break
     }
 
     const card = batch[i]!
+    const isChase = chaseIds.has(card.id)
     try {
       const sales = await scrapeCardSales(apiKey, card)
       const written = await replaceCardSales(card.id, sales)
       salesIngested += written
       cardsScanned += 1
+      if (!isChase) marketCardsScanned += 1
       console.log(
-        `[buyout-scan] ${cursor + i + 1}/${universe.length} ${card.name}: ${sales.length} raw sold comps`,
+        `[buyout-scan] ${card.name}: ${sales.length} raw sold comps${isChase ? " (chase)" : ""}`,
       )
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       errors.push(`${card.name}: ${message}`)
       console.warn(`[buyout-scan] failed ${card.id}:`, message)
       cardsScanned += 1
+      if (!isChase) marketCardsScanned += 1
     }
 
     if (i < batch.length - 1) await delay(REQUEST_GAP_MS)
   }
 
-  // Advance cursor only if we finished the planned batch (or empty universe).
-  const finishedBatch = cardsScanned >= batch.length || batch.length === 0
-  if (finishedBatch) {
+  // Advance market cursor only if we finished the planned market slice.
+  const finishedMarket =
+    marketBatch.length === 0 || marketCardsScanned >= marketBatch.length
+  if (finishedMarket) {
     await writeScanCursor(nextOffset, universe.length)
   }
 
-  // Detect across the whole accumulated market DB, not just this batch —
-  // otherwise anomalies_log would wipe prior batches' alerts each run.
   const alerts = await refreshBuyoutAnomaliesFromDatabase()
 
-  const resumedNext = finishedBatch
+  const resumedNext = finishedMarket
     ? nextOffset
-    : (cursor + cardsScanned) % Math.max(universe.length, 1)
+    : (cursor + marketCardsScanned) % Math.max(marketUniverse.length, 1)
 
   const coverageNote =
     universe.length === 0
       ? "No catalog cards available to scan."
-      : `Full-market mode: scanned ${cardsScanned} of ${universe.length} catalog cards this run (offset ${cursor} → ${resumedNext}). Cron continues through the rest (~${size}/batch).`
+      : `Chase-first mode: refreshed ${chaseBatch.length} priority cards + ${marketCardsScanned} catalog cards (market offset ${cursor} → ${resumedNext} of ${marketUniverse.length}). Cron continues through the rest (~${size}/batch).`
 
   return {
     ok: true,
