@@ -22,12 +22,16 @@ Version: **1.3.10** (Android `versionCode` 15, iOS `buildNumber` 15). EAS slug i
 
 ### 2. Expo / EAS (10 min)
 
+**Start in the cloned repo root** (`…/slab-crack-dashboard`), not `~`. Confirm with `ls apps/pc-queue-watch/app.json`.
+
 EAS **must** see `apps/pc-queue-watch` (where `app.json` / `eas.json` live). Prefer the root `mobile:*` scripts — they call `scripts/run-eas.mjs`, which forces that directory on Windows/macOS/Linux and avoids `Run this command inside a project directory.` A Node `punycode` deprecation line from `eas-cli` is harmless and is suppressed by the runner.
 
 ```bash
-# from repo root
+cd ~/slab-crack-dashboard   # or wherever you cloned it
+git fetch origin && git checkout cursor/fix-eas-submit-punycode-6a73   # until merged
+
 npm run mobile:install
-cd apps/pc-queue-watch && npx eas-cli login && cd ../..
+npx --prefix apps/pc-queue-watch eas-cli login
 npm run mobile:build:apk          # internal test APK
 npm run mobile:build:android      # Play AAB
 npm run mobile:build:ios          # needs Apple team

@@ -28,43 +28,46 @@ Opens the full website:
 4. Pass any Imperva / bot check once
 5. Leave that screen open during drops for a local push when the queue goes live
 
-## Build internal APK
+## Build / submit (Play)
 
-From the **repo root** (recommended — works on Windows/macOS/Linux):
+**You must be inside the cloned repo** (`slab-crack-dashboard`), not your home folder (`~`). If `pwd` does not end with `slab-crack-dashboard` and there is no `apps/pc-queue-watch/app.json`, stop and `cd` / clone first.
 
 ```bash
-git pull
+# one-time: clone if you don't have it yet
+git clone https://github.com/phpoke15-svg/slab-crack-dashboard.git
+cd slab-crack-dashboard
+
+# use the fix branch (or main after merge)
+git fetch origin cursor/fix-eas-submit-punycode-6a73
+git checkout cursor/fix-eas-submit-punycode-6a73
+
+# confirm you're in the right place
+pwd   # .../slab-crack-dashboard
+ls apps/pc-queue-watch/app.json
+
 npm run mobile:install
-cd apps/pc-queue-watch && npx eas-cli login && cd ../..
-npm run mobile:build:apk
+npx --prefix apps/pc-queue-watch eas-cli login   # already logged in? skip
+
+npm run mobile:build:android      # AAB for Play
+npm run mobile:submit:android     # upload latest Android build (draft/internal)
 ```
 
-Or from this app folder:
+Internal test APK: `npm run mobile:build:apk`
+
+Or from this app folder (after `cd apps/pc-queue-watch`):
 
 ```bash
-cd apps/pc-queue-watch
-git pull
 npm install
 npm run verify:assets   # must say mint/dark brand package intact
 npx eas-cli login
 npm run build:apk
-```
-
-Uninstall the old APK before installing the new one so Android refreshes the launcher icon.
-
-Production store binaries:
-
-```bash
-# from repo root
-npm run mobile:build:android    # AAB for Play
-npm run mobile:submit:android   # upload latest Android build to Play (draft/internal)
-
-# or from this directory
 npm run build:android
 npm run submit:android
 ```
 
-Do **not** run bare `eas submit` / `eas build` from the monorepo root or Desktop — EAS needs this Expo app folder (`app.json` + `eas.json`). Use the `mobile:*` / `run-eas.mjs` scripts instead. A Node `punycode` deprecation line from `eas-cli` is harmless; the runner suppresses it.
+Uninstall the old APK before installing a new one so Android refreshes the launcher icon.
+
+Do **not** run bare `eas submit` / `eas build` from `~`, Desktop, or `/` — EAS needs this Expo app folder (`app.json` + `eas.json`). Use the `mobile:*` / `run-eas.mjs` scripts from the **repo root**. A Node `punycode` deprecation line from `eas-cli` is harmless; the runner suppresses it.
 
 ## Dev preview
 
