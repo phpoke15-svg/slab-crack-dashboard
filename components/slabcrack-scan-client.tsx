@@ -62,7 +62,7 @@ function formatSigned(n: number) {
 }
 
 /** Downscale/compress camera photos so vision API stays fast + under body limits. */
-async function compressImageDataUrl(dataUrl: string, maxEdge = 1280, quality = 0.72): Promise<string> {
+async function compressImageDataUrl(dataUrl: string, maxEdge = 960, quality = 0.58): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new window.Image()
     img.onload = () => {
@@ -316,8 +316,9 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       aiCandidatesRef.current = []
 
       try {
+        setIdentifyStatus("Preparing photo…")
         const compressed = await compressImageDataUrl(dataUrl)
-        setIdentifyStatus("Matching catalog + pulling prices…")
+        setIdentifyStatus("AI identifying card…")
         const res = await fetch("/api/slabcrack/identify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -346,23 +347,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         aiCandidatesRef.current = json.candidates ?? []
 
         if (json.card) {
-          let priced = normalizeCardEntry(json.card)
-          // Show full card data immediately, then refresh comps if needed.
-          presentMatch(priced)
-          if (priced.hasPricing === false && json.hit) {
-            setIdentifyStatus("Loading live prices…")
-            setLookupLoading(true)
-            try {
-              priced = await fetchPricedCard(json.hit)
-              setCard(priced)
-            } catch {
-              /* keep placeholder already shown */
-            } finally {
-              setLookupLoading(false)
-            }
-            if (priced.hasPricing === false) {
-              setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
-            }
+          // Server already priced the match — open immediately (no second lookup).
+          presentMatch(normalizeCardEntry(json.card))
+          if (json.card.hasPricing === false) {
+            setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
           }
           return
         }
@@ -371,7 +359,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         if (json.candidates?.length) {
           const top = json.candidates[0]!
           presentMatch(searchHitToPlaceholder(top))
-          setIdentifyStatus("Loading live prices…")
           setLookupLoading(true)
           try {
             const priced = await fetchPricedCard(top)
