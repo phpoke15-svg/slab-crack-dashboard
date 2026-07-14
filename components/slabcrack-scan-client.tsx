@@ -21,7 +21,6 @@ import { GradePriceGrid } from "@/components/grade-price-grid"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
-import { toSlabLabCard } from "@/lib/slablab"
 import {
   getBestGradeQuote,
   getGradeQuotes,
@@ -324,13 +323,13 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
   const best = card ? getBestGradeQuote(getGradeQuotes(card)) : null
   const quotes = card ? getGradeQuotes(card) : []
-  const labCard = card ? toSlabLabCard(card) : null
-  const labGradingCost = DEFAULT_PSA_GRADING_FEE
   const labPsa10 = card ? resolvePsa10Price(card).price : 0
-  const labGross = labCard ? labCard.psa10Price - labCard.rawPrice : labPsa10 - (card?.rawPrice ?? 0)
+  const labPsa9 = card ? (getGradeQuotes(card).find((q) => q.grade === 9)?.slabPrice ?? 0) : 0
+  const labGradingCost = DEFAULT_PSA_GRADING_FEE
+  const labGross = labPsa10 - (card?.rawPrice ?? 0)
   const labNet = labGross - labGradingCost
-  const labMult =
-    card && card.rawPrice > 0 ? (labCard?.psa10Price ?? labPsa10) / card.rawPrice : 0
+  const labMult = card && card.rawPrice > 0 ? labPsa10 / card.rawPrice : 0
+  const labReady = labPsa10 > 0 && (card?.rawPrice ?? 0) > 0 && labPsa10 > (card?.rawPrice ?? 0)
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-black text-white">
@@ -450,7 +449,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                         Raw {formatMoney(card.rawPrice)}
                       </span>
                       <span className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-xs text-primary">
-                        PSA 10 {formatMoney(labCard?.psa10Price ?? labPsa10)}
+                        PSA 10 {formatMoney(labPsa10)}
                       </span>
                     </div>
                   )}
@@ -488,8 +487,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   </div>
                   <p className="col-span-3 text-[10px] text-white/45">
                     Net uses PSA Regular grading fee ({formatMoney(labGradingCost)}). PSA 9{" "}
-                    {formatMoney(labCard?.psa9Price ?? 0)}.
-                    {!labCard
+                    {formatMoney(labPsa9)}.
+                    {!labReady
                       ? " Pricing may be incomplete if PSA 10 comps are thin."
                       : ""}
                   </p>
