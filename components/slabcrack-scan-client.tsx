@@ -128,11 +128,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const backHref = tool === "slablab" ? "/slablab" : "/slabcrack"
   const toolLabel = tool === "slablab" ? "SlabLab Scan" : "SlabCrack Scan"
   const toolBlurb =
-    tool === "slablab"
-      ? "Take a photo and we'll detect the card, then open PSA 10 spread / ROI automatically."
-      : "Take a photo and we'll detect the card, then open live SlabCrack prices automatically."
-  const toolTagline =
-    tool === "slablab" ? "Snap a card — PSA 10 ROI pops up" : "Snap a card — AI identifies it"
+    "Take a photo and we'll detect the card, then open SlabCrack arbitrage and SlabLab PSA 10 ROI together."
+  const toolTagline = "Snap a card — Crack + Lab data"
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -700,66 +697,60 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                     {card.setName}
                     {card.cardNumber ? ` · #${card.cardNumber}` : ""}
                   </p>
-                  {tool === "slabcrack" ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-md border border-white/15 bg-white/5 px-2 py-1 font-mono text-xs text-white">
-                        Raw {formatMoney(card.rawPrice)}
-                      </span>
-                      {best?.isArbitrage ? (
-                        <DeficitBadge diff={best.deficit} pct={best.percentageSavings} size="sm" />
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <span className="rounded-md border border-white/15 bg-white/5 px-2 py-1 font-mono text-xs text-white">
-                        Raw {formatMoney(card.rawPrice)}
-                      </span>
-                      <span className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-xs text-primary">
-                        PSA 10 {formatMoney(labPsa10)}
-                      </span>
-                    </div>
-                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className="rounded-md border border-white/15 bg-white/5 px-2 py-1 font-mono text-xs text-white">
+                      Raw {formatMoney(card.rawPrice)}
+                    </span>
+                    {best?.isArbitrage ? (
+                      <DeficitBadge diff={best.deficit} pct={best.percentageSavings} size="sm" />
+                    ) : null}
+                    <span className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-xs text-primary">
+                      PSA 10 {formatMoney(labPsa10)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {tool === "slabcrack" ? (
-                <div className="mt-3">
-                  <GradePriceGrid quotes={quotes} priced={card.hasPricing !== false} compact />
+              <div className="mt-3">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/45">
+                  SlabCrack · PSA 7–9
+                </p>
+                <GradePriceGrid quotes={quotes} priced={card.hasPricing !== false} compact />
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="col-span-3 -mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/45">
+                  SlabLab · PSA 10
                 </div>
-              ) : (
-                <div className="mt-3 grid grid-cols-3 gap-2">
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-white/50">Gross</p>
-                    <p className="mt-0.5 font-mono text-sm font-semibold text-white">
-                      {formatSigned(labGross)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-white/50">Net ROI</p>
-                    <p
-                      className={cn(
-                        "mt-0.5 font-mono text-sm font-semibold",
-                        labNet >= 0 ? "text-primary" : "text-amber-300",
-                      )}
-                    >
-                      {formatSigned(labNet)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
-                    <p className="text-[10px] uppercase tracking-wide text-white/50">Mult</p>
-                    <p className="mt-0.5 font-mono text-sm font-semibold text-white">
-                      {labMult > 0 ? `${labMult.toFixed(2)}×` : "—"}
-                    </p>
-                  </div>
-                  <p className="col-span-3 text-[10px] text-white/45">
-                    Net uses PSA Regular grading fee ({formatMoney(labGradingCost)}). PSA 9{" "}
-                    {formatMoney(labPsa9)}.
-                    {!labReady
-                      ? " Pricing may be incomplete if PSA 10 comps are thin."
-                      : ""}
+                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-white/50">Gross</p>
+                  <p className="mt-0.5 font-mono text-sm font-semibold text-white">
+                    {formatSigned(labGross)}
                   </p>
                 </div>
-              )}
+                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-white/50">Net ROI</p>
+                  <p
+                    className={cn(
+                      "mt-0.5 font-mono text-sm font-semibold",
+                      labNet >= 0 ? "text-primary" : "text-amber-300",
+                    )}
+                  >
+                    {formatSigned(labNet)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
+                  <p className="text-[10px] uppercase tracking-wide text-white/50">Mult</p>
+                  <p className="mt-0.5 font-mono text-sm font-semibold text-white">
+                    {labMult > 0 ? `${labMult.toFixed(2)}×` : "—"}
+                  </p>
+                </div>
+                <p className="col-span-3 text-[10px] text-white/45">
+                  Net uses PSA Regular grading fee ({formatMoney(labGradingCost)}). PSA 9{" "}
+                  {formatMoney(labPsa9)}.
+                  {!labReady ? " Pricing may be incomplete if PSA 10 comps are thin." : ""}
+                </p>
+              </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <button
@@ -767,16 +758,14 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   onClick={() => setDrawerOpen(true)}
                   className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
                 >
-                  {tool === "slablab" ? "Full SlabLab data" : "Full SlabCrack data"}
+                  Full Crack + Lab data
                 </button>
-                {tool === "slablab" ? (
-                  <Link
-                    href="/slablab"
-                    className="inline-flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm font-medium text-white"
-                  >
-                    Board
-                  </Link>
-                ) : null}
+                <Link
+                  href={tool === "slablab" ? "/slablab" : "/slabcrack"}
+                  className="inline-flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm font-medium text-white"
+                >
+                  {tool === "slablab" ? "Board" : "Feed"}
+                </Link>
                 <button
                   type="button"
                   onClick={showWrongCardPicker}
@@ -940,7 +929,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         <SlabDrawer
           selectedCard={card}
           watched={false}
-          focus={tool}
+          focus="both"
           onClose={() => setDrawerOpen(false)}
           onToggleWatch={() => {}}
         />

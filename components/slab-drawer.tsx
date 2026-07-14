@@ -31,8 +31,11 @@ interface SlabDrawerProps {
   watched: boolean
   onClose: () => void
   onToggleWatch: (card: MockCardEntry) => void
-  /** When opened from SlabLab Scan, lead with PSA 10 ROI. */
-  focus?: "slabcrack" | "slablab"
+  /**
+   * Which tool metrics to emphasize.
+   * `both` shows SlabCrack arbitrage + SlabLab PSA 10 ROI together (Scan default).
+   */
+  focus?: "slabcrack" | "slablab" | "both"
 }
 
 type CardSalesResponse = {
@@ -205,43 +208,60 @@ export function SlabDrawer({
               >
                 Tap card for full screen
               </button>
-              <div className="mt-3">
+              <div className="mt-3 space-y-3">
                 {pricingLoading ? (
                   <p className="text-sm text-muted-foreground">Loading PSA 7–10 comps…</p>
-                ) : focus === "slablab" ? (
-                  <div className="space-y-1">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      PSA 10 vs raw NM
-                    </span>
-                    <p className="font-mono text-lg font-semibold text-foreground">
-                      {labPsa10 > 0 ? `$${labPsa10.toFixed(2)}` : "—"}
-                      <span className="ml-2 text-sm font-medium text-muted-foreground">
-                        raw {priced && selectedCard.rawPrice > 0 ? `$${selectedCard.rawPrice.toFixed(2)}` : "—"}
-                      </span>
-                    </p>
-                  </div>
-                ) : priced && activeQuote?.isArbitrage ? (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-medium text-muted-foreground">
-                      PSA {salesGrade} vs raw NM
-                    </span>
-                    <DeficitBadge diff={-activeQuote.deficit} pct={-activeQuote.percentageSavings} size="lg" />
-                  </div>
-                ) : priced && activeQuote && activeQuote.slabPrice > 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    PSA {salesGrade} slab is at or above raw — no arbitrage gap.
-                  </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Run sync-prices to load raw vs slab comps for this card.
-                  </p>
+                  <>
+                    {(focus === "slabcrack" || focus === "both") && (
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          SlabCrack · PSA {salesGrade} vs raw NM
+                        </span>
+                        {priced && activeQuote?.isArbitrage ? (
+                          <DeficitBadge
+                            diff={-activeQuote.deficit}
+                            pct={-activeQuote.percentageSavings}
+                            size="lg"
+                          />
+                        ) : priced && activeQuote && activeQuote.slabPrice > 0 ? (
+                          <p className="text-sm text-muted-foreground">
+                            PSA {salesGrade} slab is at or above raw — no arbitrage gap.
+                          </p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">
+                            Run sync-prices to load raw vs slab comps for this card.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    {(focus === "slablab" || focus === "both") && (
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-medium text-muted-foreground">
+                          SlabLab · PSA 10 vs raw NM
+                        </span>
+                        <p className="font-mono text-lg font-semibold text-foreground">
+                          {labPsa10 > 0 ? `$${labPsa10.toFixed(2)}` : "—"}
+                          <span className="ml-2 text-sm font-medium text-muted-foreground">
+                            raw{" "}
+                            {priced && selectedCard.rawPrice > 0
+                              ? `$${selectedCard.rawPrice.toFixed(2)}`
+                              : "—"}
+                          </span>
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>
           </div>
 
-          {focus === "slablab" ? (
+          {(focus === "slablab" || focus === "both") && (
             <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl border border-border bg-secondary/40 p-3">
+              <div className="col-span-3 -mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                SlabLab · PSA 10 submission
+              </div>
               <div className="text-center">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Gross</p>
                 <p className="mt-1 font-mono text-sm font-semibold text-foreground">{formatSigned(labGross)}</p>
@@ -267,7 +287,7 @@ export function SlabDrawer({
                 Net uses PSA Regular grading fee (${DEFAULT_PSA_GRADING_FEE.toFixed(2)}).
               </p>
             </div>
-          ) : null}
+          )}
 
           <div className="mt-5 rounded-2xl border border-border bg-secondary/40 p-3">
             <div className="mb-3 flex items-center justify-between gap-2">

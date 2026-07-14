@@ -1,10 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import {
   AlertTriangle,
+  Camera,
   ChevronRight,
   ExternalLink,
+  Search,
   Sparkles,
   TrendingUp,
   X,
@@ -98,6 +101,7 @@ export function Psa10SpreadScanner() {
   const [gradingCost, setGradingCost] = useState(DEFAULT_GRADING_COST)
   const [sortMode, setSortMode] = useState<SortMode>("roi")
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [query, setQuery] = useState("")
 
   useEffect(() => {
     let cancelled = false
@@ -129,7 +133,14 @@ export function Psa10SpreadScanner() {
   }, [])
 
   const rows = useMemo(() => {
-    const computed = cards.map((c) => computeRow(c, gradingCost))
+    const q = query.trim().toLowerCase()
+    const filtered = q
+      ? cards.filter((c) => {
+          const haystack = `${c.name} ${c.set} ${c.cardNumber}`.toLowerCase()
+          return haystack.includes(q)
+        })
+      : cards
+    const computed = filtered.map((c) => computeRow(c, gradingCost))
 
     computed.sort((a, b) => {
       if (sortMode === "spread") return b.grossSpread - a.grossSpread
@@ -137,7 +148,7 @@ export function Psa10SpreadScanner() {
       return b.trueRoiScore - a.trueRoiScore
     })
     return computed.slice(0, TOP_CARDS_LIMIT)
-  }, [cards, gradingCost, sortMode])
+  }, [cards, gradingCost, query, sortMode])
 
   const selected = rows.find((r) => r.id === selectedId) ?? null
 
@@ -151,6 +162,27 @@ export function Psa10SpreadScanner() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {/* Compact controls */}
       <section className="sticky top-0 z-20 space-y-3 rounded-2xl border border-border bg-background/90 p-3 backdrop-blur-xl sm:p-4">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Filter board by card, set, or number…"
+            className={cn(
+              "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
+              "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
+            )}
+          />
+          <Link
+            href="/slablab/scan"
+            className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+            aria-label="Scan a card"
+          >
+            <Camera className="size-3.5" aria-hidden />
+            Scan
+          </Link>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
             All-time scan
