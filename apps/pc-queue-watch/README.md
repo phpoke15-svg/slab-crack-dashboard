@@ -1,6 +1,6 @@
 # CollecTools Mobile App
 
-Installable **Android / iOS** app (v1.3.7) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
+Installable **Android / iOS** app (v1.3.10) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
 
 **PokeWatch is Pro-only** — sign in on the site, open PokeWatch once to link your token, then start native monitoring.
 
@@ -41,12 +41,15 @@ npm run build:apk
 
 Uninstall the old APK before installing the new one so Android refreshes the launcher icon.
 
-Production store binaries:
+Production store binaries (run from this directory, or use `npm run mobile:*` from the repo root):
 
 ```bash
-npm run build:android   # AAB for Play
-npm run build:ios       # IPA for App Store / TestFlight (Apple team required)
+npm run build:android    # AAB for Play
+npm run build:ios        # IPA for App Store / TestFlight (Apple team required)
+npm run submit:android   # upload latest Android build to Play (draft/internal)
 ```
+
+Do not run bare `eas submit` from the monorepo root — EAS needs this Expo app folder. Ignore any Node `punycode` deprecation warning from `eas-cli`; the npm scripts silence it.
 
 ## Dev preview
 

@@ -2,7 +2,7 @@
 
 Privacy policy (live): https://collectools.app/privacy  
 Package / bundle ID: `com.collectools.app`  
-Version: **1.3.7** (Android `versionCode` 12). EAS slug is `pokepax` (legacy project id); app display name stays **CollecTools**. Brand: dark `#0b0e14` + mint `#4ade80` (white C / mint T icons matching the website header mark). WebView loads `https://www.collectools.app` (apex redirects there).
+Version: **1.3.10** (Android `versionCode` 15, iOS `buildNumber` 15). EAS slug is `pokepax` (legacy project id); app display name stays **CollecTools**. Brand: dark `#0b0e14` + mint `#4ade80` (white C / mint T icons matching the website header mark). WebView loads `https://www.collectools.app` (apex redirects there).
 
 ## Done in repo
 
@@ -21,13 +21,18 @@ Version: **1.3.7** (Android `versionCode` 12). EAS slug is `pokepax` (legacy pro
 - Keep **`slab-crack-dashboard`** only
 
 ### 2. Expo / EAS (10 min)
+
+EAS **must** run inside `apps/pc-queue-watch` (where `app.json` / `eas.json` live). From the monorepo root, use the `mobile:*` npm scripts so you do not hit `Run this command inside a project directory.` A Node `punycode` deprecation line from `eas-cli` is harmless noise and is suppressed by those scripts.
+
 ```bash
 cd apps/pc-queue-watch
 npm install
 npx eas-cli login
-npx eas-cli build -p android --profile apk          # internal test APK
-npx eas-cli build -p android --profile production   # Play AAB
-npx eas-cli build -p ios --profile production       # needs Apple team
+npm run build:apk          # internal test APK
+npm run build:android      # Play AAB
+npm run build:ios          # needs Apple team
+npm run submit:android     # Play (internal/draft track)
+# Or from repo root: npm run mobile:build:android && npm run mobile:submit:android
 ```
 
 ### 3. Google Play Console

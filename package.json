@@ -18,7 +18,12 @@
     "sync-binder-prices": "npx tsx scripts/sync-binder-prices.ts",
     "enrich-images": "npx tsx scripts/enrich-images.ts",
     "seed-catalog": "node scripts/seed-catalog.mjs",
-    "seed-top-200": "node scripts/seed-top-200.mjs"
+    "seed-top-200": "node scripts/seed-top-200.mjs",
+    "mobile:build:apk": "npm run build:apk --prefix apps/pc-queue-watch",
+    "mobile:build:android": "npm run build:android --prefix apps/pc-queue-watch",
+    "mobile:build:ios": "npm run build:ios --prefix apps/pc-queue-watch",
+    "mobile:submit:android": "npm run submit:android --prefix apps/pc-queue-watch",
+    "mobile:submit:ios": "npm run submit:ios --prefix apps/pc-queue-watch"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
