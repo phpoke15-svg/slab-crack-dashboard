@@ -67,31 +67,31 @@ function HubToolTile({
         tool.supremeOnly && !editMode && "border-primary/25 bg-primary/[0.03]",
       )}
     >
-      <span className="flex w-full items-center justify-between gap-2">
-        <span className="flex items-center gap-2">
+      <span className="flex w-full items-start justify-between gap-2">
+        <span className="flex min-w-0 flex-1 items-center gap-2">
           {editMode ? (
             <GripVertical className="size-4 shrink-0 text-primary" aria-hidden />
           ) : null}
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
             <Icon className="size-4" strokeWidth={2} />
           </span>
+          <span className="min-w-0 flex flex-wrap items-center gap-1.5">
+            <span className="text-base font-bold leading-tight text-foreground sm:text-lg">
+              {tool.name}
+            </span>
+            {tool.supremeOnly ? (
+              <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+                Supreme
+              </span>
+            ) : null}
+          </span>
         </span>
         {!editMode ? (
-          <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+          <ArrowRight className="mt-1.5 size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
         ) : null}
       </span>
-      <span className="min-w-0 w-full">
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span className="text-base font-bold leading-tight text-foreground sm:text-lg">
-            {tool.name}
-          </span>
-          {tool.supremeOnly ? (
-            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
-              Supreme
-            </span>
-          ) : null}
-        </span>
-        <span className="mt-1 block text-xs leading-snug text-muted-foreground line-clamp-2">
+      <span className={cn("min-w-0 w-full", editMode ? "pl-[4.25rem]" : "pl-11")}>
+        <span className="block text-xs leading-snug text-muted-foreground line-clamp-2">
           {tool.blurb}
         </span>
       </span>
