@@ -5,6 +5,7 @@ import {
   BookOpen,
   Layers,
   MessageSquare,
+  MessageSquarePlus,
   Package,
   Radar,
   Ratio,
@@ -81,6 +82,21 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     description:
       "PokeWatch sends instant browser and phone alerts when the Pokemon Center virtual queue goes live so you can jump in faster. Included with CollecTools Pro.",
     icon: Bell,
+  },
+  {
+    id: "feedback",
+    href: "/feedback",
+    name: "Feedback",
+    tagline: "Ideas · votes · inbox",
+    blurb: "Send feedback and vote on tools we should build next.",
+    description:
+      "Share any product feedback privately with Supreme, then upvote or downvote potential tools so we know what collectors want most.",
+    highlights: [
+      "Write free-form feedback that only Supreme can read",
+      "Vote potential tools up or down with a live scoreboard",
+      "Supreme can add new ideas to the voting board",
+    ],
+    icon: MessageSquarePlus,
   },
   {
     id: "restocks",
