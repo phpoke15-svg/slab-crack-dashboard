@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Binder HUD · Simulator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            hud: {
+              bg: "#05080f",
+              panel: "rgba(8, 16, 28, 0.78)",
+              line: "#1aff9c",
+              dim: "#5cffb5",
+              warn: "#ffb347",
+              down: "#ff4d6d",
+              mute: "#8aa0b8",
+            },
+          },
+          fontFamily: {
+            display: ['"Orbitron"', "ui-sans-serif", "system-ui", "sans-serif"],
+            body: ['"IBM Plex Sans"', "ui-sans-serif", "system-ui", "sans-serif"],
+            mono: ['"IBM Plex Mono"', "ui-monospace", "monospace"],
+          },
+          boxShadow: {
+            neon: "0 0 0 1px rgba(26,255,156,0.35), 0 0 24px rgba(26,255,156,0.18)",
+            panel: "0 0 0 1px rgba(26,255,156,0.18), 0 20px 60px rgba(0,0,0,0.55)",
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Orbitron:wght@500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --neon: #1aff9c;
+      --neon-dim: rgba(26, 255, 156, 0.25);
+    }
+    html, body { height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(26,255,156,0.12), transparent 55%),
+        radial-gradient(circle at 100% 100%, rgba(0,120,255,0.08), transparent 40%),
+        #05080f;
+      color: #e8f5ef;
+    }
+    .scanlines::after {
+      content: "";
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0,
+        transparent 2px,
+        rgba(0,0,0,0.12) 2px,
+        rgba(0,0,0,0.12) 3px
+      );
+      mix-blend-mode: multiply;
+      opacity: 0.35;
+    }
+    .grid-pocket {
+      transition: box-shadow 160ms ease, transform 160ms ease, background 160ms ease;
+    }
+    .grid-pocket:hover {
+      transform: translateY(-1px) scale(1.01);
+      box-shadow: 0 0 0 1px rgba(26,255,156,0.7), 0 0 28px rgba(26,255,156,0.25);
+      background: rgba(26,255,156,0.1);
+    }
+    .trend-up { box-shadow: inset 0 0 0 2px #1aff9c, 0 0 18px rgba(26,255,156,0.22); }
+    .trend-flat { box-shadow: inset 0 0 0 2px #8aa0b8, 0 0 12px rgba(138,160,184,0.15); }
+    .trend-down { box-shadow: inset 0 0 0 2px #ff4d6d, 0 0 18px rgba(255,77,109,0.22); }
+    .locked-pulse {
+      animation: lockedPulse 2.4s ease-in-out infinite;
+    }
+    @keyframes lockedPulse {
+      0%, 100% { opacity: 0.75; }
+      50% { opacity: 1; }
+    }
+    input[type="range"] {
+      accent-color: #1aff9c;
+    }
+    .glass {
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+  </style>
+</head>
+<body class="font-body antialiased overflow-hidden">
+  <div class="relative h-dvh w-full">
+    <!-- Camera -->
+    <video
+      id="camera"
+      class="absolute inset-0 h-full w-full object-cover"
+      autoplay
+      playsinline
+      muted
+    ></video>
+    <div class="absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/70"></div>
+    <div class="scanlines absolute inset-0 pointer-events-none"></div>
+
+    <!-- Top bar -->
+    <header class="absolute inset-x-0 top-0 z-30 flex items-center justify-between gap-4 px-4 py-3 sm:px-6">
+      <div class="flex items-center gap-3">
+        <div class="flex size-10 items-center justify-center rounded-xl border border-hud-line/40 bg-black/50 shadow-neon">
+          <i data-lucide="scan-eye" class="size-5 text-hud-line"></i>
+        </div>
+        <div>
+          <h1 class="font-display text-sm font-semibold tracking-[0.18em] text-hud-line sm:text-base">
+            LIVE BINDER HUD
+          </h1>
+          <p class="text-[11px] text-hud-mute">Perspective-aligned 3×3 pocket scanner · sim mode</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <span id="lockBadge" class="locked-pulse inline-flex items-center gap-1.5 rounded-full border border-hud-line/50 bg-black/55 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-hud-line">
+          <i data-lucide="lock" class="size-3.5"></i>
+          Locked
+        </span>
+        <button
+          id="camBtn"
+          type="button"
+          class="inline-flex items-center gap-2 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 text-xs font-medium text-white hover:border-hud-line/50 hover:text-hud-line"
+        >
+          <i data-lucide="camera" class="size-3.5"></i>
+          <span id="camBtnLabel">Enable camera</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Sidebar -->
+    <aside class="absolute bottom-4 left-3 top-20 z-30 flex w-[min(100%,18rem)] flex-col gap-3 sm:left-5">
+      <section class="glass rounded-2xl border border-hud-line/25 bg-hud-panel p-4 shadow-panel">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="font-display text-[11px] font-semibold tracking-[0.2em] text-hud-line">PAGE CACHE</h2>
+          <i data-lucide="activity" class="size-4 text-hud-dim"></i>
+        </div>
+        <dl class="space-y-3 text-sm">
+          <div>
+            <dt class="text-[11px] uppercase tracking-wider text-hud-mute">Total page value</dt>
+            <dd id="totalValue" class="font-mono text-2xl font-semibold text-white tabular-nums">$0.00</dd>
+          </div>
+          <div>
+            <dt class="text-[11px] uppercase tracking-wider text-hud-mute">Highest value</dt>
+            <dd id="highestCard" class="font-medium text-hud-dim">—</dd>
+            <dd id="highestValue" class="font-mono text-sm text-white/80 tabular-nums">$0.00</dd>
+          </div>
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <div class="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2">
+              <p class="text-[10px] uppercase tracking-wider text-hud-mute">Avg</p>
+              <p id="avgValue" class="font-mono text-sm font-semibold tabular-nums">$0.00</p>
+            </div>
+            <div class="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2">
+              <p class="text-[10px] uppercase tracking-wider text-hud-mute">Ticks</p>
+              <p id="tickCount" class="font-mono text-sm font-semibold tabular-nums">0</p>
+            </div>
+          </div>
+        </dl>
+      </section>
+
+      <section class="glass flex min-h-0 flex-1 flex-col rounded-2xl border border-hud-line/25 bg-hud-panel p-4 shadow-panel">
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="font-display text-[11px] font-semibold tracking-[0.2em] text-hud-line">SCAN LOG</h2>
+          <button id="clearLog" type="button" class="text-[10px] uppercase tracking-wider text-hud-mute hover:text-hud-line">Clear</button>
+        </div>
+        <ul id="scanLog" class="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1 text-xs"></ul>
+      </section>
+    </aside>
+
+    <!-- Calibration controls -->
+    <section class="absolute bottom-4 right-3 z-30 w-[min(100%,17.5rem)] rounded-2xl border border-hud-line/25 bg-hud-panel p-4 shadow-panel glass sm:right-5">
+      <div class="mb-3 flex items-center justify-between">
+        <h2 class="font-display text-[11px] font-semibold tracking-[0.2em] text-hud-line">CALIBRATE</h2>
+        <button id="resetCal" type="button" class="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-hud-mute hover:text-hud-line">
+          <i data-lucide="rotate-ccw" class="size-3"></i> Reset
+        </button>
+      </div>
+      <div class="space-y-2.5 text-[11px] text-hud-mute">
+        <label class="block">
+          <span class="mb-1 flex justify-between"><span>Perspective</span><span id="vPersp" class="font-mono text-hud-dim">900</span></span>
+          <input id="persp" type="range" min="400" max="1800" value="900" class="w-full" />
+        </label>
+        <label class="block">
+          <span class="mb-1 flex justify-between"><span>Tilt X</span><span id="vRotX" class="font-mono text-hud-dim">18°</span></span>
+          <input id="rotX" type="range" min="-45" max="45" value="18" class="w-full" />
+        </label>
+        <label class="block">
+          <span class="mb-1 flex justify-between"><span>Tilt Y</span><span id="vRotY" class="font-mono text-hud-dim">-8°</span></span>
+          <input id="rotY" type="range" min="-45" max="45" value="-8" class="w-full" />
+        </label>
+        <label class="block">
+          <span class="mb-1 flex justify-between"><span>Scale</span><span id="vScale" class="font-mono text-hud-dim">1.00</span></span>
+          <input id="scale" type="range" min="70" max="140" value="100" class="w-full" />
+        </label>
+        <label class="block">
+          <span class="mb-1 flex justify-between"><span>Offset X</span><span id="vOffX" class="font-mono text-hud-dim">0</span></span>
+          <input id="offX" type="range" min="-120" max="120" value="0" class="w-full" />
+        </label>
+        <label class="block">
+          <span class="mb-1 flex justify-between"><span>Offset Y</span><span id="vOffY" class="font-mono text-hud-dim">10</span></span>
+          <input id="offY" type="range" min="-120" max="120" value="10" class="w-full" />
+        </label>
+      </div>
+      <p class="mt-3 text-[10px] leading-relaxed text-hud-mute/90">
+        Align the neon grid with your physical 9-pocket page, then click a pocket for live comps.
+      </p>
+    </section>
+
+    <!-- Perspective grid stage -->
+    <div class="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+      <div id="gridStage" class="pointer-events-auto relative" style="perspective: 900px;">
+        <div
+          id="gridPlane"
+          class="relative h-[min(68vh,560px)] w-[min(52vw,380px)] origin-center will-change-transform"
+          style="transform-style: preserve-3d;"
+        >
+          <!-- Binder page chrome -->
+          <div class="absolute inset-0 rounded-[1.25rem] border border-hud-line/50 bg-black/25 shadow-neon">
+            <div class="absolute inset-x-4 top-3 flex items-center justify-between text-[10px] uppercase tracking-[0.25em] text-hud-line/80">
+              <span>Page 12 · Ultra Pro</span>
+              <span class="font-mono">3×3 LOCK</span>
+            </div>
+            <div class="absolute bottom-3 left-4 right-4 flex items-center justify-between text-[10px] text-hud-mute">
+              <span>SIM FEED · PCAPI</span>
+              <span id="clock" class="font-mono text-hud-dim">00:00:00</span>
+            </div>
+          </div>
+
+          <div id="pocketGrid" class="absolute inset-[2.4rem_1.4rem_2.2rem] grid grid-cols-3 grid-rows-3 gap-2.5"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Camera error -->
+    <div id="camError" class="absolute inset-x-0 top-24 z-40 mx-auto hidden max-w-md rounded-2xl border border-hud-down/40 bg-black/80 px-4 py-3 text-center text-sm text-hud-down shadow-panel">
+      Camera blocked or unavailable. Allow webcam access, or continue with the simulated dark stage.
+    </div>
+  </div>
+
+  <!-- Detail modal -->
+  <div id="modal" class="fixed inset-0 z-50 hidden items-end justify-center bg-black/70 p-3 backdrop-blur-sm sm:items-center">
+    <div class="glass relative w-full max-w-lg overflow-hidden rounded-3xl border border-hud-line/30 bg-[#071018]/95 shadow-panel">
+      <button id="closeModal" type="button" class="absolute right-3 top-3 flex size-10 items-center justify-center rounded-full border border-white/10 bg-black/40 text-hud-mute hover:text-hud-line" aria-label="Close">
+        <i data-lucide="x" class="size-4"></i>
+      </button>
+      <div class="p-5 sm:p-6">
+        <div class="flex gap-4">
+          <div id="modalArt" class="flex aspect-[3/4] w-24 shrink-0 items-center justify-center rounded-xl border border-hud-line/30 bg-gradient-to-br from-[#123]/90 to-[#061018] font-display text-xs tracking-wider text-hud-line sm:w-28"></div>
+          <div class="min-w-0 flex-1">
+            <p class="text-[10px] uppercase tracking-[0.22em] text-hud-mute">Pocket <span id="modalSlot">A1</span></p>
+            <h3 id="modalName" class="mt-1 font-display text-xl font-semibold tracking-wide text-white">Card</h3>
+            <p id="modalSet" class="text-sm text-hud-mute">Set</p>
+            <p id="modalPrice" class="mt-3 font-mono text-2xl font-semibold text-hud-line tabular-nums">$0.00</p>
+            <p id="modalDelta" class="mt-1 text-xs font-medium text-hud-mute">—</p>
+          </div>
+        </div>
+
+        <div class="mt-5 grid grid-cols-2 gap-3">
+          <label class="block text-xs text-hud-mute">
+            Condition
+            <select id="conditionSelect" class="mt-1.5 w-full rounded-xl border border-hud-line/25 bg-black/50 px-3 py-2.5 text-sm text-white outline-none focus:border-hud-line/60">
+              <option value="NM">NM — Near Mint</option>
+              <option value="LP">LP — Lightly Played</option>
+              <option value="MP">MP — Moderately Played</option>
+            </select>
+          </label>
+          <div class="rounded-xl border border-white/10 bg-black/30 px-3 py-2">
+            <p class="text-[10px] uppercase tracking-wider text-hud-mute">Trend</p>
+            <p id="modalTrend" class="mt-1 text-sm font-semibold text-hud-dim">Stable</p>
+            <p id="modalCondNote" class="mt-1 text-[11px] text-hud-mute">NM multiplier 1.00×</p>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-2xl border border-hud-line/20 bg-black/35 p-3">
+          <div class="mb-2 flex items-center justify-between">
+            <p class="text-[10px] uppercase tracking-[0.2em] text-hud-mute">7-day price path</p>
+            <i data-lucide="chart-spline" class="size-3.5 text-hud-line"></i>
+          </div>
+          <canvas id="priceChart" height="140"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CONDITIONS = {
+      NM: { label: "NM", mult: 1, tone: "text-hud-line" },
+      LP: { label: "LP", mult: 0.85, tone: "text-hud-warn" },
+      MP: { label: "MP", mult: 0.65, tone: "text-hud-down" },
+    };
+
+    const CARD_POOL = [
+      { name: "Charizard ex", set: "Obsidian Flames", number: "223", base: 68.5, art: "🔥" },
+      { name: "Lugia V", set: "Silver Tempest", number: "186", base: 92.0, art: "🪶" },
+      { name: "Umbreon VMAX", set: "Evolving Skies", number: "215", base: 410.0, art: "🌙" },
+      { name: "Pikachu VMAX", set: "Vivid Voltage", number: "188", base: 145.0, art: "⚡" },
+      { name: "Mew ex", set: "Paldea Evolved", number: "232", base: 54.25, art: "🧬" },
+      { name: "Giratina VSTAR", set: "Lost Origin", number: "186", base: 118.0, art: "👁" },
+      { name: "Rayquaza VMAX", set: "Evolving Skies", number: "218", base: 175.5, art: "🐉" },
+      { name: "Gardevoir ex", set: "Scarlet & Violet", number: "245", base: 39.8, art: "💎" },
+      { name: "Moonbreon", set: "Japanese EE", number: "095", base: 620.0, art: "🌑" },
+    ];
+
+    const SLOT_LABELS = ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3"];
+
+    const state = {
+      pockets: [],
+      selectedId: null,
+      ticks: 0,
+      log: [],
+      chart: null,
+      stream: null,
+    };
+
+    const el = (id) => document.getElementById(id);
+
+    function money(n) {
+      return `$${n.toFixed(2)}`;
+    }
+
+    function seedHistory(base) {
+      const points = [];
+      let v = base * (0.9 + Math.random() * 0.1);
+      for (let i = 0; i < 14; i += 1) {
+        v *= 1 + (Math.random() - 0.48) * 0.04;
+        points.push(Number(v.toFixed(2)));
+      }
+      points[points.length - 1] = base;
+      return points;
+    }
+
+    function trendFromHistory(history) {
+      if (history.length < 2) return "flat";
+      const a = history[history.length - 2];
+      const b = history[history.length - 1];
+      const pct = ((b - a) / a) * 100;
+      if (pct > 0.35) return "up";
+      if (pct < -0.35) return "down";
+      return "flat";
+    }
+
+    function effectivePrice(pocket) {
+      return pocket.rawPrice * CONDITIONS[pocket.condition].mult;
+    }
+
+    function initPockets() {
+      state.pockets = CARD_POOL.map((card, i) => {
+        const jitter = 1 + (Math.random() - 0.5) * 0.08;
+        const rawPrice = Number((card.base * jitter).toFixed(2));
+        const history = seedHistory(rawPrice);
+        return {
+          id: `p${i}`,
+          slot: SLOT_LABELS[i],
+          name: card.name,
+          set: card.set,
+          number: card.number,
+          art: card.art,
+          condition: "NM",
+          rawPrice,
+          history,
+          trend: trendFromHistory(history),
+        };
+      });
+    }
+
+    function pushLog(message, tone = "neutral") {
+      const stamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      state.log.unshift({ stamp, message, tone });
+      state.log = state.log.slice(0, 40);
+      renderLog();
+    }
+
+    function renderLog() {
+      const root = el("scanLog");
+      root.innerHTML = state.log
+        .map(
+          (row) => `
+          <li class="rounded-lg border border-white/10 bg-black/35 px-2.5 py-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="font-mono text-[10px] text-hud-mute">${row.stamp}</span>
+              <span class="size-1.5 rounded-full ${
+                row.tone === "up" ? "bg-hud-line" : row.tone === "down" ? "bg-hud-down" : "bg-hud-mute"
+              }"></span>
+            </div>
+            <p class="mt-1 leading-snug text-white/85">${row.message}</p>
+          </li>`
+        )
+        .join("");
+    }
+
+    function renderSidebar() {
+      const values = state.pockets.map(effectivePrice);
+      const total = values.reduce((a, b) => a + b, 0);
+      const avg = total / values.length;
+      let highest = state.pockets[0];
+      for (const p of state.pockets) {
+        if (effectivePrice(p) > effectivePrice(highest)) highest = p;
+      }
+      el("totalValue").textContent = money(total);
+      el("avgValue").textContent = money(avg);
+      el("highestCard").textContent = highest.name;
+      el("highestValue").textContent = `${money(effectivePrice(highest))} · ${highest.condition}`;
+      el("tickCount").textContent = String(state.ticks);
+    }
+
+    function pocketMarkup(pocket) {
+      const price = effectivePrice(pocket);
+      const trendClass =
+        pocket.trend === "up" ? "trend-up" : pocket.trend === "down" ? "trend-down" : "trend-flat";
+      const trendIcon = pocket.trend === "up" ? "↗" : pocket.trend === "down" ? "↘" : "→";
+      const cond = CONDITIONS[pocket.condition];
+      return `
+        <button
+          type="button"
+          data-id="${pocket.id}"
+          class="grid-pocket group relative flex flex-col justify-between overflow-hidden rounded-lg bg-black/45 p-2 text-left ${trendClass}"
+        >
+          <div class="flex items-start justify-between gap-1">
+            <span class="font-mono text-[9px] uppercase tracking-wider text-hud-line/80">${pocket.slot}</span>
+            <span class="rounded bg-black/50 px-1 py-0.5 text-[9px] font-semibold ${cond.tone}">${cond.label}</span>
+          </div>
+          <div class="my-1 flex flex-1 items-center justify-center text-2xl opacity-90">${pocket.art}</div>
+          <div>
+            <p class="truncate text-[11px] font-semibold leading-tight text-white">${pocket.name}</p>
+            <div class="mt-0.5 flex items-center justify-between gap-1">
+              <span class="font-mono text-[11px] font-semibold text-hud-line tabular-nums">${money(price)}</span>
+              <span class="text-[10px] text-hud-mute">${trendIcon}</span>
+            </div>
+          </div>
+        </button>`;
+    }
+
+    function renderGrid() {
+      el("pocketGrid").innerHTML = state.pockets.map(pocketMarkup).join("");
+      el("pocketGrid").querySelectorAll("[data-id]").forEach((btn) => {
+        btn.addEventListener("click", () => openModal(btn.getAttribute("data-id")));
+      });
+      renderSidebar();
+    }
+
+    function applyCalibration() {
+      const persp = Number(el("persp").value);
+      const rotX = Number(el("rotX").value);
+      const rotY = Number(el("rotY").value);
+      const scale = Number(el("scale").value) / 100;
+      const offX = Number(el("offX").value);
+      const offY = Number(el("offY").value);
+
+      el("gridStage").style.perspective = `${persp}px`;
+      el("gridPlane").style.transform =
+        `translate3d(${offX}px, ${offY}px, 0) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(${scale})`;
+
+      el("vPersp").textContent = String(persp);
+      el("vRotX").textContent = `${rotX}°`;
+      el("vRotY").textContent = `${rotY}°`;
+      el("vScale").textContent = scale.toFixed(2);
+      el("vOffX").textContent = String(offX);
+      el("vOffY").textContent = String(offY);
+    }
+
+    function tickPrices() {
+      state.ticks += 1;
+      for (const pocket of state.pockets) {
+        const shock = (Math.random() - 0.48) * 0.018;
+        pocket.rawPrice = Math.max(0.5, Number((pocket.rawPrice * (1 + shock)).toFixed(2)));
+        pocket.history.push(pocket.rawPrice);
+        if (pocket.history.length > 24) pocket.history.shift();
+        const prevTrend = pocket.trend;
+        pocket.trend = trendFromHistory(pocket.history);
+        if (prevTrend !== pocket.trend && Math.random() > 0.55) {
+          pushLog(
+            `${pocket.name} trend → ${pocket.trend.toUpperCase()} @ ${money(effectivePrice(pocket))}`,
+            pocket.trend === "up" ? "up" : pocket.trend === "down" ? "down" : "neutral"
+          );
+        }
+      }
+      renderGrid();
+      if (state.selectedId) refreshModal(false);
+    }
+
+    function openModal(id) {
+      state.selectedId = id;
+      el("modal").classList.remove("hidden");
+      el("modal").classList.add("flex");
+      refreshModal(true);
+      const pocket = state.pockets.find((p) => p.id === id);
+      if (pocket) pushLog(`Focused ${pocket.slot} · ${pocket.name}`, "neutral");
+    }
+
+    function closeModal() {
+      state.selectedId = null;
+      el("modal").classList.add("hidden");
+      el("modal").classList.remove("flex");
+      if (state.chart) {
+        state.chart.destroy();
+        state.chart = null;
+      }
+    }
+
+    function refreshModal(rebuildChart) {
+      const pocket = state.pockets.find((p) => p.id === state.selectedId);
+      if (!pocket) return;
+      const price = effectivePrice(pocket);
+      const hist = pocket.history;
+      const prev = hist[hist.length - 2] ?? price;
+      const delta = price - prev * CONDITIONS[pocket.condition].mult;
+      const pct = prev ? (delta / (prev * CONDITIONS[pocket.condition].mult)) * 100 : 0;
+
+      el("modalSlot").textContent = pocket.slot;
+      el("modalName").textContent = pocket.name;
+      el("modalSet").textContent = `${pocket.set} · #${pocket.number}`;
+      el("modalArt").textContent = pocket.art;
+      el("modalPrice").textContent = money(price);
+      el("modalDelta").textContent = `${delta >= 0 ? "+" : ""}${money(Math.abs(delta))} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%) last tick`;
+      el("modalDelta").className = `mt-1 text-xs font-medium ${
+        pocket.trend === "up" ? "text-hud-line" : pocket.trend === "down" ? "text-hud-down" : "text-hud-mute"
+      }`;
+      el("modalTrend").textContent =
+        pocket.trend === "up" ? "Bullish lift" : pocket.trend === "down" ? "Softening" : "Stable channel";
+      el("conditionSelect").value = pocket.condition;
+      el("modalCondNote").textContent = `${pocket.condition} multiplier ${CONDITIONS[pocket.condition].mult.toFixed(2)}× · raw ${money(pocket.rawPrice)}`;
+
+      const labels = pocket.history.map((_, i) => `T-${pocket.history.length - 1 - i}`);
+      const condMult = CONDITIONS[pocket.condition].mult;
+      const series = pocket.history.map((v) => Number((v * condMult).toFixed(2)));
+
+      if (rebuildChart || !state.chart) {
+        if (state.chart) state.chart.destroy();
+        const ctx = el("priceChart").getContext("2d");
+        state.chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "Price",
+                data: series,
+                borderColor: "#1aff9c",
+                backgroundColor: "rgba(26,255,156,0.12)",
+                fill: true,
+                tension: 0.35,
+                pointRadius: 0,
+                borderWidth: 2,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                callbacks: {
+                  label: (ctx) => money(ctx.parsed.y),
+                },
+              },
+            },
+            scales: {
+              x: {
+                ticks: { color: "#8aa0b8", maxTicksLimit: 6, font: { size: 10 } },
+                grid: { color: "rgba(26,255,156,0.06)" },
+              },
+              y: {
+                ticks: {
+                  color: "#8aa0b8",
+                  font: { size: 10 },
+                  callback: (v) => `$${v}`,
+                },
+                grid: { color: "rgba(26,255,156,0.08)" },
+              },
+            },
+          },
+        });
+      } else {
+        state.chart.data.labels = labels;
+        state.chart.data.datasets[0].data = series;
+        state.chart.update("none");
+      }
+    }
+
+    async function startCamera() {
+      el("camError").classList.add("hidden");
+      try {
+        if (state.stream) {
+          state.stream.getTracks().forEach((t) => t.stop());
+          state.stream = null;
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+        state.stream = stream;
+        const video = el("camera");
+        video.srcObject = stream;
+        await video.play();
+        el("camBtnLabel").textContent = "Camera live";
+        el("lockBadge").classList.remove("hidden");
+        pushLog("Webcam lock acquired · HUD armed", "up");
+      } catch (err) {
+        el("camError").classList.remove("hidden");
+        el("camBtnLabel").textContent = "Retry camera";
+        pushLog("Camera unavailable — running dark-stage sim", "down");
+        console.warn(err);
+      }
+    }
+
+    function bindControls() {
+      ["persp", "rotX", "rotY", "scale", "offX", "offY"].forEach((id) => {
+        el(id).addEventListener("input", applyCalibration);
+      });
+      el("resetCal").addEventListener("click", () => {
+        el("persp").value = 900;
+        el("rotX").value = 18;
+        el("rotY").value = -8;
+        el("scale").value = 100;
+        el("offX").value = 0;
+        el("offY").value = 10;
+        applyCalibration();
+        pushLog("Calibration reset to default page lock", "neutral");
+      });
+      el("camBtn").addEventListener("click", () => void startCamera());
+      el("clearLog").addEventListener("click", () => {
+        state.log = [];
+        renderLog();
+      });
+      el("closeModal").addEventListener("click", closeModal);
+      el("modal").addEventListener("click", (e) => {
+        if (e.target === el("modal")) closeModal();
+      });
+      window.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeModal();
+      });
+      el("conditionSelect").addEventListener("change", (e) => {
+        const pocket = state.pockets.find((p) => p.id === state.selectedId);
+        if (!pocket) return;
+        pocket.condition = e.target.value;
+        pushLog(`${pocket.name} condition → ${pocket.condition}`, "neutral");
+        renderGrid();
+        refreshModal(true);
+      });
+    }
+
+    function tickClock() {
+      el("clock").textContent = new Date().toLocaleTimeString();
+    }
+
+    function boot() {
+      lucide.createIcons();
+      initPockets();
+      bindControls();
+      applyCalibration();
+      renderGrid();
+      pushLog("HUD online · seeding 9-pocket page cache", "up");
+      pushLog("Awaiting webcam alignment", "neutral");
+      tickClock();
+      setInterval(tickClock, 1000);
+      setInterval(tickPrices, 2200);
+      void startCamera();
+    }
+
+    boot();
+  </script>
+</body>
+</html>
