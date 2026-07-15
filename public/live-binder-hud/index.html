@@ -7,8 +7,7 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#05080f" />
   <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
-  <meta http-equiv="Pragma" content="no-cache" />
-  <title>Live Binder HUD · Track & Scan</title>
+  <title>Live Binder HUD · Gemini + PriceCharting</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -57,10 +56,7 @@
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
-    .glass {
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-    }
+    .glass { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
     #camera { transform: translateZ(0); }
     .sheet { transform: translateY(110%); transition: transform 220ms ease; }
     .sheet.open { transform: translateY(0); }
@@ -69,7 +65,7 @@
       color: #1aff9c;
       background: rgba(26,255,156,0.12);
     }
-    .scan-busy { pointer-events: none; opacity: 0.72; }
+    .busy { pointer-events: none; opacity: 0.72; }
     .locked-pulse { animation: lockedPulse 2.4s ease-in-out infinite; }
     @keyframes lockedPulse {
       0%, 100% { opacity: 0.75; }
@@ -77,34 +73,16 @@
     }
     .track-box {
       position: absolute;
-      border: 1.5px solid rgba(26,255,156,0.75);
+      border: 1.5px solid rgba(26,255,156,0.8);
       border-radius: 0.55rem;
-      background: rgba(0,0,0,0.18);
-      box-shadow: 0 0 0 1px rgba(0,0,0,0.35), 0 0 18px rgba(26,255,156,0.12);
+      background: rgba(0,0,0,0.28);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.35), 0 0 18px rgba(26,255,156,0.14);
       overflow: hidden;
-      touch-action: none;
-      cursor: grab;
+      text-align: left;
     }
-    .track-box.scanning { border-color: rgba(26,255,156,0.95); background: rgba(26,255,156,0.1); }
-    .track-box.matched { border-color: rgba(26,255,156,0.55); background: rgba(0,0,0,0.35); }
-    .track-box.failed { border-color: rgba(255,179,71,0.75); background: rgba(255,179,71,0.08); }
-    .track-box.selected { outline: 2px solid rgba(26,255,156,0.85); outline-offset: 2px; }
-    .track-handle {
-      position: absolute;
-      right: -7px;
-      bottom: -7px;
-      width: 16px;
-      height: 16px;
-      border-radius: 999px;
-      border: 1.5px solid #1aff9c;
-      background: #05080f;
-      box-shadow: 0 0 10px rgba(26,255,156,0.35);
-    }
-    .hint-fade { animation: hintFade 4s ease forwards; }
-    @keyframes hintFade {
-      0%, 70% { opacity: 1; }
-      100% { opacity: 0; visibility: hidden; }
-    }
+    .track-box.matched { border-color: rgba(26,255,156,0.65); }
+    .track-box.failed { border-color: rgba(255,179,71,0.8); }
+    .track-box.selected { outline: 2px solid rgba(26,255,156,0.9); outline-offset: 2px; }
     @media (min-width: 1024px) {
       .desktop-sidebar { display: flex !important; }
       .mobile-dock { display: none !important; }
@@ -116,8 +94,6 @@
   <div class="relative h-dvh w-full">
     <video id="camera" class="absolute inset-0 h-full w-full object-cover" autoplay muted playsinline webkit-playsinline></video>
     <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/45 via-transparent to-black/70"></div>
-
-    <!-- Tracked card rectangles (live overlay) -->
     <div id="trackLayer" class="absolute inset-0 z-20"></div>
 
     <header class="absolute inset-x-0 top-0 z-30 flex items-start justify-between gap-3 px-3 pb-2 pt-[max(0.75rem,var(--safe-top))] sm:px-5">
@@ -127,27 +103,23 @@
         </div>
         <div class="min-w-0">
           <h1 class="font-display truncate text-xs font-semibold tracking-[0.16em] text-hud-line sm:text-sm">LIVE BINDER HUD</h1>
-          <p id="hudSubtitle" class="truncate text-[10px] text-hud-mute sm:text-[11px]">Track cards in frame · scan live prices</p>
+          <p id="hudSubtitle" class="truncate text-[10px] text-hud-mute sm:text-[11px]">Gemini Vision → PriceCharting</p>
         </div>
       </div>
       <div class="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-        <span id="lockBadge" class="locked-pulse hidden items-center gap-1 rounded-full border border-hud-line/50 bg-black/55 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-hud-line sm:inline-flex">
-          <i data-lucide="radar" class="size-3.5"></i>
-          <span id="trackCountBadge">0 tracked</span>
+        <span id="liveBadge" class="locked-pulse inline-flex items-center gap-1 rounded-full border border-hud-line/50 bg-black/55 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-hud-line">
+          <i data-lucide="radio" class="size-3.5"></i>
+          <span id="liveBadgeText">Live on</span>
         </span>
         <button id="flipCamBtn" type="button" class="inline-flex min-h-11 min-w-11 items-center justify-center rounded-full border border-white/15 bg-black/55 text-white" aria-label="Flip camera">
           <i data-lucide="switch-camera" class="size-4"></i>
         </button>
-        <button id="clearTracksBtn" type="button" class="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/15 bg-black/55 px-3 text-xs font-medium text-white">
-          Clear
+        <button id="liveToggleBtn" type="button" class="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/15 bg-black/55 px-3 text-xs font-medium text-white">
+          <span id="liveToggleLabel">Pause</span>
         </button>
-        <button id="trackBtn" type="button" class="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/15 bg-black/55 px-3 text-xs font-medium text-white">
-          <i data-lucide="focus" class="size-4"></i>
-          <span id="trackBtnLabel">Track</span>
-        </button>
-        <button id="scanPageBtn" type="button" class="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-hud-line/50 bg-hud-line/15 px-3 text-xs font-semibold text-hud-line shadow-neon">
+        <button id="scanNowBtn" type="button" class="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-hud-line/50 bg-hud-line/15 px-3 text-xs font-semibold text-hud-line shadow-neon">
           <i data-lucide="scan-line" class="size-4"></i>
-          <span id="scanPageBtnLabel">Scan</span>
+          <span id="scanNowLabel">Scan now</span>
         </button>
       </div>
     </header>
@@ -162,18 +134,23 @@
         <p id="highestValueMobile" class="truncate font-mono text-sm font-semibold tabular-nums text-hud-dim">$0.00</p>
       </div>
       <div class="glass rounded-xl border border-hud-line/20 bg-hud-panel px-2.5 py-2">
-        <p class="text-[9px] uppercase tracking-wider text-hud-mute">Tracked</p>
-        <p id="tickCountMobile" class="font-mono text-sm font-semibold tabular-nums text-white">0</p>
+        <p class="text-[9px] uppercase tracking-wider text-hud-mute">Cards</p>
+        <p id="cardCountMobile" class="font-mono text-sm font-semibold tabular-nums text-white">0</p>
       </div>
     </div>
 
     <aside class="desktop-sidebar absolute bottom-4 left-5 top-20 z-30 hidden w-72 flex-col gap-3">
       <section class="glass rounded-2xl border border-hud-line/25 bg-hud-panel p-4 shadow-panel">
         <div class="mb-3 flex items-center justify-between">
-          <h2 class="font-display text-[11px] font-semibold tracking-[0.2em] text-hud-line">PAGE CACHE</h2>
+          <h2 class="font-display text-[11px] font-semibold tracking-[0.2em] text-hud-line">LIVE PIPELINE</h2>
           <i data-lucide="activity" class="size-4 text-hud-dim"></i>
         </div>
-        <dl class="space-y-3 text-sm">
+        <p id="pipelineStatus" class="text-sm text-white/90">Waiting for camera…</p>
+        <p class="mt-2 text-[10px] leading-relaxed text-hud-mute">
+          <strong class="text-hud-dim">Gemini Vision</strong> reads every card in frame, then
+          <strong class="text-hud-dim">PriceCharting</strong> fills raw NM + PSA comps. Live mode repeats automatically.
+        </p>
+        <dl class="mt-4 space-y-3 text-sm">
           <div>
             <dt class="text-[11px] uppercase tracking-wider text-hud-mute">Total page value</dt>
             <dd id="totalValue" class="font-mono text-2xl font-semibold text-white tabular-nums">$0.00</dd>
@@ -183,20 +160,17 @@
             <dd id="highestCard" class="font-medium text-hud-dim">—</dd>
             <dd id="highestValue" class="font-mono text-sm text-white/80 tabular-nums">$0.00</dd>
           </div>
-          <div class="grid grid-cols-2 gap-2 pt-1">
+          <div class="grid grid-cols-2 gap-2">
             <div class="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2">
               <p class="text-[10px] uppercase tracking-wider text-hud-mute">Avg</p>
               <p id="avgValue" class="font-mono text-sm font-semibold tabular-nums">$0.00</p>
             </div>
             <div class="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2">
-              <p class="text-[10px] uppercase tracking-wider text-hud-mute">Tracked</p>
-              <p id="tickCount" class="font-mono text-sm font-semibold tabular-nums">0</p>
+              <p class="text-[10px] uppercase tracking-wider text-hud-mute">Cards</p>
+              <p id="cardCount" class="font-mono text-sm font-semibold tabular-nums">0</p>
             </div>
           </div>
         </dl>
-        <p class="mt-3 text-[10px] leading-relaxed text-hud-mute">
-          Tap <strong class="text-hud-dim">Track</strong> to find cards in the camera. Boxes follow the cards — then <strong class="text-hud-dim">Scan</strong> for live info/prices. Drag a box to nudge; drag the corner to resize. Double-tap empty space to add a box.
-        </p>
       </section>
       <section class="glass flex min-h-0 flex-1 flex-col rounded-2xl border border-hud-line/25 bg-hud-panel p-4 shadow-panel">
         <div class="mb-3 flex items-center justify-between">
@@ -207,10 +181,10 @@
       </section>
     </aside>
 
-    <div id="centerHint" class="pointer-events-none absolute inset-x-6 top-1/2 z-25 -translate-y-1/2 text-center hint-fade lg:inset-x-auto lg:left-1/2 lg:w-[22rem] lg:-translate-x-1/2">
+    <div id="centerHint" class="pointer-events-none absolute inset-x-6 top-1/2 z-25 -translate-y-1/2 text-center lg:left-1/2 lg:w-[24rem] lg:-translate-x-1/2 lg:inset-x-auto">
       <div class="glass rounded-2xl border border-hud-line/25 bg-black/55 px-4 py-3 shadow-panel">
-        <p class="font-display text-[11px] tracking-[0.18em] text-hud-line">NO FIXED GRID</p>
-        <p class="mt-1 text-sm text-white/85">Point at your binder, tap Track to lock onto each card, then Scan.</p>
+        <p class="font-display text-[11px] tracking-[0.18em] text-hud-line">AUTO LIVE SCAN</p>
+        <p class="mt-1 text-sm text-white/85">Point at cards — Gemini IDs them and PriceCharting prices pop onto each box.</p>
       </div>
     </div>
 
@@ -219,11 +193,11 @@
         <button type="button" data-sheet="stats" class="dock-btn inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/10 text-[10px] font-medium text-hud-mute">
           <i data-lucide="layout-dashboard" class="size-4"></i> Stats
         </button>
-        <button type="button" id="dockTrackBtn" class="inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/10 text-[10px] font-medium text-hud-mute">
-          <i data-lucide="focus" class="size-4"></i> Track
+        <button type="button" id="dockLiveBtn" class="inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/10 text-[10px] font-medium text-hud-mute">
+          <i data-lucide="radio" class="size-4"></i> <span id="dockLiveLabel">Pause</span>
         </button>
         <button type="button" id="dockScanBtn" class="inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-hud-line/40 bg-hud-line/10 text-[10px] font-semibold text-hud-line">
-          <i data-lucide="scan-line" class="size-4"></i> Scan
+          <i data-lucide="scan-line" class="size-4"></i> Now
         </button>
         <button type="button" data-sheet="log" class="dock-btn inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/10 text-[10px] font-medium text-hud-mute">
           <i data-lucide="scroll-text" class="size-4"></i> Log
@@ -235,10 +209,11 @@
     <section id="sheet-stats" class="mobile-sheet sheet absolute inset-x-0 bottom-0 z-50 max-h-[75dvh] overflow-y-auto rounded-t-3xl border border-hud-line/25 bg-hud-panel p-4 pb-[max(1rem,var(--safe-bottom))] shadow-panel glass lg:hidden">
       <div class="mx-auto mb-3 h-1 w-10 rounded-full bg-white/20"></div>
       <div class="mb-3 flex items-center justify-between">
-        <h2 class="font-display text-[11px] font-semibold tracking-[0.2em] text-hud-line">PAGE CACHE</h2>
+        <h2 class="font-display text-[11px] font-semibold tracking-[0.2em] text-hud-line">LIVE PIPELINE</h2>
         <button type="button" class="close-sheet min-h-11 min-w-11 rounded-full text-hud-mute" aria-label="Close"><i data-lucide="x" class="mx-auto size-4"></i></button>
       </div>
-      <dl class="space-y-3 text-sm">
+      <p id="pipelineStatusMobile" class="text-sm text-white/90">Waiting for camera…</p>
+      <dl class="mt-4 space-y-3 text-sm">
         <div>
           <dt class="text-[11px] uppercase tracking-wider text-hud-mute">Total page value</dt>
           <dd id="totalValueSheet" class="font-mono text-2xl font-semibold text-white tabular-nums">$0.00</dd>
@@ -254,14 +229,11 @@
             <p id="avgValueSheet" class="font-mono text-sm font-semibold tabular-nums">$0.00</p>
           </div>
           <div class="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2">
-            <p class="text-[10px] uppercase tracking-wider text-hud-mute">Tracked</p>
-            <p id="tickCountSheet" class="font-mono text-sm font-semibold tabular-nums">0</p>
+            <p class="text-[10px] uppercase tracking-wider text-hud-mute">Cards</p>
+            <p id="cardCountSheet" class="font-mono text-sm font-semibold tabular-nums">0</p>
           </div>
         </div>
       </dl>
-      <p class="mt-3 text-[10px] leading-relaxed text-hud-mute">
-        Track finds card rectangles in the live camera. Scan identifies and prices each tracked card. Drag boxes to fine-tune.
-      </p>
     </section>
 
     <section id="sheet-log" class="mobile-sheet sheet absolute inset-x-0 bottom-0 z-50 max-h-[70dvh] overflow-hidden rounded-t-3xl border border-hud-line/25 bg-hud-panel p-4 pb-[max(1rem,var(--safe-bottom))] shadow-panel glass lg:hidden">
@@ -276,21 +248,18 @@
       <ul id="scanLogMobile" class="max-h-[50dvh] space-y-2 overflow-y-auto pr-1 text-xs"></ul>
     </section>
 
-    <div id="camError" class="absolute inset-x-3 top-[calc(7.25rem+var(--safe-top))] z-40 mx-auto hidden max-w-md rounded-2xl border border-hud-down/40 bg-black/85 px-4 py-3 text-center text-sm text-hud-down shadow-panel lg:inset-x-0 lg:top-24">
-      Camera blocked. Allow camera access, then tap Track.
+    <div id="camError" class="absolute inset-x-3 top-[calc(7.25rem+var(--safe-top))] z-40 mx-auto hidden max-w-md rounded-2xl border border-hud-down/40 bg-black/85 px-4 py-3 text-center text-sm text-hud-down shadow-panel lg:top-24">
+      Camera blocked. Allow camera access so Gemini can see the cards.
     </div>
   </div>
 
   <div id="scanProgress" class="pointer-events-none fixed inset-x-0 bottom-[calc(5.25rem+var(--safe-bottom))] z-[55] mx-auto hidden w-[min(92vw,28rem)] rounded-2xl border border-hud-line/35 bg-black/85 px-4 py-3 shadow-panel glass lg:bottom-6">
     <div class="flex items-center justify-between gap-3">
       <div class="min-w-0">
-        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-hud-line">Working</p>
+        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-hud-line">Live pass</p>
         <p id="scanProgressLabel" class="mt-1 truncate text-sm text-white/90">Preparing…</p>
       </div>
-      <p id="scanProgressCount" class="shrink-0 font-mono text-sm text-hud-dim">0/0</p>
-    </div>
-    <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
-      <div id="scanProgressBar" class="h-full w-0 rounded-full bg-hud-line transition-[width] duration-300"></div>
+      <p id="scanProgressCount" class="shrink-0 font-mono text-sm text-hud-dim">…</p>
     </div>
   </div>
 
@@ -303,80 +272,46 @@
         <div class="flex gap-3 sm:gap-4">
           <div id="modalArt" class="flex aspect-[3/4] w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-hud-line/30 bg-gradient-to-br from-[#123]/90 to-[#061018] font-display text-xs tracking-wider text-hud-line sm:w-28"></div>
           <div class="min-w-0 flex-1 pr-8">
-            <p class="text-[10px] uppercase tracking-[0.22em] text-hud-mute">Track <span id="modalSlot">1</span></p>
+            <p class="text-[10px] uppercase tracking-[0.22em] text-hud-mute">Card <span id="modalSlot">1</span></p>
             <h3 id="modalName" class="mt-1 font-display text-lg font-semibold tracking-wide text-white sm:text-xl">Card</h3>
             <p id="modalSet" class="text-sm text-hud-mute">Set</p>
             <p id="modalPrice" class="mt-2 font-mono text-xl font-semibold text-hud-line tabular-nums sm:text-2xl">$0.00</p>
-            <p id="modalDelta" class="mt-1 text-xs font-medium text-hud-mute">Raw NM market</p>
+            <p id="modalDelta" class="mt-1 text-xs font-medium text-hud-mute">Raw NM · PriceCharting</p>
           </div>
         </div>
         <div id="modalGrades" class="mt-4 grid grid-cols-4 gap-2 text-center"></div>
-        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <label class="block text-xs text-hud-mute">
-            Condition (raw adj.)
-            <select id="conditionSelect" class="mt-1.5 min-h-12 w-full rounded-xl border border-hud-line/25 bg-black/50 px-3 py-3 text-sm text-white outline-none">
-              <option value="NM">NM — Near Mint</option>
-              <option value="LP">LP — Lightly Played</option>
-              <option value="MP">MP — Moderately Played</option>
-            </select>
-          </label>
-          <div class="rounded-xl border border-white/10 bg-black/30 px-3 py-2">
-            <p class="text-[10px] uppercase tracking-wider text-hud-mute">Match</p>
-            <p id="modalTrend" class="mt-1 text-sm font-semibold text-hud-dim">—</p>
-            <p id="modalCondNote" class="mt-1 text-[11px] text-hud-mute">Scan for live comps</p>
-          </div>
-        </div>
         <p id="modalInsight" class="mt-3 text-[11px] leading-relaxed text-hud-mute"></p>
-        <div class="mt-4 flex gap-2">
-          <button id="rescanPocketBtn" type="button" class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-hud-line/40 bg-hud-line/10 px-3 text-sm font-semibold text-hud-line">
-            <i data-lucide="scan-line" class="size-4"></i>
-            Rescan card
-          </button>
-          <button id="removeTrackBtn" type="button" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-hud-mute">
-            Remove
-          </button>
-        </div>
       </div>
     </div>
   </div>
 
   <canvas id="captureCanvas" class="hidden" aria-hidden="true"></canvas>
-  <canvas id="trackCanvas" class="hidden" aria-hidden="true"></canvas>
 
   <script>
-    const CONDITIONS = {
-      NM: { label: "NM", mult: 1, tone: "text-hud-line" },
-      LP: { label: "LP", mult: 0.85, tone: "text-hud-warn" },
-      MP: { label: "MP", mult: 0.65, tone: "text-hud-down" },
-    };
-    const SCAN_CONCURRENCY = 2;
-    const MAX_TRACKS = 9;
-    const TEMPLATE = 28;
-    const SEARCH = 18;
+    const LIVE_INTERVAL_MS = 3500;
+    const CONDITIONS = { NM: 1 };
 
     const state = {
-      tracks: [],
+      cards: [],
       selectedId: null,
       log: [],
       stream: null,
       facingMode: "environment",
-      scanning: false,
-      detecting: false,
-      scanToken: 0,
-      trackLoop: 0,
-      nextTrackNum: 1,
-      drag: null,
+      live: true,
+      busy: false,
+      pass: 0,
+      timer: 0,
+      cameraReady: false,
     };
 
     const el = (id) => document.getElementById(id);
 
-    function esc(value) {
-      return String(value ?? "")
+    function esc(v) {
+      return String(v ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#39;");
+        .replace(/"/g, "&quot;");
     }
 
     function money(n) {
@@ -384,48 +319,16 @@
       return `$${n.toFixed(2)}`;
     }
 
-    function effectivePrice(track) {
-      if (!Number.isFinite(track.rawPrice) || track.rawPrice <= 0) return 0;
-      return track.rawPrice * (CONDITIONS[track.condition]?.mult ?? 1);
-    }
-
-    function matchedCount() {
-      return state.tracks.filter((t) => t.status === "matched").length;
-    }
-
-    function makeTrack(box, index) {
-      return {
-        id: `t${Date.now()}-${index}-${Math.random().toString(36).slice(2, 5)}`,
-        label: String(state.nextTrackNum++),
-        nx: box.x,
-        ny: box.y,
-        nw: box.w,
-        nh: box.h,
-        confidence: box.confidence ?? 0.5,
-        status: "empty",
-        name: "",
-        set: "",
-        number: "",
-        imageUrl: "",
-        condition: "NM",
-        rawPrice: 0,
-        psa: { 7: 0, 8: 0, 9: 0, 10: 0 },
-        matchScore: 0,
-        marketInsight: "",
-        pricingSource: "",
-        error: "",
-        template: null,
-      };
+    function setPipeline(text) {
+      el("pipelineStatus").textContent = text;
+      el("pipelineStatusMobile").textContent = text;
+      el("hudSubtitle").textContent = text;
     }
 
     function pushLog(message, tone = "neutral") {
       const stamp = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
       state.log.unshift({ stamp, message, tone });
-      state.log = state.log.slice(0, 40);
-      renderLog();
-    }
-
-    function renderLog() {
+      state.log = state.log.slice(0, 50);
       const html = state.log
         .map(
           (row) => `
@@ -445,17 +348,15 @@
     }
 
     function renderSidebar() {
-      const priced = state.tracks.filter((t) => t.status === "matched" && effectivePrice(t) > 0);
-      const values = priced.map(effectivePrice);
+      const priced = state.cards.filter((c) => Number(c.rawPrice) > 0);
+      const values = priced.map((c) => c.rawPrice);
       const total = values.reduce((a, b) => a + b, 0);
       const avg = values.length ? total / values.length : 0;
       let highest = priced[0] || null;
-      for (const t of priced) {
-        if (effectivePrice(t) > effectivePrice(highest)) highest = t;
-      }
+      for (const c of priced) if (c.rawPrice > highest.rawPrice) highest = c;
       const setText = (id, value) => {
-        const node = el(id);
-        if (node) node.textContent = value;
+        const n = el(id);
+        if (n) n.textContent = value;
       };
       setText("totalValue", money(total));
       setText("totalValueMobile", money(total));
@@ -464,216 +365,108 @@
       setText("avgValueSheet", money(avg));
       setText("highestCard", highest ? highest.name : "—");
       setText("highestCardSheet", highest ? highest.name : "—");
-      setText("highestValue", highest ? `${money(effectivePrice(highest))} · ${highest.condition}` : "—");
-      setText("highestValueMobile", highest ? money(effectivePrice(highest)) : "—");
-      setText("highestValueSheet", highest ? `${money(effectivePrice(highest))} · ${highest.condition}` : "—");
-      const tracked = String(state.tracks.length);
-      setText("tickCount", tracked);
-      setText("tickCountMobile", tracked);
-      setText("tickCountSheet", tracked);
-      el("trackCountBadge").textContent = `${state.tracks.length} tracked`;
-      el("lockBadge").classList.toggle("hidden", state.tracks.length === 0);
-      el("lockBadge").classList.toggle("inline-flex", state.tracks.length > 0);
+      setText("highestValue", highest ? money(highest.rawPrice) : "—");
+      setText("highestValueMobile", highest ? money(highest.rawPrice) : "—");
+      setText("highestValueSheet", highest ? money(highest.rawPrice) : "—");
+      setText("cardCount", String(state.cards.length));
+      setText("cardCountMobile", String(state.cards.length));
+      setText("cardCountSheet", String(state.cards.length));
     }
 
-    /** object-fit: cover mapping between video pixels and the video element box. */
     function getCoverMapping(video) {
       const rect = video.getBoundingClientRect();
       const vw = video.videoWidth || 1;
       const vh = video.videoHeight || 1;
-      const displayW = rect.width;
-      const displayH = rect.height;
+      const displayAspect = rect.width / rect.height;
       const videoAspect = vw / vh;
-      const displayAspect = displayW / displayH;
-      let renderedW;
-      let renderedH;
-      let offsetX;
-      let offsetY;
+      let renderedW, renderedH, offsetX, offsetY;
       if (displayAspect > videoAspect) {
-        renderedW = displayW;
-        renderedH = displayW / videoAspect;
+        renderedW = rect.width;
+        renderedH = rect.width / videoAspect;
         offsetX = 0;
-        offsetY = (displayH - renderedH) / 2;
+        offsetY = (rect.height - renderedH) / 2;
       } else {
-        renderedH = displayH;
-        renderedW = displayH * videoAspect;
-        offsetX = (displayW - renderedW) / 2;
+        renderedH = rect.height;
+        renderedW = rect.height * videoAspect;
+        offsetX = (rect.width - renderedW) / 2;
         offsetY = 0;
       }
       return { rect, vw, vh, renderedW, renderedH, offsetX, offsetY };
     }
 
-    function normToScreen(track, video = el("camera")) {
-      const m = getCoverMapping(video);
-      const left = m.rect.left + m.offsetX + track.nx * m.vw * (m.renderedW / m.vw);
-      const top = m.rect.top + m.offsetY + track.ny * m.vh * (m.renderedH / m.vh);
-      const width = track.nw * m.vw * (m.renderedW / m.vw);
-      const height = track.nh * m.vh * (m.renderedH / m.vh);
-      return { left, top, width, height };
-    }
-
-    function screenDeltaToNorm(dx, dy, video = el("camera")) {
+    function boxToScreen(box, video = el("camera")) {
       const m = getCoverMapping(video);
       return {
-        dnx: dx / (m.renderedW || 1),
-        dny: dy / (m.renderedH || 1),
+        left: m.rect.left + m.offsetX + box.x * m.renderedW,
+        top: m.rect.top + m.offsetY + box.y * m.renderedH,
+        width: box.w * m.renderedW,
+        height: box.h * m.renderedH,
       };
     }
 
-    function screenPointToNorm(clientX, clientY, video = el("camera")) {
-      const m = getCoverMapping(video);
-      const x = (clientX - m.rect.left - m.offsetX) / (m.renderedW || 1);
-      const y = (clientY - m.rect.top - m.offsetY) / (m.renderedH || 1);
-      return {
-        x: Math.max(0, Math.min(1, x)),
-        y: Math.max(0, Math.min(1, y)),
-      };
-    }
-
-    function clampTrack(track) {
-      track.nw = Math.max(0.05, Math.min(0.95, track.nw));
-      track.nh = Math.max(0.05, Math.min(0.95, track.nh));
-      track.nx = Math.max(0, Math.min(1 - track.nw, track.nx));
-      track.ny = Math.max(0, Math.min(1 - track.nh, track.ny));
-    }
-
-    function renderTracks() {
+    function renderCards() {
       const layer = el("trackLayer");
-      const video = el("camera");
-      const existing = new Map([...layer.querySelectorAll("[data-track-id]")].map((n) => [n.dataset.trackId, n]));
+      const existing = new Map([...layer.querySelectorAll("[data-id]")].map((n) => [n.dataset.id, n]));
       const keep = new Set();
 
-      for (const track of state.tracks) {
-        keep.add(track.id);
-        let node = existing.get(track.id);
+      state.cards.forEach((card, index) => {
+        keep.add(card.id);
+        let node = existing.get(card.id);
         if (!node) {
           node = document.createElement("button");
           node.type = "button";
-          node.dataset.trackId = track.id;
+          node.dataset.id = card.id;
           node.className = "track-box";
           node.innerHTML = `
             <div class="flex items-start justify-between gap-1 px-1.5 pt-1">
-              <span data-label class="rounded bg-black/55 px-1 py-0.5 font-mono text-[9px] text-hud-line">1</span>
-              <span data-badge class="rounded bg-black/55 px-1 py-0.5 text-[9px] text-hud-mute">·</span>
+              <span data-label class="rounded bg-black/60 px-1 py-0.5 font-mono text-[9px] text-hud-line"></span>
+              <span data-badge class="rounded bg-black/60 px-1 py-0.5 text-[9px] text-hud-mute">PC</span>
             </div>
             <div data-art class="mx-1 flex flex-1 items-center justify-center overflow-hidden"></div>
             <div class="px-1.5 pb-1">
-              <p data-title class="truncate text-[10px] font-semibold text-white/90"></p>
-              <p data-price class="font-mono text-[10px] font-semibold text-hud-line tabular-nums">—</p>
-            </div>
-            <span class="track-handle" data-handle="resize" aria-hidden="true"></span>
-          `;
-          node.addEventListener("pointerdown", onTrackPointerDown);
+              <p data-title class="truncate text-[10px] font-semibold text-white"></p>
+              <p data-price class="font-mono text-[11px] font-semibold text-hud-line tabular-nums">—</p>
+            </div>`;
+          node.addEventListener("click", () => openModal(card.id));
           layer.appendChild(node);
         }
 
-        const screen = normToScreen(track, video);
+        const screen = boxToScreen(card.box);
         node.style.left = `${screen.left}px`;
         node.style.top = `${screen.top}px`;
-        node.style.width = `${Math.max(36, screen.width)}px`;
-        node.style.height = `${Math.max(48, screen.height)}px`;
-        node.classList.toggle("selected", state.selectedId === track.id);
-        node.classList.remove("scanning", "matched", "failed");
-        if (track.status === "scanning" || track.status === "matched" || track.status === "failed") {
-          node.classList.add(track.status);
-        }
+        node.style.width = `${Math.max(40, screen.width)}px`;
+        node.style.height = `${Math.max(56, screen.height)}px`;
+        node.classList.toggle("selected", state.selectedId === card.id);
+        node.classList.toggle("matched", card.status === "matched");
+        node.classList.toggle("failed", card.status === "failed");
 
-        node.querySelector("[data-label]").textContent = track.label;
+        node.querySelector("[data-label]").textContent = String(index + 1);
+        node.querySelector("[data-title]").textContent =
+          card.status === "matched" ? card.name : card.status === "failed" ? "No price" : card.name || "Reading…";
+        node.querySelector("[data-price]").textContent =
+          card.status === "matched" ? money(card.rawPrice) : card.status === "failed" ? "—" : "…";
         const badge = node.querySelector("[data-badge]");
+        badge.textContent = card.pricingSource === "live" || card.pricingSource === "local" ? "PC" : card.status === "failed" ? "!" : "AI";
         const art = node.querySelector("[data-art]");
-        const title = node.querySelector("[data-title]");
-        const price = node.querySelector("[data-price]");
-
-        if (track.status === "matched") {
-          badge.textContent = CONDITIONS[track.condition].label;
-          badge.className = `rounded bg-black/55 px-1 py-0.5 text-[9px] font-semibold ${CONDITIONS[track.condition].tone}`;
-          title.textContent = track.name;
-          price.textContent = money(effectivePrice(track));
-          const imgUrl = /^https?:\/\//i.test(track.imageUrl || "") ? track.imageUrl : "";
-          const existingImg = art.querySelector("img");
-          if (imgUrl && existingImg?.getAttribute("src") === imgUrl) {
-            // keep
-          } else if (imgUrl) {
-            art.innerHTML = `<img src="${esc(imgUrl)}" alt="" class="max-h-full max-w-full object-contain" />`;
-          } else {
-            art.innerHTML = "";
+        if (card.imageUrl && /^https?:\/\//i.test(card.imageUrl)) {
+          const img = art.querySelector("img");
+          if (!img || img.getAttribute("src") !== card.imageUrl) {
+            art.innerHTML = `<img src="${esc(card.imageUrl)}" alt="" class="max-h-full max-w-full object-contain" />`;
           }
-        } else if (track.status === "scanning") {
-          badge.textContent = "AI";
-          badge.className = "rounded bg-black/55 px-1 py-0.5 text-[9px] text-hud-line";
-          title.textContent = "Identifying…";
-          price.textContent = "—";
+        } else if (!art.dataset.empty) {
           art.innerHTML = "";
-        } else if (track.status === "failed") {
-          badge.textContent = "Retry";
-          badge.className = "rounded bg-black/55 px-1 py-0.5 text-[9px] text-hud-warn";
-          title.textContent = "No match";
-          price.textContent = "—";
-          art.innerHTML = "";
-        } else {
-          badge.textContent = "Live";
-          badge.className = "rounded bg-black/55 px-1 py-0.5 text-[9px] text-hud-mute";
-          title.textContent = "Tracked";
-          price.textContent = "—";
-          art.innerHTML = "";
+          art.dataset.empty = "1";
+        } else if (card.imageUrl) {
+          delete art.dataset.empty;
         }
-      }
+      });
 
-      for (const [id, node] of existing) {
-        if (!keep.has(id)) node.remove();
-      }
+      for (const [id, node] of existing) if (!keep.has(id)) node.remove();
       renderSidebar();
+      if (state.cards.length) el("centerHint")?.classList.add("hidden");
     }
 
-    function onTrackPointerDown(e) {
-      const node = e.currentTarget;
-      const track = state.tracks.find((t) => t.id === node.dataset.trackId);
-      if (!track || state.scanning || state.detecting) return;
-      const resize = e.target?.dataset?.handle === "resize";
-      node.setPointerCapture?.(e.pointerId);
-      state.selectedId = track.id;
-      state.drag = {
-        id: track.id,
-        mode: resize ? "resize" : "move",
-        startX: e.clientX,
-        startY: e.clientY,
-        orig: { nx: track.nx, ny: track.ny, nw: track.nw, nh: track.nh },
-        moved: false,
-      };
-      renderTracks();
-      e.preventDefault();
-    }
-
-    function onPointerMove(e) {
-      if (!state.drag) return;
-      const track = state.tracks.find((t) => t.id === state.drag.id);
-      if (!track) return;
-      const dx = e.clientX - state.drag.startX;
-      const dy = e.clientY - state.drag.startY;
-      if (Math.abs(dx) + Math.abs(dy) > 3) state.drag.moved = true;
-      const { dnx, dny } = screenDeltaToNorm(dx, dy);
-      if (state.drag.mode === "move") {
-        track.nx = state.drag.orig.nx + dnx;
-        track.ny = state.drag.orig.ny + dny;
-      } else {
-        track.nw = state.drag.orig.nw + dnx;
-        track.nh = state.drag.orig.nh + dny;
-      }
-      clampTrack(track);
-      track.template = null;
-      renderTracks();
-    }
-
-    function onPointerUp(e) {
-      if (!state.drag) return;
-      const drag = state.drag;
-      state.drag = null;
-      const track = state.tracks.find((t) => t.id === drag.id);
-      if (track && !drag.moved) openModal(track.id);
-      else if (track) seedTemplate(track);
-    }
-
-    function compressImageDataUrl(dataUrl, maxEdge = 768, quality = 0.52) {
+    function compressImageDataUrl(dataUrl, maxEdge = 1024, quality = 0.62) {
       return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
@@ -684,405 +477,173 @@
           canvas.width = w;
           canvas.height = h;
           const ctx = canvas.getContext("2d");
-          if (!ctx) return reject(new Error("Could not process image."));
+          if (!ctx) return reject(new Error("Could not process frame."));
           ctx.drawImage(img, 0, 0, w, h);
           resolve(canvas.toDataURL("image/jpeg", quality));
         };
-        img.onerror = () => reject(new Error("Could not read image."));
+        img.onerror = () => reject(new Error("Could not read camera frame."));
         img.src = dataUrl;
       });
     }
 
-    function captureVideoFrame() {
+    function captureFrameDataUrl() {
       const video = el("camera");
       const canvas = el("captureCanvas");
       if (!video?.videoWidth) throw new Error("Camera isn’t ready yet.");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      return { canvas, video, ctx };
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL("image/jpeg", 0.88);
     }
 
-    function cropNormToDataUrl(frameCanvas, track, inset = 0.04) {
-      const x = Math.max(0, Math.floor((track.nx + track.nw * inset) * frameCanvas.width));
-      const y = Math.max(0, Math.floor((track.ny + track.nh * inset) * frameCanvas.height));
-      const w = Math.min(frameCanvas.width - x, Math.floor(track.nw * (1 - inset * 2) * frameCanvas.width));
-      const h = Math.min(frameCanvas.height - y, Math.floor(track.nh * (1 - inset * 2) * frameCanvas.height));
-      const out = document.createElement("canvas");
-      out.width = Math.max(16, w);
-      out.height = Math.max(16, h);
-      out.getContext("2d").drawImage(frameCanvas, x, y, Math.max(16, w), Math.max(16, h), 0, 0, out.width, out.height);
-      return out.toDataURL("image/jpeg", 0.88);
-    }
-
-    function grayPatch(ctx, x, y, size) {
-      const data = ctx.getImageData(x, y, size, size).data;
-      const out = new Float32Array(size * size);
-      for (let i = 0, p = 0; i < data.length; i += 4, p += 1) {
-        out[p] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
-      }
-      return out;
-    }
-
-    function seedTemplate(track) {
-      try {
-        const { canvas, ctx } = captureVideoFrame();
-        const cx = Math.floor((track.nx + track.nw / 2) * canvas.width - TEMPLATE / 2);
-        const cy = Math.floor((track.ny + track.nh / 2) * canvas.height - TEMPLATE / 2);
-        const x = Math.max(0, Math.min(canvas.width - TEMPLATE, cx));
-        const y = Math.max(0, Math.min(canvas.height - TEMPLATE, cy));
-        track.template = {
-          data: grayPatch(ctx, x, y, TEMPLATE),
-          x,
-          y,
-        };
-      } catch {
-        track.template = null;
-      }
-    }
-
-    function trackOnce() {
-      if (!state.tracks.length || state.scanning || state.detecting || state.drag) return;
-      const video = el("camera");
-      if (!video?.videoWidth) return;
-      let canvas;
-      let ctx;
-      try {
-        ({ canvas, ctx } = captureVideoFrame());
-      } catch {
-        return;
-      }
-
-      for (const track of state.tracks) {
-        if (!track.template) {
-          seedTemplate(track);
-          continue;
-        }
-        const cx = Math.floor((track.nx + track.nw / 2) * canvas.width - TEMPLATE / 2);
-        const cy = Math.floor((track.ny + track.nh / 2) * canvas.height - TEMPLATE / 2);
-        const x0 = Math.max(0, Math.min(canvas.width - TEMPLATE, cx - SEARCH));
-        const y0 = Math.max(0, Math.min(canvas.height - TEMPLATE, cy - SEARCH));
-        const x1 = Math.max(0, Math.min(canvas.width - TEMPLATE, cx + SEARCH));
-        const y1 = Math.max(0, Math.min(canvas.height - TEMPLATE, cy + SEARCH));
-
-        let best = Infinity;
-        let bestX = cx;
-        let bestY = cy;
-        const tpl = track.template.data;
-        for (let y = y0; y <= y1; y += 2) {
-          for (let x = x0; x <= x1; x += 2) {
-            const patch = grayPatch(ctx, x, y, TEMPLATE);
-            let sad = 0;
-            for (let i = 0; i < patch.length; i += 2) {
-              sad += Math.abs(patch[i] - tpl[i]);
-              if (sad >= best) break;
-            }
-            if (sad < best) {
-              best = sad;
-              bestX = x;
-              bestY = y;
-            }
-          }
-        }
-
-        const centerX = (bestX + TEMPLATE / 2) / canvas.width;
-        const centerY = (bestY + TEMPLATE / 2) / canvas.height;
-        track.nx = centerX - track.nw / 2;
-        track.ny = centerY - track.nh / 2;
-        clampTrack(track);
-        track.template = {
-          data: grayPatch(ctx, bestX, bestY, TEMPLATE),
-          x: bestX,
-          y: bestY,
-        };
-      }
-      renderTracks();
-    }
-
-    function startTrackLoop() {
-      stopTrackLoop();
-      state.trackLoop = window.setInterval(trackOnce, 180);
-    }
-
-    function stopTrackLoop() {
-      if (state.trackLoop) {
-        clearInterval(state.trackLoop);
-        state.trackLoop = 0;
-      }
-    }
-
-    async function fetchPricedCard(hit) {
-      const params = new URLSearchParams();
-      if (hit.id?.startsWith("pc-")) {
-        params.set("id", hit.id);
-        params.set("cardName", hit.cardName || "");
-        params.set("setName", hit.setName || "");
-        params.set("cardNumber", hit.cardNumber || "");
-        if (hit.pokemonTcgId) params.set("pokemonTcgId", hit.pokemonTcgId);
-      } else if (hit.pokemonTcgId) {
-        params.set("pokemonTcgId", hit.pokemonTcgId);
-        params.set("cardName", hit.cardName || "");
-        params.set("setName", hit.setName || "");
-        params.set("cardNumber", hit.cardNumber || "");
-      } else {
-        params.set("cardName", hit.cardName || "");
-        params.set("setName", hit.setName || "");
-        params.set("cardNumber", hit.cardNumber || "");
-      }
-      if (!hit.id?.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl);
-      const res = await fetch(`/api/cards/lookup?${params.toString()}`);
-      if (!res.ok) return null;
-      return res.json();
-    }
-
-    async function identifyCrop(dataUrl) {
-      const compressed = await compressImageDataUrl(dataUrl);
-      const visionRes = await fetch("/api/slabcrack/identify/vision", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: compressed }),
-      });
-      const vision = await visionRes.json().catch(() => null);
-      if (!visionRes.ok || !vision?.ok || !vision.detected) {
-        throw new Error(vision?.error || "Vision could not read this card.");
-      }
-      const matchRes = await fetch("/api/slabcrack/identify/match", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ detected: vision.detected, source: vision.source }),
-      });
-      const match = await matchRes.json().catch(() => null);
-      if (!matchRes.ok || !match?.ok) {
-        throw new Error(match?.error || "Catalog match failed.");
-      }
-      let card = match.card || null;
-      if ((!card || match.needsLiveRefresh) && match.hit) {
-        const live = await fetchPricedCard(match.hit).catch(() => null);
-        if (live) card = live;
-      }
-      if (!card && match.candidates?.[0]) {
-        const live = await fetchPricedCard(match.candidates[0]).catch(() => null);
-        card = live || {
-          cardName: match.candidates[0].cardName,
-          setName: match.candidates[0].setName,
-          cardNumber: match.candidates[0].cardNumber,
-          imageUrl: match.candidates[0].imageUrl,
-          rawPrice: 0,
-          gradeQuotes: [],
-          id: match.candidates[0].id,
-        };
-      }
-      if (!card) throw new Error(`Read “${vision.detected.cardName}” but no catalog hit.`);
-      return { card, detected: vision.detected, matchScore: match.matchScore, pricingSource: match.pricingSource };
-    }
-
-    function applyCard(track, card, meta = {}) {
-      const quotes = Array.isArray(card?.gradeQuotes) ? card.gradeQuotes : [];
+    function psaFromCard(card) {
       const byGrade = { 7: 0, 8: 0, 9: 0, 10: 0 };
-      for (const q of quotes) {
+      for (const q of card?.gradeQuotes || []) {
         if (byGrade[q.grade] !== undefined) byGrade[q.grade] = Number(q.slabPrice) || 0;
       }
-      track.status = "matched";
-      track.name = card.cardName || meta.detectedName || track.name;
-      track.set = card.setName || meta.detectedSet || track.set;
-      track.number = card.cardNumber || meta.detectedNumber || "";
-      track.imageUrl = card.imageUrl || "";
-      track.rawPrice = Number(card.rawPrice) || 0;
-      track.psa = byGrade;
-      track.marketInsight = card.marketInsight || meta.notes || "";
-      track.matchScore = Number(meta.matchScore) || 0;
-      track.pricingSource = meta.pricingSource || "";
-      track.error = "";
+      return byGrade;
     }
 
-    function setBusy(kind, busy, label) {
-      if (kind === "track") {
-        state.detecting = busy;
-        el("trackBtnLabel").textContent = busy ? "…" : label || "Track";
-        el("trackBtn").classList.toggle("scan-busy", busy);
-        el("dockTrackBtn")?.classList.toggle("scan-busy", busy);
-      } else {
-        state.scanning = busy;
-        el("scanPageBtnLabel").textContent = busy ? "…" : label || "Scan";
-        el("scanPageBtn").classList.toggle("scan-busy", busy);
-        el("dockScanBtn")?.classList.toggle("scan-busy", busy);
-      }
-      const prog = el("scanProgress");
-      if (!busy && !state.detecting && !state.scanning) prog.classList.add("hidden");
+    function applyLivePageResult(json) {
+      const rows = Array.isArray(json.cards) ? json.cards : [];
+      state.cards = rows.map((row, i) => {
+        const detected = row.detected || {};
+        const card = row.card || null;
+        const priced = Number(card?.rawPrice) > 0;
+        return {
+          id: `c${state.pass}-${i}`,
+          box: row.box || { x: 0.1, y: 0.1, w: 0.2, h: 0.28, confidence: 0 },
+          status: card && !row.error ? (priced || card.imageUrl ? "matched" : "matched") : row.error ? "failed" : "matched",
+          name: card?.cardName || detected.cardName || "Unknown card",
+          set: card?.setName || detected.setName || "",
+          number: card?.cardNumber || detected.cardNumber || "",
+          imageUrl: card?.imageUrl || "",
+          rawPrice: Number(card?.rawPrice) || 0,
+          psa: psaFromCard(card),
+          matchScore: row.matchScore || 0,
+          pricingSource: row.pricingSource || "none",
+          marketInsight: card?.marketInsight || row.error || "",
+          error: row.error || "",
+          needsLiveRefresh: Boolean(row.needsLiveRefresh),
+          hit: row.hit || null,
+        };
+      });
+
+      // Quiet live refresh for local-first hits.
+      state.cards.forEach((card) => {
+        if (card.needsLiveRefresh && card.hit) void refreshLivePrice(card);
+      });
+
+      renderCards();
     }
 
-    function updateProgress(done, total, label) {
-      el("scanProgress").classList.remove("hidden");
-      el("scanProgressLabel").textContent = label;
-      el("scanProgressCount").textContent = `${done}/${total}`;
-      el("scanProgressBar").style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
-    }
-
-    async function detectTracks() {
-      if (state.detecting || state.scanning) return;
-      closeSheets();
-      setBusy("track", true);
+    async function refreshLivePrice(card) {
       try {
-        if (!el("camera")?.videoWidth) await startCamera();
-        const { canvas } = captureVideoFrame();
-        updateProgress(0, 1, "Finding cards in frame…");
-        const compressed = await compressImageDataUrl(canvas.toDataURL("image/jpeg", 0.88), 1024, 0.6);
-        const res = await fetch("/api/slabcrack/identify/boxes", {
+        const hit = card.hit;
+        const params = new URLSearchParams();
+        if (hit.id?.startsWith("pc-")) {
+          params.set("id", hit.id);
+          params.set("cardName", hit.cardName || card.name);
+          params.set("setName", hit.setName || card.set);
+          params.set("cardNumber", hit.cardNumber || card.number);
+        } else if (hit.pokemonTcgId) {
+          params.set("pokemonTcgId", hit.pokemonTcgId);
+          params.set("cardName", hit.cardName || card.name);
+          params.set("setName", hit.setName || card.set);
+          params.set("cardNumber", hit.cardNumber || card.number);
+        } else return;
+        const res = await fetch(`/api/cards/lookup?${params}`);
+        if (!res.ok) return;
+        const live = await res.json();
+        card.rawPrice = Number(live.rawPrice) || card.rawPrice;
+        card.imageUrl = live.imageUrl || card.imageUrl;
+        card.psa = psaFromCard(live);
+        card.pricingSource = "live";
+        card.marketInsight = live.marketInsight || card.marketInsight;
+        renderCards();
+        if (state.selectedId === card.id) refreshModal();
+      } catch {
+        /* keep local price */
+      }
+    }
+
+    async function livePass({ manual = false } = {}) {
+      if (state.busy) return;
+      if (!state.live && !manual) return;
+      if (!state.cameraReady) return;
+
+      state.busy = true;
+      state.pass += 1;
+      el("scanNowBtn").classList.add("busy");
+      el("dockScanBtn")?.classList.add("busy");
+      el("scanProgress").classList.remove("hidden");
+      el("scanProgressLabel").textContent = "Gemini reading cards…";
+      el("scanProgressCount").textContent = "AI";
+      setPipeline("Gemini Vision identifying cards…");
+
+      try {
+        const raw = captureFrameDataUrl();
+        const image = await compressImageDataUrl(raw);
+        el("scanProgressLabel").textContent = "PriceCharting lookup…";
+        el("scanProgressCount").textContent = "PC";
+
+        const res = await fetch("/api/slabcrack/identify/live-page", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: compressed }),
+          body: JSON.stringify({ image }),
         });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) {
-          throw new Error(json?.error || "Could not detect card rectangles.");
+          throw new Error(json?.error || `Live scan failed (${res.status})`);
         }
-        const boxes = Array.isArray(json.boxes) ? json.boxes.slice(0, MAX_TRACKS) : [];
-        if (!boxes.length) throw new Error("No cards found — move closer or improve lighting.");
 
-        state.tracks = boxes.map((box, i) => makeTrack(box, i));
-        state.tracks.forEach(seedTemplate);
-        el("centerHint")?.classList.add("hidden");
-        renderTracks();
-        startTrackLoop();
-        pushLog(`Tracked ${state.tracks.length} card rectangle${state.tracks.length === 1 ? "" : "s"}`, "up");
-        updateProgress(1, 1, `${state.tracks.length} cards locked`);
-      } catch (err) {
-        pushLog(err instanceof Error ? err.message : "Track failed", "down");
-      } finally {
-        setBusy("track", false);
-      }
-    }
-
-    async function runPool(items, worker, concurrency) {
-      let cursor = 0;
-      await Promise.all(
-        Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-          while (cursor < items.length) {
-            const i = cursor;
-            cursor += 1;
-            await worker(items[i], i);
-          }
-        })
-      );
-    }
-
-    async function scanTrack(track, frameCanvas, token) {
-      track.status = "scanning";
-      track.error = "";
-      renderTracks();
-      try {
-        const crop = cropNormToDataUrl(frameCanvas, track);
-        const result = await identifyCrop(crop);
-        if (token !== state.scanToken) return;
-        applyCard(track, result.card, {
-          detectedName: result.detected.cardName,
-          detectedSet: result.detected.setName,
-          detectedNumber: result.detected.cardNumber,
-          matchScore: result.matchScore,
-          pricingSource: result.pricingSource,
-          notes: result.detected.notes,
-        });
-        pushLog(`#${track.label} · ${track.name} · ${money(track.rawPrice)}`, "up");
-      } catch (err) {
-        if (token !== state.scanToken) return;
-        track.status = "failed";
-        track.error = err instanceof Error ? err.message : "Scan failed";
-        pushLog(`#${track.label} · ${track.error}`, "down");
-      }
-      renderTracks();
-      if (state.selectedId === track.id) refreshModal();
-    }
-
-    async function scanTracked() {
-      if (state.scanning || state.detecting) return;
-      if (!state.tracks.length) {
-        pushLog("Track cards first, then Scan", "down");
-        return;
-      }
-      closeSheets();
-      closeModal();
-      const token = ++state.scanToken;
-      setBusy("scan", true);
-      try {
-        const { canvas } = captureVideoFrame();
-        // Freeze current tracked geometry for this scan pass.
-        const snapshot = state.tracks.map((t) => ({
-          ...t,
-          nx: t.nx,
-          ny: t.ny,
-          nw: t.nw,
-          nh: t.nh,
-        }));
-        let done = 0;
-        updateProgress(0, snapshot.length, "Scanning tracked cards…");
-        await runPool(
-          snapshot,
-          async (track) => {
-            if (token !== state.scanToken) return;
-            const live = state.tracks.find((t) => t.id === track.id) || track;
-            // Use frozen geometry from snapshot for crop accuracy.
-            live.nx = track.nx;
-            live.ny = track.ny;
-            live.nw = track.nw;
-            live.nh = track.nh;
-            updateProgress(done, snapshot.length, `Reading #${live.label}…`);
-            await scanTrack(live, canvas, token);
-            done += 1;
-            updateProgress(done, snapshot.length, live.status === "matched" ? live.name : `#${live.label} retry`);
-          },
-          SCAN_CONCURRENCY
+        applyLivePageResult(json);
+        const priced = state.cards.filter((c) => c.rawPrice > 0).length;
+        const src = json.source || "gemini";
+        setPipeline(`Live · ${state.cards.length} cards · ${priced} priced · ${src} + PriceCharting`);
+        pushLog(
+          `Pass ${state.pass}: ${state.cards.length} card${state.cards.length === 1 ? "" : "s"} via ${src}, ${priced} with PriceCharting`,
+          priced ? "up" : state.cards.length ? "neutral" : "down"
         );
-        pushLog(`Scan done · ${matchedCount()}/${state.tracks.length} matched`, "up");
+        if (!state.cards.length) {
+          pushLog("No cards found in frame — move closer / better light", "down");
+        }
       } catch (err) {
-        pushLog(err instanceof Error ? err.message : "Scan failed", "down");
+        const msg = err instanceof Error ? err.message : "Live scan failed";
+        setPipeline(`Error · ${msg}`);
+        pushLog(msg, "down");
       } finally {
-        if (token === state.scanToken) setBusy("scan", false);
+        state.busy = false;
+        el("scanNowBtn").classList.remove("busy");
+        el("dockScanBtn")?.classList.remove("busy");
+        el("scanProgress").classList.add("hidden");
       }
     }
 
-    async function rescanSelected() {
-      if (!state.selectedId || state.scanning) return;
-      const track = state.tracks.find((t) => t.id === state.selectedId);
-      if (!track) return;
-      const token = ++state.scanToken;
-      setBusy("scan", true);
-      try {
-        const { canvas } = captureVideoFrame();
-        updateProgress(0, 1, `Rescanning #${track.label}…`);
-        await scanTrack(track, canvas, token);
-        updateProgress(1, 1, "Done");
-      } catch (err) {
-        pushLog(err instanceof Error ? err.message : "Rescan failed", "down");
-      } finally {
-        if (token === state.scanToken) setBusy("scan", false);
+    function setLive(on) {
+      state.live = on;
+      el("liveToggleLabel").textContent = on ? "Pause" : "Resume";
+      el("dockLiveLabel").textContent = on ? "Pause" : "Resume";
+      el("liveBadgeText").textContent = on ? "Live on" : "Paused";
+      el("liveBadge").classList.toggle("opacity-50", !on);
+      if (on) {
+        setPipeline("Live on · Gemini + PriceCharting");
+        void livePass({ manual: true });
+        scheduleLive();
+      } else {
+        clearTimeout(state.timer);
+        state.timer = 0;
+        setPipeline("Paused");
       }
     }
 
-    function clearTracks() {
-      state.scanToken += 1;
-      state.tracks = [];
-      state.selectedId = null;
-      stopTrackLoop();
-      renderTracks();
-      closeModal();
-      pushLog("Cleared tracked rectangles", "neutral");
-    }
-
-    function addManualTrack(clientX, clientY) {
-      if (state.tracks.length >= MAX_TRACKS) {
-        pushLog("Max 9 tracked cards", "down");
-        return;
-      }
-      const p = screenPointToNorm(clientX, clientY);
-      const track = makeTrack({ x: p.x - 0.08, y: p.y - 0.11, w: 0.16, h: 0.22, confidence: 0.4 }, state.tracks.length);
-      clampTrack(track);
-      state.tracks.push(track);
-      seedTemplate(track);
-      el("centerHint")?.classList.add("hidden");
-      renderTracks();
-      startTrackLoop();
-      pushLog(`Manual track #${track.label} added`, "up");
+    function scheduleLive() {
+      clearTimeout(state.timer);
+      if (!state.live) return;
+      state.timer = window.setTimeout(async () => {
+        await livePass({ manual: false });
+        scheduleLive();
+      }, LIVE_INTERVAL_MS);
     }
 
     function openModal(id) {
@@ -1090,82 +651,54 @@
       el("modal").classList.remove("hidden");
       el("modal").classList.add("flex");
       refreshModal();
-      renderTracks();
+      renderCards();
     }
 
     function closeModal() {
       state.selectedId = null;
       el("modal").classList.add("hidden");
       el("modal").classList.remove("flex");
-      renderTracks();
+      renderCards();
     }
 
     function refreshModal() {
-      const track = state.tracks.find((t) => t.id === state.selectedId);
-      if (!track) return;
-      el("modalSlot").textContent = track.label;
-      el("modalName").textContent =
-        track.status === "matched" ? track.name || "Matched card" : track.status === "failed" ? "No match" : "Tracked card";
-      el("modalSet").textContent =
-        track.status === "matched"
-          ? [track.set, track.number ? `#${track.number}` : ""].filter(Boolean).join(" · ")
-          : track.status === "failed"
-            ? track.error || "Rescan this card"
-            : "Live-tracked rectangle — Scan for info";
-      el("modalPrice").textContent = track.status === "matched" ? money(effectivePrice(track)) : "—";
-      el("modalDelta").textContent =
-        track.status === "matched"
-          ? `Raw NM ${money(track.rawPrice)} · cond ${CONDITIONS[track.condition].mult.toFixed(2)}×`
-          : "No live data yet";
+      const card = state.cards.find((c) => c.id === state.selectedId);
+      if (!card) return;
+      el("modalSlot").textContent = String(state.cards.indexOf(card) + 1);
+      el("modalName").textContent = card.name;
+      el("modalSet").textContent = [card.set, card.number ? `#${card.number}` : ""].filter(Boolean).join(" · ");
+      el("modalPrice").textContent = money(card.rawPrice);
+      el("modalDelta").textContent = `Raw NM · ${card.pricingSource === "none" ? "no PriceCharting hit" : "PriceCharting"} · score ${card.matchScore || "—"}`;
       const art = el("modalArt");
-      if (/^https?:\/\//i.test(track.imageUrl || "")) {
-        art.innerHTML = `<img src="${esc(track.imageUrl)}" alt="" class="h-full w-full object-cover" />`;
-      } else {
-        art.textContent = `#${track.label}`;
-      }
+      if (card.imageUrl && /^https?:\/\//i.test(card.imageUrl)) {
+        art.innerHTML = `<img src="${esc(card.imageUrl)}" alt="" class="h-full w-full object-cover" />`;
+      } else art.textContent = "AI";
       el("modalGrades").innerHTML = [10, 9, 8, 7]
         .map(
           (g) => `
           <div class="rounded-xl border border-white/10 bg-black/30 px-2 py-2">
             <p class="text-[9px] uppercase tracking-wider text-hud-mute">PSA ${g}</p>
-            <p class="mt-1 font-mono text-xs font-semibold text-white tabular-nums">${money(track.psa?.[g] || 0)}</p>
+            <p class="mt-1 font-mono text-xs font-semibold text-white tabular-nums">${money(card.psa?.[g] || 0)}</p>
           </div>`
         )
         .join("");
-      el("conditionSelect").value = track.condition;
-      el("modalTrend").textContent =
-        track.status === "matched"
-          ? [track.matchScore ? `score ${track.matchScore}` : "", track.pricingSource].filter(Boolean).join(" · ") || "Matched"
-          : track.status === "failed"
-            ? "Failed"
-            : "Tracked";
-      el("modalCondNote").textContent =
-        track.status === "matched" ? `${track.condition} multiplier on raw market` : "Prices from catalog + PriceCharting";
-      el("modalInsight").textContent = track.marketInsight || track.error || "";
-      if (window.lucide) lucide.createIcons();
+      el("modalInsight").textContent = card.marketInsight || card.error || "";
     }
 
     async function startCamera() {
       el("camError").classList.add("hidden");
       if (!navigator.mediaDevices?.getUserMedia) {
         el("camError").classList.remove("hidden");
-        pushLog("This browser has no camera API", "down");
+        setPipeline("No camera API in this browser");
         return;
       }
       try {
-        if (state.stream) {
-          state.stream.getTracks().forEach((t) => t.stop());
-          state.stream = null;
-        }
+        if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
         let stream;
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             audio: false,
-            video: {
-              facingMode: { ideal: state.facingMode },
-              width: { ideal: 1600 },
-              height: { ideal: 900 },
-            },
+            video: { facingMode: { ideal: state.facingMode }, width: { ideal: 1600 }, height: { ideal: 900 } },
           });
         } catch {
           stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
@@ -1174,10 +707,16 @@
         const video = el("camera");
         video.srcObject = stream;
         await video.play();
-        pushLog(`Webcam lock · ${state.facingMode}`, "up");
-        renderTracks();
+        state.cameraReady = true;
+        pushLog(`Camera live · ${state.facingMode}`, "up");
+        setPipeline("Camera live · starting Gemini pass…");
+        if (state.live) {
+          await livePass({ manual: true });
+          scheduleLive();
+        }
       } catch (err) {
         el("camError").classList.remove("hidden");
+        setPipeline("Camera blocked — allow access to scan");
         pushLog("Camera unavailable", "down");
         console.warn(err);
       }
@@ -1198,63 +737,32 @@
     function closeSheets() {
       el("sheetBackdrop").classList.add("hidden");
       document.querySelectorAll(".mobile-sheet.sheet").forEach((s) => s.classList.remove("open"));
-      document.querySelectorAll(".dock-btn").forEach((btn) => btn.classList.remove("active"));
+      document.querySelectorAll(".dock-btn").forEach((b) => b.classList.remove("active"));
     }
 
     function bindControls() {
-      el("trackBtn").addEventListener("click", () => void detectTracks());
-      el("dockTrackBtn").addEventListener("click", () => void detectTracks());
-      el("scanPageBtn").addEventListener("click", () => void scanTracked());
-      el("dockScanBtn").addEventListener("click", () => void scanTracked());
-      el("clearTracksBtn").addEventListener("click", clearTracks);
-      el("rescanPocketBtn").addEventListener("click", () => void rescanSelected());
-      el("removeTrackBtn").addEventListener("click", () => {
-        if (!state.selectedId) return;
-        state.tracks = state.tracks.filter((t) => t.id !== state.selectedId);
-        closeModal();
-        renderTracks();
-        if (!state.tracks.length) stopTrackLoop();
-      });
+      el("liveToggleBtn").addEventListener("click", () => setLive(!state.live));
+      el("dockLiveBtn").addEventListener("click", () => setLive(!state.live));
+      el("scanNowBtn").addEventListener("click", () => void livePass({ manual: true }));
+      el("dockScanBtn").addEventListener("click", () => void livePass({ manual: true }));
       el("flipCamBtn").addEventListener("click", () => {
         state.facingMode = state.facingMode === "environment" ? "user" : "environment";
         void startCamera();
       });
       el("clearLog").addEventListener("click", () => {
         state.log = [];
-        renderLog();
+        el("scanLog").innerHTML = "";
+        el("scanLogMobile").innerHTML = "";
       });
       el("clearLogMobile").addEventListener("click", () => {
         state.log = [];
-        renderLog();
+        el("scanLog").innerHTML = "";
+        el("scanLogMobile").innerHTML = "";
       });
       el("closeModal").addEventListener("click", closeModal);
       el("modal").addEventListener("click", (e) => {
         if (e.target === el("modal")) closeModal();
       });
-      el("conditionSelect").addEventListener("change", (e) => {
-        const track = state.tracks.find((t) => t.id === state.selectedId);
-        if (!track) return;
-        track.condition = e.target.value;
-        renderTracks();
-        refreshModal();
-      });
-
-      window.addEventListener("pointermove", onPointerMove);
-      window.addEventListener("pointerup", onPointerUp);
-      window.addEventListener("pointercancel", onPointerUp);
-
-      let lastTap = 0;
-      el("trackLayer").addEventListener("dblclick", (e) => {
-        if (e.target !== el("trackLayer")) return;
-        addManualTrack(e.clientX, e.clientY);
-      });
-      el("trackLayer").addEventListener("pointerup", (e) => {
-        if (e.target !== el("trackLayer") || state.drag) return;
-        const now = Date.now();
-        if (now - lastTap < 320) addManualTrack(e.clientX, e.clientY);
-        lastTap = now;
-      });
-
       document.querySelectorAll(".dock-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
           const name = btn.getAttribute("data-sheet");
@@ -1271,15 +779,15 @@
           closeSheets();
         }
       });
-      window.addEventListener("resize", () => renderTracks());
+      window.addEventListener("resize", () => renderCards());
     }
 
     function boot() {
       lucide.createIcons();
       bindControls();
-      renderTracks();
-      pushLog("HUD online · track rectangles, then scan", "up");
-      pushLog("No premade grid — Track finds each card in the camera", "neutral");
+      renderCards();
+      pushLog("Pipeline: Gemini Vision → catalog match → PriceCharting", "up");
+      pushLog("Live mode auto-scans the frame every few seconds", "neutral");
       void startCamera();
     }
 
