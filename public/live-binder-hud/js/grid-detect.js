@@ -1,38 +1,15 @@
 /**
- * Local binder-page grid detection (browser only — never calls Gemini).
- *
- * Strategy:
- *  1) Sobel edges → search for a 3×3 grid that sits on strong edge energy
- *  2) Card-aspect contour boxes → fit a 3×3 lattice from pocket centers
- *  3) Fallback centered page quad so outlines always appear
+ * Local card detection (browser only — never calls Gemini).
+ * Finds however many card-shaped rectangles are in frame (1–9), not a fixed 3×3.
  */
 ;(function (global) {
-  const SLOT_COUNT = 9
-  const POCKET_INSET = 0.05
-  const CARD_ASPECT = 63 / 88 // Pokémon card width/height ≈ 0.716
+  const MAX_CARDS = 9
+  const CARD_ASPECT = 63 / 88 // ≈ 0.716
+  const TRACK_DIST = 0.12 // fraction of frame diagonal to match tracks
+  const LOST_FRAMES = 8
 
   function clamp(v, lo, hi) {
     return Math.max(lo, Math.min(hi, v))
-  }
-
-  function defaultQuad(w, h) {
-    // Binder page is usually taller than wide; bias toward a page-shaped region.
-    const pageAspect = (3 * CARD_ASPECT) / 3 // ~0.72 for full page of cards… use ~0.78
-    const targetAspect = 0.78
-    let pw = w * 0.86
-    let ph = pw / targetAspect
-    if (ph > h * 0.86) {
-      ph = h * 0.86
-      pw = ph * targetAspect
-    }
-    const x0 = (w - pw) / 2
-    const y0 = (h - ph) / 2
-    return [
-      { x: x0, y: y0 },
-      { x: x0 + pw, y: y0 },
-      { x: x0 + pw, y: y0 + ph },
-      { x: x0, y: y0 + ph },
-    ]
   }
 
   function orderCorners(pts) {
@@ -42,38 +19,68 @@
     return [top[0], top[1], bottom[1], bottom[0]]
   }
 
-  function lerp(a, b, t) {
-    return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }
+  function boxCorners(x, y, w, h) {
+    return [
+      { x, y },
+      { x: x + w, y },
+      { x: x + w, y: y + h },
+      { x, y: y + h },
+    ]
   }
 
-  function mapQuad(quad, u, v) {
-    const top = lerp(quad[0], quad[1], u)
-    const bottom = lerp(quad[3], quad[2], u)
-    return lerp(top, bottom, v)
+  function boxCenter(b) {
+    return { x: b.x + b.w / 2, y: b.y + b.h / 2 }
   }
 
-  function slotsFromQuad(quad) {
-    const slots = []
-    for (let row = 0; row < 3; row++) {
-      for (let col = 0; col < 3; col++) {
-        const u0 = col / 3 + POCKET_INSET / 3
-        const u1 = (col + 1) / 3 - POCKET_INSET / 3
-        const v0 = row / 3 + POCKET_INSET / 3
-        const v1 = (row + 1) / 3 - POCKET_INSET / 3
-        const corners = [
-          mapQuad(quad, u0, v0),
-          mapQuad(quad, u1, v0),
-          mapQuad(quad, u1, v1),
-          mapQuad(quad, u0, v1),
-        ]
-        slots.push({
-          slot: row * 3 + col + 1,
-          corners,
-          center: mapQuad(quad, (u0 + u1) / 2, (v0 + v1) / 2),
-        })
+  function sortReadingOrder(boxes) {
+    if (!boxes.length) return []
+    const heights = boxes.map((b) => b.h).sort((a, b) => a - b)
+    const medH = heights[(heights.length / 2) | 0] || 1
+    const rowTol = medH * 0.45
+    const rows = []
+    const byY = [...boxes].sort((a, b) => a.cy - b.cy || a.cx - b.cx)
+    for (const b of byY) {
+      const row = rows.find((r) => Math.abs(r.y - b.cy) < rowTol)
+      if (row) {
+        row.items.push(b)
+        row.y = (row.y * (row.items.length - 1) + b.cy) / row.items.length
+      } else {
+        rows.push({ y: b.cy, items: [b] })
       }
     }
-    return slots
+    rows.sort((a, b) => a.y - b.y)
+    const ordered = []
+    for (const row of rows) {
+      row.items.sort((a, b) => a.cx - b.cx)
+      ordered.push(...row.items)
+    }
+    return ordered
+  }
+
+  function toSlots(boxes) {
+    return boxes.slice(0, MAX_CARDS).map((b, i) => ({
+      slot: i + 1,
+      corners: boxCorners(b.x, b.y, b.w, b.h),
+      center: { x: b.cx, y: b.cy },
+      box: { x: b.x, y: b.y, w: b.w, h: b.h },
+      confidence: b.confidence ?? 0.6,
+      trackId: b.trackId,
+    }))
+  }
+
+  function envelopeQuad(boxes, w, h) {
+    if (!boxes.length) return null
+    const pad = Math.max(6, Math.min(w, h) * 0.02)
+    const minX = clamp(Math.min(...boxes.map((b) => b.x)) - pad, 0, w - 1)
+    const minY = clamp(Math.min(...boxes.map((b) => b.y)) - pad, 0, h - 1)
+    const maxX = clamp(Math.max(...boxes.map((b) => b.x + b.w)) + pad, minX + 1, w)
+    const maxY = clamp(Math.max(...boxes.map((b) => b.y + b.h)) + pad, minY + 1, h)
+    return [
+      { x: minX, y: minY },
+      { x: maxX, y: minY },
+      { x: maxX, y: maxY },
+      { x: minX, y: maxY },
+    ]
   }
 
   function toGray(data, w, h) {
@@ -93,9 +100,7 @@
       for (let x = -r; x <= r; x++) sum += gray[y * w + clamp(x, 0, w - 1)]
       for (let x = 0; x < w; x++) {
         tmp[y * w + x] = sum / span
-        const leave = gray[y * w + clamp(x - r, 0, w - 1)]
-        const enter = gray[y * w + clamp(x + r + 1, 0, w - 1)]
-        sum += enter - leave
+        sum += gray[y * w + clamp(x + r + 1, 0, w - 1)] - gray[y * w + clamp(x - r, 0, w - 1)]
       }
     }
     for (let x = 0; x < w; x++) {
@@ -103,9 +108,7 @@
       for (let y = -r; y <= r; y++) sum += tmp[clamp(y, 0, h - 1) * w + x]
       for (let y = 0; y < h; y++) {
         out[y * w + x] = sum / span
-        const leave = tmp[clamp(y - r, 0, h - 1) * w + x]
-        const enter = tmp[clamp(y + r + 1, 0, h - 1) * w + x]
-        sum += enter - leave
+        sum += tmp[clamp(y + r + 1, 0, h - 1) * w + x] - tmp[clamp(y - r, 0, h - 1) * w + x]
       }
     }
     return out
@@ -136,305 +139,120 @@
     return mag
   }
 
-  function sampleEdge(mag, w, h, x0, y0, x1, y1, steps) {
-    let sum = 0
-    let n = 0
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps
-      const x = (x0 + (x1 - x0) * t) | 0
-      const y = (y0 + (y1 - y0) * t) | 0
-      if (x < 1 || y < 1 || x >= w - 1 || y >= h - 1) continue
-      sum += mag[y * w + x]
-      n++
-    }
-    return n ? sum / n : 0
+  function isCardLike(bw, bh, frameArea, area) {
+    if (area < frameArea * 0.01 || area > frameArea * 0.45) return false
+    const aspect = bw / Math.max(1, bh)
+    // Allow perspective / sleeves
+    if (aspect < 0.48 || aspect > 0.95) return false
+    // Prefer near Pokémon card ratio
+    const ratioErr = Math.abs(aspect - CARD_ASPECT)
+    return ratioErr < 0.28
   }
 
-  /** Score an axis-aligned page rectangle as a 3×3 pocket grid using edge energy. */
-  function scoreGrid(mag, w, h, x, y, pw, ph) {
-    if (pw < 40 || ph < 40) return 0
-    if (x < 1 || y < 1 || x + pw >= w - 1 || y + ph >= h - 1) return 0
-
-    let score = 0
-    // Outer border (strong weight)
-    score += sampleEdge(mag, w, h, x, y, x + pw, y, 28) * 1.4
-    score += sampleEdge(mag, w, h, x, y + ph, x + pw, y + ph, 28) * 1.4
-    score += sampleEdge(mag, w, h, x, y, x, y + ph, 28) * 1.4
-    score += sampleEdge(mag, w, h, x + pw, y, x + pw, y + ph, 28) * 1.4
-
-    // Inner 3×3 dividers
-    for (let i = 1; i < 3; i++) {
-      const gx = x + (pw * i) / 3
-      const gy = y + (ph * i) / 3
-      score += sampleEdge(mag, w, h, gx, y, gx, y + ph, 24) * 1.8
-      score += sampleEdge(mag, w, h, x, gy, x + pw, gy, 24) * 1.8
-    }
-
-    // Prefer page-like aspect (binder page of 3×3 cards ≈ 0.72–0.95 depending on margins)
-    const aspect = pw / ph
-    const aspectPenalty = Math.abs(aspect - 0.78)
-    score *= 1 / (1 + aspectPenalty * 2.5)
-
-    // Prefer larger grids that still fit
-    score *= 0.65 + 0.35 * (pw * ph) / (w * h)
-    return score
-  }
-
-  function searchEdgeGrid(mag, w, h) {
-    let best = null
-    let bestScore = 0
-
-    // Coarse search over scale + position
-    const scales = [0.92, 0.84, 0.76, 0.68, 0.6, 0.52]
-    for (const s of scales) {
-      const ph = h * s
-      const pw = ph * 0.78
-      if (pw > w * 0.96) continue
-      const stepX = Math.max(6, (w - pw) / 8)
-      const stepY = Math.max(6, (h - ph) / 8)
-      for (let y = h * 0.02; y + ph < h * 0.98; y += stepY) {
-        for (let x = w * 0.02; x + pw < w * 0.98; x += stepX) {
-          const score = scoreGrid(mag, w, h, x, y, pw, ph)
-          if (score > bestScore) {
-            bestScore = score
-            best = { x, y, pw, ph, score }
-          }
-        }
-      }
-      // Also try slightly wider pages
-      const pw2 = Math.min(w * 0.94, ph * 0.9)
-      const stepX2 = Math.max(6, (w - pw2) / 8)
-      for (let y = h * 0.02; y + ph < h * 0.98; y += stepY) {
-        for (let x = w * 0.02; x + pw2 < w * 0.98; x += stepX2) {
-          const score = scoreGrid(mag, w, h, x, y, pw2, ph)
-          if (score > bestScore) {
-            bestScore = score
-            best = { x, y, pw: pw2, ph, score }
-          }
-        }
-      }
-    }
-
-    if (!best) return null
-
-    // Local refine
-    let { x, y, pw, ph } = best
-    for (let iter = 0; iter < 6; iter++) {
-      let improved = false
-      for (const [dx, dy, dpw, dph] of [
-        [2, 0, 0, 0],
-        [-2, 0, 0, 0],
-        [0, 2, 0, 0],
-        [0, -2, 0, 0],
-        [0, 0, 4, 0],
-        [0, 0, -4, 0],
-        [0, 0, 0, 4],
-        [0, 0, 0, -4],
-        [1, 1, 0, 0],
-        [-1, -1, 0, 0],
-      ]) {
-        const nx = x + dx
-        const ny = y + dy
-        const npw = pw + dpw
-        const nph = ph + dph
-        const score = scoreGrid(mag, w, h, nx, ny, npw, nph)
-        if (score > bestScore) {
-          bestScore = score
-          x = nx
-          y = ny
-          pw = npw
-          ph = nph
-          improved = true
-        }
-      }
-      if (!improved) break
-    }
-
-    // Normalize score roughly into 0..1 using a soft reference
-    const conf = clamp(bestScore / 180, 0.2, 0.98)
-    const quad = [
-      { x, y },
-      { x: x + pw, y },
-      { x: x + pw, y: y + ph },
-      { x, y: y + ph },
-    ]
-    return { quad, confidence: conf, source: "edge-grid", score: bestScore }
-  }
-
-  /** Find card-like rectangles from strong edge blobs / bounding boxes of high-edge cells. */
   function findCardBoxes(mag, w, h) {
-    // Threshold top edges
     let max = 0
     for (let i = 0; i < mag.length; i++) if (mag[i] > max) max = mag[i]
-    const thr = max * 0.22
-    const bin = new Uint8ClampedArray(w * h)
-    for (let i = 0; i < mag.length; i++) bin[i] = mag[i] >= thr ? 1 : 0
+    if (max < 1) return []
 
-    // Dilate lightly to connect card borders
-    const dil = new Uint8ClampedArray(w * h)
-    for (let y = 1; y < h - 1; y++) {
-      for (let x = 1; x < w - 1; x++) {
-        let v = 0
-        for (let dy = -1; dy <= 1 && !v; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (bin[(y + dy) * w + (x + dx)]) {
-              v = 1
-              break
-            }
-          }
-        }
-        dil[y * w + x] = v
-      }
-    }
+    // Multi-threshold to catch faint + strong borders
+    const thresholds = [0.18, 0.28, 0.38].map((t) => max * t)
+    const all = []
 
-    const visited = new Uint8ClampedArray(w * h)
-    const boxes = []
-    const frameArea = w * h
+    for (const thr of thresholds) {
+      const bin = new Uint8ClampedArray(w * h)
+      for (let i = 0; i < mag.length; i++) bin[i] = mag[i] >= thr ? 1 : 0
 
-    for (let y = 2; y < h - 2; y += 2) {
-      for (let x = 2; x < w - 2; x += 2) {
-        const i = y * w + x
-        if (!dil[i] || visited[i]) continue
-        // flood
-        const stack = [[x, y]]
-        visited[i] = 1
-        let minX = x
-        let maxX = x
-        let minY = y
-        let maxY = y
-        let count = 0
-        while (stack.length) {
-          const [cx, cy] = stack.pop()
-          count++
-          minX = Math.min(minX, cx)
-          maxX = Math.max(maxX, cx)
-          minY = Math.min(minY, cy)
-          maxY = Math.max(maxY, cy)
-          for (let dy = -1; dy <= 1; dy++) {
+      // Dilate to close card borders
+      const dil = new Uint8ClampedArray(w * h)
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          let v = 0
+          for (let dy = -1; dy <= 1 && !v; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
-              if (!dx && !dy) continue
-              const nx = cx + dx
-              const ny = cy + dy
-              if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
-              const ni = ny * w + nx
-              if (!dil[ni] || visited[ni]) continue
-              visited[ni] = 1
-              stack.push([nx, ny])
+              if (bin[(y + dy) * w + (x + dx)]) {
+                v = 1
+                break
+              }
             }
           }
+          dil[y * w + x] = v
         }
-        const bw = maxX - minX + 1
-        const bh = maxY - minY + 1
-        const area = bw * bh
-        if (area < frameArea * 0.012 || area > frameArea * 0.28) continue
-        const aspect = bw / Math.max(1, bh)
-        // Card aspect ~0.72, allow perspective
-        if (aspect < 0.5 || aspect > 0.95) continue
-        const fill = count / area
-        // Borders are hollow-ish; accept low fill
-        if (fill < 0.05 || fill > 0.85) continue
-        boxes.push({
-          x: minX,
-          y: minY,
-          w: bw,
-          h: bh,
-          cx: minX + bw / 2,
-          cy: minY + bh / 2,
-          area,
-        })
+      }
+
+      const visited = new Uint8ClampedArray(w * h)
+      const frameArea = w * h
+      for (let y = 2; y < h - 2; y += 2) {
+        for (let x = 2; x < w - 2; x += 2) {
+          const i = y * w + x
+          if (!dil[i] || visited[i]) continue
+          const stack = [[x, y]]
+          visited[i] = 1
+          let minX = x
+          let maxX = x
+          let minY = y
+          let maxY = y
+          let count = 0
+          while (stack.length) {
+            const [cx, cy] = stack.pop()
+            count++
+            minX = Math.min(minX, cx)
+            maxX = Math.max(maxX, cx)
+            minY = Math.min(minY, cy)
+            maxY = Math.max(maxY, cy)
+            for (let dy = -1; dy <= 1; dy++) {
+              for (let dx = -1; dx <= 1; dx++) {
+                if (!dx && !dy) continue
+                const nx = cx + dx
+                const ny = cy + dy
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue
+                const ni = ny * w + nx
+                if (!dil[ni] || visited[ni]) continue
+                visited[ni] = 1
+                stack.push([nx, ny])
+              }
+            }
+          }
+          const bw = maxX - minX + 1
+          const bh = maxY - minY + 1
+          const area = bw * bh
+          if (!isCardLike(bw, bh, frameArea, area)) continue
+          const fill = count / area
+          // Card borders are hollow rings; interior cards can be denser
+          if (fill < 0.04 || fill > 0.9) continue
+          const aspect = bw / bh
+          const conf = clamp(0.35 + (1 - Math.abs(aspect - CARD_ASPECT)) * 0.4 + fill * 0.15, 0.3, 0.95)
+          all.push({
+            x: minX,
+            y: minY,
+            w: bw,
+            h: bh,
+            cx: minX + bw / 2,
+            cy: minY + bh / 2,
+            area,
+            confidence: conf,
+          })
+        }
       }
     }
 
-    // Prefer medium boxes; suppress nested duplicates
-    boxes.sort((a, b) => b.area - a.area)
+    // NMS — keep distinct cards
+    all.sort((a, b) => b.confidence - a.confidence || b.area - a.area)
     const kept = []
-    for (const b of boxes) {
-      const inside = kept.some((k) => {
+    for (const b of all) {
+      const overlaps = kept.some((k) => {
         const ix = Math.max(0, Math.min(b.x + b.w, k.x + k.w) - Math.max(b.x, k.x))
         const iy = Math.max(0, Math.min(b.y + b.h, k.y + k.h) - Math.max(b.y, k.y))
         const inter = ix * iy
-        return inter > b.area * 0.55
+        const uni = b.area + k.area - inter
+        return uni > 0 && inter / uni > 0.35
       })
-      if (!inside) kept.push(b)
-      if (kept.length >= 12) break
+      if (!overlaps) kept.push(b)
+      if (kept.length >= MAX_CARDS) break
     }
     return kept
   }
 
-  function gridFromCardBoxes(boxes, w, h) {
-    if (boxes.length < 3) return null
-    // Use median card size
-    const widths = boxes.map((b) => b.w).sort((a, b) => a - b)
-    const heights = boxes.map((b) => b.h).sort((a, b) => a - b)
-    const mw = widths[(widths.length / 2) | 0]
-    const mh = heights[(heights.length / 2) | 0]
-
-    // Cluster centers into rows by y
-    const sorted = [...boxes].sort((a, b) => a.cy - b.cy || a.cx - b.cx)
-    const rows = []
-    const rowTol = mh * 0.45
-    for (const b of sorted) {
-      const row = rows.find((r) => Math.abs(r.y - b.cy) < rowTol)
-      if (row) {
-        row.items.push(b)
-        row.y = (row.y * (row.items.length - 1) + b.cy) / row.items.length
-      } else {
-        rows.push({ y: b.cy, items: [b] })
-      }
-    }
-    rows.sort((a, b) => a.y - b.y)
-    if (rows.length < 2) return null
-
-    // Take up to 3 densest / most evenly spaced rows
-    const topRows = rows.slice(0, 3)
-    while (topRows.length < 3 && rows.length > topRows.length) {
-      topRows.push(rows[topRows.length])
-    }
-
-    for (const row of topRows) row.items.sort((a, b) => a.cx - b.cx)
-
-    const xs = topRows.flatMap((r) => r.items.map((i) => i.cx))
-    const ys = topRows.map((r) => r.y)
-    if (!xs.length) return null
-
-    const minCX = Math.min(...xs)
-    const maxCX = Math.max(...xs)
-    const minCY = Math.min(...ys)
-    const maxCY = Math.max(...ys)
-
-    // Expand from centers to page bounds using median card size
-    const x0 = clamp(minCX - mw * 0.55, 2, w - 4)
-    const x1 = clamp(maxCX + mw * 0.55, x0 + 20, w - 2)
-    const y0 = clamp(minCY - mh * 0.55, 2, h - 4)
-    const y1 = clamp(maxCY + mh * 0.55, y0 + 20, h - 2)
-
-    // If we only saw a partial page, expand to a full 3×3 using card pitch
-    let pw = x1 - x0
-    let ph = y1 - y0
-    const pitchX = mw * 1.08
-    const pitchY = mh * 1.08
-    if (boxes.length <= 6) {
-      pw = Math.max(pw, pitchX * 3)
-      ph = Math.max(ph, pitchY * 3)
-    }
-    // Recenter
-    let cx = (x0 + x1) / 2
-    let cy = (y0 + y1) / 2
-    let nx0 = clamp(cx - pw / 2, 2, w - pw - 2)
-    let ny0 = clamp(cy - ph / 2, 2, h - ph - 2)
-
-    const conf = clamp(0.35 + boxes.length * 0.07, 0.35, 0.95)
-    const quad = [
-      { x: nx0, y: ny0 },
-      { x: nx0 + pw, y: ny0 },
-      { x: nx0 + pw, y: ny0 + ph },
-      { x: nx0, y: ny0 + ph },
-    ]
-    return { quad, confidence: conf, source: "card-boxes", boxCount: boxes.length }
-  }
-
   function detectWithOpenCv(cv, imageData) {
-    // Build ImageData Mat manually — matFromImageData is missing in some builds.
     const src = new cv.Mat(imageData.height, imageData.width, cv.CV_8UC4)
     src.data.set(imageData.data)
     const gray = new cv.Mat()
@@ -445,57 +263,79 @@
     try {
       cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
       cv.GaussianBlur(gray, blur, new cv.Size(5, 5), 0)
-      cv.Canny(blur, edges, 50, 140)
+      cv.Canny(blur, edges, 45, 130)
       cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE)
 
       const cards = []
-      const pages = []
       const frameArea = imageData.width * imageData.height
-
       for (let i = 0; i < contours.size(); i++) {
         const cnt = contours.get(i)
         const peri = cv.arcLength(cnt, true)
         const approx = new cv.Mat()
         cv.approxPolyDP(cnt, approx, 0.03 * peri, true)
+        let box = null
         if (approx.rows === 4 && cv.isContourConvex(approx)) {
           const area = Math.abs(cv.contourArea(approx))
           const pts = []
           for (let r = 0; r < 4; r++) {
-            const ix = r * 2
-            pts.push({ x: approx.data32S[ix], y: approx.data32S[ix + 1] })
+            pts.push({ x: approx.data32S[r * 2], y: approx.data32S[r * 2 + 1] })
           }
           const ordered = orderCorners(pts)
           const bw = Math.hypot(ordered[1].x - ordered[0].x, ordered[1].y - ordered[0].y)
           const bh = Math.hypot(ordered[3].x - ordered[0].x, ordered[3].y - ordered[0].y)
-          const aspect = bw / Math.max(1, bh)
-          if (area > frameArea * 0.2 && area < frameArea * 0.95 && aspect > 0.55 && aspect < 1.2) {
-            pages.push({ quad: ordered, area })
-          } else if (area > frameArea * 0.012 && area < frameArea * 0.22 && aspect > 0.5 && aspect < 0.95) {
-            cards.push({
-              cx: (ordered[0].x + ordered[2].x) / 2,
-              cy: (ordered[0].y + ordered[2].y) / 2,
-              w: bw,
-              h: bh,
+          if (isCardLike(bw, bh, frameArea, area)) {
+            const xs = ordered.map((p) => p.x)
+            const ys = ordered.map((p) => p.y)
+            const x = Math.min(...xs)
+            const y = Math.min(...ys)
+            const w = Math.max(...xs) - x
+            const h = Math.max(...ys) - y
+            box = {
+              x,
+              y,
+              w,
+              h,
+              cx: x + w / 2,
+              cy: y + h / 2,
+              area: w * h,
+              confidence: clamp(0.5 + area / frameArea, 0.45, 0.96),
+            }
+          }
+        } else {
+          // Rotated rect fallback
+          const rect = cv.boundingRect(cnt)
+          const area = rect.width * rect.height
+          if (isCardLike(rect.width, rect.height, frameArea, area)) {
+            box = {
+              x: rect.x,
+              y: rect.y,
+              w: rect.width,
+              h: rect.height,
+              cx: rect.x + rect.width / 2,
+              cy: rect.y + rect.height / 2,
               area,
-            })
+              confidence: 0.42,
+            }
           }
         }
         approx.delete()
+        if (box) cards.push(box)
       }
 
-      pages.sort((a, b) => b.area - a.area)
-      if (pages[0]) {
-        return {
-          quad: pages[0].quad,
-          confidence: clamp(pages[0].area / frameArea + 0.2, 0.45, 0.98),
-          source: "opencv-page",
-        }
+      cards.sort((a, b) => b.confidence - a.confidence || b.area - a.area)
+      const kept = []
+      for (const b of cards) {
+        const overlaps = kept.some((k) => {
+          const ix = Math.max(0, Math.min(b.x + b.w, k.x + k.w) - Math.max(b.x, k.x))
+          const iy = Math.max(0, Math.min(b.y + b.h, k.y + k.h) - Math.max(b.y, k.y))
+          const inter = ix * iy
+          const uni = b.area + k.area - inter
+          return uni > 0 && inter / uni > 0.35
+        })
+        if (!overlaps) kept.push(b)
+        if (kept.length >= MAX_CARDS) break
       }
-      if (cards.length >= 3) {
-        const fitted = gridFromCardBoxes(cards, imageData.width, imageData.height)
-        if (fitted) return { ...fitted, source: "opencv-cards" }
-      }
-      return null
+      return kept
     } finally {
       src.delete()
       gray.delete()
@@ -506,66 +346,194 @@
     }
   }
 
-  function detectGrid(imageData, opts = {}) {
+  /** Persistent tracker across frames. */
+  const tracker = {
+    nextId: 1,
+    tracks: [], // { id, x, y, w, h, cx, cy, missing, confidence }
+  }
+
+  function updateTracks(detections, w, h) {
+    const diag = Math.hypot(w, h)
+    const maxDist = diag * TRACK_DIST
+    const used = new Set()
+
+    for (const t of tracker.tracks) t.missing += 1
+
+    // Greedy match by nearest center
+    const pairs = []
+    for (let ti = 0; ti < tracker.tracks.length; ti++) {
+      const t = tracker.tracks[ti]
+      for (let di = 0; di < detections.length; di++) {
+        const d = detections[di]
+        const dist = Math.hypot(t.cx - d.cx, t.cy - d.cy)
+        if (dist <= maxDist) pairs.push({ ti, di, dist })
+      }
+    }
+    pairs.sort((a, b) => a.dist - b.dist)
+    const matchedT = new Set()
+    const matchedD = new Set()
+    for (const p of pairs) {
+      if (matchedT.has(p.ti) || matchedD.has(p.di)) continue
+      matchedT.add(p.ti)
+      matchedD.add(p.di)
+      used.add(p.di)
+      const t = tracker.tracks[p.ti]
+      const d = detections[p.di]
+      const a = 0.35
+      t.x = t.x * (1 - a) + d.x * a
+      t.y = t.y * (1 - a) + d.y * a
+      t.w = t.w * (1 - a) + d.w * a
+      t.h = t.h * (1 - a) + d.h * a
+      t.cx = t.x + t.w / 2
+      t.cy = t.y + t.h / 2
+      t.confidence = d.confidence
+      t.missing = 0
+    }
+
+    for (let di = 0; di < detections.length; di++) {
+      if (used.has(di)) continue
+      if (tracker.tracks.length >= MAX_CARDS) break
+      const d = detections[di]
+      tracker.tracks.push({
+        id: tracker.nextId++,
+        x: d.x,
+        y: d.y,
+        w: d.w,
+        h: d.h,
+        cx: d.cx,
+        cy: d.cy,
+        confidence: d.confidence,
+        missing: 0,
+      })
+    }
+
+    tracker.tracks = tracker.tracks.filter((t) => t.missing <= LOST_FRAMES)
+    // Cap to 9 strongest / most recent
+    if (tracker.tracks.length > MAX_CARDS) {
+      tracker.tracks.sort((a, b) => a.missing - b.missing || b.confidence - a.confidence)
+      tracker.tracks = tracker.tracks.slice(0, MAX_CARDS)
+    }
+
+    return tracker.tracks
+      .filter((t) => t.missing <= 2)
+      .map((t) => ({
+        x: t.x,
+        y: t.y,
+        w: t.w,
+        h: t.h,
+        cx: t.cx,
+        cy: t.cy,
+        area: t.w * t.h,
+        confidence: t.confidence,
+        trackId: t.id,
+      }))
+  }
+
+  function mergeDetections(a, b) {
+    const all = [...a, ...b]
+    all.sort((x, y) => y.confidence - x.confidence || y.area - x.area)
+    const kept = []
+    for (const box of all) {
+      const overlaps = kept.some((k) => {
+        const ix = Math.max(0, Math.min(box.x + box.w, k.x + k.w) - Math.max(box.x, k.x))
+        const iy = Math.max(0, Math.min(box.y + box.h, k.y + k.h) - Math.max(box.y, k.y))
+        const inter = ix * iy
+        const uni = box.area + k.area - inter
+        return uni > 0 && inter / uni > 0.35
+      })
+      if (!overlaps) kept.push(box)
+      if (kept.length >= MAX_CARDS) break
+    }
+    return kept
+  }
+
+  /**
+   * @returns {{
+   *   cards: Array,
+   *   slots: Array,
+   *   quad: Array|null,
+   *   count: number,
+   *   confidence: number,
+   *   source: string,
+   *   locked: boolean
+   * }}
+   */
+  function detectCards(imageData, opts = {}) {
     const { width: w, height: h, data } = imageData
     const gray = boxBlur(toGray(data, w, h), w, h, 1)
     const mag = sobelMag(gray, w, h)
 
-    const candidates = []
+    let detections = findCardBoxes(mag, w, h)
+    let source = "canvas"
 
-    // OpenCV first if available
     const cv = global.cv
     if (opts.preferOpenCv !== false && cv && cv.Mat) {
       try {
         const ocv = detectWithOpenCv(cv, imageData)
-        if (ocv) candidates.push(ocv)
+        if (ocv.length) {
+          detections = mergeDetections(detections, ocv)
+          source = detections.length === ocv.length ? "opencv" : "hybrid"
+        }
       } catch {
-        // ignore
+        // keep canvas detections
       }
     }
 
-    const edge = searchEdgeGrid(mag, w, h)
-    if (edge) candidates.push(edge)
+    const tracked = updateTracks(detections, w, h)
+    const ordered = sortReadingOrder(tracked)
+    const slots = toSlots(ordered)
+    const avgConf = ordered.length
+      ? ordered.reduce((s, b) => s + (b.confidence || 0.5), 0) / ordered.length
+      : 0
 
-    const boxes = findCardBoxes(mag, w, h)
-    const fromBoxes = gridFromCardBoxes(boxes, w, h)
-    if (fromBoxes) candidates.push(fromBoxes)
-
-    candidates.sort((a, b) => b.confidence - a.confidence)
-    const best = candidates[0]
-    if (best) {
-      return {
-        quad: best.quad,
-        slots: slotsFromQuad(best.quad),
-        confidence: best.confidence,
-        source: best.source,
-        debug: { boxes: boxes.length, candidates: candidates.map((c) => c.source) },
-      }
-    }
-
-    const quad = defaultQuad(w, h)
     return {
-      quad,
-      slots: slotsFromQuad(quad),
-      confidence: 0.3,
-      source: "fallback",
-      debug: { boxes: boxes.length, candidates: [] },
+      cards: ordered,
+      slots,
+      quad: envelopeQuad(ordered, w, h),
+      count: ordered.length,
+      confidence: ordered.length ? avgConf : 0,
+      source: ordered.length ? source : "none",
+      locked: ordered.length > 0 && avgConf >= 0.4,
     }
   }
 
+  /** @deprecated use detectCards — kept for callers expecting a page grid */
+  function detectGrid(imageData, opts) {
+    return detectCards(imageData, opts)
+  }
+
+  function slotsFromQuad() {
+    return []
+  }
+
   function smoothQuad(prev, next, alpha = 0.35) {
+    if (!next) return prev
     if (!prev) return next
     return next.map((p, i) => ({
-      x: prev[i].x * (1 - alpha) + p.x * alpha,
-      y: prev[i].y * (1 - alpha) + p.y * alpha,
+      x: (prev[i]?.x ?? p.x) * (1 - alpha) + p.x * alpha,
+      y: (prev[i]?.y ?? p.y) * (1 - alpha) + p.y * alpha,
     }))
   }
 
   function quadMotion(a, b) {
-    if (!a || !b) return Infinity
+    if (!a || !b || a.length !== b.length) return Infinity
     let max = 0
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < a.length; i++) {
       max = Math.max(max, Math.hypot(a[i].x - b[i].x, a[i].y - b[i].y))
+    }
+    return max
+  }
+
+  /** Average center motion between two slot lists (matched by slot index). */
+  function slotsMotion(prev, next) {
+    if (!prev?.length || !next?.length) return Infinity
+    if (prev.length !== next.length) return Infinity
+    let max = 0
+    for (let i = 0; i < next.length; i++) {
+      max = Math.max(
+        max,
+        Math.hypot(prev[i].center.x - next[i].center.x, prev[i].center.y - next[i].center.y),
+      )
     }
     return max
   }
@@ -588,13 +556,34 @@
     return out.toDataURL("image/jpeg", 0.9)
   }
 
+  function resetTracker() {
+    tracker.tracks = []
+    tracker.nextId = 1
+  }
+
+  function mapQuad(quad, u, v) {
+    if (!quad) return { x: 0, y: 0 }
+    const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t })
+    const top = lerp(quad[0], quad[1], u)
+    const bottom = lerp(quad[3], quad[2], u)
+    return lerp(top, bottom, v)
+  }
+
+  function defaultQuad() {
+    return null
+  }
+
   global.BinderGrid = {
-    SLOT_COUNT,
+    MAX_CARDS,
+    SLOT_COUNT: MAX_CARDS,
+    detectCards,
     detectGrid,
     slotsFromQuad,
     smoothQuad,
     quadMotion,
+    slotsMotion,
     cropSlot,
+    resetTracker,
     defaultQuad,
     mapQuad,
   }

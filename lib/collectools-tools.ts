@@ -160,12 +160,12 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/live-binder-hud",
     name: "Live Binder HUD",
     tagline: "Supreme · in development",
-    blurb: "Lock a 9-pocket page locally, then scan once for IDs and prices.",
+    blurb: "Detect 1–9 cards in frame, then scan once for IDs and prices.",
     description:
-      "Live Binder HUD locks the binder grid with on-device computer vision, then sends one on-demand Gemini 3.5 Flash request for all 9 pockets and overlays PriceCharting comps. Supreme preview while the product is still in development.",
+      "Live Binder HUD finds however many cards are on camera (up to 9) with on-device computer vision, then sends one on-demand Gemini 3.5 Flash request for those crops and overlays PriceCharting comps. Supreme preview while the product is still in development.",
     highlights: [
-      "Local Canvas / OpenCV.js 9-pocket grid lock (no live video to the LLM)",
-      "Scan Page sends 9 pocket crops to Gemini in a single payload",
+      "Local Canvas / OpenCV.js detects 1–9 card outlines (no live video to the LLM)",
+      "Scan sends only the detected card crops to Gemini in a single payload",
       "PriceCharting comps cached in localStorage on the HUD",
     ],
     icon: ScanEye,

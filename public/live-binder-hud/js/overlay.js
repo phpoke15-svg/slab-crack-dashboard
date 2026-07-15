@@ -19,40 +19,40 @@
     const { width, height } = ctx.canvas
     ctx.clearRect(0, 0, width, height)
 
-    const quad = state.quad
     const slots = state.slots || []
     const priced = state.pricedBySlot || {}
     const identified = state.identifiedBySlot || {}
     const locked = Boolean(state.locked)
+    const count = state.cardCount ?? slots.length
 
-    // Page outline
-    if (quad && quad.length === 4) {
+    // Soft envelope around detected cards only (not a forced 3×3)
+    if (state.quad && slots.length > 1) {
       ctx.save()
-      ctx.shadowColor = locked ? "rgba(61, 214, 140, 0.45)" : "rgba(240, 195, 90, 0.35)"
-      ctx.shadowBlur = 10
+      ctx.setLineDash([8, 6])
       drawQuad(
         ctx,
-        quad,
-        locked ? "rgba(80, 220, 140, 0.95)" : "rgba(255, 210, 80, 0.9)",
-        Math.max(2.5, width * 0.0035),
+        state.quad,
+        locked ? "rgba(80, 220, 140, 0.35)" : "rgba(255, 210, 80, 0.3)",
+        Math.max(1.5, width * 0.002),
       )
       ctx.restore()
     }
 
-    // Always draw the 9 pocket / card outlines
     for (const slot of slots) {
       const hasId = Boolean(priced[slot.slot] || identified[slot.slot])
       const stroke = hasId
         ? "rgba(125, 255, 168, 0.95)"
         : locked
-          ? "rgba(120, 230, 170, 0.85)"
-          : "rgba(255, 220, 120, 0.8)"
-      drawQuad(ctx, slot.corners, stroke, Math.max(2, width * 0.0024))
-
-      // Slot index chip
-      const c = slot.center
+          ? "rgba(120, 230, 170, 0.9)"
+          : "rgba(255, 220, 120, 0.85)"
       ctx.save()
-      ctx.fillStyle = locked ? "rgba(61, 214, 140, 0.9)" : "rgba(240, 195, 90, 0.9)"
+      ctx.shadowColor = stroke
+      ctx.shadowBlur = 8
+      drawQuad(ctx, slot.corners, stroke, Math.max(2.5, width * 0.0028))
+      ctx.restore()
+
+      ctx.save()
+      ctx.fillStyle = locked ? "rgba(61, 214, 140, 0.95)" : "rgba(240, 195, 90, 0.95)"
       ctx.beginPath()
       ctx.arc(slot.corners[0].x + 12, slot.corners[0].y + 12, 10, 0, Math.PI * 2)
       ctx.fill()
@@ -61,6 +61,22 @@
       ctx.textAlign = "center"
       ctx.textBaseline = "middle"
       ctx.fillText(String(slot.slot), slot.corners[0].x + 12, slot.corners[0].y + 12)
+      ctx.restore()
+    }
+
+    // Count badge
+    if (count > 0) {
+      const label = `${count} card${count === 1 ? "" : "s"}`
+      ctx.save()
+      ctx.font = `700 ${Math.max(12, width * 0.016)}px "IBM Plex Sans", system-ui, sans-serif`
+      const tw = ctx.measureText(label).width + 20
+      ctx.fillStyle = locked ? "rgba(20, 80, 50, 0.85)" : "rgba(60, 45, 10, 0.85)"
+      roundRect(ctx, width - tw - 14, 12, tw, 28, 8)
+      ctx.fill()
+      ctx.fillStyle = "#fff"
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillText(label, width - tw / 2 - 14, 26)
       ctx.restore()
     }
 

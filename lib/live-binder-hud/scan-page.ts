@@ -22,15 +22,15 @@ export type BinderHudPocket = {
 }
 
 const SCAN_PROMPT = [
-  "You are identifying Pokemon TCG cards from a 9-pocket binder page.",
-  "You will receive up to 9 cropped pocket images, labeled Slot 1 through Slot 9.",
-  "Slot order is left-to-right, top-to-bottom (1 2 3 / 4 5 6 / 7 8 9).",
-  "For each slot that contains a visible card, identify the card.",
+  "You are identifying Pokemon TCG cards.",
+  "You will receive 1–9 cropped card images, each labeled Slot N.",
+  "Slots are ordered left-to-right, top-to-bottom for whatever cards were detected in frame.",
+  "Identify each provided slot image.",
   "Return ONLY JSON in this exact shape:",
   '{"cards":[{"slot":1,"name":"Charizard","set":"Base Set","number":"4/102"}]}',
   "Rules:",
-  "- Include every slot that has a readable card (1–9).",
-  "- Omit empty / unreadable slots.",
+  "- Include every slot image you can read (match the Slot numbers given).",
+  "- Omit unreadable slots.",
   "- Prefer English card names.",
   "- set should be the English expansion name when known, else \"\".",
   "- number like \"4/102\" or \"025\" or \"\".",

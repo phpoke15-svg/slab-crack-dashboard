@@ -2,8 +2,8 @@
 
 Split architecture:
 
-1. **Local CV (browser)** — Canvas / OpenCV.js finds and locks a 9-pocket binder grid. No continuous video to Gemini.
-2. **On-demand Gemini 3.5 Flash** — “Scan Page” (or 2s stability auto-scan) crops 9 pockets and sends **one** API payload.
+1. **Local CV (browser)** — Canvas / OpenCV.js detects however many card rectangles are in frame (**1–9**). No continuous video to Gemini.
+2. **On-demand Gemini 3.5 Flash** — “Scan Cards” (or 2s stability auto-scan) crops only the detected cards and sends **one** API payload.
 3. **PriceCharting** — Frontend prices each identified card via this Express proxy (or a UI-pasted API key), with `localStorage` cache.
 
 ## Quick start

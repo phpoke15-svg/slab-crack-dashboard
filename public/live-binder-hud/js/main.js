@@ -12,13 +12,11 @@
 
   const frameCtx = frame.getContext("2d", { willReadFrequently: true })
   const overlayCtx = overlay.getContext("2d")
-
-  // Reused detection buffer
   const detectCanvas = document.createElement("canvas")
   const detectCtx = detectCanvas.getContext("2d", { willReadFrequently: true })
 
   const STABLE_MS = 2000
-  const MOTION_PX = 14
+  const MOTION_PX = 16
   const DETECT_EVERY_N = 2
   const DETECT_WIDTH = 560
 
@@ -26,15 +24,15 @@
   let scanning = false
   let frameCount = 0
   let smoothQuad = null
-  let lastRawQuad = null
+  let prevSlots = []
+  let slots = []
+  let cardCount = 0
   let stableSince = null
   let lastAutoScanAt = 0
-  let slots = []
+  let lastStableCount = 0
   let identifiedBySlot = {}
   let pricedBySlot = {}
   let locked = false
-  let lastSource = "…"
-  let lastConfidence = 0
 
   function setStatus(text) {
     statusEl.textContent = text
@@ -49,10 +47,6 @@
     localStorage.setItem("lbhud:pcKey", pcKeyInput.value.trim())
   })
 
-  /**
-   * Letterbox video + canvases to the same CSS box so outline coords match pixels.
-   * Avoids object-fit drift between <video> and <canvas>.
-   */
   function layoutStage() {
     const vw = video.videoWidth || 1280
     const vh = video.videoHeight || 720
@@ -99,8 +93,21 @@
     await video.play()
     layoutStage()
     running = true
-    setStatus("Align the binder page — 9 pocket outlines lock locally")
+    setStatus("Point at cards — detecting how many are in frame (up to 9)")
     requestAnimationFrame(tick)
+  }
+
+  function scaleSlots(rawSlots, sx, sy) {
+    return rawSlots.map((s) => ({
+      slot: s.slot,
+      trackId: s.trackId,
+      confidence: s.confidence,
+      corners: s.corners.map((p) => ({ x: p.x * sx, y: p.y * sy })),
+      center: { x: s.center.x * sx, y: s.center.y * sy },
+      box: s.box
+        ? { x: s.box.x * sx, y: s.box.y * sy, w: s.box.w * sx, h: s.box.h * sy }
+        : null,
+    }))
   }
 
   function tick() {
@@ -122,40 +129,41 @@
       }
       detectCtx.drawImage(frame, 0, 0, dw, dh)
       const imageData = detectCtx.getImageData(0, 0, dw, dh)
-      const detected = BinderGrid.detectGrid(imageData)
-      lastSource = detected.source
-      lastConfidence = detected.confidence
-      cvSourceEl.textContent = `${detected.source} · ${Math.round(detected.confidence * 100)}%`
+      const detected = BinderGrid.detectCards(imageData)
 
       const sx = frame.width / dw
       const sy = frame.height / dh
-      const mapped = detected.quad.map((p) => ({ x: p.x * sx, y: p.y * sy }))
-      const motion = BinderGrid.quadMotion(lastRawQuad, mapped)
-      lastRawQuad = mapped
+      const mappedSlots = scaleSlots(detected.slots, sx, sy)
+      const mappedQuad = detected.quad
+        ? detected.quad.map((p) => ({ x: p.x * sx, y: p.y * sy }))
+        : null
 
-      // Hold lock when motion is tiny; otherwise ease toward new estimate
-      const alpha = locked && motion < MOTION_PX ? 0.18 : motion < MOTION_PX * 2 ? 0.35 : 0.6
-      smoothQuad = BinderGrid.smoothQuad(smoothQuad, mapped, alpha)
-      slots = BinderGrid.slotsFromQuad(smoothQuad)
+      const motion = BinderGrid.slotsMotion(prevSlots, mappedSlots)
+      prevSlots = mappedSlots
+      slots = mappedSlots
+      cardCount = detected.count
+      smoothQuad = mappedQuad
+      locked = detected.locked && detected.count > 0
 
-      locked = detected.confidence >= 0.4 && (motion < MOTION_PX * 1.8 || detected.source !== "fallback")
+      cvSourceEl.textContent = `${detected.source} · ${cardCount} card${cardCount === 1 ? "" : "s"}`
 
-      if (locked && motion < MOTION_PX) {
+      const countChanged = cardCount !== lastStableCount
+      if (locked && motion < MOTION_PX && !countChanged) {
         if (!stableSince) stableSince = performance.now()
-      } else if (motion > MOTION_PX * 2.5) {
+      } else {
         stableSince = null
+        lastStableCount = cardCount
       }
+      if (locked && motion < MOTION_PX) lastStableCount = cardCount
 
       if (!scanning) {
-        if (locked) {
-          const stableMs = stableSince ? Math.round(performance.now() - stableSince) : 0
-          setStatus(
-            stableMs >= STABLE_MS
-              ? "Grid locked — ready to scan"
-              : `Tracking pockets… ${Math.min(STABLE_MS, stableMs)}ms stable`,
-          )
+        if (!cardCount) {
+          setStatus("No cards detected — show 1–9 cards in frame")
+        } else if (locked && stableSince && performance.now() - stableSince >= STABLE_MS) {
+          setStatus(`${cardCount} card${cardCount === 1 ? "" : "s"} locked — ready to scan`)
         } else {
-          setStatus("Looking for 9-pocket page… keep the binder flat in frame")
+          const stableMs = stableSince ? Math.round(performance.now() - stableSince) : 0
+          setStatus(`Tracking ${cardCount} card${cardCount === 1 ? "" : "s"}… ${stableMs}ms stable`)
         }
       }
 
@@ -166,14 +174,15 @@
       quad: smoothQuad,
       slots,
       locked,
+      cardCount,
       identifiedBySlot,
       pricedBySlot,
-      statusText: scanning ? "Scanning page with Gemini…" : null,
+      statusText: scanning ? `Scanning ${cardCount} card${cardCount === 1 ? "" : "s"}…` : null,
     })
   }
 
   function maybeAutoScan() {
-    if (!autoToggle.checked || scanning || !stableSince) return
+    if (!autoToggle.checked || scanning || !stableSince || cardCount < 1) return
     if (performance.now() - stableSince < STABLE_MS) return
     if (performance.now() - lastAutoScanAt < 8000) return
     lastAutoScanAt = performance.now()
@@ -182,26 +191,26 @@
 
   async function runScan(reason) {
     if (scanning) return
-    if (!smoothQuad || !slots.length) {
-      setStatus("No grid yet — hold the binder page in frame")
+    if (!slots.length) {
+      setStatus("No cards detected yet — hold cards in frame")
       return
     }
     scanning = true
     scanBtn.disabled = true
-    setStatus(reason === "auto" ? "Stable — scanning page…" : "Scanning page…")
+    const n = slots.length
+    setStatus(reason === "auto" ? `Stable — scanning ${n} card${n === 1 ? "" : "s"}…` : `Scanning ${n} card${n === 1 ? "" : "s"}…`)
 
     try {
-      const pockets = []
-      for (const slot of slots) {
-        const image = BinderGrid.cropSlot(frame, slot, 320, 448)
-        pockets.push({ slot: slot.slot, image })
-      }
+      const pockets = slots.map((slot) => ({
+        slot: slot.slot,
+        image: BinderGrid.cropSlot(frame, slot, 320, 448),
+      }))
 
       const scan = await BinderApi.scanPockets(pockets)
       const cards = scan.cards || []
       identifiedBySlot = {}
       for (const c of cards) identifiedBySlot[c.slot] = c
-      setStatus(`Identified ${cards.length} card(s) — pricing…`)
+      setStatus(`Identified ${cards.length}/${n} — pricing…`)
 
       const pageCached = BinderCache.getPage(cards)
       if (pageCached?.results?.length) {
@@ -291,13 +300,9 @@
   void (async () => {
     try {
       await startCamera()
-      // Seed an immediate fallback grid so outlines are visible right away
-      const q = BinderGrid.defaultQuad(frame.width, frame.height)
-      smoothQuad = q
-      slots = BinderGrid.slotsFromQuad(q)
       const ok = await loadOpenCv()
       cvSourceEl.textContent = ok ? "OpenCV.js + Canvas" : "Canvas CV"
-      if (ok) setStatus("CV ready — align binder to the 9 pocket outlines")
+      if (ok) setStatus("CV ready — show 1–9 cards to outline them")
     } catch (err) {
       console.error(err)
       setStatus("Camera permission denied or unavailable")
