@@ -160,13 +160,13 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/live-binder-hud",
     name: "Live Binder HUD",
     tagline: "Supreme · in development",
-    blurb: "Detect 1–9 cards in frame, then scan once for IDs and prices.",
+    blurb: "Scan any layout — Gemini returns boxes, names, and prices.",
     description:
-      "Live Binder HUD finds however many cards are on camera (up to 9) with on-device computer vision, then sends one on-demand Gemini 3.5 Flash request for those crops and overlays PriceCharting comps. Supreme preview while the product is still in development.",
+      "Live Binder HUD captures one camera frame and uses Gemini object detection (box_2d) to find every visible card dynamically, then overlays PriceCharting comps on each box. Supreme preview while the product is still in development.",
     highlights: [
-      "Local Canvas / OpenCV.js detects 1–9 card outlines (no live video to the LLM)",
-      "Scan sends only the detected card crops to Gemini in a single payload",
-      "PriceCharting comps cached in localStorage on the HUD",
+      "Scan Feed sends one still frame — no rigid 3×3 grid",
+      "Gemini returns normalized bounding boxes + card identity",
+      "Clickable HUD overlays update live with PriceCharting comps",
     ],
     icon: ScanEye,
     supremeOnly: true,

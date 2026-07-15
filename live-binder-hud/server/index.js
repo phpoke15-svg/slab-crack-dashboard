@@ -3,21 +3,18 @@ import { fileURLToPath } from "node:url"
 import cors from "cors"
 import dotenv from "dotenv"
 import express from "express"
-import { identifyBinderPage } from "./gemini.js"
+import { detectCardsInFrame } from "./gemini.js"
 import { priceCard, priceCards } from "./pricecharting.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const rootDir = path.resolve(__dirname, "..")
 
-// Load local .env, then fall back to monorepo root .env / .env.local
 dotenv.config({ path: path.join(rootDir, ".env") })
 dotenv.config({ path: path.resolve(rootDir, "../.env.local") })
 dotenv.config({ path: path.resolve(rootDir, "../.env") })
 
 const app = express()
 const PORT = Number(process.env.PORT || 8787)
-
-// Frontend lives with the CollecTools static assets so the Supreme iframe works too.
 const staticDir = path.resolve(rootDir, "../public/live-binder-hud")
 
 app.use(cors())
@@ -27,27 +24,26 @@ app.get("/api/health", (_req, res) => {
   res.json({
     ok: true,
     service: "live-binder-hud",
+    mode: "gemini-box_2d",
     gemini: Boolean(process.env.GEMINI_API_KEY?.trim()),
     pricecharting: Boolean(process.env.PRICECHARTING_API_KEY?.trim()),
   })
 })
 
 /**
- * On-demand page scan — local CV already cropped the 9 pockets.
- * Body: { pockets: [{ slot: 1..9, image: "data:image/jpeg;base64,..." }] }
+ * Full-frame zero-shot detect.
+ * Body: { image: "data:image/jpeg;base64,..." }
  */
 app.post("/api/scan", async (req, res) => {
   try {
-    const pockets = req.body?.pockets
-    if (!Array.isArray(pockets) || pockets.length === 0) {
-      return res.status(400).json({ ok: false, error: "pockets[] required" })
+    const image = req.body?.image
+    if (!image || typeof image !== "string") {
+      return res.status(400).json({ ok: false, error: "image data URL required" })
     }
-    for (const p of pockets) {
-      if (!p?.image || String(p.image).length > 4_500_000) {
-        return res.status(400).json({ ok: false, error: `Pocket ${p?.slot ?? "?"} image too large or missing` })
-      }
+    if (image.length > 6_000_000) {
+      return res.status(400).json({ ok: false, error: "image too large" })
     }
-    const result = await identifyBinderPage(pockets)
+    const result = await detectCardsInFrame(image)
     res.json({ ok: true, cards: result.cards, model: result.model })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Scan failed"
@@ -56,11 +52,6 @@ app.post("/api/scan", async (req, res) => {
   }
 })
 
-/**
- * Price one or many identified cards via PriceCharting.
- * Body: { cards: [{ slot, name, set, number }], apiKey?: string }
- * or query: ?name=&set=&number=&slot=&apiKey=
- */
 app.post("/api/prices", async (req, res) => {
   try {
     const cards = req.body?.cards
@@ -104,7 +95,6 @@ app.get("/", (_req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Live Binder HUD listening on http://localhost:${PORT}`)
+  console.log(`Mode: Gemini box_2d full-frame detect`)
   console.log(`Static: ${staticDir}`)
-  console.log(`Gemini: ${process.env.GEMINI_API_KEY ? "configured" : "MISSING"}`)
-  console.log(`PriceCharting: ${process.env.PRICECHARTING_API_KEY ? "configured" : "MISSING (UI key ok)"}`)
 })

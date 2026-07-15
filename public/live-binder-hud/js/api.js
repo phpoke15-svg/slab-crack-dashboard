@@ -1,8 +1,4 @@
 ;(function (global) {
-  /**
-   * CollecTools iframe (/live-binder-hud/app.html) → Next proxies.
-   * Standalone Express (:8787) → /api/scan and /api/prices.
-   */
   function apiBase() {
     if (global.LIVE_BINDER_API_BASE) return String(global.LIVE_BINDER_API_BASE).replace(/\/$/, "")
     if (global.location.pathname.startsWith("/live-binder-hud")) {
@@ -13,7 +9,7 @@
 
   function scanUrl() {
     const base = apiBase()
-    return base === "/api/live-binder-hud" ? `${base}/scan` : `${base}/scan`
+    return `${base}/scan`
   }
 
   function pricesUrl() {
@@ -21,11 +17,12 @@
     return base === "/api/live-binder-hud" ? `${base}/price` : `${base}/prices`
   }
 
-  async function scanPockets(pockets) {
+  /** Full-frame Gemini box_2d detect. */
+  async function scanFrame(imageDataUrl) {
     const res = await fetch(scanUrl(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pockets }),
+      body: JSON.stringify({ image: imageDataUrl }),
     })
     const data = await res.json().catch(() => ({}))
     if (!res.ok || data.ok === false) {
@@ -50,5 +47,5 @@
     return data.results || []
   }
 
-  global.BinderApi = { apiBase, scanPockets, priceCards }
+  global.BinderApi = { apiBase, scanFrame, priceCards }
 })(window)

@@ -1,17 +1,18 @@
-# Live TCG Binder HUD (v2)
+# Live TCG Binder HUD (Dynamic Multi-Card)
 
-Split architecture:
+Architecture:
 
-1. **Local CV (browser)** — Canvas / OpenCV.js detects however many card rectangles are in frame (**1–9**). No continuous video to Gemini.
-2. **On-demand Gemini 3.5 Flash** — “Scan Cards” (or 2s stability auto-scan) crops only the detected cards and sends **one** API payload.
-3. **PriceCharting** — Frontend prices each identified card via this Express proxy (or a UI-pasted API key), with `localStorage` cache.
+1. **Scan Feed** — capture one still frame from the camera (manual or 2s stability).
+2. **Gemini zero-shot detect** — full frame → JSON with `box_2d` `[ymin,xmin,ymax,xmax]` on a 0–1000 scale + name/set/number.
+3. **HTML HUD** — map boxes onto absolutely positioned overlays; PriceCharting fills prices live.
+
+No local OpenCV grid. No fixed 3×3.
 
 ## Quick start
 
 ```bash
 cd live-binder-hud
 cp .env.example .env
-# set GEMINI_API_KEY and PRICECHARTING_API_KEY
 npm install
 npm run dev
 ```
@@ -22,13 +23,11 @@ Open http://localhost:8787
 
 | Method | Path | Body |
 |--------|------|------|
-| `POST` | `/api/scan` | `{ pockets: [{ slot, image: dataUrl }] }` → `{ cards: [{ slot, name, set, number }] }` |
+| `POST` | `/api/scan` | `{ image: dataUrl }` → `{ cards: [{ box_2d, name, set, number }] }` |
 | `POST` | `/api/prices` | `{ cards: [{ slot, name, set, number }], apiKey? }` |
-| `GET` | `/api/price` | `?name=&set=&number=&slot=&apiKey=` |
-| `GET` | `/api/health` | status |
 
-## CollecTools integration
+## CollecTools
 
-- Static UI: `public/live-binder-hud/`
-- Supreme gate: `/live-binder-hud` (Next.js page → iframe)
-- Production proxies: `/api/live-binder-hud/scan` and `/api/live-binder-hud/price`
+- UI: `public/live-binder-hud/`
+- Proxies: `/api/live-binder-hud/scan`, `/api/live-binder-hud/price`
+- Supreme gate: `/live-binder-hud`

@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 export const metadata = {
   title: "Live Binder HUD",
   description:
-    "Supreme preview: local CV detects 1–9 cards, on-demand Gemini 3.5 Flash scan, PriceCharting comps.",
+    "Supreme preview: Gemini box_2d multi-card detect on one frame, dynamic HUD overlays, PriceCharting comps.",
   robots: { index: false, follow: false },
 }
 

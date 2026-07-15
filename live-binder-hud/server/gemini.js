@@ -1,30 +1,26 @@
 const MODEL_CANDIDATES = [
   process.env.GEMINI_VISION_MODEL,
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
   "gemini-3.5-flash",
   "gemini-flash-latest",
   "gemini-3.1-flash-lite",
-  "gemini-2.5-flash",
 ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i)
 
 const SCAN_PROMPT = [
-  "You are identifying Pokemon TCG cards.",
-  "You will receive 1–9 cropped card images, each labeled Slot N.",
-  "Slots are ordered left-to-right, top-to-bottom for whatever cards were detected in frame.",
-  "Identify each provided slot image.",
+  "Detect every Pokemon / trading card visible in this photo.",
+  "Cards may appear alone, in a hand, on a table, or in a binder page (any count).",
   "Return ONLY JSON in this exact shape:",
-  '{"cards":[{"slot":1,"name":"Charizard","set":"Base Set","number":"4/102"}]}',
-  "Rules:",
-  "- Include every slot image you can read (match the Slot numbers given).",
-  "- Omit unreadable slots.",
-  "- Prefer English card names.",
-  "- set should be the English expansion name when known, else \"\".",
-  "- number like \"4/102\" or \"025\" or \"\".",
-  "- Do not invent prices. Identity only.",
+  '{"cards":[{"box_2d":[ymin,xmin,ymax,xmax],"name":"Card Name","set":"Set Reference","number":"Card Number"}]}',
+  "box_2d must be normalized integers from 0 to 1000: [ymin, xmin, ymax, xmax].",
+  "Include every clearly visible trading card (typically 1–9; more is ok if present).",
+  "Prefer English names. set can be \"\" if unknown. number like \"4/102\" or \"025\" or \"\".",
+  "Tight boxes around each card only. Do not invent prices.",
 ].join(" ")
 
 function splitDataUrl(imageDataUrl) {
   const match = String(imageDataUrl || "").match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
-  if (!match) throw new Error("Each pocket image must be a data:image/*;base64 URL.")
+  if (!match) throw new Error("Expected a data:image base64 URL from the camera capture.")
   return { mimeType: match[1], base64: match[2] }
 }
 
@@ -44,13 +40,29 @@ function extractText(data) {
 function thinkingConfigForModel(model) {
   const id = String(model || "").toLowerCase()
   if (id.includes("2.5")) return { thinkingBudget: 0 }
+  if (id.includes("2.0")) return null
   if (id.includes("3.") || id.includes("3-") || id.includes("flash-latest")) {
     return { thinkingLevel: "minimal" }
   }
   return null
 }
 
-function parseCardsJson(text) {
+function clamp1000(n) {
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.min(1000, Math.round(n)))
+}
+
+function normalizeBox(raw) {
+  if (!Array.isArray(raw) || raw.length < 4) return null
+  const ymin = clamp1000(Number(raw[0]))
+  const xmin = clamp1000(Number(raw[1]))
+  const ymax = clamp1000(Number(raw[2]))
+  const xmax = clamp1000(Number(raw[3]))
+  if (ymax <= ymin || xmax <= xmin) return null
+  return [ymin, xmin, ymax, xmax]
+}
+
+export function parseDetectJson(text) {
   const cleaned = String(text || "")
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
@@ -60,41 +72,35 @@ function parseCardsJson(text) {
   if (start < 0 || end <= start) throw new Error("Gemini did not return JSON.")
   const parsed = JSON.parse(cleaned.slice(start, end + 1))
   const cards = Array.isArray(parsed?.cards) ? parsed.cards : []
-  return cards
-    .map((c) => ({
-      slot: Number(c.slot),
-      name: String(c.name || c.cardName || "").trim(),
+  const out = []
+  for (const c of cards) {
+    const box = normalizeBox(c.box_2d) || normalizeBox(c.box2d) || normalizeBox(c.bbox)
+    const name = String(c.name || c.cardName || "").trim()
+    if (!box || !name) continue
+    out.push({
+      box_2d: box,
+      name,
       set: String(c.set || c.setName || "").trim(),
       number: String(c.number || c.cardNumber || "").trim(),
-    }))
-    .filter((c) => Number.isFinite(c.slot) && c.slot >= 1 && c.slot <= 9 && c.name)
-    .sort((a, b) => a.slot - b.slot)
+    })
+  }
+  out.sort((a, b) => a.box_2d[0] - b.box_2d[0] || a.box_2d[1] - b.box_2d[1])
+  return out
 }
 
 /**
- * @param {{ slot: number, image: string }[]} pockets
+ * Full-frame zero-shot detect + identify.
+ * @param {string} imageDataUrl
  */
-export async function identifyBinderPage(pockets) {
+export async function detectCardsInFrame(imageDataUrl) {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.")
-
-  if (!Array.isArray(pockets) || pockets.length === 0) {
-    throw new Error("Provide 1–9 pocket images.")
-  }
-  if (pockets.length > 9) throw new Error("Maximum 9 pocket images.")
-
-  const parts = [{ text: SCAN_PROMPT }]
-  for (const pocket of pockets) {
-    const slot = Number(pocket.slot)
-    if (!Number.isFinite(slot) || slot < 1 || slot > 9) {
-      throw new Error(`Invalid slot: ${pocket.slot}`)
-    }
-    const { mimeType, base64 } = splitDataUrl(pocket.image)
-    parts.push({ text: `Slot ${slot}:` })
-    parts.push({ inlineData: { mimeType, data: base64 } })
+  if (!imageDataUrl || imageDataUrl.length > 6_000_000) {
+    throw new Error("Image missing or too large.")
   }
 
-  let lastError = "Gemini scan failed."
+  const { mimeType, base64 } = splitDataUrl(imageDataUrl)
+  let lastError = "Gemini detection failed."
 
   for (const model of MODEL_CANDIDATES) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -107,10 +113,18 @@ export async function identifyBinderPage(pockets) {
           "x-goog-api-key": apiKey,
         },
         body: JSON.stringify({
-          contents: [{ role: "user", parts }],
+          contents: [
+            {
+              role: "user",
+              parts: [
+                { text: SCAN_PROMPT },
+                { inlineData: { mimeType, data: base64 } },
+              ],
+            },
+          ],
           generationConfig: {
             responseMimeType: "application/json",
-            maxOutputTokens: 4096,
+            maxOutputTokens: 8192,
             temperature: 0,
             ...(thinking ? { thinkingConfig: thinking } : {}),
           },
@@ -136,10 +150,9 @@ export async function identifyBinderPage(pockets) {
         continue
       }
 
-      const text = extractText(data)
       try {
-        const cards = parseCardsJson(text)
-        return { cards, model, raw: text }
+        const cards = parseDetectJson(extractText(data))
+        return { cards, model }
       } catch (err) {
         lastError = err instanceof Error ? err.message : "Failed to parse Gemini JSON."
       }
