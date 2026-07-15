@@ -4,6 +4,17 @@
     return `$${n.toFixed(2)}`
   }
 
+  function drawQuad(ctx, corners, stroke, width) {
+    if (!corners || corners.length < 4) return
+    ctx.beginPath()
+    ctx.moveTo(corners[0].x, corners[0].y)
+    for (let i = 1; i < 4; i++) ctx.lineTo(corners[i].x, corners[i].y)
+    ctx.closePath()
+    ctx.strokeStyle = stroke
+    ctx.lineWidth = width
+    ctx.stroke()
+  }
+
   function draw(ctx, state) {
     const { width, height } = ctx.canvas
     ctx.clearRect(0, 0, width, height)
@@ -12,34 +23,44 @@
     const slots = state.slots || []
     const priced = state.pricedBySlot || {}
     const identified = state.identifiedBySlot || {}
+    const locked = Boolean(state.locked)
 
+    // Page outline
     if (quad && quad.length === 4) {
       ctx.save()
-      ctx.strokeStyle = state.locked ? "rgba(80, 220, 140, 0.95)" : "rgba(255, 210, 80, 0.85)"
-      ctx.lineWidth = Math.max(2, width * 0.003)
-      ctx.beginPath()
-      ctx.moveTo(quad[0].x, quad[0].y)
-      for (let i = 1; i < 4; i++) ctx.lineTo(quad[i].x, quad[i].y)
-      ctx.closePath()
-      ctx.stroke()
+      ctx.shadowColor = locked ? "rgba(61, 214, 140, 0.45)" : "rgba(240, 195, 90, 0.35)"
+      ctx.shadowBlur = 10
+      drawQuad(
+        ctx,
+        quad,
+        locked ? "rgba(80, 220, 140, 0.95)" : "rgba(255, 210, 80, 0.9)",
+        Math.max(2.5, width * 0.0035),
+      )
+      ctx.restore()
+    }
 
-      // Inner 3×3 guides
-      ctx.strokeStyle = state.locked ? "rgba(80, 220, 140, 0.35)" : "rgba(255, 210, 80, 0.3)"
-      ctx.lineWidth = Math.max(1, width * 0.0015)
-      for (let i = 1; i < 3; i++) {
-        const a = BinderGrid.mapQuad(quad, i / 3, 0)
-        const b = BinderGrid.mapQuad(quad, i / 3, 1)
-        ctx.beginPath()
-        ctx.moveTo(a.x, a.y)
-        ctx.lineTo(b.x, b.y)
-        ctx.stroke()
-        const c = BinderGrid.mapQuad(quad, 0, i / 3)
-        const d = BinderGrid.mapQuad(quad, 1, i / 3)
-        ctx.beginPath()
-        ctx.moveTo(c.x, c.y)
-        ctx.lineTo(d.x, d.y)
-        ctx.stroke()
-      }
+    // Always draw the 9 pocket / card outlines
+    for (const slot of slots) {
+      const hasId = Boolean(priced[slot.slot] || identified[slot.slot])
+      const stroke = hasId
+        ? "rgba(125, 255, 168, 0.95)"
+        : locked
+          ? "rgba(120, 230, 170, 0.85)"
+          : "rgba(255, 220, 120, 0.8)"
+      drawQuad(ctx, slot.corners, stroke, Math.max(2, width * 0.0024))
+
+      // Slot index chip
+      const c = slot.center
+      ctx.save()
+      ctx.fillStyle = locked ? "rgba(61, 214, 140, 0.9)" : "rgba(240, 195, 90, 0.9)"
+      ctx.beginPath()
+      ctx.arc(slot.corners[0].x + 12, slot.corners[0].y + 12, 10, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.fillStyle = "#0b0f14"
+      ctx.font = `700 ${Math.max(10, width * 0.012)}px "IBM Plex Sans", system-ui, sans-serif`
+      ctx.textAlign = "center"
+      ctx.textBaseline = "middle"
+      ctx.fillText(String(slot.slot), slot.corners[0].x + 12, slot.corners[0].y + 12)
       ctx.restore()
     }
 
@@ -53,8 +74,8 @@
       const y = c.y - boxH / 2
 
       ctx.save()
-      ctx.fillStyle = "rgba(8, 12, 18, 0.78)"
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.2)"
+      ctx.fillStyle = "rgba(8, 12, 18, 0.82)"
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.22)"
       ctx.lineWidth = 1
       roundRect(ctx, x, y, boxW, boxH, 8)
       ctx.fill()
@@ -64,8 +85,7 @@
       ctx.font = `600 ${Math.max(11, width * 0.014)}px "IBM Plex Sans", system-ui, sans-serif`
       ctx.textAlign = "center"
       ctx.textBaseline = "top"
-      const title = truncate(info.name || info.productName || "Card", 22)
-      ctx.fillText(title, c.x, y + 8)
+      ctx.fillText(truncate(info.name || info.productName || "Card", 22), c.x, y + 8)
 
       ctx.fillStyle = "rgba(200, 210, 220, 0.9)"
       ctx.font = `500 ${Math.max(10, width * 0.011)}px "IBM Plex Sans", system-ui, sans-serif`
@@ -88,7 +108,7 @@
     if (state.statusText) {
       ctx.save()
       ctx.fillStyle = "rgba(0,0,0,0.55)"
-      ctx.fillRect(12, 12, Math.min(width - 24, 420), 36)
+      ctx.fillRect(12, 12, Math.min(width - 24, 460), 36)
       ctx.fillStyle = "#fff"
       ctx.font = `600 ${Math.max(12, width * 0.016)}px "IBM Plex Sans", system-ui, sans-serif`
       ctx.textAlign = "left"

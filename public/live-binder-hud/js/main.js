@@ -1,4 +1,5 @@
 ;(function () {
+  const stage = document.getElementById("stage")
   const video = document.getElementById("video")
   const frame = document.getElementById("frame")
   const overlay = document.getElementById("overlay")
@@ -12,9 +13,14 @@
   const frameCtx = frame.getContext("2d", { willReadFrequently: true })
   const overlayCtx = overlay.getContext("2d")
 
+  // Reused detection buffer
+  const detectCanvas = document.createElement("canvas")
+  const detectCtx = detectCanvas.getContext("2d", { willReadFrequently: true })
+
   const STABLE_MS = 2000
-  const MOTION_PX = 10
+  const MOTION_PX = 14
   const DETECT_EVERY_N = 2
+  const DETECT_WIDTH = 560
 
   let running = false
   let scanning = false
@@ -27,7 +33,8 @@
   let identifiedBySlot = {}
   let pricedBySlot = {}
   let locked = false
-  let cvSource = "…"
+  let lastSource = "…"
+  let lastConfidence = 0
 
   function setStatus(text) {
     statusEl.textContent = text
@@ -42,6 +49,42 @@
     localStorage.setItem("lbhud:pcKey", pcKeyInput.value.trim())
   })
 
+  /**
+   * Letterbox video + canvases to the same CSS box so outline coords match pixels.
+   * Avoids object-fit drift between <video> and <canvas>.
+   */
+  function layoutStage() {
+    const vw = video.videoWidth || 1280
+    const vh = video.videoHeight || 720
+    const sw = stage.clientWidth || window.innerWidth
+    const sh = stage.clientHeight || window.innerHeight
+    const scale = Math.min(sw / vw, sh / vh)
+    const dw = Math.max(1, Math.round(vw * scale))
+    const dh = Math.max(1, Math.round(vh * scale))
+    const left = Math.round((sw - dw) / 2)
+    const top = Math.round((sh - dh) / 2)
+
+    for (const el of [video, frame, overlay]) {
+      el.style.position = "absolute"
+      el.style.left = `${left}px`
+      el.style.top = `${top}px`
+      el.style.width = `${dw}px`
+      el.style.height = `${dh}px`
+      el.style.right = "auto"
+      el.style.bottom = "auto"
+      el.style.objectFit = "fill"
+      el.style.maxWidth = "none"
+      el.style.maxHeight = "none"
+    }
+
+    if (frame.width !== vw || frame.height !== vh) {
+      frame.width = vw
+      frame.height = vh
+      overlay.width = vw
+      overlay.height = vh
+    }
+  }
+
   async function startCamera() {
     setStatus("Requesting camera…")
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -54,19 +97,10 @@
     })
     video.srcObject = stream
     await video.play()
-    resizeCanvases()
+    layoutStage()
     running = true
-    setStatus("Point at a 9-pocket page — grid locks locally")
+    setStatus("Align the binder page — 9 pocket outlines lock locally")
     requestAnimationFrame(tick)
-  }
-
-  function resizeCanvases() {
-    const w = video.videoWidth || 1280
-    const h = video.videoHeight || 720
-    frame.width = w
-    frame.height = h
-    overlay.width = w
-    overlay.height = h
   }
 
   function tick() {
@@ -74,40 +108,55 @@
     requestAnimationFrame(tick)
     if (!video.videoWidth) return
 
-    if (frame.width !== video.videoWidth) resizeCanvases()
-
+    layoutStage()
     frameCtx.drawImage(video, 0, 0, frame.width, frame.height)
     frameCount++
 
     if (!scanning && frameCount % DETECT_EVERY_N === 0) {
-      // Downscale for CV speed
-      const scale = Math.min(1, 480 / frame.width)
-      const dw = Math.max(160, Math.round(frame.width * scale))
-      const dh = Math.max(120, Math.round(frame.height * scale))
-      const tmp = document.createElement("canvas")
-      tmp.width = dw
-      tmp.height = dh
-      const tctx = tmp.getContext("2d", { willReadFrequently: true })
-      tctx.drawImage(frame, 0, 0, dw, dh)
-      const imageData = tctx.getImageData(0, 0, dw, dh)
+      const scale = Math.min(1, DETECT_WIDTH / frame.width)
+      const dw = Math.max(180, Math.round(frame.width * scale))
+      const dh = Math.max(140, Math.round(frame.height * scale))
+      if (detectCanvas.width !== dw || detectCanvas.height !== dh) {
+        detectCanvas.width = dw
+        detectCanvas.height = dh
+      }
+      detectCtx.drawImage(frame, 0, 0, dw, dh)
+      const imageData = detectCtx.getImageData(0, 0, dw, dh)
       const detected = BinderGrid.detectGrid(imageData)
-      cvSource = detected.source
-      cvSourceEl.textContent = detected.source === "opencv" ? "OpenCV.js" : "Canvas CV"
+      lastSource = detected.source
+      lastConfidence = detected.confidence
+      cvSourceEl.textContent = `${detected.source} · ${Math.round(detected.confidence * 100)}%`
 
-      // Map quad back to full-res
       const sx = frame.width / dw
       const sy = frame.height / dh
       const mapped = detected.quad.map((p) => ({ x: p.x * sx, y: p.y * sy }))
       const motion = BinderGrid.quadMotion(lastRawQuad, mapped)
       lastRawQuad = mapped
-      smoothQuad = BinderGrid.smoothQuad(smoothQuad, mapped, motion < MOTION_PX ? 0.25 : 0.55)
+
+      // Hold lock when motion is tiny; otherwise ease toward new estimate
+      const alpha = locked && motion < MOTION_PX ? 0.18 : motion < MOTION_PX * 2 ? 0.35 : 0.6
+      smoothQuad = BinderGrid.smoothQuad(smoothQuad, mapped, alpha)
       slots = BinderGrid.slotsFromQuad(smoothQuad)
-      locked = detected.confidence >= 0.45 && motion < MOTION_PX * 1.5
+
+      locked = detected.confidence >= 0.4 && (motion < MOTION_PX * 1.8 || detected.source !== "fallback")
 
       if (locked && motion < MOTION_PX) {
         if (!stableSince) stableSince = performance.now()
-      } else {
+      } else if (motion > MOTION_PX * 2.5) {
         stableSince = null
+      }
+
+      if (!scanning) {
+        if (locked) {
+          const stableMs = stableSince ? Math.round(performance.now() - stableSince) : 0
+          setStatus(
+            stableMs >= STABLE_MS
+              ? "Grid locked — ready to scan"
+              : `Tracking pockets… ${Math.min(STABLE_MS, stableMs)}ms stable`,
+          )
+        } else {
+          setStatus("Looking for 9-pocket page… keep the binder flat in frame")
+        }
       }
 
       maybeAutoScan()
@@ -142,7 +191,6 @@
     setStatus(reason === "auto" ? "Stable — scanning page…" : "Scanning page…")
 
     try {
-      // High-res still from current frame canvas
       const pockets = []
       for (const slot of slots) {
         const image = BinderGrid.cropSlot(frame, slot, 320, 448)
@@ -152,12 +200,9 @@
       const scan = await BinderApi.scanPockets(pockets)
       const cards = scan.cards || []
       identifiedBySlot = {}
-      for (const c of cards) {
-        identifiedBySlot[c.slot] = c
-      }
+      for (const c of cards) identifiedBySlot[c.slot] = c
       setStatus(`Identified ${cards.length} card(s) — pricing…`)
 
-      // Cache page identity
       const pageCached = BinderCache.getPage(cards)
       if (pageCached?.results?.length) {
         pricedBySlot = {}
@@ -172,11 +217,8 @@
       pricedBySlot = {}
       for (const c of cards) {
         const cached = BinderCache.getPrice(c)
-        if (cached?.prices) {
-          pricedBySlot[c.slot] = { ...c, ...cached }
-        } else {
-          toFetch.push(c)
-        }
+        if (cached?.prices) pricedBySlot[c.slot] = { ...c, ...cached }
+        else toFetch.push(c)
       }
 
       if (toFetch.length) {
@@ -189,7 +231,7 @@
         BinderCache.setPage(cards, { results: Object.values(pricedBySlot) })
       }
 
-      setStatus(`Done — ${Object.keys(pricedBySlot).length} priced · model ${scan.model || "gemini"}`)
+      setStatus(`Done — ${Object.keys(pricedBySlot).length} priced · ${scan.model || "gemini"}`)
     } catch (err) {
       console.error(err)
       setStatus(err instanceof Error ? err.message : "Scan failed")
@@ -207,8 +249,9 @@
     identifiedBySlot = {}
     setStatus("Cache cleared")
   })
+  window.addEventListener("resize", layoutStage)
+  window.addEventListener("orientationchange", () => setTimeout(layoutStage, 250))
 
-  // Optional OpenCV.js — Canvas fallback works immediately
   function loadOpenCv() {
     return new Promise((resolve) => {
       if (window.cv && window.cv.Mat) {
@@ -218,27 +261,43 @@
       const script = document.createElement("script")
       script.src = "https://docs.opencv.org/4.10.0/opencv.js"
       script.async = true
+      let settled = false
+      const done = (ok) => {
+        if (settled) return
+        settled = true
+        resolve(ok)
+      }
       script.onload = () => {
         if (window.cv?.onRuntimeInitialized) {
-          window.cv.onRuntimeInitialized = () => resolve(true)
+          const prev = window.cv.onRuntimeInitialized
+          window.cv.onRuntimeInitialized = () => {
+            try {
+              prev?.()
+            } catch {
+              /* ignore */
+            }
+            done(true)
+          }
         } else {
-          // some builds are sync
-          setTimeout(() => resolve(Boolean(window.cv?.Mat)), 300)
+          setTimeout(() => done(Boolean(window.cv?.Mat)), 400)
         }
       }
-      script.onerror = () => resolve(false)
+      script.onerror = () => done(false)
       document.head.appendChild(script)
-      // Safety timeout — don't block UI
-      setTimeout(() => resolve(Boolean(window.cv?.Mat)), 8000)
+      setTimeout(() => done(Boolean(window.cv?.Mat)), 10000)
     })
   }
 
   void (async () => {
     try {
       await startCamera()
+      // Seed an immediate fallback grid so outlines are visible right away
+      const q = BinderGrid.defaultQuad(frame.width, frame.height)
+      smoothQuad = q
+      slots = BinderGrid.slotsFromQuad(q)
       const ok = await loadOpenCv()
-      cvSourceEl.textContent = ok ? "OpenCV.js ready" : "Canvas CV"
-      if (ok) setStatus("OpenCV.js ready — grid lock is local")
+      cvSourceEl.textContent = ok ? "OpenCV.js + Canvas" : "Canvas CV"
+      if (ok) setStatus("CV ready — align binder to the 9 pocket outlines")
     } catch (err) {
       console.error(err)
       setStatus("Camera permission denied or unavailable")
