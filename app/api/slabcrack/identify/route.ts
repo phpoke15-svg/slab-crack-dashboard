@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { requireCardScannerAccess } from "@/lib/billing/require-pro"
 import { identifyCardFromImage } from "@/lib/slabcrack/identify-card"
 
 export const dynamic = "force-dynamic"
@@ -9,6 +10,11 @@ type Body = {
 }
 
 export async function POST(request: Request) {
+  const access = await requireCardScannerAccess()
+  if (!access.ok) {
+    return NextResponse.json({ ok: false, error: access.error }, { status: access.status })
+  }
+
   let body: Body
   try {
     body = (await request.json()) as Body

@@ -39,12 +39,12 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     tagline: "Graded slab arbitrage",
     blurb: "Find undervalued graded slabs vs raw market prices.",
     description:
-      "SlabCrack compares raw NM prices against PSA slab quotes so you can spot buy-crack-sell opportunities, collection bargains, and graded vs raw gaps. Premium unlocks the full deficit feed; Scan in search opens Crack + Lab pricing from a photo.",
+      "SlabCrack compares raw NM prices against PSA slab quotes so you can spot buy-crack-sell opportunities, collection bargains, and graded vs raw gaps. Starter shows 10 mid-ranked cards; Premium adds the top 100; Pro unlocks the full feed and catalog search.",
     highlights: [
       "Buy, crack, and sell when cracking a slab beats holding it",
       "Hunt high-end cards priced under market for your collection",
       "Track graded vs raw gaps with live comps",
-      "Camera scan in search for instant Crack + Lab prices",
+      "Pro: full deficit feed + search",
     ],
     icon: Layers,
   },
@@ -55,12 +55,12 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     tagline: "Spread · multiplier · ROI",
     blurb: "Rank PSA 10 submission ROI across the top modern cards.",
     description:
-      "SlabLab ranks the top 200 modern Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and net ROI after grading cost so you can pick stronger submission candidates. Scan in search opens the same Crack + Lab view from a photo.",
+      "SlabLab ranks modern Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and net ROI after grading cost. Starter shows 10 mid-ranked cards; Premium adds the top 100; Pro unlocks the full board and search.",
     highlights: [
       "Live market comps for top PSA 10 grading opportunities",
       "Model net ROI with current PSA grading tiers",
       "Flag Prime Submission slots and 10-or-Bust danger zones",
-      "Camera scan in search for instant Crack + Lab ROI",
+      "Pro: full ROI board + search",
     ],
     icon: Ratio,
   },

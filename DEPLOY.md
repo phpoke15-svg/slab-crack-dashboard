@@ -60,12 +60,13 @@ After changing env vars, **Redeploy**.
 ## Billing (Premium / Pro)
 
 1. Run [`supabase/billing-plans.sql`](./supabase/billing-plans.sql) in Supabase.
-2. Create Stripe products/prices:
-   - **Premium** — $4.99/mo + $39.99/yr (full SlabCrack + ad-free)
-   - **Pro** — $9.99/mo + $99.99/yr (everything, including PokeWatch)
-3. Set Vercel env: `STRIPE_SECRET_KEY` (**must** be `sk_live_…` or `sk_test_…` from Stripe → Developers → API keys — not `pk_`, `mk_`, or other keys), `STRIPE_WEBHOOK_SECRET`, and the four `STRIPE_PRICE_*` IDs.
-4. Stripe webhook endpoint: `https://YOUR_HOST/api/billing/webhook` (events: `checkout.session.completed`, `customer.subscription.*`).
-5. Pricing page: `/pricing`
+2. Run [`supabase/hub-tool-order.sql`](./supabase/hub-tool-order.sql) for Pro custom hub layouts.
+3. Create Stripe products/prices:
+   - **Premium** — $4.99/mo + $39.99/yr (top 100 SlabCrack + SlabLab, ad-free)
+   - **Pro** — $9.99/mo + $99.99/yr (full feeds, search, PokeWatch)
+4. Set Vercel env: `STRIPE_SECRET_KEY` (**must** be `sk_live_…` or `sk_test_…` from Stripe → Developers → API keys — not `pk_`, `mk_`, or other keys), `STRIPE_WEBHOOK_SECRET`, and the four `STRIPE_PRICE_*` IDs.
+5. Stripe webhook endpoint: `https://YOUR_HOST/api/billing/webhook` (events: `checkout.session.completed`, `customer.subscription.*`).
+6. Pricing page: `/pricing`
 
 ## 5. Crons + health
 
@@ -133,7 +134,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" "https://YOUR_HOST/api/cron/walmart
 - [ ] `/privacy` and `/terms` load; footer links work
 - [ ] Setup banner absent on `/binder`
 - [ ] `/pricing` loads; Start Premium/Pro trial when Stripe is configured
-- [ ] Live-mode checkout; Premium hides ads; Pro unlocks PokeWatch
+- [ ] Live-mode checkout; Premium hides ads; Pro unlocks PokeWatch and custom hub layout
 - [ ] `/api/health` shows `ok: true` and `launchReady.billing: true`
 - [ ] Phone alerts: VAPID env set (`launchReady.phoneAlerts: true`) and opt-in works on `/pokewatch`
 - [ ] Restocks: Walmart Affiliate env set if you want auto-discovery (`launchReady.restocksWalmart`)

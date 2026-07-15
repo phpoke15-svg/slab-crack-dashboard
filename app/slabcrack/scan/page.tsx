@@ -1,5 +1,9 @@
+import { redirect } from "next/navigation"
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags"
 import { SlabcrackScanClient } from "@/components/slabcrack-scan-client"
+import { getEntitlementsForUser } from "@/lib/billing/stripe"
 import { pageMetadata } from "@/lib/seo"
+import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const metadata = pageMetadata({
   title: "SlabCrack Scan",
@@ -9,7 +13,18 @@ export const metadata = pageMetadata({
   noIndex: true,
 })
 
-export default function SlabcrackScanPage() {
+export default async function SlabcrackScanPage() {
+  if (!CARD_SCANNER_ENABLED) redirect("/slabcrack")
+
+  const auth = await requireUser()
+  if (!auth.ok) {
+    redirect(`/sign-in?next=${encodeURIComponent("/slabcrack/scan")}`)
+  }
+  const entitlements = await getEntitlementsForUser(auth.user.id)
+  if (!entitlements.cardScanner) {
+    redirect("/pricing?feature=scan")
+  }
+
   return (
     <main className="min-h-dvh bg-black">
       <SlabcrackScanClient tool="slabcrack" />

@@ -335,8 +335,8 @@ export function QueueWatchClient() {
                 <strong className="text-foreground">Pro</strong> — $9.99/mo or $99.99/yr, with a
                 7-day free trial.
                 {entitlements.plan === "premium"
-                  ? " You’re on Premium (full SlabCrack, ad-free) — upgrade to Pro to unlock PokeWatch."
-                  : " Premium ($4.99/mo) unlocks full SlabCrack ad-free but does not include PokeWatch."}
+                  ? " You're on Premium (top 100 boards, ad-free) — upgrade to Pro for search and PokeWatch."
+                  : " Premium ($4.99/mo) adds top 100 SlabCrack + SlabLab boards ad-free. Pro unlocks search and PokeWatch."}
               </p>
               {error ? (
                 <p

@@ -33,7 +33,8 @@ import { interleaveFeedAds } from "@/lib/feed-ads"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
-import { FREE_SLABCRACK_LIMIT, pickMidDeficitCards } from "@/lib/slab-free-tier"
+import { FREE_SLAB_FEED_LIMIT, limitSlabFeed } from "@/lib/slab-feed-access"
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags"
 import {
   findWatchedIdForHit,
   isSearchHitWatched,
@@ -202,16 +203,15 @@ export function SlabDashboard() {
     [watchlistStore, feedById],
   )
 
-  const fullSlabCrack = Boolean(entitlements?.fullSlabCrack)
+  const slabFeedAccess = entitlements?.slabFeedAccess ?? "preview"
+  const fullSearch = Boolean(entitlements?.fullSearch)
+  const showCardScanner = CARD_SCANNER_ENABLED && Boolean(entitlements?.cardScanner)
 
   const results = useMemo(() => {
-    // Free tier (and pre-auth default): mid-deficit preview only (not the top chase deals).
     const baseFeed =
       feed === "watchlist"
         ? watchedCards
-        : fullSlabCrack
-          ? arbitrageFeed
-          : pickMidDeficitCards(arbitrageFeed)
+        : limitSlabFeed(arbitrageFeed, slabFeedAccess, (card) => card.deficit)
 
     return baseFeed
       .filter((card) => {
@@ -235,11 +235,12 @@ export function SlabDashboard() {
         if (a.hasPricing !== b.hasPricing) return a.hasPricing ? -1 : 1
         return sortMode === "dollar" ? b.deficit - a.deficit : b.percentageSavings - a.percentageSavings
       })
-  }, [arbitrageFeed, feed, fullSlabCrack, query, sortMode, watchedCards])
+  }, [arbitrageFeed, feed, slabFeedAccess, query, sortMode, watchedCards])
 
-  const showFreePreviewBanner = !fullSlabCrack && !entitlements?.isLoading
-  const freeSearchBlocked =
-    !fullSlabCrack && query.trim().length >= 2 && feed !== "watchlist" && results.length === 0
+  const showFeedLimitBanner =
+    slabFeedAccess !== "full" && feed !== "watchlist" && !entitlements?.isLoading
+  const searchBlocked =
+    !fullSearch && query.trim().length >= 2 && feed !== "watchlist" && results.length === 0
 
   const pricedCount = useMemo(
     () => arbitrageFeed.filter((card) => card.hasPricing !== false).length,
@@ -256,7 +257,7 @@ export function SlabDashboard() {
     [results, entitlements?.adFree],
   )
   const showCatalogSearch =
-    query.trim().length >= 2 && feed !== "watchlist" && fullSlabCrack
+    query.trim().length >= 2 && feed !== "watchlist" && fullSearch
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -278,7 +279,7 @@ export function SlabDashboard() {
             </div>
           </div>
 
-          {/* Search + Scan */}
+          {/* Search */}
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -286,18 +287,21 @@ export function SlabDashboard() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search card, set, or set + card…"
               className={cn(
-                "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
+                "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 text-sm text-foreground placeholder:text-muted-foreground",
+                showCardScanner ? "pr-[4.75rem]" : "pr-3",
                 "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
               )}
             />
-            <Link
-              href="/slabcrack/scan"
-              className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-              aria-label="Scan a card"
-            >
-              <Camera className="size-3.5" aria-hidden />
-              Scan
-            </Link>
+            {showCardScanner ? (
+              <Link
+                href="/slabcrack/scan"
+                className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+                aria-label="Scan a card"
+              >
+                <Camera className="size-3.5" aria-hidden />
+                Scan
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -340,7 +344,7 @@ export function SlabDashboard() {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground">Find undervalued cards.</p>
               <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                Premium unlocks the full feed of deficits.
+                Pro unlocks the full deficit feed and catalog search.
               </p>
             </div>
           </div>
@@ -381,10 +385,16 @@ export function SlabDashboard() {
             <span>
               {results.length} {results.length === 1 ? "card" : "cards"}
               {feed === "watchlist" ? " on watchlist" : " tracked"}
-              {showFreePreviewBanner && (
-                <> · free preview (mid-deficit)</>
+              {showFeedLimitBanner && (
+                <>
+                  {" "}
+                  ·{" "}
+                  {slabFeedAccess === "preview"
+                    ? `free preview (${FREE_SLAB_FEED_LIMIT} mid-deficit)`
+                    : "Premium top 100"}
+                </>
               )}
-              {feed !== "watchlist" && !showFreePreviewBanner && pricedCount > 0 && (
+              {feed !== "watchlist" && slabFeedAccess === "full" && pricedCount > 0 && (
                 <>
                   {" "}
                   · {pricedCount} with live pricing · by{" "}
@@ -434,23 +444,26 @@ export function SlabDashboard() {
           )}
         </div>
 
-        {showFreePreviewBanner && (
+        {showFeedLimitBanner && (
           <div className="mb-4 rounded-2xl border border-primary/40 bg-primary/5 px-4 py-3.5">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/15 text-primary">
                 <Crown className="size-4" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-foreground">Free SlabCrack preview</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {slabFeedAccess === "preview" ? "Starter SlabCrack preview" : "Premium SlabCrack board"}
+                </p>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities). Search
-                  and the full feed need Premium.
+                  {slabFeedAccess === "preview"
+                    ? `Showing ${FREE_SLAB_FEED_LIMIT} mid-deficit cards (not the top opportunities). Search needs Pro.`
+                    : "Showing the top 100 deficit cards. Upgrade to Pro for the full feed and search."}
                 </p>
                 <Link
                   href="/pricing"
                   className="mt-2 inline-flex text-sm font-semibold text-primary hover:underline"
                 >
-                  Upgrade from $4.99/mo
+                  {slabFeedAccess === "preview" ? "Upgrade from $4.99/mo" : "Go Pro for full access"}
                 </Link>
               </div>
             </div>
@@ -466,18 +479,18 @@ export function SlabDashboard() {
             <span className="flex size-14 items-center justify-center rounded-2xl border border-border bg-secondary/40 text-muted-foreground">
               <Search className="size-6" />
             </span>
-            {freeSearchBlocked ? (
+            {searchBlocked ? (
               <>
-                <p className="mt-4 font-medium text-foreground">Search is a Premium feature</p>
+                <p className="mt-4 font-medium text-foreground">Search is a Pro feature</p>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Free shows a fixed 10-card mid-deficit preview. Upgrade to search any card and unlock
-                  the full deficit feed.
+                  Starter and Premium browse a limited SlabCrack board. Pro unlocks catalog search and the
+                  full feed.
                 </p>
                 <Link
                   href="/pricing"
                   className="mt-4 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
                 >
-                  Start Premium trial
+                  Upgrade to Pro
                 </Link>
               </>
             ) : (
