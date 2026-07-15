@@ -1,5 +1,5 @@
 ;(function () {
-  const BUILD = "20260715c"
+  const BUILD = "20260715d"
   const stage = document.getElementById("stage")
   const viewport = document.getElementById("viewport")
   const video = document.getElementById("video")
@@ -8,7 +8,6 @@
   const statusEl = document.getElementById("status")
   const scanBtn = document.getElementById("scanBtn")
   const clearBtn = document.getElementById("clearHud")
-  const pcKeyInput = document.getElementById("pcKey")
   const modelTag = document.getElementById("modelTag")
   const toastEl = document.getElementById("toast")
   const buildTag = document.getElementById("buildTag")
@@ -41,15 +40,6 @@
       toastEl.hidden = true
     }, 5200)
   }
-
-  function pcKey() {
-    return (pcKeyInput.value || localStorage.getItem("lbhud:pcKey") || "").trim()
-  }
-
-  pcKeyInput.value = localStorage.getItem("lbhud:pcKey") || ""
-  pcKeyInput.addEventListener("change", () => {
-    localStorage.setItem("lbhud:pcKey", pcKeyInput.value.trim())
-  })
 
   function layoutViewport() {
     const vw = video.videoWidth || 1280

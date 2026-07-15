@@ -23,13 +23,21 @@ export type BinderHudImageInput = {
   image?: string
 }
 
-/** Keep the cascade tiny — Vercel will 504 if we fan out across many models/schemas. */
+/**
+ * Keep the cascade tiny — Vercel will 504 if we fan out across many models/schemas.
+ * Prefer current Flash IDs first: many keys 404 gemini-2.5-flash ("update to newest").
+ */
 export function binderHudGeminiModels(): string[] {
   const preferred = (process.env.GEMINI_VISION_MODEL || "").trim()
-  const defaults = ["gemini-2.5-flash", "gemini-3.5-flash"]
-  return [preferred, ...defaults].filter(
-    (m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i,
-  )
+  const isStale25 = /gemini-2\.5-flash/i.test(preferred)
+  const defaults = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"]
+  return [
+    // Ignore a stale GEMINI_VISION_MODEL=gemini-2.5-flash so it cannot block scans.
+    !isStale25 ? preferred : "",
+    ...defaults,
+    // Last resort only
+    "gemini-2.5-flash",
+  ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i)
 }
 
 function resolveInlineImage(input: BinderHudImageInput | string): {
