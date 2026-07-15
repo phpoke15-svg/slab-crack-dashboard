@@ -77,7 +77,7 @@ export function CollecToolsHub() {
         </p>
       ) : null}
 
-      <div className="grid gap-2">
+      <div className="grid grid-cols-2 gap-2">
         {tools.map((tool) => {
           const Icon = tool.icon
           return (
@@ -86,28 +86,32 @@ export function CollecToolsHub() {
               type="button"
               onClick={() => setSelected(tool)}
               className={cn(
-                "group flex w-full items-center gap-3 rounded-xl border border-border bg-card/60 px-3 py-2.5 text-left transition-colors",
+                "group flex w-full flex-col items-start gap-2 rounded-xl border border-border bg-card/60 p-3 text-left transition-colors",
                 "hover:border-primary/40 hover:bg-card",
                 tool.supremeOnly && "border-primary/25 bg-primary/[0.03]",
               )}
             >
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                <Icon className="size-4" strokeWidth={2} />
+              <span className="flex w-full items-center justify-between gap-2">
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                  <Icon className="size-4" strokeWidth={2} />
+                </span>
+                <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
               </span>
-              <span className="min-w-0 flex-1">
+              <span className="min-w-0 w-full">
                 <span className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-sm font-semibold text-foreground">{tool.name}</span>
+                  <span className="text-base font-bold leading-tight text-foreground sm:text-lg">
+                    {tool.name}
+                  </span>
                   {tool.supremeOnly ? (
                     <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
                       Supreme
                     </span>
                   ) : null}
                 </span>
-                <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                <span className="mt-1 block text-xs leading-snug text-muted-foreground line-clamp-2">
                   {tool.blurb}
                 </span>
               </span>
-              <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
             </button>
           )
         })}
