@@ -13,6 +13,7 @@ export default function robots(): MetadataRoute.Robots {
     "/buyout-radar",
     "/live-binder-hud",
     "/slabcrack/scan",
+    "/slablab/scan",
     "/pokewatch/mobile",
     "/queue-watch/mobile",
   ]

@@ -6,6 +6,8 @@ import { AppProviders } from '@/components/app-providers'
 import { JsonLd } from '@/components/seo/json-ld'
 import { getSiteUrl } from '@/lib/site-url'
 import {
+  appleItunesAppMetaContent,
+  mobileApplicationJsonLd,
   organizationJsonLd,
   SEO_DEFAULT_DESCRIPTION,
   SEO_DEFAULT_TITLE,
@@ -69,6 +71,9 @@ export const metadata: Metadata = {
   },
   other: {
     'google-adsense-account': 'ca-pub-8023063687308230',
+    ...(appleItunesAppMetaContent()
+      ? { 'apple-itunes-app': appleItunesAppMetaContent()! }
+      : {}),
   },
   ...(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
     ? {
@@ -93,7 +98,7 @@ export default function RootLayout({
     <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <head>
         <AdSenseScript />
-        <JsonLd data={[organizationJsonLd(), websiteJsonLd()]} />
+        <JsonLd data={[organizationJsonLd(), websiteJsonLd(), mobileApplicationJsonLd()]} />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
         <AppProviders>{children}</AppProviders>

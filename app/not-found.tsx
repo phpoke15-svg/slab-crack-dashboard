@@ -1,5 +1,14 @@
+import type { Metadata } from "next"
 import Link from "next/link"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { pageMetadata } from "@/lib/seo"
+
+export const metadata: Metadata = pageMetadata({
+  title: "Page not found",
+  description: "This CollecTools page does not exist.",
+  path: "/404",
+  noIndex: true,
+})
 
 export default function NotFound() {
   return (

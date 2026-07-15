@@ -1,7 +1,7 @@
 import { TradeBinderClient } from "@/components/trade-binder-client"
 import { JsonLd } from "@/components/seo/json-ld"
 import { ToolSeoFooter, ToolSeoIntro } from "@/components/seo/tool-seo-intro"
-import { pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
+import { breadcrumbJsonLd, pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
 
 const description =
   "PokeMatch helps Pokémon TCG collectors build binders, find trade matches, and complete swaps with chat and reviews."
@@ -16,12 +16,18 @@ export default function BinderPage() {
   return (
     <main className="min-h-dvh bg-background">
       <JsonLd
-        data={softwareApplicationJsonLd({
-          name: "PokeMatch",
-          description,
-          path: "/binder",
-          applicationCategory: "SocialNetworkingApplication",
-        })}
+        data={[
+          softwareApplicationJsonLd({
+            name: "PokeMatch",
+            description,
+            path: "/binder",
+            applicationCategory: "SocialNetworkingApplication",
+          }),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "PokeMatch", path: "/binder" },
+          ]),
+        ]}
       />
       <ToolSeoIntro
         title="PokeMatch"

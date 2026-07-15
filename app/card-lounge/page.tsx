@@ -13,6 +13,7 @@ export const metadata = pageMetadata({
   description:
     "Collector social feed for Pokémon TCG — short posts, photos, videos, follows, likes, and replies.",
   path: "/card-lounge",
+  noIndex: true,
 })
 
 /** CardLounge — Twitter-like social feed for every signed-in collector. */

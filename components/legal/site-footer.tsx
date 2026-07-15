@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { AppStoreBadges } from "@/components/seo/app-store-badges"
 import { LEGAL_CONTACT_EMAIL, LEGAL_SITE_NAME } from "@/lib/legal/config"
 import { RESTOCKS_ENABLED } from "@/lib/collectools-tools"
 
@@ -11,9 +12,10 @@ const PRODUCT_LINKS = [
   { href: "/slabcrack", label: "SlabCrack" },
   { href: "/slablab", label: "SlabLab" },
   { href: "/binder", label: "PokeMatch" },
-  { href: "/queue-watch", label: "Queue Watch" },
+  { href: "/pokewatch", label: "PokeWatch" },
   ...(RESTOCKS_ENABLED ? [{ href: "/restocks", label: "Restocks" }] : []),
   { href: "/pricing", label: "Pricing" },
+  { href: "/feedback", label: "Feedback" },
 ] as const
 
 export function SiteFooter({ className }: SiteFooterProps) {
@@ -30,6 +32,12 @@ export function SiteFooter({ className }: SiteFooterProps) {
           </Link>
         ))}
       </nav>
+      <div className="mt-4">
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          Mobile app
+        </p>
+        <AppStoreBadges compact />
+      </div>
       <nav
         aria-label="Legal"
         className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1"

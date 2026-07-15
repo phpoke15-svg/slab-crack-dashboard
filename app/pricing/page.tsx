@@ -1,12 +1,18 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { PricingClient } from "@/components/pricing-client"
+import { AppStoreBadges } from "@/components/seo/app-store-badges"
 import { JsonLd } from "@/components/seo/json-ld"
-import { pageMetadata, SEO_SITE_NAME } from "@/lib/seo"
-import { getSiteUrl } from "@/lib/site-url"
+import { PRICING_FAQ } from "@/lib/seo-faq"
+import {
+  breadcrumbJsonLd,
+  faqPageJsonLd,
+  pageMetadata,
+  pricingOfferCatalogJsonLd,
+} from "@/lib/seo"
 
 const description =
-  "CollecTools pricing: Premium from $4.99/mo for full SlabCrack and ad-free browsing, Pro from $9.99/mo for Pokemon Center Queue Watch. 7-day free trial."
+  "CollecTools pricing: Premium from $4.99/mo for full SlabCrack and ad-free browsing, Pro from $9.99/mo for Pokemon Center PokeWatch alerts. 7-day free trial."
 
 export const metadata: Metadata = pageMetadata({
   title: "Pricing",
@@ -15,7 +21,6 @@ export const metadata: Metadata = pageMetadata({
 })
 
 export default function PricingPage() {
-  const base = getSiteUrl().replace(/\/$/, "")
   return (
     <Suspense
       fallback={
@@ -25,30 +30,24 @@ export default function PricingPage() {
       }
     >
       <JsonLd
-        data={{
-          "@context": "https://schema.org",
-          "@type": "OfferCatalog",
-          name: `${SEO_SITE_NAME} plans`,
-          url: `${base}/pricing`,
-          description,
-          itemListElement: [
-            {
-              "@type": "Offer",
-              name: "Premium",
-              price: "4.99",
-              priceCurrency: "USD",
-              description: "Full SlabCrack feed and ad-free browsing",
-            },
-            {
-              "@type": "Offer",
-              name: "Pro",
-              price: "9.99",
-              priceCurrency: "USD",
-              description: "Premium plus Pokemon Center Queue Watch",
-            },
-          ],
-        }}
+        data={[
+          pricingOfferCatalogJsonLd(description),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "Pricing", path: "/pricing" },
+          ]),
+          faqPageJsonLd([...PRICING_FAQ]),
+        ]}
       />
+      <section className="border-b border-border bg-card/30 px-4 py-5 sm:px-6">
+        <div className="mx-auto max-w-3xl">
+          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p>
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium text-foreground">Also on mobile</p>
+            <AppStoreBadges />
+          </div>
+        </div>
+      </section>
       <PricingClient />
     </Suspense>
   )
