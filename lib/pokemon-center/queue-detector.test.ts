@@ -22,6 +22,31 @@ describe("detectQueueFromContent", () => {
     expect(result.confidence).toBeGreaterThanOrEqual(60)
   })
 
+  it("detects client-side queue on pokemoncenter.com URL (no redirect)", () => {
+    const result = detectQueueFromContent({
+      html: '<html><body><script src="https://assets.queue-it.net/static/queueconfig.js"></script></body></html>',
+      url: "https://www.pokemoncenter.com/",
+    })
+    expect(result.live).toBe(true)
+    expect(result.confidence).toBeGreaterThanOrEqual(90)
+  })
+
+  it("does not treat bare incident_id as blocked when queue signals are present", () => {
+    const result = detectQueueFromContent({
+      html: '<html>incident_id=abc<script src="https://queue-it.net/q.js"></script><p>Hi, Trainer</p></html>',
+      url: "https://www.pokemoncenter.com/",
+    })
+    expect(result.live).toBe(true)
+  })
+
+  it("detects Queue-it cookies in page content", () => {
+    const result = detectQueueFromContent({
+      html: "document.cookie QueueITAccepted=1",
+      url: "https://www.pokemoncenter.com/",
+    })
+    expect(result.live).toBe(true)
+  })
+
   it("respects explicit blocked flag from datacenter fetch", () => {
     const result = detectQueueFromContent({
       html: "<html>normal storefront</html>",

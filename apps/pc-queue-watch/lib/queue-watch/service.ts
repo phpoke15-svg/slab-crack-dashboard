@@ -9,7 +9,7 @@ export const QUEUE_WATCH_TASK = "collectools-queue-watch-background"
 export const POLL_MS = 45_000
 export const POLL_MS_BLOCKED = 120_000
 /** If WebView heartbeats stop, fall back to headless fetch after this. */
-export const WEBVIEW_STALE_MS = 45_000
+export const WEBVIEW_STALE_MS = 20_000
 
 export type QueueCheckState = {
   live: boolean
