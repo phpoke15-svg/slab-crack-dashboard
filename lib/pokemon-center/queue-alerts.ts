@@ -263,7 +263,7 @@ async function maybeSendQueueLiveWebPush(report: QueueWatchReport): Promise<bool
 
   const result = await sendWebPushToTopic("queue_live", {
     title: "🚨 Pokémon Center Queue is LIVE!",
-    body: "Tap to open Safari and click your bookmarklet to monitor your place in line.",
+    body: "Tap to open your browser and tap your Queue Watcher bookmark on pokemoncenter.com.",
     url: `${site}/pokewatch`,
     tag: "pc-queue-live",
   })

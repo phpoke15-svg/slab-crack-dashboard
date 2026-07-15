@@ -11,7 +11,7 @@ export function QueueWatchMobileClient() {
         <CollecToolsBrand href="/" size="lg" subtitle="PokeWatch · Mobile APK" />
         <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
           PokeWatch is built into the CollecTools Android app. Install the Queue Watcher bookmarklet in
-          Safari or Chrome — the app never loads Pokemon Center directly. You get push alerts when the
+          your mobile browser — the app never loads Pokemon Center directly. You get push alerts when the
           queue goes live, then tap your bookmark on pokemoncenter.com to monitor your place in line.
         </p>
       </header>
@@ -41,7 +41,7 @@ export function QueueWatchMobileClient() {
                 then tap <strong className="text-foreground">Copy Widget Code</strong>
               </li>
               <li>
-                Follow the 3-step guide to paste the bookmarklet into Safari or Chrome. Enable phone
+                Follow the 3-step guide to paste the bookmarklet into your mobile browser. Enable phone
                 alerts on <strong className="text-foreground">/pokewatch</strong>
               </li>
             </ol>
@@ -57,21 +57,20 @@ export function QueueWatchMobileClient() {
         <h2 className="text-base font-semibold text-foreground">What you get</h2>
         <ul className="mt-3 list-disc space-y-2 pl-5">
           <li>
-            <strong className="text-foreground">Imperva-safe WebView monitor</strong> — detect Queue-it after
-            you pass the bot check in-app
+            <strong className="text-foreground">Install Queue Watcher</strong> — copy bookmarklet code,
+            no Pokemon Center loaded in-app
           </li>
           <li>
-            <strong className="text-foreground">Built-in push</strong> — local notification when the queue
-            flips live
+            <strong className="text-foreground">Push alerts</strong> — server canary + web push when queue
+            goes live
           </li>
           <li>
-            <strong className="text-foreground">CollecTools tab</strong> — SlabCrack and PokeMatch
-            inside the app
+            <strong className="text-foreground">Live log</strong> — status dashboard in the app
           </li>
         </ul>
         <p className="mt-3 text-xs">
-          Requires CollecTools Pro for the web PokeWatch page; the native APK monitor runs on-device.
-          Keep the Queue tab open for best results — background headless checks are a weak fallback.
+          Requires CollecTools Pro. On drop day, open your browser, go to pokemoncenter.com, and tap your
+          PC Queue bookmark after you get the push.
         </p>
         <Link
           href="/pokewatch"

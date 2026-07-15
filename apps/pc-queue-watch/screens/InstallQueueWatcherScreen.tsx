@@ -41,8 +41,8 @@ const STEPS = [
     title: "Create a bookmark",
     body:
       Platform.OS === "ios"
-        ? "In Safari, tap Share → Add Bookmark. Name it “PC Queue”."
-        : "In Chrome, open Bookmarks → add a new bookmark named “PC Queue”.",
+        ? "In your browser, tap Share → Add Bookmark. Name it “PC Queue”."
+        : "In Chrome or your default browser, open Bookmarks → add a new bookmark named “PC Queue”.",
   },
   {
     title: "Paste & run on drops",
@@ -148,7 +148,7 @@ export default function InstallQueueWatcherScreen() {
         <Text style={styles.kicker}>Low-risk · Bookmarklet · Push alerts</Text>
         <Text style={styles.title}>Install Queue Watcher</Text>
         <Text style={styles.subtitle}>
-          This app never loads Pokemon Center directly. Install the watcher in Safari or Chrome,
+          This app never loads Pokemon Center directly. Install the watcher in your mobile browser,
           then get push alerts when the queue goes live.
         </Text>
 
@@ -214,8 +214,8 @@ export default function InstallQueueWatcherScreen() {
         )}
 
         <Text style={styles.footer}>
-          On drop day: when you get a push, open Safari, go to pokemoncenter.com, and tap your PC
-          Queue bookmark to monitor your place in line.
+          On drop day: when you get a push, open your browser, go to pokemoncenter.com, and tap your
+          PC Queue bookmark to monitor your place in line.
         </Text>
       </ScrollView>
     </SafeAreaView>
