@@ -62,7 +62,7 @@ export function CollecToolsHub() {
 
       {showUpgrade ? (
         <p className="mb-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
-          Go Premium from $4.99/mo for full SlabCrack, ad-free.{" "}
+          Go Premium from $4.99/mo for top 100 SlabCrack + SlabLab boards, ad-free.{" "}
           <Link href="/pricing" className="font-medium text-primary hover:underline">
             View plans
           </Link>
@@ -70,7 +70,7 @@ export function CollecToolsHub() {
       ) : null}
       {showProNudge ? (
         <p className="mb-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
-          You&apos;re on Premium. Unlock Pokemon Center PokeWatch with Pro.{" "}
+          You&apos;re on Premium. Go Pro for the full feeds, camera scanner, search, and PokeWatch.{" "}
           <Link href="/pricing" className="font-medium text-primary hover:underline">
             Upgrade
           </Link>
@@ -123,7 +123,7 @@ export function CollecToolsHub() {
           Premium & Pro plans
         </Link>
         {" · "}
-        ad-free full SlabCrack from $4.99/mo · PokeWatch with Pro
+        ad-free top 100 boards from $4.99/mo · full access + PokeWatch with Pro
       </p>
       <SiteFooter className="mt-auto pt-10" />
 

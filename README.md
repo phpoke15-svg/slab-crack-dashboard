@@ -30,7 +30,7 @@ npm run dev
 ## Billing
 
 - Pricing page: `/pricing`
-- Plans: Free (10 mid-deficit SlabCrack cards + ads) · Premium $4.99/mo (full SlabCrack, ad-free) · Pro $9.99/mo (everything)
+- Plans: Free (10 mid-ranked SlabCrack + SlabLab cards + ads) · Premium $4.99/mo (top 100 boards, ad-free) · Pro $9.99/mo (full feeds, scanner, search, PokeWatch)
 - Setup: [DEPLOY.md](./DEPLOY.md) § Billing
 
 ## Scripts

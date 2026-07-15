@@ -203,6 +203,10 @@ export function PricingClient() {
               Current plan:{" "}
               <span className="font-semibold capitalize">{entitlements.plan}</span>
               {entitlements.adFree ? " · Ad-free" : ""}
+              {entitlements.slabFeedAccess === "top100" ? " · Top 100 boards" : ""}
+              {entitlements.slabFeedAccess === "full" ? " · Full boards" : ""}
+              {entitlements.cardScanner ? " · Scanner" : ""}
+              {entitlements.fullSearch ? " · Search" : ""}
               {entitlements.queueWatch ? " · PokeWatch" : ""}
               {entitlements.cancelAtPeriodEnd && renewalLabel
                 ? ` · Cancels ${renewalLabel}`
@@ -252,7 +256,7 @@ export function PricingClient() {
           <PlanSpotlight
             badge="PREMIUM"
             name="CollecTools Premium"
-            tagline="Full SlabCrack feed, ad-free."
+            tagline="Top 100 SlabCrack + SlabLab, ad-free."
             features={premium.features.filter((f) => !f.toLowerCase().includes("free trial"))}
             monthly={premium.monthlyPrice}
             yearly={premium.yearlyPrice}

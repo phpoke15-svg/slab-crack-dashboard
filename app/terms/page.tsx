@@ -135,17 +135,18 @@ export default function TermsPage() {
         </p>
         <ul>
           <li>
-            <strong className="text-foreground">Premium</strong> — full SlabCrack deficit feed and
-            ad-free access to {LEGAL_PRODUCT_NAME} tools ($4.99/mo or $39.99/yr).
+            <strong className="text-foreground">Premium</strong> — top 100 SlabCrack + SlabLab
+            boards and ad-free access to {LEGAL_PRODUCT_NAME} tools ($4.99/mo or $39.99/yr).
           </li>
           <li>
-            <strong className="text-foreground">Pro</strong> — everything in Premium, plus Pokemon
-            Center Queue Watch and related Pro features ($9.99/mo or $99.99/yr).
+            <strong className="text-foreground">Pro</strong> — everything in Premium, plus full
+            SlabCrack + SlabLab feeds, camera scanner, catalog search, and Pokemon Center Queue
+            Watch ($9.99/mo or $99.99/yr).
           </li>
         </ul>
         <p>
-          The free tier includes a limited SlabCrack preview (a sample of mid-deficit cards) and
-          other tools with ads, as described on the pricing page.
+          The free tier includes 10 mid-ranked SlabCrack + SlabLab cards, full CardLounge,
+          PokeMatch, and Feedback, with ads, as described on the pricing page.
         </p>
         <p>
           Fees are charged in advance on a recurring monthly or yearly basis until you cancel.

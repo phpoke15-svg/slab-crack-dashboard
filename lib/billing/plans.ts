@@ -18,6 +18,8 @@ export function planDisplayName(plan: PlanId): string {
 
 export type BillingInterval = "month" | "year"
 
+export type SlabFeedAccess = "preview" | "top100" | "full"
+
 export type PlanTier = {
   id: Exclude<PlanId, "free" | "supreme">
   name: string
@@ -27,38 +29,46 @@ export type PlanTier = {
   features: string[]
   includesQueueWatch: boolean
   adFree: boolean
-  fullSlabCrack: boolean
+  slabFeedAccess: SlabFeedAccess
+  cardScanner: boolean
+  fullSearch: boolean
 }
 
 export const PLAN_TIERS: PlanTier[] = [
   {
     id: "premium",
     name: "Premium",
-    tagline: "Full SlabCrack, ad-free",
+    tagline: "Top 100 SlabCrack + SlabLab, ad-free",
     monthlyPrice: 4.99,
     yearlyPrice: 39.99,
     adFree: true,
-    fullSlabCrack: true,
+    slabFeedAccess: "top100",
+    cardScanner: false,
+    fullSearch: false,
     includesQueueWatch: false,
     features: [
       "7-day free trial",
-      "Full SlabCrack deficit feed (all graded opportunities)",
+      "Top 100 SlabCrack deficit cards + Top 100 SlabLab ROI board",
       "Ad-free SlabCrack and PokeMatch",
+      "Full CardLounge, PokeMatch, and Feedback",
       "Cancel anytime",
     ],
   },
   {
     id: "pro",
     name: "Pro",
-    tagline: "Everything CollecTools offers",
+    tagline: "All six tools, scanner + search",
     monthlyPrice: 9.99,
     yearlyPrice: 99.99,
     adFree: true,
-    fullSlabCrack: true,
+    slabFeedAccess: "full",
+    cardScanner: true,
+    fullSearch: true,
     includesQueueWatch: true,
     features: [
       "7-day free trial",
       "Everything in Premium",
+      "Full SlabCrack + SlabLab feeds, search, and camera scanner",
       "Pokemon Center PokeWatch (web + phone alerts)",
       "Cancel anytime",
     ],
@@ -66,10 +76,11 @@ export const PLAN_TIERS: PlanTier[] = [
 ]
 
 export const FREE_PLAN_FEATURES = [
-  "SlabCrack preview: 10 mid-deficit cards",
-  "CardLounge collector social feed",
-  "PokeMatch with ads",
-  "Upgrade anytime for the full feed",
+  "SlabCrack + SlabLab: 10 mid-ranked cards each (no scanner)",
+  "Full CardLounge collector social feed",
+  "Full PokeMatch trading",
+  "Full Feedback voting + submissions",
+  "Upgrade for top 100 boards, ad-free, or Pro for scanner + PokeWatch",
 ] as const
 
 export type PriceKey = "premium_month" | "premium_year" | "pro_month" | "pro_year"
@@ -117,8 +128,12 @@ export type Entitlements = {
   plan: PlanId
   adFree: boolean
   queueWatch: boolean
-  /** Full SlabCrack feed; free users get a mid-deficit preview only. */
-  fullSlabCrack: boolean
+  /** SlabCrack + SlabLab feed depth. */
+  slabFeedAccess: SlabFeedAccess
+  /** Camera identify (/slabcrack/scan, /slablab/scan). */
+  cardScanner: boolean
+  /** Catalog search + SlabLab board filter. */
+  fullSearch: boolean
   /** In-development tools + site metrics console (Supreme only). */
   supreme: boolean
   status: string | null
@@ -145,13 +160,14 @@ export function isSupremeEmail(email: string | null | undefined): boolean {
 
 export function entitlementsForPlan(plan: PlanId, extras?: Partial<Entitlements>): Entitlements {
   const tier = PLAN_TIERS.find((t) => t.id === plan)
-  const paid = plan === "premium" || plan === "pro" || plan === "supreme"
   const supreme = plan === "supreme"
   return {
     plan,
     adFree: supreme || Boolean(tier?.adFree),
     queueWatch: supreme || Boolean(tier?.includesQueueWatch),
-    fullSlabCrack: paid || Boolean(tier?.fullSlabCrack),
+    slabFeedAccess: supreme ? "full" : tier?.slabFeedAccess ?? "preview",
+    cardScanner: supreme || Boolean(tier?.cardScanner),
+    fullSearch: supreme || Boolean(tier?.fullSearch),
     supreme,
     status: extras?.status ?? (plan === "free" ? null : "active"),
     currentPeriodEnd: extras?.currentPeriodEnd ?? null,

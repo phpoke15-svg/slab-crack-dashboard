@@ -13,6 +13,13 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
+import {
+  FREE_SLAB_FEED_LIMIT,
+  PREMIUM_SLAB_FEED_LIMIT,
+  limitSlabFeed,
+  type SlabFeedAccess,
+} from "@/lib/slab-feed-access"
 import { CardImage } from "@/components/trade-binder/binder/card-image"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 import {
@@ -95,6 +102,11 @@ function cardEbayUrl(row: Pick<ScannerCard, "id" | "name" | "cardNumber">): stri
 }
 
 export function Psa10SpreadScanner() {
+  const entitlements = useOptionalEntitlements()
+  const slabFeedAccess: SlabFeedAccess = entitlements?.slabFeedAccess ?? "preview"
+  const fullSearch = Boolean(entitlements?.fullSearch)
+  const cardScanner = Boolean(entitlements?.cardScanner)
+
   const [cards, setCards] = useState<ScannerCard[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -134,21 +146,27 @@ export function Psa10SpreadScanner() {
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
-    const filtered = q
-      ? cards.filter((c) => {
-          const haystack = `${c.name} ${c.set} ${c.cardNumber}`.toLowerCase()
-          return haystack.includes(q)
-        })
-      : cards
-    const computed = filtered.map((c) => computeRow(c, gradingCost))
+    const computed = cards.map((c) => computeRow(c, gradingCost))
 
-    computed.sort((a, b) => {
-      if (sortMode === "spread") return b.grossSpread - a.grossSpread
-      if (sortMode === "multiplier") return b.gradedMultiplier - a.gradedMultiplier
-      return b.trueRoiScore - a.trueRoiScore
-    })
-    return computed.slice(0, TOP_CARDS_LIMIT)
-  }, [cards, gradingCost, query, sortMode])
+    const scoreFor = (row: ComputedRow) => {
+      if (sortMode === "spread") return row.grossSpread
+      if (sortMode === "multiplier") return row.gradedMultiplier
+      return row.trueRoiScore
+    }
+
+    computed.sort((a, b) => scoreFor(b) - scoreFor(a))
+
+    const limited = limitSlabFeed(computed, slabFeedAccess, scoreFor)
+    const filtered =
+      fullSearch && q
+        ? limited.filter((c) => {
+            const haystack = `${c.name} ${c.set} ${c.cardNumber}`.toLowerCase()
+            return haystack.includes(q)
+          })
+        : limited
+
+    return filtered.slice(0, TOP_CARDS_LIMIT)
+  }, [cards, gradingCost, query, sortMode, slabFeedAccess, fullSearch])
 
   const selected = rows.find((r) => r.id === selectedId) ?? null
 
@@ -167,19 +185,25 @@ export function Psa10SpreadScanner() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter board by card, set, or number…"
+            placeholder={
+              fullSearch
+                ? "Filter board by card, set, or number…"
+                : "Search unlocks with Pro"
+            }
+            disabled={!fullSearch}
             className={cn(
               "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
               "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
+              !fullSearch && "cursor-not-allowed opacity-60",
             )}
           />
           <Link
-            href="/slablab/scan"
+            href={cardScanner ? "/slablab/scan" : "/pricing"}
             className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-            aria-label="Scan a card"
+            aria-label={cardScanner ? "Scan a card" : "Upgrade to Pro for card scanner"}
           >
             <Camera className="size-3.5" aria-hidden />
-            Scan
+            {cardScanner ? "Scan" : "Pro Scan"}
           </Link>
         </div>
 
@@ -260,7 +284,11 @@ export function Psa10SpreadScanner() {
           ? "Loading top grading opportunities…"
           : error
             ? error
-            : `Top ${rows.length} of ${TOP_CARDS_LIMIT} · tap a card for full breakdown`}
+            : slabFeedAccess === "full"
+              ? `Top ${rows.length} of ${TOP_CARDS_LIMIT} · tap a card for full breakdown`
+              : slabFeedAccess === "top100"
+                ? `Premium top ${PREMIUM_SLAB_FEED_LIMIT} · ${rows.length} shown · Pro unlocks full board + search`
+                : `Starter preview (${FREE_SLAB_FEED_LIMIT} mid-ranked) · Pro unlocks top 100+ and scanner`}
       </p>
 
       {/* Simplified feed */}
