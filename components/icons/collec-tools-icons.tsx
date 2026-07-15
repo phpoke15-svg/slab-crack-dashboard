@@ -12,13 +12,19 @@ export const SlabCrackIcon = createLucideIcon("SlabCrack", [
   ["path", { d: "M17.5 18.5 19 20.5 17 21.5 15.5 20z", key: "chip" }],
 ])
 
-/** SlabLab — science beaker for grading ROI experiments. */
+/** SlabLab — Erlenmeyer flask: tall neck, flared rim, rounded base, liquid + bubbles. */
 export const SlabLabIcon = createLucideIcon("SlabLab", [
-  ["path", { d: "M8 4h8", key: "rim" }],
-  ["path", { d: "M8.5 5 9.5 18.5h5L15.5 5", key: "glass" }],
-  ["path", { d: "M9.5 18.5h5", key: "base" }],
-  ["path", { d: "M9 13h6", key: "liquid" }],
-  ["path", { d: "M9.5 9.5h5M10 7.5h4", key: "marks" }],
+  ["path", { d: "M8.5 4.2Q12 3.2 15.5 4.2", key: "rim" }],
+  ["path", { d: "M10.5 4.2V10", key: "neck-l" }],
+  ["path", { d: "M13.5 4.2V10", key: "neck-r" }],
+  ["path", { d: "M10.5 10 7.4 18.6", key: "cone-l" }],
+  ["path", { d: "M13.5 10 16.6 18.6", key: "cone-r" }],
+  ["path", { d: "M7.4 18.6Q12 20.8 16.6 18.6", key: "base" }],
+  ["path", { d: "M9.1 13.7H14.9", key: "liquid" }],
+  ["circle", { cx: "10.6", cy: "15.1", r: "0.45", key: "b1" }],
+  ["circle", { cx: "12.1", cy: "16.4", r: "0.35", key: "b2" }],
+  ["circle", { cx: "13.7", cy: "15", r: "0.4", key: "b3" }],
+  ["circle", { cx: "11.4", cy: "17.1", r: "0.28", key: "b4" }],
 ])
 
 /** Two curved arrows — trade / match exchange. */
