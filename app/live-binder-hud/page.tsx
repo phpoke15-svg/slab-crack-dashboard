@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 export const metadata = {
   title: "Live Binder HUD",
   description:
-    "Supreme preview: camera binder scan with Gemini Vision card ID and PriceCharting comps.",
+    "Supreme preview: local CV grid lock, on-demand Gemini 3.5 Flash page scan, PriceCharting comps.",
   robots: { index: false, follow: false },
 }
 
