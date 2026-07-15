@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Sparkles, ExternalLink } from "lucide-react"
+import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
 import { cn } from "@/lib/utils"
 import {
   getBestGradeQuote,
@@ -19,9 +20,11 @@ interface SlabRowProps {
   card: MockCardEntry
   onClick: () => void
   watched: boolean
+  saved?: boolean
+  onToggleSave?: () => void
 }
 
-export function SlabRow({ card, onClick, watched }: SlabRowProps) {
+export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }: SlabRowProps) {
   const priced = card.hasPricing !== false
   const gradeQuotes = getGradeQuotes(card).filter((q) => q.grade !== 10)
   const best = getBestGradeQuote(gradeQuotes)
@@ -79,6 +82,9 @@ export function SlabRow({ card, onClick, watched }: SlabRowProps) {
             </div>
 
             <div className="flex shrink-0 flex-col items-end gap-1.5">
+              {onToggleSave ? (
+                <SaveForLaterButton saved={saved} onToggle={onToggleSave} compact />
+              ) : null}
               {priced && activeQuote?.isArbitrage ? (
                 <div className="flex flex-col items-end gap-0.5">
                   <span className="text-[10px] font-medium text-muted-foreground">PSA {activeGrade}</span>
