@@ -25,12 +25,15 @@ import { PriceHistoryChart } from "@/components/price-history-chart"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
+import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
 
 interface SlabDrawerProps {
   selectedCard: MockCardEntry | null
   watched: boolean
+  saved?: boolean
   onClose: () => void
   onToggleWatch: (card: MockCardEntry) => void
+  onToggleSave?: (card: MockCardEntry) => void
   /**
    * Which tool metrics to emphasize.
    * `both` shows SlabCrack arbitrage + SlabLab PSA 10 ROI together (Scan default).
@@ -47,8 +50,10 @@ type CardSalesResponse = {
 export function SlabDrawer({
   selectedCard,
   watched,
+  saved = false,
   onClose,
   onToggleWatch,
+  onToggleSave,
   focus = "slabcrack",
 }: SlabDrawerProps) {
   const [salesGrade, setSalesGrade] = useState<PsaGradeNumber>(9)
@@ -359,12 +364,12 @@ export function SlabDrawer({
             <p className="text-sm leading-relaxed text-muted-foreground">{selectedCard.marketInsight}</p>
           </div>
 
-          <div className="mt-4 flex flex-col gap-2.5">
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
             <button
               type="button"
               onClick={() => onToggleWatch(selectedCard)}
               className={cn(
-                "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 font-medium transition-colors",
+                "flex flex-1 items-center justify-center gap-2 rounded-xl border px-4 py-3 font-medium transition-colors",
                 watched
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-border bg-secondary text-foreground hover:border-primary/40",
@@ -373,6 +378,13 @@ export function SlabDrawer({
               <Star className={cn("size-4", watched && "fill-primary")} />
               {watched ? "Watching" : "Add to Watchlist"}
             </button>
+            {onToggleSave ? (
+              <SaveForLaterButton
+                saved={saved}
+                onToggle={() => onToggleSave(selectedCard)}
+                className="flex-1"
+              />
+            ) : null}
           </div>
         </div>
       </div>

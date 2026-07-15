@@ -43,6 +43,15 @@ import {
   toggleWatchlistCard,
   type WatchlistStore,
 } from "@/lib/watchlist-storage"
+import {
+  isSavedForLater,
+  loadSaveForLaterStore,
+  resolveSavedSlabcrackCards,
+  saveSaveForLaterStore,
+  savedCountForSource,
+  toggleSavedForLater,
+  type SaveForLaterStore,
+} from "@/lib/save-for-later-storage"
 
 const FALLBACK_FEED: MockCardEntry[] = []
 
@@ -75,6 +84,10 @@ export function SlabDashboard() {
     ids: [],
     cards: {},
   })
+  const [saveStore, setSaveStore] = useState<SaveForLaterStore>({
+    folders: [],
+    items: [],
+  })
   const [sortMode, setSortMode] = useState<"dollar" | "percent">("dollar")
   const [searchHits, setSearchHits] = useState<CardSearchHit[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
@@ -82,11 +95,16 @@ export function SlabDashboard() {
 
   useEffect(() => {
     setWatchlistStore(loadWatchlistStore())
+    setSaveStore(loadSaveForLaterStore())
   }, [])
 
   useEffect(() => {
     saveWatchlistStore(watchlistStore)
   }, [watchlistStore])
+
+  useEffect(() => {
+    saveSaveForLaterStore(saveStore)
+  }, [saveStore])
 
   const handleSelectCard = (card: MockCardEntry) => setSelectedCard(card)
   const handleCloseDrawer = () => setSelectedCard(null)
@@ -140,6 +158,11 @@ export function SlabDashboard() {
     [watchlistStore, feedById],
   )
 
+  const savedCards = useMemo(
+    () => resolveSavedSlabcrackCards(saveStore, feedById).map(normalizeCardEntry),
+    [saveStore, feedById],
+  )
+
   const lookupCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry | null> => {
     const params = hit.id.startsWith("pc-")
       ? new URLSearchParams({ id: hit.id })
@@ -160,6 +183,18 @@ export function SlabDashboard() {
   const toggleWatch = useCallback((card: MockCardEntry) => {
     setWatchlistStore((prev) => toggleWatchlistCard(prev, normalizeCardEntry(card)))
   }, [])
+
+  const toggleSave = useCallback((card: MockCardEntry) => {
+    const normalized = normalizeCardEntry(card)
+    setSaveStore((prev) =>
+      toggleSavedForLater(prev, { source: "slabcrack", card: normalized }),
+    )
+  }, [])
+
+  const isCardSaved = useCallback(
+    (card: MockCardEntry) => isSavedForLater(saveStore, "slabcrack", card.id),
+    [saveStore],
+  )
 
   const handleSearchSelect = useCallback(
     async (hit: CardSearchHit) => {
@@ -209,21 +244,23 @@ export function SlabDashboard() {
     const baseFeed =
       feed === "watchlist"
         ? watchedCards
-        : fullSlabCrack
-          ? arbitrageFeed
-          : pickMidDeficitCards(arbitrageFeed)
+        : feed === "saved"
+          ? savedCards
+          : fullSlabCrack
+            ? arbitrageFeed
+            : pickMidDeficitCards(arbitrageFeed)
 
     return baseFeed
       .filter((card) => {
         const matchesFeed =
-          feed === "watchlist"
+          feed === "watchlist" || feed === "saved"
             ? true
             : feed === "top"
               ? card.hasPricing !== false && card.deficit > 0
               : true
         const q = query.trim().toLowerCase()
         const matchesQuery =
-          feed === "watchlist" && q.length >= 2
+          (feed === "watchlist" || feed === "saved") && q.length >= 2
             ? true
             : q === "" ||
               card.cardName.toLowerCase().includes(q) ||
@@ -235,11 +272,11 @@ export function SlabDashboard() {
         if (a.hasPricing !== b.hasPricing) return a.hasPricing ? -1 : 1
         return sortMode === "dollar" ? b.deficit - a.deficit : b.percentageSavings - a.percentageSavings
       })
-  }, [arbitrageFeed, feed, fullSlabCrack, query, sortMode, watchedCards])
+  }, [arbitrageFeed, feed, fullSlabCrack, query, sortMode, savedCards, watchedCards])
 
-  const showFreePreviewBanner = !fullSlabCrack && !entitlements?.isLoading
+  const showFreePreviewBanner = !fullSlabCrack && !entitlements?.isLoading && feed === "top"
   const freeSearchBlocked =
-    !fullSlabCrack && query.trim().length >= 2 && feed !== "watchlist" && results.length === 0
+    !fullSlabCrack && query.trim().length >= 2 && feed === "top" && results.length === 0
 
   const pricedCount = useMemo(
     () => arbitrageFeed.filter((card) => card.hasPricing !== false).length,
@@ -256,7 +293,7 @@ export function SlabDashboard() {
     [results, entitlements?.adFree],
   )
   const showCatalogSearch =
-    query.trim().length >= 2 && feed !== "watchlist" && fullSlabCrack
+    query.trim().length >= 2 && feed === "top" && fullSlabCrack
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -321,6 +358,11 @@ export function SlabDashboard() {
                     {watchlistStore.ids.length}
                   </span>
                 )}
+                {f.id === "saved" && savedCountForSource(saveStore, "slabcrack") > 0 && (
+                  <span className="ml-1.5 rounded-full bg-primary/20 px-1.5 py-0.5 font-mono text-[10px] text-primary">
+                    {savedCountForSource(saveStore, "slabcrack")}
+                  </span>
+                )}
                 {active && (
                   <span className="absolute inset-x-2 -bottom-2 h-0.5 rounded-full bg-primary" />
                 )}
@@ -380,11 +422,15 @@ export function SlabDashboard() {
             <TrendingDown className="size-3.5 text-primary" />
             <span>
               {results.length} {results.length === 1 ? "card" : "cards"}
-              {feed === "watchlist" ? " on watchlist" : " tracked"}
+              {feed === "watchlist"
+                ? " on watchlist"
+                : feed === "saved"
+                  ? " saved for later"
+                  : " tracked"}
               {showFreePreviewBanner && (
                 <> · free preview (mid-deficit)</>
               )}
-              {feed !== "watchlist" && !showFreePreviewBanner && pricedCount > 0 && (
+              {feed !== "watchlist" && feed !== "saved" && !showFreePreviewBanner && pricedCount > 0 && (
                 <>
                   {" "}
                   · {pricedCount} with live pricing · by{" "}
@@ -394,7 +440,7 @@ export function SlabDashboard() {
             </span>
           </div>
 
-          {feed !== "watchlist" && (
+          {feed !== "watchlist" && feed !== "saved" && (
             <div
               role="radiogroup"
               aria-label="Sort deficits by"
@@ -486,7 +532,9 @@ export function SlabDashboard() {
                 <p className="mt-1 text-sm text-muted-foreground">
                   {feed === "watchlist"
                     ? "Search any card above and tap the star to add it here."
-                    : "Try a card name, set (151), number (#173), or both (151 173)."}
+                    : feed === "saved"
+                      ? "Tap Save for later on any card to build your folder."
+                      : "Try a card name, set (151), number (#173), or both (151 173)."}
                 </p>
               </>
             )}
@@ -500,6 +548,8 @@ export function SlabDashboard() {
                   key={item.card.id}
                   card={item.card}
                   watched={watchlistStore.ids.includes(item.card.id)}
+                  saved={isCardSaved(item.card)}
+                  onToggleSave={() => toggleSave(item.card)}
                   onClick={() => handleSelectCard(item.card)}
                 />
               ) : (
@@ -512,9 +562,11 @@ export function SlabDashboard() {
         <p className="mt-6 text-center text-[11px] leading-relaxed text-muted-foreground">
           {feed === "watchlist"
             ? "Watchlist is saved on this device. Search any card for PSA 7–10 comps from PriceCharting."
-            : pricedCount > 0
-              ? "Top Deficits shows EN/JP slab < raw opportunities across all set ages."
-              : "Search any card for PSA 7–10 pricing, or run discover-arbitrage to refresh the feed."}
+            : feed === "saved"
+              ? "Saved for later is stored on this device in your SlabCrack folder."
+              : pricedCount > 0
+                ? "Top Deficits shows EN/JP slab < raw opportunities across all set ages."
+                : "Search any card for PSA 7–10 pricing, or run discover-arbitrage to refresh the feed."}
         </p>
       </main>
 
@@ -526,8 +578,10 @@ export function SlabDashboard() {
               watchlistStore.ids.includes(selectedCard.id)
             : false
         }
+        saved={selectedCard ? isCardSaved(selectedCard) : false}
         onClose={handleCloseDrawer}
         onToggleWatch={toggleWatch}
+        onToggleSave={toggleSave}
       />
     </div>
   )

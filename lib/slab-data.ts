@@ -7,7 +7,7 @@ import {
 
 export type Grade = "PSA 7" | "PSA 8" | "PSA 9" | "PSA 10"
 
-export type Feed = "top" | "watchlist"
+export type Feed = "top" | "watchlist" | "saved"
 
 export interface RecentSale {
   title: string
@@ -441,4 +441,5 @@ export const GRADES: Grade[] = ["PSA 7", "PSA 8", "PSA 9", "PSA 10"]
 export const FEEDS: { id: Feed; label: string }[] = [
   { id: "top", label: "Top Deficits" },
   { id: "watchlist", label: "Watchlist" },
+  { id: "saved", label: "Saved for later" },
 ]

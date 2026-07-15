@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
+  Bookmark,
   Camera,
   ChevronRight,
   ExternalLink,
+  FolderOpen,
   Search,
   Sparkles,
   TrendingUp,
@@ -25,6 +27,16 @@ import {
 import type { SlabLabCard } from "@/lib/slablab"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
+import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
+import {
+  isSavedForLater,
+  loadSaveForLaterStore,
+  resolveSavedSlabLabCards,
+  saveSaveForLaterStore,
+  savedCountForSource,
+  toggleSavedForLater,
+  type SaveForLaterStore,
+} from "@/lib/save-for-later-storage"
 
 const DEFAULT_GRADING_COST = DEFAULT_PSA_GRADING_FEE
 
@@ -40,6 +52,7 @@ const AVAILABLE_FEES = PSA_AVAILABLE_GRADING_TIERS.map((t) => t.fee)
 const GRADING_SLIDER_MIN = Math.floor(Math.min(...AVAILABLE_FEES))
 const GRADING_SLIDER_MAX = Math.ceil(Math.max(...AVAILABLE_FEES))
 type SortMode = "spread" | "multiplier" | "roi"
+type SlabLabView = "board" | "saved"
 
 type ScannerCard = SlabLabCard
 
@@ -100,8 +113,18 @@ export function Psa10SpreadScanner() {
   const [error, setError] = useState<string | null>(null)
   const [gradingCost, setGradingCost] = useState(DEFAULT_GRADING_COST)
   const [sortMode, setSortMode] = useState<SortMode>("roi")
+  const [view, setView] = useState<SlabLabView>("board")
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState("")
+  const [saveStore, setSaveStore] = useState<SaveForLaterStore>({ folders: [], items: [] })
+
+  useEffect(() => {
+    setSaveStore(loadSaveForLaterStore())
+  }, [])
+
+  useEffect(() => {
+    saveSaveForLaterStore(saveStore)
+  }, [saveStore])
 
   useEffect(() => {
     let cancelled = false
@@ -132,14 +155,27 @@ export function Psa10SpreadScanner() {
     }
   }, [])
 
+  const liveById = useMemo(() => {
+    const map = new Map<string, ScannerCard>()
+    for (const card of cards) map.set(card.watchlistId || card.id, card)
+    return map
+  }, [cards])
+
+  const savedCards = useMemo(
+    () => resolveSavedSlabLabCards(saveStore, liveById),
+    [saveStore, liveById],
+  )
+
+  const sourceCards = view === "saved" ? savedCards : cards
+
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     const filtered = q
-      ? cards.filter((c) => {
+      ? sourceCards.filter((c) => {
           const haystack = `${c.name} ${c.set} ${c.cardNumber}`.toLowerCase()
           return haystack.includes(q)
         })
-      : cards
+      : sourceCards
     const computed = filtered.map((c) => computeRow(c, gradingCost))
 
     computed.sort((a, b) => {
@@ -147,8 +183,15 @@ export function Psa10SpreadScanner() {
       if (sortMode === "multiplier") return b.gradedMultiplier - a.gradedMultiplier
       return b.trueRoiScore - a.trueRoiScore
     })
-    return computed.slice(0, TOP_CARDS_LIMIT)
-  }, [cards, gradingCost, query, sortMode])
+    return view === "saved" ? computed : computed.slice(0, TOP_CARDS_LIMIT)
+  }, [cards, gradingCost, query, sortMode, sourceCards, view])
+
+  const toggleSave = (card: ScannerCard) => {
+    setSaveStore((prev) => toggleSavedForLater(prev, { source: "slablab", card }))
+  }
+
+  const isRowSaved = (row: ScannerCard) =>
+    isSavedForLater(saveStore, "slablab", row.watchlistId || row.id)
 
   const selected = rows.find((r) => r.id === selectedId) ?? null
 
@@ -184,96 +227,156 @@ export function Psa10SpreadScanner() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
-            All-time scan
-          </p>
-
           <div
-            className="ml-auto flex rounded-xl border border-border bg-secondary/40 p-0.5"
+            className="flex rounded-xl border border-border bg-secondary/40 p-0.5"
             role="tablist"
-            aria-label="Sort"
+            aria-label="SlabLab view"
           >
-            {SORT_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={sortMode === tab.id}
-                onClick={() => setSortMode(tab.id)}
-                className={cn(
-                  "rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors sm:text-xs",
-                  sortMode === tab.id
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "board"}
+              onClick={() => setView("board")}
+              className={cn(
+                "rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors sm:text-xs",
+                view === "board"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Board
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={view === "saved"}
+              onClick={() => setView("saved")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors sm:text-xs",
+                view === "saved"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <FolderOpen className="size-3.5" aria-hidden />
+              Saved
+              {savedCountForSource(saveStore, "slablab") > 0 ? (
+                <span className="rounded-full bg-primary-foreground/15 px-1.5 py-0.5 font-mono text-[10px]">
+                  {savedCountForSource(saveStore, "slablab")}
+                </span>
+              ) : null}
+            </button>
           </div>
-        </div>
 
-        <div className="grid gap-3">
-          <label className="block">
-            <span className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Grade cost {formatPsaFee(gradingCost)}
-            </span>
-            <div className="mt-1.5 flex flex-wrap gap-1">
-              {GRADING_PRESETS.map((preset) => (
+          {view === "board" ? (
+            <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">All-time scan</p>
+          ) : (
+            <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+              Saved for later folder
+            </p>
+          )}
+
+          {view === "board" ? (
+            <div
+              className="ml-auto flex rounded-xl border border-border bg-secondary/40 p-0.5"
+              role="tablist"
+              aria-label="Sort"
+            >
+              {SORT_TABS.map((tab) => (
                 <button
-                  key={preset.id}
+                  key={tab.id}
                   type="button"
-                  onClick={() => setGradingCost(preset.cost)}
-                  title={`${preset.name} · ${formatPsaFee(preset.cost)}${preset.available ? "" : " (paused)"}`}
+                  role="tab"
+                  aria-selected={sortMode === tab.id}
+                  onClick={() => setSortMode(tab.id)}
                   className={cn(
-                    "rounded-md border px-2 py-0.5 text-[10px] font-medium",
-                    activePreset === preset.id
-                      ? "border-primary/50 bg-primary/15 text-primary"
-                      : preset.available
-                        ? "border-border text-muted-foreground hover:text-foreground"
-                        : "border-dashed border-border/70 text-muted-foreground/70",
+                    "rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors sm:text-xs",
+                    sortMode === tab.id
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  {preset.label}
-                  {!preset.available ? " · paused" : ""}
+                  {tab.label}
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-[10px] text-muted-foreground">
-              All PSA tiers · Value levels are paused by PSA but still selectable for modeling.
-            </p>
-            <input
-              type="range"
-              min={GRADING_SLIDER_MIN}
-              max={GRADING_SLIDER_MAX}
-              step={1}
-              value={Math.round(gradingCost)}
-              onChange={(e) => setGradingCost(Number(e.target.value))}
-              className="mt-2 w-full accent-[var(--primary)]"
-            />
-          </label>
+          ) : null}
         </div>
+
+        {view === "board" ? (
+          <div className="grid gap-3">
+            <label className="block">
+              <span className="flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Grade cost {formatPsaFee(gradingCost)}
+              </span>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {GRADING_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => setGradingCost(preset.cost)}
+                    title={`${preset.name} · ${formatPsaFee(preset.cost)}${preset.available ? "" : " (paused)"}`}
+                    className={cn(
+                      "rounded-md border px-2 py-0.5 text-[10px] font-medium",
+                      activePreset === preset.id
+                        ? "border-primary/50 bg-primary/15 text-primary"
+                        : preset.available
+                          ? "border-border text-muted-foreground hover:text-foreground"
+                          : "border-dashed border-border/70 text-muted-foreground/70",
+                    )}
+                  >
+                    {preset.label}
+                    {!preset.available ? " · paused" : ""}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[10px] text-muted-foreground">
+                All PSA tiers · Value levels are paused by PSA but still selectable for modeling.
+              </p>
+              <input
+                type="range"
+                min={GRADING_SLIDER_MIN}
+                max={GRADING_SLIDER_MAX}
+                step={1}
+                value={Math.round(gradingCost)}
+                onChange={(e) => setGradingCost(Number(e.target.value))}
+                className="mt-2 w-full accent-[var(--primary)]"
+              />
+            </label>
+          </div>
+        ) : null}
       </section>
 
       <p className="px-0.5 text-[11px] text-muted-foreground">
-        {loading
-          ? "Loading top grading opportunities…"
-          : error
-            ? error
-            : `Top ${rows.length} of ${TOP_CARDS_LIMIT} · tap a card for full breakdown`}
+        {view === "saved"
+          ? rows.length === 0
+            ? "Your Saved for later folder is empty. Tap the bookmark on any card to add it."
+            : `${rows.length} saved card${rows.length === 1 ? "" : "s"} in your folder`
+          : loading
+            ? "Loading top grading opportunities…"
+            : error
+              ? error
+              : `Top ${rows.length} of ${TOP_CARDS_LIMIT} · tap a card for full breakdown`}
       </p>
 
       {/* Simplified feed */}
       <div className="flex flex-col gap-2.5">
-        {loading ? (
+        {view === "board" && loading ? (
           <div className="rounded-2xl border border-dashed border-border px-4 py-16 text-center text-sm text-muted-foreground">
             Scanning catalog for PSA 10 grading opportunities…
           </div>
         ) : rows.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border px-4 py-16 text-center text-sm text-muted-foreground">
-            {error
-              ? "Could not load opportunities. Try refresh."
-              : "No cards match yet. Wait for price sync or try again shortly."}
+            {view === "saved" ? (
+              <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
+                <Bookmark className="size-8 text-muted-foreground/70" aria-hidden />
+                <p>Nothing saved yet. Use Save for later on any grading candidate.</p>
+              </div>
+            ) : error ? (
+              "Could not load opportunities. Try refresh."
+            ) : (
+              "No cards match yet. Wait for price sync or try again shortly."
+            )}
           </div>
         ) : (
           rows.map((row, index) => {
@@ -339,6 +442,11 @@ export function Psa10SpreadScanner() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
+                    <SaveForLaterButton
+                      saved={isRowSaved(row)}
+                      onToggle={() => toggleSave(row)}
+                      compact
+                    />
                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
                       {metric.label}
                     </span>
@@ -382,6 +490,8 @@ export function Psa10SpreadScanner() {
       {selected && (
         <SlabLabDetailDrawer
           row={selected}
+          saved={isRowSaved(selected)}
+          onToggleSave={() => toggleSave(selected)}
           onClose={() => setSelectedId(null)}
         />
       )}
@@ -391,9 +501,13 @@ export function Psa10SpreadScanner() {
 
 function SlabLabDetailDrawer({
   row,
+  saved,
+  onToggleSave,
   onClose,
 }: {
   row: ComputedRow
+  saved: boolean
+  onToggleSave: () => void
   onClose: () => void
 }) {
   useEffect(() => {
@@ -537,6 +651,10 @@ function SlabLabDetailDrawer({
             <ExternalLink className="size-4" aria-hidden="true" />
             Search eBay PSA 10
           </a>
+
+          <div className="mt-4">
+            <SaveForLaterButton saved={saved} onToggle={onToggleSave} className="w-full" />
+          </div>
 
           <p className="mt-4 text-[11px] text-muted-foreground">
             ROI is PSA 10 price minus raw and your selected grading cost.
