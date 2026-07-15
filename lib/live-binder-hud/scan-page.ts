@@ -136,7 +136,7 @@ export async function detectCardsInFrame(input: BinderHudImageInput | string): P
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.")
 
   const { mimeType, base64 } = resolveInlineImage(input)
-  if (base64.length < 200) throw new Error("Image base64 too small — capture may be blank.")
+  if (!base64 || base64.length < 32) throw new Error("Image data missing.")
   if (base64.length > 5_500_000) throw new Error("Image too large.")
 
   console.log("[live-binder-hud] Gemini request", {

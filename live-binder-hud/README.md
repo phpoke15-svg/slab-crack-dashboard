@@ -2,11 +2,11 @@
 
 Architecture:
 
-1. **Scan Feed** — capture one still frame from the camera (manual or 2s stability).
+1. **Scan Feed** — raw `<video>` → hidden canvas → JPEG `@ 0.85` (no local CV).
 2. **Gemini zero-shot detect** — full frame → JSON with `box_2d` `[ymin,xmin,ymax,xmax]` on a 0–1000 scale + name/set/number.
 3. **HTML HUD** — map boxes onto absolutely positioned overlays; PriceCharting fills prices live.
 
-No local OpenCV grid. No fixed 3×3.
+No OpenCV, no contour/edge tracking, no fixed 3×3. Gemini does 100% of detection.
 
 ## Quick start
 

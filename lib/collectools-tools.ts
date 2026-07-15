@@ -160,12 +160,12 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/live-binder-hud",
     name: "Live Binder HUD",
     tagline: "Supreme · in development",
-    blurb: "Scan any layout — Gemini returns boxes, names, and prices.",
+    blurb: "Scan Feed sends one frame to Gemini for boxes, names, and prices.",
     description:
-      "Live Binder HUD captures one camera frame and uses Gemini object detection (box_2d) to find every visible card dynamically, then overlays PriceCharting comps on each box. Supreme preview while the product is still in development.",
+      "Live Binder HUD shows a raw camera feed and, on Scan Feed, sends one JPEG still to Gemini for box_2d detection and identity — no local outline tracking. PriceCharting comps fill each overlay. Supreme preview while the product is still in development.",
     highlights: [
-      "Scan Feed sends one still frame — no rigid 3×3 grid",
-      "Gemini returns normalized bounding boxes + card identity",
+      "Raw webcam feed — no OpenCV / local contour tracking",
+      "Gemini handles card detection and bounding boxes",
       "Clickable HUD overlays update live with PriceCharting comps",
     ],
     icon: ScanEye,
