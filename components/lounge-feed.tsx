@@ -23,6 +23,7 @@ import type {
 } from "@/lib/lounge/types"
 
 const MAX_MEDIA = 4
+const MAX_THREAD_DEPTH = 8
 
 type LocalMedia = {
   id: string
@@ -30,6 +31,8 @@ type LocalMedia = {
   previewUrl: string
   kind: "image" | "video"
 }
+
+type NestedReply = LoungePost & { children: NestedReply[] }
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - Date.parse(iso)
@@ -52,6 +55,33 @@ function asUser(author: LoungePost["author"]) {
     binderVisibility: "public" as const,
     plan: author.plan ?? "free",
   }
+}
+
+function buildReplyTree(replies: LoungePost[], rootId: string): NestedReply[] {
+  const byParent = new Map<string, LoungePost[]>()
+  for (const reply of replies) {
+    const key = reply.parentId ?? rootId
+    const list = byParent.get(key) ?? []
+    list.push(reply)
+    byParent.set(key, list)
+  }
+
+  const nest = (parentId: string): NestedReply[] =>
+    (byParent.get(parentId) ?? []).map((reply) => ({
+      ...reply,
+      children: nest(reply.id),
+    }))
+
+  return nest(rootId)
+}
+
+function actionButtonClass(active?: boolean) {
+  return cn(
+    "inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-3 text-sm font-medium transition",
+    active
+      ? "bg-primary/15 text-primary"
+      : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+  )
 }
 
 function MediaGrid({ items, compact }: { items: LoungeMediaItem[]; compact?: boolean }) {
@@ -102,15 +132,24 @@ export function LoungeFeed() {
   const [media, setMedia] = useState<LocalMedia[]>([])
   const [posting, setPosting] = useState(false)
   const [replyTo, setReplyTo] = useState<LoungePost | null>(null)
+  const [replyRootId, setReplyRootId] = useState<string | null>(null)
   const [replies, setReplies] = useState<Record<string, LoungePost[]>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const fileRef = useRef<HTMLInputElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
 
   const clearMedia = useCallback(() => {
     setMedia((prev) => {
       for (const item of prev) URL.revokeObjectURL(item.previewUrl)
       return []
     })
+  }, [])
+
+  const beginReply = useCallback((post: LoungePost, rootId: string) => {
+    setReplyTo(post)
+    setReplyRootId(rootId)
+    window.scrollTo({ top: 0, behavior: "smooth" })
+    window.setTimeout(() => composerRef.current?.focus(), 250)
   }, [])
 
   const load = useCallback(
@@ -174,6 +213,20 @@ export function LoungeFeed() {
     })
   }
 
+  async function loadReplies(rootId: string) {
+    try {
+      const res = await fetch(
+        `/api/lounge?parentId=${encodeURIComponent(rootId)}&thread=1`,
+        { cache: "no-store" },
+      )
+      const json = await res.json()
+      if (!res.ok || !json.ok) return
+      setReplies((prev) => ({ ...prev, [rootId]: json.posts as LoungePost[] }))
+    } catch {
+      // ignore
+    }
+  }
+
   async function submitPost() {
     const body = draft.trim()
     if ((!body && media.length === 0) || posting) return
@@ -191,20 +244,21 @@ export function LoungeFeed() {
       setDraft("")
       clearMedia()
       if (replyTo) {
-        const parentId = replyTo.id
+        const rootId = replyRootId ?? replyTo.id
         setReplyTo(null)
-        await loadReplies(parentId)
+        setReplyRootId(null)
+        await loadReplies(rootId)
         setData((prev) =>
           prev
             ? {
                 ...prev,
                 posts: prev.posts.map((p) =>
-                  p.id === parentId ? { ...p, replyCount: p.replyCount + 1 } : p,
+                  p.id === rootId ? { ...p, replyCount: p.replyCount + 1 } : p,
                 ),
               }
             : prev,
         )
-        setExpanded((s) => new Set(s).add(parentId))
+        setExpanded((s) => new Set(s).add(rootId))
       } else {
         await load(mode)
       }
@@ -212,19 +266,6 @@ export function LoungeFeed() {
       setError(err instanceof Error ? err.message : "Could not post")
     } finally {
       setPosting(false)
-    }
-  }
-
-  async function loadReplies(postId: string) {
-    try {
-      const res = await fetch(`/api/lounge?parentId=${encodeURIComponent(postId)}`, {
-        cache: "no-store",
-      })
-      const json = await res.json()
-      if (!res.ok || !json.ok) return
-      setReplies((prev) => ({ ...prev, [postId]: json.posts as LoungePost[] }))
-    } catch {
-      // ignore
     }
   }
 
@@ -270,9 +311,14 @@ export function LoungeFeed() {
     const patch = (p: LoungePost) =>
       p.author.id === authorId ? { ...p, followingAuthor: following } : p
     setData((prev) => (prev ? { ...prev, posts: prev.posts.map(patch) } : prev))
+    setReplies((prev) => {
+      const out: Record<string, LoungePost[]> = {}
+      for (const [k, list] of Object.entries(prev)) out[k] = list.map(patch)
+      return out
+    })
   }
 
-  async function removePost(post: LoungePost) {
+  async function removePost(post: LoungePost, rootId?: string | null) {
     if (!confirm("Delete this post?")) return
     const res = await fetch(`/api/lounge/${post.id}`, { method: "DELETE" })
     const json = await res.json()
@@ -281,23 +327,33 @@ export function LoungeFeed() {
       return
     }
     if (post.parentId) {
-      await loadReplies(post.parentId)
-      setData((prev) =>
-        prev
-          ? {
-              ...prev,
-              posts: prev.posts.map((p) =>
-                p.id === post.parentId
-                  ? { ...p, replyCount: Math.max(0, p.replyCount - 1) }
-                  : p,
-              ),
-            }
-          : prev,
-      )
+      const threadRoot = rootId ?? replyRootId
+      if (threadRoot) {
+        await loadReplies(threadRoot)
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                posts: prev.posts.map((p) =>
+                  p.id === threadRoot
+                    ? { ...p, replyCount: Math.max(0, p.replyCount - 1) }
+                    : p,
+                ),
+              }
+            : prev,
+        )
+      } else {
+        await load(mode)
+      }
     } else {
       setData((prev) =>
         prev ? { ...prev, posts: prev.posts.filter((p) => p.id !== post.id) } : prev,
       )
+      setReplies((prev) => {
+        const next = { ...prev }
+        delete next[post.id]
+        return next
+      })
     }
   }
 
@@ -314,7 +370,7 @@ export function LoungeFeed() {
             type="button"
             onClick={() => setMode(m)}
             className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition",
+              "min-h-11 rounded-full px-4 text-sm font-medium transition",
               mode === m
                 ? "bg-primary text-primary-foreground"
                 : "border border-border bg-card/60 text-muted-foreground hover:border-primary/40 hover:text-foreground",
@@ -326,9 +382,9 @@ export function LoungeFeed() {
         <button
           type="button"
           onClick={() => void load(mode)}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground"
+          className="ml-auto inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-card/60 px-4 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground"
         >
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} aria-hidden />
+          <RefreshCw className={cn("size-4", loading && "animate-spin")} aria-hidden />
           Refresh
         </button>
       </div>
@@ -345,18 +401,22 @@ export function LoungeFeed() {
           )}
           <div className="min-w-0 flex-1">
             {replyTo ? (
-              <p className="mb-2 text-[11px] text-muted-foreground">
+              <p className="mb-2 text-xs text-muted-foreground">
                 Replying to <span className="text-primary">{replyTo.author.handle}</span>{" "}
                 <button
                   type="button"
-                  className="underline-offset-2 hover:underline"
-                  onClick={() => setReplyTo(null)}
+                  className="min-h-11 px-1 font-medium underline-offset-2 hover:underline"
+                  onClick={() => {
+                    setReplyTo(null)
+                    setReplyRootId(null)
+                  }}
                 >
                   Cancel
                 </button>
               </p>
             ) : null}
             <textarea
+              ref={composerRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value.slice(0, 280))}
               placeholder="What's pulling your binder focus?"
@@ -386,10 +446,10 @@ export function LoungeFeed() {
                     <button
                       type="button"
                       onClick={() => removeLocalMedia(item.id)}
-                      className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white"
+                      className="absolute right-1 top-1 flex size-11 items-center justify-center rounded-full bg-black/70 text-white"
                       aria-label="Remove attachment"
                     >
-                      <X className="size-3.5" />
+                      <X className="size-4" />
                     </button>
                   </div>
                 ))}
@@ -410,17 +470,17 @@ export function LoungeFeed() {
                   type="button"
                   onClick={() => fileRef.current?.click()}
                   disabled={media.length >= MAX_MEDIA || posting}
-                  className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border px-3 text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground disabled:opacity-50"
                 >
-                  <ImagePlus className="size-3.5" aria-hidden />
+                  <ImagePlus className="size-4" aria-hidden />
                   Photo / video
                 </button>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {media.length}/{MAX_MEDIA}
                 </span>
                 <span
                   className={cn(
-                    "text-[11px] tabular-nums",
+                    "text-xs tabular-nums",
                     remaining < 20 ? "text-destructive" : "text-muted-foreground",
                   )}
                 >
@@ -431,9 +491,9 @@ export function LoungeFeed() {
                 type="button"
                 disabled={posting || !canPost}
                 onClick={() => void submitPost()}
-                className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-full bg-primary px-5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
               >
-                {posting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+                {posting ? <Loader2 className="size-4 animate-spin" /> : null}
                 {replyTo ? "Reply" : "Post"}
               </button>
             </div>
@@ -474,14 +534,13 @@ export function LoungeFeed() {
               replies={replies[post.id] ?? []}
               onLike={() => void toggleLike(post)}
               onFollow={() => void toggleFollow(post)}
-              onReply={() => {
-                setReplyTo(post)
-                window.scrollTo({ top: 0, behavior: "smooth" })
-              }}
+              onReply={() => beginReply(post, post.id)}
               onToggleReplies={() => void toggleExpand(post)}
               onDelete={() => void removePost(post)}
               onLikeReply={(reply) => void toggleLike(reply)}
-              onDeleteReply={(reply) => void removePost(reply)}
+              onFollowReply={(reply) => void toggleFollow(reply)}
+              onReplyToReply={(reply) => beginReply(reply, post.id)}
+              onDeleteReply={(reply) => void removePost(reply, post.id)}
               meId={me?.id}
             />
           </li>
@@ -502,6 +561,8 @@ function PostCard({
   onToggleReplies,
   onDelete,
   onLikeReply,
+  onFollowReply,
+  onReplyToReply,
   onDeleteReply,
   meId,
 }: {
@@ -515,9 +576,13 @@ function PostCard({
   onToggleReplies: () => void
   onDelete: () => void
   onLikeReply: (reply: LoungePost) => void
+  onFollowReply: (reply: LoungePost) => void
+  onReplyToReply: (reply: LoungePost) => void
   onDeleteReply: (reply: LoungePost) => void
   meId?: string
 }) {
+  const tree = buildReplyTree(replies, post.id)
+
   return (
     <article className="rounded-2xl border border-border bg-card/60 p-4 transition hover:border-primary/30">
       <div className="flex gap-3">
@@ -535,53 +600,32 @@ function PostCard({
             </p>
           ) : null}
           <MediaGrid items={post.media ?? []} />
-          <div className="mt-3 flex flex-wrap items-center gap-1">
-            <button
-              type="button"
-              onClick={onLike}
-              className={cn(
-                "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] transition",
-                post.likedByMe
-                  ? "bg-primary/15 text-primary"
-                  : "text-muted-foreground hover:bg-secondary hover:text-foreground",
-              )}
-            >
-              <Heart className={cn("size-3.5", post.likedByMe && "fill-current")} aria-hidden />
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <button type="button" onClick={onLike} className={actionButtonClass(post.likedByMe)}>
+              <Heart className={cn("size-4", post.likedByMe && "fill-current")} aria-hidden />
               {post.likeCount}
             </button>
-            <button
-              type="button"
-              onClick={onReply}
-              className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-            >
-              <MessageCircle className="size-3.5" aria-hidden />
+            <button type="button" onClick={onReply} className={actionButtonClass()}>
+              <MessageCircle className="size-4" aria-hidden />
               Reply
             </button>
             {post.replyCount > 0 ? (
-              <button
-                type="button"
-                onClick={onToggleReplies}
-                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-              >
+              <button type="button" onClick={onToggleReplies} className={actionButtonClass()}>
                 {expanded
-                  ? "Hide"
+                  ? "Hide thread"
                   : `${post.replyCount} ${post.replyCount === 1 ? "reply" : "replies"}`}
               </button>
             ) : null}
             {!isMine ? (
-              <button
-                type="button"
-                onClick={onFollow}
-                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-              >
+              <button type="button" onClick={onFollow} className={actionButtonClass()}>
                 {post.followingAuthor ? (
                   <>
-                    <UserMinus className="size-3.5" aria-hidden />
+                    <UserMinus className="size-4" aria-hidden />
                     Following
                   </>
                 ) : (
                   <>
-                    <UserPlus className="size-3.5" aria-hidden />
+                    <UserPlus className="size-4" aria-hidden />
                     Follow
                   </>
                 )}
@@ -590,9 +634,9 @@ function PostCard({
               <button
                 type="button"
                 onClick={onDelete}
-                className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                className={cn(actionButtonClass(), "hover:bg-destructive/10 hover:text-destructive")}
               >
-                <Trash2 className="size-3.5" aria-hidden />
+                <Trash2 className="size-4" aria-hidden />
                 Delete
               </button>
             )}
@@ -600,64 +644,20 @@ function PostCard({
 
           {expanded ? (
             <ul className="mt-3 space-y-2 border-l border-border/80 pl-3">
-              {replies.length === 0 ? (
-                <li className="text-[11px] text-muted-foreground">No replies yet.</li>
+              {tree.length === 0 ? (
+                <li className="text-xs text-muted-foreground">No replies yet.</li>
               ) : (
-                replies.map((reply) => (
-                  <li
+                tree.map((reply) => (
+                  <ReplyNode
                     key={reply.id}
-                    className="rounded-xl border border-border/60 bg-background/40 p-3"
-                  >
-                    <div className="flex gap-2">
-                      <UserAvatar user={asUser(reply.author)} size="sm" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                          <span className="text-xs font-semibold">{reply.author.name}</span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {reply.author.handle}
-                          </span>
-                          <PlanBadge plan={reply.author.plan ?? "free"} />
-                          <span className="text-[10px] text-muted-foreground">
-                            · {timeAgo(reply.createdAt)}
-                          </span>
-                        </div>
-                        {reply.body ? (
-                          <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">
-                            {reply.body}
-                          </p>
-                        ) : null}
-                        <MediaGrid items={reply.media ?? []} compact />
-                        <div className="mt-2 flex gap-1">
-                          <button
-                            type="button"
-                            onClick={() => onLikeReply(reply)}
-                            className={cn(
-                              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]",
-                              reply.likedByMe
-                                ? "text-primary"
-                                : "text-muted-foreground hover:text-foreground",
-                            )}
-                          >
-                            <Heart
-                              className={cn("size-3", reply.likedByMe && "fill-current")}
-                              aria-hidden
-                            />
-                            {reply.likeCount}
-                          </button>
-                          {reply.author.id === meId ? (
-                            <button
-                              type="button"
-                              onClick={() => onDeleteReply(reply)}
-                              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground hover:text-destructive"
-                            >
-                              <Trash2 className="size-3" aria-hidden />
-                              Delete
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  </li>
+                    reply={reply}
+                    depth={0}
+                    meId={meId}
+                    onLike={onLikeReply}
+                    onFollow={onFollowReply}
+                    onReply={onReplyToReply}
+                    onDelete={onDeleteReply}
+                  />
                 ))
               )}
             </ul>
@@ -665,5 +665,109 @@ function PostCard({
         </div>
       </div>
     </article>
+  )
+}
+
+function ReplyNode({
+  reply,
+  depth,
+  meId,
+  onLike,
+  onFollow,
+  onReply,
+  onDelete,
+}: {
+  reply: NestedReply
+  depth: number
+  meId?: string
+  onLike: (reply: LoungePost) => void
+  onFollow: (reply: LoungePost) => void
+  onReply: (reply: LoungePost) => void
+  onDelete: (reply: LoungePost) => void
+}) {
+  const isMine = reply.author.id === meId
+  const indent = Math.min(depth, 4)
+
+  return (
+    <li
+      className={cn(
+        "rounded-xl border border-border/60 bg-background/40 p-3",
+        indent > 0 && "mt-2",
+      )}
+      style={indent > 0 ? { marginLeft: `${indent * 12}px` } : undefined}
+    >
+      <div className="flex gap-2">
+        <UserAvatar user={asUser(reply.author)} size="sm" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <span className="text-xs font-semibold">{reply.author.name}</span>
+            <span className="text-[10px] text-muted-foreground">{reply.author.handle}</span>
+            <PlanBadge plan={reply.author.plan ?? "free"} />
+            <span className="text-[10px] text-muted-foreground">· {timeAgo(reply.createdAt)}</span>
+          </div>
+          {reply.body ? (
+            <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed">{reply.body}</p>
+          ) : null}
+          <MediaGrid items={reply.media ?? []} compact />
+          <div className="mt-2 flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onLike(reply)}
+              className={actionButtonClass(reply.likedByMe)}
+            >
+              <Heart className={cn("size-4", reply.likedByMe && "fill-current")} aria-hidden />
+              {reply.likeCount}
+            </button>
+            {depth < MAX_THREAD_DEPTH ? (
+              <button type="button" onClick={() => onReply(reply)} className={actionButtonClass()}>
+                <MessageCircle className="size-4" aria-hidden />
+                Reply
+              </button>
+            ) : null}
+            {!isMine ? (
+              <button type="button" onClick={() => onFollow(reply)} className={actionButtonClass()}>
+                {reply.followingAuthor ? (
+                  <>
+                    <UserMinus className="size-4" aria-hidden />
+                    Following
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="size-4" aria-hidden />
+                    Follow
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onDelete(reply)}
+                className={cn(actionButtonClass(), "hover:bg-destructive/10 hover:text-destructive")}
+              >
+                <Trash2 className="size-4" aria-hidden />
+                Delete
+              </button>
+            )}
+          </div>
+
+          {reply.children.length > 0 ? (
+            <ul className="mt-2 space-y-2">
+              {reply.children.map((child) => (
+                <ReplyNode
+                  key={child.id}
+                  reply={child}
+                  depth={depth + 1}
+                  meId={meId}
+                  onLike={onLike}
+                  onFollow={onFollow}
+                  onReply={onReply}
+                  onDelete={onDelete}
+                />
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </div>
+    </li>
   )
 }
