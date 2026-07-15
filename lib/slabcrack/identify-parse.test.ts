@@ -87,7 +87,7 @@ describe("identify-parse", () => {
   it("picks the right thinking config per model family", () => {
     expect(thinkingConfigForModel("gemini-2.5-flash")).toEqual({ thinkingBudget: 0 })
     expect(thinkingConfigForModel("gemini-3.5-flash")).toEqual({ thinkingLevel: "minimal" })
-    expect(thinkingConfigForModel("gemini-flash-latest")).toBeNull()
+    expect(thinkingConfigForModel("gemini-flash-latest")).toEqual({ thinkingLevel: "minimal" })
   })
 
   it("scores catalog hits with bidirectional name/number matching", () => {

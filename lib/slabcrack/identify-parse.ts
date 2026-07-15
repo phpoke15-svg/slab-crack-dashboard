@@ -134,7 +134,7 @@ export function thinkingConfigForModel(model: string): Record<string, unknown> |
     return { thinkingBudget: 0 }
   }
   // Gemini 3.x uses thinkingLevel (lowercase enum values in REST).
-  if (id.includes("3.") || id.includes("3-")) {
+  if (id.includes("3.") || id.includes("3-") || id.includes("flash-latest")) {
     return { thinkingLevel: "minimal" }
   }
   return null

@@ -4,6 +4,10 @@ import {
   type DetectedCardBox,
 } from "@/lib/slabcrack/detect-card-boxes-parse"
 import {
+  geminiVisionModelCandidates,
+  isGeminiModelUnavailable,
+} from "@/lib/slabcrack/gemini-models"
+import {
   extractGeminiAnswerText,
   thinkingConfigForModel,
   type GeminiGenerateResponse,
@@ -51,10 +55,7 @@ async function detectBoxesWithGemini(imageDataUrl: string): Promise<DetectedCard
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.")
 
-  const configured = process.env.GEMINI_VISION_MODEL?.trim()
-  const models = [configured, "gemini-2.5-flash", "gemini-3.5-flash"].filter(
-    (m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i,
-  )
+  const models = geminiVisionModelCandidates()
   const { mimeType, base64 } = splitDataUrl(imageDataUrl)
   let lastError = "Gemini box detection failed."
 
@@ -90,7 +91,12 @@ async function detectBoxesWithGemini(imageDataUrl: string): Promise<DetectedCard
       if (!response.ok) {
         const body = await response.text().catch(() => "")
         lastError = `Gemini box detection failed (${response.status}) on ${model}: ${body.slice(0, 280)}`
-        if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
+        // Retired / unavailable model id → try the next candidate.
+        if (isGeminiModelUnavailable(response.status, body)) {
+          break
+        }
+        // Bad thinkingConfig for this model family → skip to next model.
+        if (response.status === 400 && /thinking/i.test(body)) {
           break
         }
         throw new Error(lastError)
