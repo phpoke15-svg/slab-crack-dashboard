@@ -20,20 +20,40 @@ export function CollecToolsHub() {
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
-      <header className="mb-10 flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
+      <header className="mb-10">
+        <div className="flex items-start justify-between gap-4">
           <CollecToolsBrand
             href={undefined}
             size="lg"
             asHeading
             subtitle="Pokémon TCG collector toolkit"
           />
-          <p className="mt-6 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Free tools for Pokémon TCG collectors — graded arbitrage, PSA 10 spreads, trade
-            matching, and Pokemon Center queue alerts. Pick a tool to get started.
-          </p>
+          <SiteAuthButton className="shrink-0" />
         </div>
-        <SiteAuthButton className="shrink-0" />
+
+        <div className="mt-6 w-full space-y-4">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            Free tools for Pokémon TCG collectors. Pick one below to get started.
+          </p>
+          <dl className="grid w-full gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
+            <div className="min-w-0 border-l-2 border-primary/40 pl-3">
+              <dt className="font-semibold text-foreground">SlabCrack</dt>
+              <dd className="mt-0.5 text-muted-foreground">Find graded vs raw arbitrage</dd>
+            </div>
+            <div className="min-w-0 border-l-2 border-primary/40 pl-3">
+              <dt className="font-semibold text-foreground">SlabLab</dt>
+              <dd className="mt-0.5 text-muted-foreground">PSA 10 spread, multiplier, and ROI</dd>
+            </div>
+            <div className="min-w-0 border-l-2 border-primary/40 pl-3">
+              <dt className="font-semibold text-foreground">PokeMatch</dt>
+              <dd className="mt-0.5 text-muted-foreground">Build binders and trade with collectors</dd>
+            </div>
+            <div className="min-w-0 border-l-2 border-primary/40 pl-3">
+              <dt className="font-semibold text-foreground">PokeWatch</dt>
+              <dd className="mt-0.5 text-muted-foreground">Pokemon Center queue alerts</dd>
+            </div>
+          </dl>
+        </div>
       </header>
 
       {showUpgrade ? (
