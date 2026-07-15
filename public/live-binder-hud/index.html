@@ -250,14 +250,14 @@
           <div class="absolute inset-0 rounded-[1.1rem] border border-hud-line/50 bg-black/25 shadow-neon">
             <div class="absolute inset-x-3 top-2.5 flex items-center justify-between text-[9px] uppercase tracking-[0.2em] text-hud-line/80 sm:inset-x-4 sm:top-3 sm:text-[10px]">
               <span>Page 12 · Ultra Pro</span>
-              <span class="font-mono">3×3 LOCK</span>
+              <span id="layoutBadge" class="font-mono">9 CARD LOCK</span>
             </div>
             <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-[9px] text-hud-mute sm:bottom-3 sm:left-4 sm:right-4 sm:text-[10px]">
               <span>SIM FEED</span>
               <span id="clock" class="font-mono text-hud-dim">00:00:00</span>
             </div>
           </div>
-          <div id="pocketGrid" class="absolute inset-[2rem_0.9rem_1.9rem] grid grid-cols-3 grid-rows-3 gap-1.5 sm:inset-[2.4rem_1.4rem_2.2rem] sm:gap-2.5"></div>
+          <div id="pocketGrid" class="absolute inset-[2rem_0.9rem_1.9rem] grid gap-1.5 sm:inset-[2.4rem_1.4rem_2.2rem] sm:gap-2.5"></div>
         </div>
       </div>
     </div>
@@ -406,6 +406,28 @@
   </div>
 
   <template id="calibrateFieldsTemplate">
+    <div class="mb-3 rounded-xl border border-hud-line/20 bg-black/30 p-2.5">
+      <div class="mb-2 flex items-center justify-between gap-2">
+        <span class="text-[10px] font-semibold uppercase tracking-wider text-hud-line">Cards in frame</span>
+        <span data-v="cardCount" class="font-mono text-hud-dim">9</span>
+      </div>
+      <input data-cal="cardCount" type="range" min="1" max="9" step="1" value="9" />
+      <div class="mt-2 flex flex-wrap gap-1.5">
+        <button type="button" data-count-preset="1" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">1</button>
+        <button type="button" data-count-preset="2" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">2</button>
+        <button type="button" data-count-preset="3" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">3</button>
+        <button type="button" data-count-preset="4" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">4</button>
+        <button type="button" data-count-preset="5" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">5</button>
+        <button type="button" data-count-preset="6" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">6</button>
+        <button type="button" data-count-preset="7" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">7</button>
+        <button type="button" data-count-preset="8" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">8</button>
+        <button type="button" data-count-preset="9" class="count-preset min-h-9 rounded-lg border border-white/10 px-2 text-[10px] text-hud-mute">9</button>
+        <button type="button" data-detect-count class="min-h-9 rounded-lg border border-hud-line/40 bg-hud-line/10 px-2.5 text-[10px] font-semibold text-hud-line">Detect</button>
+      </div>
+      <p class="mt-2 text-[10px] leading-snug text-hud-mute/90">
+        HUD reflows from 1–9 pockets so partial pages still lock to the cards in view.
+      </p>
+    </div>
     <label class="block">
       <span class="mb-1 flex justify-between"><span>Perspective</span><span data-v="persp" class="font-mono text-hud-dim">900</span></span>
       <input data-cal="persp" type="range" min="400" max="1800" value="900" />
@@ -454,8 +476,20 @@
     const SLOT_LABELS = ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3"];
     const isMobile = () => window.matchMedia("(max-width: 1023px)").matches;
 
+    /** Choose a pocket grid that fits N cards (1–9) without forcing empty 3×3 chrome. */
+    function layoutForCount(n) {
+      const count = Math.max(1, Math.min(9, Number(n) || 1));
+      if (count === 1) return { cols: 1, rows: 1, label: "1×1", count };
+      if (count === 2) return { cols: 2, rows: 1, label: "2×1", count };
+      if (count === 3) return { cols: 3, rows: 1, label: "3×1", count };
+      if (count === 4) return { cols: 2, rows: 2, label: "2×2", count };
+      if (count <= 6) return { cols: 3, rows: 2, label: "3×2", count };
+      return { cols: 3, rows: 3, label: "3×3", count };
+    }
+
     const state = {
       pockets: [],
+      cardCount: 9,
       selectedId: null,
       ticks: 0,
       log: [],
@@ -496,24 +530,119 @@
       return pocket.rawPrice * CONDITIONS[pocket.condition].mult;
     }
 
-    function initPockets() {
-      state.pockets = CARD_POOL.map((card, i) => {
-        const jitter = 1 + (Math.random() - 0.5) * 0.08;
-        const rawPrice = Number((card.base * jitter).toFixed(2));
-        const history = seedHistory(rawPrice);
-        return {
-          id: `p${i}`,
-          slot: SLOT_LABELS[i],
-          name: card.name,
-          set: card.set,
-          number: card.number,
-          art: card.art,
-          condition: "NM",
-          rawPrice,
-          history,
-          trend: trendFromHistory(history),
-        };
+    function shufflePool() {
+      const pool = [...CARD_POOL];
+      for (let i = pool.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      return pool;
+    }
+
+    function makePocket(card, index) {
+      const jitter = 1 + (Math.random() - 0.5) * 0.08;
+      const rawPrice = Number((card.base * jitter).toFixed(2));
+      const history = seedHistory(rawPrice);
+      return {
+        id: `p${index}-${card.number}-${Math.random().toString(36).slice(2, 6)}`,
+        slot: SLOT_LABELS[index] || `X${index + 1}`,
+        name: card.name,
+        set: card.set,
+        number: card.number,
+        art: card.art,
+        condition: "NM",
+        rawPrice,
+        history,
+        trend: trendFromHistory(history),
+      };
+    }
+
+    function initPockets(count = state.cardCount, reshuffle = false) {
+      const nextCount = Math.max(1, Math.min(9, Number(count) || 9));
+      state.cardCount = nextCount;
+
+      if (reshuffle || !state.pockets.length) {
+        const source = reshuffle ? shufflePool() : CARD_POOL;
+        state.pockets = source.slice(0, nextCount).map((card, i) => makePocket(card, i));
+      } else if (state.pockets.length > nextCount) {
+        state.pockets = state.pockets.slice(0, nextCount);
+      } else if (state.pockets.length < nextCount) {
+        const used = new Set(state.pockets.map((p) => p.number));
+        const available = CARD_POOL.filter((c) => !used.has(c.number));
+        let idx = state.pockets.length;
+        while (state.pockets.length < nextCount) {
+          const card = available.shift() || CARD_POOL[idx % CARD_POOL.length];
+          state.pockets.push(makePocket(card, idx));
+          idx += 1;
+        }
+      }
+
+      // Keep slot labels aligned to the active page positions.
+      state.pockets.forEach((pocket, i) => {
+        pocket.slot = SLOT_LABELS[i] || `X${i + 1}`;
       });
+
+      if (state.selectedId && !state.pockets.some((p) => p.id === state.selectedId)) {
+        closeModal();
+      }
+      applyGridLayout();
+      renderGrid();
+    }
+
+    function applyGridLayout() {
+      const layout = layoutForCount(state.cardCount);
+      const grid = el("pocketGrid");
+      const plane = el("gridPlane");
+      grid.style.gridTemplateColumns = `repeat(${layout.cols}, minmax(0, 1fr))`;
+      grid.style.gridTemplateRows = `repeat(${layout.rows}, minmax(0, 1fr))`;
+
+      // Scale the HUD frame to the active layout so 1–4 cards aren't tiny in a 3×3 box.
+      const widthFactor = layout.cols === 1 ? 0.42 : layout.cols === 2 ? 0.62 : 0.92;
+      const heightFactor =
+        layout.rows === 1 ? 0.34 : layout.rows === 2 ? 0.48 : 0.58;
+      plane.style.width = `min(${Math.round(widthFactor * 100)}vw, ${layout.cols === 3 ? 360 : layout.cols === 2 ? 300 : 220}px)`;
+      plane.style.height = `min(${Math.round(heightFactor * 100)}dvh, ${layout.rows === 3 ? 520 : layout.rows === 2 ? 420 : 280}px)`;
+
+      const badge = el("layoutBadge");
+      if (badge) {
+        const noun = layout.count === 1 ? "CARD" : "CARDS";
+        badge.textContent = `${layout.count} ${noun} · ${layout.label}`;
+      }
+
+      document.querySelectorAll("[data-v='cardCount']").forEach((node) => {
+        node.textContent = String(layout.count);
+      });
+      document.querySelectorAll(".count-preset").forEach((btn) => {
+        const n = Number(btn.getAttribute("data-count-preset"));
+        btn.classList.toggle("border-hud-line/50", n === layout.count);
+        btn.classList.toggle("text-hud-line", n === layout.count);
+        btn.classList.toggle("bg-hud-line/10", n === layout.count);
+      });
+    }
+
+    function setCardCount(count, { reshuffle = false, announce = true } = {}) {
+      const next = Math.max(1, Math.min(9, Number(count) || 1));
+      document.querySelectorAll('[data-cal="cardCount"]').forEach((input) => {
+        input.value = String(next);
+      });
+      initPockets(next, reshuffle);
+      if (announce) {
+        const layout = layoutForCount(next);
+        pushLog(`Frame lock · ${next} card${next === 1 ? "" : "s"} · ${layout.label}`, "up");
+      }
+    }
+
+    function detectCardCount() {
+      // Simulated frame detection: prefer fuller pages, still allows sparse frames.
+      const weights = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+      const bias = [1, 2, 3, 4, 3, 5, 2, 3, 6];
+      const bag = [];
+      weights.forEach((n, i) => {
+        for (let k = 0; k < bias[i]; k += 1) bag.push(n);
+      });
+      const detected = bag[Math.floor(Math.random() * bag.length)];
+      setCardCount(detected, { reshuffle: true, announce: false });
+      pushLog(`Detector locked ${detected} card${detected === 1 ? "" : "s"} in frame`, "up");
     }
 
     function mountCalibrateControls() {
@@ -527,17 +656,34 @@
 
       document.querySelectorAll("[data-cal]").forEach((input) => {
         const key = input.getAttribute("data-cal");
+        if (key === "cardCount") {
+          input.value = String(state.cardCount);
+          input.addEventListener("input", () => {
+            setCardCount(input.value, { reshuffle: false });
+          });
+          return;
+        }
         input.value = String(state.cal[key]);
         input.addEventListener("input", () => {
           state.cal[key] = Number(input.value);
-          // Keep both control sets in sync
           document.querySelectorAll(`[data-cal="${key}"]`).forEach((node) => {
             node.value = String(state.cal[key]);
           });
           applyCalibration();
         });
       });
+
+      document.querySelectorAll(".count-preset").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          setCardCount(btn.getAttribute("data-count-preset"), { reshuffle: false });
+        });
+      });
+      document.querySelectorAll("[data-detect-count]").forEach((btn) => {
+        btn.addEventListener("click", detectCardCount);
+      });
+
       applyCalibration();
+      applyGridLayout();
     }
 
     function applyCalibration() {
@@ -564,9 +710,14 @@
         : { persp: 900, rotX: 12, rotY: -6, scale: 100, offX: 0, offY: 8 };
       document.querySelectorAll("[data-cal]").forEach((input) => {
         const key = input.getAttribute("data-cal");
+        if (key === "cardCount") {
+          input.value = String(state.cardCount);
+          return;
+        }
         input.value = String(state.cal[key]);
       });
       applyCalibration();
+      applyGridLayout();
       pushLog("Calibration reset for this viewport", "neutral");
     }
 
@@ -603,10 +754,17 @@
     function renderSidebar() {
       const values = state.pockets.map(effectivePrice);
       const total = values.reduce((a, b) => a + b, 0);
-      const avg = total / values.length;
+      const avg = values.length ? total / values.length : 0;
       let highest = state.pockets[0];
       for (const p of state.pockets) {
         if (effectivePrice(p) > effectivePrice(highest)) highest = p;
+      }
+      if (!highest) {
+        ["totalValue", "totalValueMobile", "totalValueSheet", "avgValue", "avgValueSheet"].forEach((id) => {
+          const node = el(id);
+          if (node) node.textContent = money(0);
+        });
+        return;
       }
 
       const setText = (id, value) => {
@@ -656,8 +814,24 @@
         </button>`;
     }
 
+    function emptyPocketMarkup(index) {
+      const slot = SLOT_LABELS[index] || `X${index + 1}`;
+      return `
+        <div class="grid-pocket relative flex min-h-0 flex-col items-center justify-center rounded-lg border border-dashed border-white/15 bg-black/20 p-1.5">
+          <span class="font-mono text-[9px] uppercase tracking-wider text-hud-mute/60">${slot}</span>
+          <span class="mt-1 text-[9px] uppercase tracking-wider text-hud-mute/45">Empty</span>
+        </div>`;
+    }
+
     function renderGrid() {
-      el("pocketGrid").innerHTML = state.pockets.map(pocketMarkup).join("");
+      applyGridLayout();
+      const layout = layoutForCount(state.cardCount);
+      const cells = layout.cols * layout.rows;
+      const filled = state.pockets.map(pocketMarkup).join("");
+      const empties = Array.from({ length: Math.max(0, cells - state.pockets.length) }, (_, i) =>
+        emptyPocketMarkup(state.pockets.length + i)
+      ).join("");
+      el("pocketGrid").innerHTML = filled + empties;
       el("pocketGrid").querySelectorAll("[data-id]").forEach((btn) => {
         btn.addEventListener("click", () => openModal(btn.getAttribute("data-id")));
       });
@@ -920,17 +1094,18 @@
 
     function boot() {
       lucide.createIcons();
-      initPockets();
       bindControls();
-      renderGrid();
-      pushLog("HUD online · mobile-ready layout", "up");
-      pushLog(isMobile() ? "Tap Align to match your binder page" : "Use calibrate panel to lock page", "neutral");
+      setCardCount(9, { reshuffle: false, announce: false });
+      pushLog("HUD online · 1–9 card frame lock", "up");
+      pushLog(
+        isMobile()
+          ? "Tap Align → set card count or Detect"
+          : "Use calibrate panel to set cards in frame (1–9)",
+        "neutral",
+      );
       tickClock();
       setInterval(tickClock, 1000);
       setInterval(tickPrices, 2200);
-
-      // Auto-start camera only after a user gesture on iOS if needed —
-      // try immediately, retry button always available.
       void startCamera();
     }
 
