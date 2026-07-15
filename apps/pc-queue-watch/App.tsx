@@ -34,7 +34,6 @@ export default function App() {
           <StatusBar style="light" />
           <Stack.Navigator
             initialRouteName="Home"
-            detachInactiveScreens={false}
             screenOptions={{
               headerStyle: { backgroundColor: colors.card },
               headerTintColor: colors.text,

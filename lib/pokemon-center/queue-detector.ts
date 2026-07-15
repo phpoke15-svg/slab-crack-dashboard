@@ -18,19 +18,12 @@ export type QueueDetection = {
 }
 
 const QUEUE_PATTERNS: Array<{ id: string; label: string; confidence: number; re: RegExp }> = [
-  { id: "queue-it-net", label: "Queue-it network domain", confidence: 100, re: /queue-it\.(?:net|com)/i },
+  { id: "queue-it-net", label: "Queue-it network domain", confidence: 100, re: /queue-it\.net/i },
   { id: "queue-it-js", label: "Queue-it script", confidence: 90, re: /queue-it\.js|queueit/i },
   { id: "waiting-room-url", label: "Waiting room URL", confidence: 100, re: /waitingroom|waiting-room/i },
   { id: "virtual-queue", label: "Virtual queue copy", confidence: 70, re: /virtual queue|waiting room/i },
   { id: "hi-trainer", label: "Queue greeting", confidence: 60, re: /hi,?\s*trainer/i },
-  {
-    id: "queue-line-copy",
-    label: "Queue line copy",
-    confidence: 85,
-    re: /you are now in line|your place in line/i,
-  },
   { id: "queue-timer", label: "Queue countdown", confidence: 50, re: /\b\d{1,2}:\d{2}:\d{2}\b.*(?:queue|wait)/i },
-  { id: "queue-it-cookie", label: "Queue-it cookie", confidence: 95, re: /QueueIT/i },
   {
     id: "incapsula-queue",
     label: "Incapsula queue payload",
@@ -79,11 +72,7 @@ export const IMPERVA_CHALLENGE_PATTERNS: Array<{
 ]
 
 const BLOCKED_PATTERNS: Array<{ id: string; label: string; re: RegExp }> = [
-  {
-    id: "incapsula-block",
-    label: "Imperva/Incapsula challenge",
-    re: /_Incapsula_Resource[\s\S]{0,400}incident_id=/i,
-  },
+  { id: "incapsula-block", label: "Imperva/Incapsula challenge", re: /_Incapsula_Resource|incident_id=/i },
   { id: "access-denied", label: "Access denied", re: /access denied|request unsuccessful/i },
 ]
 
@@ -141,10 +130,9 @@ export function detectQueueFromContent(input: {
   const confidence = queueSignals.reduce((max, s) => Math.max(max, s.confidence), 0)
   const challenge = hasImpervaChallengeSignals(signals)
   const live = confidence >= 60
-  let blocked =
+  const blocked =
     input.blocked ??
     signals.some((s) => s.id === "datacenter-block" || s.id === "incapsula-block" || s.id === "access-denied")
-  if (blocked && live) blocked = false
 
   return {
     live: blocked ? false : live,
@@ -175,9 +163,7 @@ async function fetchPokemonCenterOnce(): Promise<QueueDetection> {
     })
 
     const html = await response.text()
-    const blocked =
-      /Request unsuccessful|access denied/i.test(html) ||
-      /_Incapsula_Resource[\s\S]{0,400}incident_id=/i.test(html)
+    const blocked = /_Incapsula_Resource|incident_id=|Request unsuccessful/i.test(html)
     return detectQueueFromContent({
       html,
       url: response.url,

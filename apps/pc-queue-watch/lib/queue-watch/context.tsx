@@ -21,7 +21,6 @@ import {
 } from "./service"
 import { reportQueueStateToServer } from "./report-to-server"
 import { verifyProAccess } from "./pro-access"
-import { MonitorWebView } from "./monitor-webview"
 
 const AUTO_START_KEY = "collectools-queue-auto-start"
 const KEEP_AWAKE_TAG = "collectools-queue-watch"
@@ -40,7 +39,6 @@ type QueueWatchContextValue = {
   setAutoStart: (enabled: boolean) => Promise<void>
   applyWebViewReport: (report: WebViewReport) => Promise<void>
   refreshProAccess: () => Promise<boolean>
-  setMonitorWebViewVisible: (visible: boolean) => void
 }
 
 const QueueWatchContext = createContext<QueueWatchContextValue | null>(null)
@@ -53,7 +51,6 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
   const [webViewConnected, setWebViewConnected] = useState(false)
   const [hasPro, setHasPro] = useState<boolean | null>(null)
   const [proChecking, setProChecking] = useState(true)
-  const [monitorWebViewVisible, setMonitorWebViewVisible] = useState(false)
 
   const stop = useCallback(() => {
     queueWatchService.stop()
@@ -182,7 +179,6 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
       setAutoStart,
       applyWebViewReport,
       refreshProAccess,
-      setMonitorWebViewVisible,
     }),
     [
       monitoring,
@@ -200,14 +196,7 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
     ],
   )
 
-  return (
-    <QueueWatchContext.Provider value={value}>
-      {monitoring && hasPro && !monitorWebViewVisible ? (
-        <MonitorWebView visible={false} onReport={applyWebViewReport} />
-      ) : null}
-      {children}
-    </QueueWatchContext.Provider>
-  )
+  return <QueueWatchContext.Provider value={value}>{children}</QueueWatchContext.Provider>
 }
 
 export function useQueueWatch() {
