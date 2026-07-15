@@ -12,5 +12,7 @@ describe("buildQueueWatchBookmarklet", () => {
     expect(href).toContain("lastChallenge")
     expect(href).toContain("challengeEdge")
     expect(href).toContain("isChallengePage")
+    expect(href).toContain("originOk")
+    expect(href).toContain("heartbeat ping (silent)")
   })
 })
