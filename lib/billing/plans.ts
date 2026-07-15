@@ -59,6 +59,7 @@ export const PLAN_TIERS: PlanTier[] = [
     features: [
       "7-day free trial",
       "Everything in Premium",
+      "Custom hub layout — reorder your tool tiles",
       "Pokemon Center PokeWatch (web + phone alerts)",
       "Cancel anytime",
     ],
@@ -119,6 +120,8 @@ export type Entitlements = {
   queueWatch: boolean
   /** Full SlabCrack feed; free users get a mid-deficit preview only. */
   fullSlabCrack: boolean
+  /** Reorder hub tool tiles (Pro and Supreme). */
+  customHubLayout: boolean
   /** In-development tools + site metrics console (Supreme only). */
   supreme: boolean
   status: string | null
@@ -152,6 +155,7 @@ export function entitlementsForPlan(plan: PlanId, extras?: Partial<Entitlements>
     adFree: supreme || Boolean(tier?.adFree),
     queueWatch: supreme || Boolean(tier?.includesQueueWatch),
     fullSlabCrack: paid || Boolean(tier?.fullSlabCrack),
+    customHubLayout: supreme || plan === "pro",
     supreme,
     status: extras?.status ?? (plan === "free" ? null : "active"),
     currentPeriodEnd: extras?.currentPeriodEnd ?? null,

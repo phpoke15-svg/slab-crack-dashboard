@@ -60,6 +60,7 @@ After changing env vars, **Redeploy**.
 ## Billing (Premium / Pro)
 
 1. Run [`supabase/billing-plans.sql`](./supabase/billing-plans.sql) in Supabase.
+2. Run [`supabase/hub-tool-order.sql`](./supabase/hub-tool-order.sql) for Pro/Supreme custom hub tile order.
 2. Create Stripe products/prices:
    - **Premium** — $4.99/mo + $39.99/yr (full SlabCrack + ad-free)
    - **Pro** — $9.99/mo + $99.99/yr (everything, including PokeWatch)
