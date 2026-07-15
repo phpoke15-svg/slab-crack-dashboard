@@ -7,6 +7,10 @@ import {
   type CardSearchHit,
 } from "@/lib/card-lookup"
 import {
+  geminiVisionModelCandidates,
+  isGeminiModelUnavailable,
+} from "@/lib/slabcrack/gemini-models"
+import {
   cleanNumber,
   extractGeminiAnswerText,
   minAutoMatchScore,
@@ -121,11 +125,8 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
     throw new Error("GEMINI_API_KEY is not configured.")
   }
 
-  const configured = process.env.GEMINI_VISION_MODEL?.trim()
-  // Fast path first: 2.5 Flash with thinkingBudget 0. Fall back to 3.5 only if needed.
-  const models = [configured, "gemini-2.5-flash", "gemini-3.5-flash"].filter(
-    (m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i,
-  )
+  // Prefer gemini-3.5-flash — 2.5-flash 404s on many keys ("update to newest version").
+  const models = geminiVisionModelCandidates()
 
   const { mimeType, base64 } = splitDataUrl(imageDataUrl)
   let lastError = "Gemini vision failed."
@@ -133,6 +134,7 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
   const started = Date.now()
 
   for (const model of models) {
+    let modelUnavailable = false
     const modes: GeminiRequestMode[] = ["preferred", "more-tokens"]
 
     for (const mode of modes) {
@@ -176,8 +178,9 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
           lastError = `Gemini vision failed (${response.status}) on ${model}: ${body.slice(0, 280)}`
           console.warn("[slabcrack-identify]", lastError)
 
-          // Model id missing / unavailable for this key → try the next candidate.
-          if (response.status === 404 || /no longer available|not found|not supported/i.test(body)) {
+          // Model id missing / unavailable for this key → skip to the next candidate.
+          if (isGeminiModelUnavailable(response.status, body)) {
+            modelUnavailable = true
             break
           }
           // Invalid thinkingConfig → try next mode / model.
@@ -218,8 +221,7 @@ async function detectWithGemini(imageDataUrl: string): Promise<DetectedCard> {
         }
       }
 
-      // Don't keep retrying modes once the account is rate-limited.
-      if (sawOverload) break
+      if (modelUnavailable || sawOverload) break
     }
 
     // 429/503 is usually account-wide — don't burn more Gemini models.
