@@ -1,4 +1,5 @@
 ;(function () {
+  const BUILD = "20260715c"
   const stage = document.getElementById("stage")
   const viewport = document.getElementById("viewport")
   const video = document.getElementById("video")
@@ -10,6 +11,10 @@
   const pcKeyInput = document.getElementById("pcKey")
   const modelTag = document.getElementById("modelTag")
   const toastEl = document.getElementById("toast")
+  const buildTag = document.getElementById("buildTag")
+
+  if (buildTag) buildTag.textContent = BUILD
+  console.log("[BinderHud] build", BUILD)
 
   const captureCtx = capture.getContext("2d")
   const hud = BinderHud.createHud(hudLayer)
@@ -34,7 +39,7 @@
     toastTimer = setTimeout(() => {
       toastEl.classList.remove("is-visible")
       toastEl.hidden = true
-    }, 4800)
+    }, 5200)
   }
 
   function pcKey() {
@@ -65,7 +70,10 @@
     hud.relayout()
   }
 
-  /** Raw video → hidden canvas → JPEG @ 0.85. No local CV. */
+  /**
+   * Raw video → canvas → JPEG @ 0.85 (downscaled for faster Gemini).
+   * No local outline / contour tracking.
+   */
   function captureFrameDirect() {
     const w = video.videoWidth
     const h = video.videoHeight
@@ -73,15 +81,24 @@
       throw new Error("Camera frame not available yet — try again in a moment")
     }
 
-    capture.width = w
-    capture.height = h
-    captureCtx.drawImage(video, 0, 0, w, h)
+    const maxW = 1024
+    const scale = w > maxW ? maxW / w : 1
+    const cw = Math.round(w * scale)
+    const ch = Math.round(h * scale)
+    capture.width = cw
+    capture.height = ch
+    captureCtx.drawImage(video, 0, 0, cw, ch)
 
     const dataUrl = capture.toDataURL("image/jpeg", 0.85)
     const prefix = "data:image/jpeg;base64,"
     const data = dataUrl.startsWith(prefix) ? dataUrl.slice(prefix.length) : dataUrl
 
-    console.log("[BinderHud] direct capture", { size: `${w}x${h}`, base64Chars: data.length })
+    console.log("[BinderHud] direct capture", {
+      build: BUILD,
+      source: `${w}x${h}`,
+      export: `${cw}x${ch}`,
+      base64Chars: data.length,
+    })
     return { mimeType: "image/jpeg", data }
   }
 
@@ -163,7 +180,6 @@
         return
       }
 
-      // Ensure viewport has real size before placing overlays
       layoutViewport()
       hud.render(cards)
 
@@ -177,8 +193,9 @@
     } catch (err) {
       console.error("[BinderHud] scan error", err)
       const msg = err instanceof Error ? err.message : "Scan failed"
-      // Don't pretend this is "no cards" when the API itself failed
-      if (/not configured|GEMINI|HTTP|failed|missing|unavailable/i.test(msg)) {
+      if (/timeout|timed out|504|FUNCTION_INVOCATION/i.test(msg)) {
+        showToast("Scan timed out — try again with fewer cards / better light.")
+      } else if (/not configured|GEMINI|HTTP|failed|missing|unavailable/i.test(msg)) {
         showToast(`Scan failed: ${msg.slice(0, 160)}`)
       } else {
         showToast("No cards detected. Try adjusting lighting or camera angle.")

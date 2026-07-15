@@ -16,10 +16,6 @@
     return base === "/api/live-binder-hud" ? `${base}/price` : `${base}/prices`
   }
 
-  /**
-   * Full-frame Gemini box_2d detect.
-   * @param {{ mimeType: string, data: string }} payload data = raw base64 WITHOUT data-URL prefix
-   */
   async function scanFrame(payload) {
     const body =
       typeof payload === "string"
@@ -33,15 +29,39 @@
       mimeType: body.mimeType,
       dataChars: body.data.length,
       dataHead: body.data.slice(0, 40),
-      hasDataPrefix: body.data.startsWith("data:"),
     })
 
-    const res = await fetch(scanUrl(), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    })
-    const data = await res.json().catch(() => ({}))
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 55_000)
+
+    let res
+    try {
+      res = await fetch(scanUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+    } catch (err) {
+      clearTimeout(timer)
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new Error("Scan timed out waiting for Gemini")
+      }
+      throw err
+    }
+    clearTimeout(timer)
+
+    const text = await res.text()
+    let data = {}
+    try {
+      data = JSON.parse(text)
+    } catch {
+      if (/FUNCTION_INVOCATION_TIMEOUT|timed out/i.test(text)) {
+        throw new Error("Scan timed out on the server")
+      }
+      throw new Error(`Scan failed (${res.status}) — non-JSON response`)
+    }
+
     console.log("[BinderApi] scan response rawJson:", data.rawJson)
     console.log("[BinderApi] scan response cards:", data.cards)
     if (!res.ok || data.ok === false) {
