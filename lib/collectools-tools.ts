@@ -8,7 +8,6 @@ import {
   Package,
   Radar,
   Ratio,
-  ScanLine,
   ScanSearch,
 } from "lucide-react"
 
@@ -39,23 +38,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Buy, crack, and sell — spot slabs where cracking and selling raw beats the market price",
       "Buy high-end cards under market for your personal collection",
       "Market awareness — track graded vs raw pricing gaps and stay ahead of the market",
-      "Camera scan — Gemini identifies the card, then live SlabCrack prices open automatically",
+      "Camera scan in search — AI identifies a card and opens Crack + Lab prices",
     ],
     icon: Layers,
-  },
-  {
-    id: "slabcrack-scan",
-    href: "/slabcrack/scan",
-    name: "SlabScan",
-    tagline: "Camera price HUD",
-    description:
-      "Point your camera at a card — Gemini detects it and opens live SlabCrack raw vs PSA prices.",
-    highlights: [
-      "AI card detection from a single photo (Gemini 3.5)",
-      "Raw price plus PSA 7–9 deficit grid",
-      "Open full SlabCrack analysis from the HUD",
-    ],
-    icon: ScanLine,
   },
   {
     id: "slablab",
@@ -68,23 +53,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Live market comps for the top 200 PSA 10 grading opportunities",
       "Model net ROI with current PSA grading tiers",
       "Flag Prime Submission slots and 10-or-Bust danger zones",
-      "Camera scan — snap a card to open spread, multiplier, and grading ROI",
+      "Camera scan in search — snap a card for Crack + Lab ROI",
     ],
     icon: Ratio,
-  },
-  {
-    id: "slablab-scan",
-    href: "/slablab/scan",
-    name: "SlabLab Scan",
-    tagline: "Camera ROI HUD",
-    description:
-      "Photograph a card — Gemini detects it and opens PSA 10 gross spread, multiplier, and net ROI.",
-    highlights: [
-      "AI card detection from a single photo (Gemini 3.5)",
-      "Gross spread, net ROI after grading fee, and multiplier",
-      "Jump into the full SlabLab board from the HUD",
-    ],
-    icon: ScanLine,
   },
   {
     id: "binder",
