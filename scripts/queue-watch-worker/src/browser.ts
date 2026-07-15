@@ -13,19 +13,24 @@ export async function openMonitorContext(input: {
   profileDir: string
   proxyServer?: string
   headed?: boolean
+  /** Bootstrap only: use installed Google Chrome instead of bundled Chromium. */
+  useSystemChrome?: boolean
 }): Promise<BrowserContext> {
   const { mkdir } = await import("node:fs/promises")
   await mkdir(input.profileDir, { recursive: true })
 
+  const headed = Boolean(input.headed)
   const { chromium } = await import("playwright")
   return chromium.launchPersistentContext(input.profileDir, {
-    headless: !input.headed,
-    viewport: { width: 390, height: 844 },
-    userAgent: MOBILE_UA,
+    channel: input.useSystemChrome ? "chrome" : undefined,
+    headless: !headed,
+    viewport: headed ? undefined : { width: 390, height: 844 },
+    userAgent: headed ? undefined : MOBILE_UA,
     locale: "en-US",
     timezoneId: "America/New_York",
     proxy: input.proxyServer ? { server: input.proxyServer } : undefined,
     args: ["--disable-blink-features=AutomationControlled"],
+    ignoreDefaultArgs: headed ? ["--enable-automation"] : undefined,
     timeout: 120_000,
   })
 }

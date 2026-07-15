@@ -128,6 +128,7 @@ Users only need **Phone alerts** enabled on `/pokewatch`. No app or bookmarklet 
 
 | Symptom | Fix |
 |---------|-----|
+| Imperva **Error 15** on bootstrap | **Not your `.env` proxy** — the “Proxy IP” on that page is Imperva’s CDN. Your “Your IP” line is what got blocked. Test `pokemoncenter.com` in **Safari** on the same network first. If Safari works, re-run `npm run bootstrap` (uses installed Chrome). If Safari also fails, switch network (home Wi‑Fi, not hotspot), quit VPN/iCloud Private Relay, delete `pc-profile/`, wait ~1h, retry. |
 | `403` on report | `QUEUE_WATCH_WORKER_SECRET` mismatch between Fly and Vercel |
 | `40+ blocked polls` in logs | Re-bootstrap cookies; add `PROXY_SERVER` |
 | No push | Check `push_alert_dedupe` in Supabase; confirm VAPID env |
