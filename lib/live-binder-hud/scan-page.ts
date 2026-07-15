@@ -23,21 +23,19 @@ export type BinderHudImageInput = {
   image?: string
 }
 
+/** Per-call timeout — fail fast to the single fallback model instead of stacking 28s waits. */
+const GEMINI_DETECT_TIMEOUT_MS = 22_000
+
 /**
  * Keep the cascade tiny — Vercel will 504 if we fan out across many models/schemas.
- * Prefer current Flash IDs first: many keys 404 gemini-2.5-flash ("update to newest").
+ * One primary + one fallback only (was 4+ models × 2 schema modes).
  */
 export function binderHudGeminiModels(): string[] {
   const preferred = (process.env.GEMINI_VISION_MODEL || "").trim()
   const isStale25 = /gemini-2\.5-flash/i.test(preferred)
-  const defaults = ["gemini-3.5-flash", "gemini-flash-latest", "gemini-3.1-flash-lite"]
-  return [
-    // Ignore a stale GEMINI_VISION_MODEL=gemini-2.5-flash so it cannot block scans.
-    !isStale25 ? preferred : "",
-    ...defaults,
-    // Last resort only
-    "gemini-2.5-flash",
-  ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i)
+  const primary = !isStale25 && preferred ? preferred : "gemini-3.5-flash"
+  const fallback = "gemini-flash-latest"
+  return primary === fallback ? [primary] : [primary, fallback]
 }
 
 function resolveInlineImage(input: BinderHudImageInput | string): {
@@ -77,7 +75,8 @@ async function callGeminiDetect(opts: {
   const thinking = thinkingConfigForModel(opts.model)
   const generationConfig: Record<string, unknown> = {
     responseMimeType: "application/json",
-    maxOutputTokens: 4096,
+    // ~9 cards × box + identity fits comfortably; smaller budget = faster generation.
+    maxOutputTokens: 2048,
     temperature: 0.2,
     ...(thinking ? { thinkingConfig: thinking } : {}),
   }
@@ -166,7 +165,7 @@ export async function detectCardsInFrame(input: BinderHudImageInput | string): P
           mimeType,
           base64,
           useSchema,
-          timeoutMs: 28_000,
+          timeoutMs: GEMINI_DETECT_TIMEOUT_MS,
         })
 
         lastRaw = text || ""

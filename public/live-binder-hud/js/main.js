@@ -1,5 +1,5 @@
 ;(function () {
-  const BUILD = "20260715d"
+  const BUILD = "20260715e"
   const stage = document.getElementById("stage")
   const viewport = document.getElementById("viewport")
   const video = document.getElementById("video")
@@ -61,8 +61,7 @@
   }
 
   /**
-   * Raw video → canvas → JPEG @ 0.85 (downscaled for faster Gemini).
-   * No local outline / contour tracking.
+   * Raw video → canvas → JPEG (downscaled like SlabCrack scan for faster Gemini).
    */
   function captureFrameDirect() {
     const w = video.videoWidth
@@ -71,7 +70,7 @@
       throw new Error("Camera frame not available yet — try again in a moment")
     }
 
-    const maxW = 1024
+    const maxW = 768
     const scale = w > maxW ? maxW / w : 1
     const cw = Math.round(w * scale)
     const ch = Math.round(h * scale)
@@ -79,7 +78,7 @@
     capture.height = ch
     captureCtx.drawImage(video, 0, 0, cw, ch)
 
-    const dataUrl = capture.toDataURL("image/jpeg", 0.85)
+    const dataUrl = capture.toDataURL("image/jpeg", 0.52)
     const prefix = "data:image/jpeg;base64,"
     const data = dataUrl.startsWith(prefix) ? dataUrl.slice(prefix.length) : dataUrl
 
@@ -110,6 +109,20 @@
     video.addEventListener("resize", layoutViewport)
   }
 
+  async function mapPool(items, concurrency, worker) {
+    let cursor = 0
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+        while (cursor < items.length) {
+          const i = cursor
+          cursor += 1
+          await worker(items[i], i)
+        }
+      }),
+    )
+  }
+
+  /** Price in parallel (up to 4) so HUD fills in as each comp lands. */
   async function priceDetectedCards(cards) {
     const toFetch = []
     cards.forEach((c, i) => {
@@ -119,29 +132,33 @@
     })
     if (!toFetch.length) return
 
-    try {
-      const results = await BinderApi.priceCards(
-        toFetch.map(({ index, card }) => ({
-          slot: index + 1,
-          name: card.name,
-          set: card.set,
-          number: card.number,
-        })),
-        pcKey(),
-      )
-      results.forEach((r, j) => {
-        const index = toFetch[j]?.index
-        if (index == null) return
-        if (r.ok === false) {
-          hud.updateCard(index, { priceError: r.error || "lookup failed" })
+    await mapPool(toFetch, 4, async ({ index, card }) => {
+      try {
+        const results = await BinderApi.priceCards(
+          [
+            {
+              slot: index + 1,
+              name: card.name,
+              set: card.set,
+              number: card.number,
+            },
+          ],
+          pcKey(),
+        )
+        const r = results[0]
+        if (!r || r.ok === false) {
+          hud.updateCard(index, { priceError: r?.error || "lookup failed" })
           return
         }
         BinderCache.setPrice(cards[index], r)
         hud.updateCard(index, { pricing: r })
-      })
-    } catch (priceErr) {
-      console.warn("[BinderHud] pricing failed (outlines still shown)", priceErr)
-    }
+      } catch (priceErr) {
+        console.warn("[BinderHud] card price failed", index, priceErr)
+        hud.updateCard(index, {
+          priceError: priceErr instanceof Error ? priceErr.message : "lookup failed",
+        })
+      }
+    })
   }
 
   async function runScan() {
