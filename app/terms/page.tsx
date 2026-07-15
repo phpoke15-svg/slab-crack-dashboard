@@ -7,12 +7,13 @@ import {
   LEGAL_SITE_NAME,
   LEGAL_SITE_URL,
 } from "@/lib/legal/config"
+import { pageMetadata } from "@/lib/seo"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Terms of Service",
   description: `Terms governing use of ${LEGAL_SITE_NAME} and ${LEGAL_PRODUCT_NAME}.`,
-  alternates: { canonical: `${LEGAL_SITE_URL.replace(/\/$/, "")}/terms` },
-}
+  path: "/terms",
+})
 
 export default function TermsPage() {
   return (

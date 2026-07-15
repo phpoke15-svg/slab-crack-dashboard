@@ -4,7 +4,7 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { Psa10SpreadScanner } from "@/components/psa10-spread-scanner"
 import { JsonLd } from "@/components/seo/json-ld"
-import { pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
+import { pageMetadata, breadcrumbJsonLd, softwareApplicationJsonLd } from "@/lib/seo"
 
 const description =
   "SlabLab ranks the top 200 Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and probability-weighted submission ROI using live market comps."
@@ -19,11 +19,17 @@ export default function SlabLabPage() {
   return (
     <main className="relative min-h-dvh overflow-x-hidden bg-background">
       <JsonLd
-        data={softwareApplicationJsonLd({
-          name: "SlabLab",
-          description,
-          path: "/slablab",
-        })}
+        data={[
+          softwareApplicationJsonLd({
+            name: "SlabLab",
+            description,
+            path: "/slablab",
+          }),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "SlabLab", path: "/slablab" },
+          ]),
+        ]}
       />
       <div
         aria-hidden

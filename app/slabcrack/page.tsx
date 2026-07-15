@@ -1,7 +1,7 @@
 import { SlabDashboardClient } from "@/components/slab-dashboard-client"
 import { JsonLd } from "@/components/seo/json-ld"
 import { ToolSeoFooter, ToolSeoIntro } from "@/components/seo/tool-seo-intro"
-import { pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
+import { breadcrumbJsonLd, pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
 
 const description =
   "Find undervalued graded Pokémon TCG cards. SlabCrack compares raw vs PSA slab prices so you can spot arbitrage and crack opportunities."
@@ -16,11 +16,17 @@ export default function SlabCrackPage() {
   return (
     <main className="min-h-dvh bg-background">
       <JsonLd
-        data={softwareApplicationJsonLd({
-          name: "SlabCrack",
-          description,
-          path: "/slabcrack",
-        })}
+        data={[
+          softwareApplicationJsonLd({
+            name: "SlabCrack",
+            description,
+            path: "/slabcrack",
+          }),
+          breadcrumbJsonLd([
+            { name: "Home", path: "/" },
+            { name: "SlabCrack", path: "/slabcrack" },
+          ]),
+        ]}
       />
       <ToolSeoIntro
         title="SlabCrack"

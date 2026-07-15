@@ -6,12 +6,13 @@ import {
   LEGAL_SITE_NAME,
   LEGAL_SITE_URL,
 } from "@/lib/legal/config"
+import { pageMetadata } from "@/lib/seo"
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
   title: "Privacy Policy",
   description: `How ${LEGAL_SITE_NAME} collects, uses, and protects your information.`,
-  alternates: { canonical: `${LEGAL_SITE_URL.replace(/\/$/, "")}/privacy` },
-}
+  path: "/privacy",
+})
 
 export default function PrivacyPage() {
   return (
