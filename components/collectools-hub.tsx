@@ -1,15 +1,103 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { ArrowRight, X } from "lucide-react"
+import {
+  ArrowRight,
+  Check,
+  GripVertical,
+  LayoutGrid,
+  Loader2,
+  X,
+} from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { FooterAd } from "@/components/footer-ad"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { hubToolsForUser, type CollecTool } from "@/lib/collectools-tools"
+import { moveHubToolId, orderHubTools, parseHubToolOrder } from "@/lib/hub-tool-order"
 import { cn } from "@/lib/utils"
+
+function HubToolTile({
+  tool,
+  editMode,
+  dragOver,
+  onOpen,
+  onDragStart,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+}: {
+  tool: CollecTool
+  editMode: boolean
+  dragOver: boolean
+  onOpen: () => void
+  onDragStart: () => void
+  onDragEnd: () => void
+  onDragOver: (event: React.DragEvent) => void
+  onDrop: () => void
+}) {
+  const Icon = tool.icon
+
+  return (
+    <button
+      type="button"
+      draggable={editMode}
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = "move"
+        event.dataTransfer.setData("text/plain", tool.id)
+        onDragStart()
+      }}
+      onDragEnd={onDragEnd}
+      onDragOver={onDragOver}
+      onDrop={(event) => {
+        event.preventDefault()
+        onDrop()
+      }}
+      onClick={() => {
+        if (!editMode) onOpen()
+      }}
+      className={cn(
+        "group flex w-full flex-col items-start gap-2 rounded-xl border bg-card/60 p-3 text-left transition-colors",
+        editMode
+          ? "cursor-grab border-dashed border-primary/50 bg-primary/[0.04] active:cursor-grabbing"
+          : "border-border hover:border-primary/40 hover:bg-card",
+        dragOver && "border-primary ring-2 ring-primary/30",
+        tool.supremeOnly && !editMode && "border-primary/25 bg-primary/[0.03]",
+      )}
+    >
+      <span className="flex w-full items-center justify-between gap-2">
+        <span className="flex items-center gap-2">
+          {editMode ? (
+            <GripVertical className="size-4 shrink-0 text-primary" aria-hidden />
+          ) : null}
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+            <Icon className="size-4" strokeWidth={2} />
+          </span>
+        </span>
+        {!editMode ? (
+          <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+        ) : null}
+      </span>
+      <span className="min-w-0 w-full">
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="text-base font-bold leading-tight text-foreground sm:text-lg">
+            {tool.name}
+          </span>
+          {tool.supremeOnly ? (
+            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
+              Supreme
+            </span>
+          ) : null}
+        </span>
+        <span className="mt-1 block text-xs leading-snug text-muted-foreground line-clamp-2">
+          {tool.blurb}
+        </span>
+      </span>
+    </button>
+  )
+}
 
 export function CollecToolsHub() {
   const entitlements = useOptionalEntitlements()
@@ -17,13 +105,68 @@ export function CollecToolsHub() {
     !entitlements?.isLoading && entitlements?.signedIn && entitlements.plan === "free"
   const showProNudge =
     !entitlements?.isLoading && entitlements?.signedIn && entitlements.plan === "premium"
-  const tools = hubToolsForUser({ supreme: Boolean(entitlements?.supreme) })
+  const canCustomize =
+    Boolean(entitlements?.customHubLayout && entitlements?.signedIn && !entitlements?.isLoading)
+
+  const defaultTools = useMemo(
+    () => hubToolsForUser({ supreme: Boolean(entitlements?.supreme) }),
+    [entitlements?.supreme],
+  )
+  const defaultOrder = useMemo(() => defaultTools.map((tool) => tool.id), [defaultTools])
+
+  const [savedOrder, setSavedOrder] = useState<string[] | null>(null)
+  const [draftOrder, setDraftOrder] = useState<string[]>(defaultOrder)
+  const [orderLoading, setOrderLoading] = useState(false)
+  const [orderLoaded, setOrderLoaded] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
   const [selected, setSelected] = useState<CollecTool | null>(null)
+
+  const activeOrder = editMode ? draftOrder : savedOrder ?? defaultOrder
+  const tools = useMemo(
+    () => orderHubTools(defaultTools, activeOrder),
+    [activeOrder, defaultTools],
+  )
+
+  const loadSavedOrder = useCallback(async () => {
+    if (!canCustomize) {
+      setSavedOrder(null)
+      setOrderLoaded(true)
+      return
+    }
+    setOrderLoading(true)
+    try {
+      const res = await fetch("/api/hub/tool-order", { credentials: "same-origin" })
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        toolOrder?: string[] | null
+        error?: string
+      } | null
+      if (res.ok && json?.ok) {
+        const parsed = parseHubToolOrder(json.toolOrder)
+        setSavedOrder(parsed.length ? parsed : null)
+      } else {
+        setSavedOrder(null)
+      }
+    } catch {
+      setSavedOrder(null)
+    } finally {
+      setOrderLoading(false)
+      setOrderLoaded(true)
+    }
+  }, [canCustomize])
+
+  useEffect(() => {
+    void loadSavedOrder()
+  }, [loadSavedOrder])
 
   useEffect(() => {
     if (!selected) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelected(null)
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSelected(null)
     }
     document.body.style.overflow = "hidden"
     window.addEventListener("keydown", onKey)
@@ -32,6 +175,58 @@ export function CollecToolsHub() {
       window.removeEventListener("keydown", onKey)
     }
   }, [selected])
+
+  const startEdit = () => {
+    setDraftOrder(savedOrder ?? defaultOrder)
+    setSaveError(null)
+    setEditMode(true)
+  }
+
+  const cancelEdit = () => {
+    setDraftOrder(savedOrder ?? defaultOrder)
+    setDraggingId(null)
+    setDragOverId(null)
+    setSaveError(null)
+    setEditMode(false)
+  }
+
+  const saveOrder = async () => {
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const res = await fetch("/api/hub/tool-order", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toolOrder: draftOrder }),
+      })
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        toolOrder?: string[]
+        error?: string
+      } | null
+      if (!res.ok || !json?.ok || !json.toolOrder?.length) {
+        throw new Error(json?.error || "Could not save layout")
+      }
+      setSavedOrder(json.toolOrder)
+      setDraftOrder(json.toolOrder)
+      setEditMode(false)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not save layout")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDropOn = (targetId: string) => {
+    if (!draggingId || draggingId === targetId) return
+    const fromIndex = draftOrder.indexOf(draggingId)
+    const toIndex = draftOrder.indexOf(targetId)
+    if (fromIndex < 0 || toIndex < 0) return
+    setDraftOrder(moveHubToolId(draftOrder, fromIndex, toIndex))
+    setDraggingId(null)
+    setDragOverId(null)
+  }
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
@@ -50,13 +245,53 @@ export function CollecToolsHub() {
           <p className="w-full text-base font-medium leading-snug text-foreground sm:text-lg">
             The Ultimate Tool Kit for Pokemon Card Collectors!
           </p>
-          <Link
-            href="/pricing"
-            className="inline-flex h-9 items-center justify-center rounded-lg border border-primary/40 bg-primary/15 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-          >
-            View membership tiers
-            <span className="ml-1.5 font-medium text-muted-foreground">Free · Premium · Pro</span>
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/pricing"
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-primary/40 bg-primary/15 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+            >
+              View membership tiers
+              <span className="ml-1.5 font-medium text-muted-foreground">Free · Premium · Pro</span>
+            </Link>
+            {canCustomize ? (
+              editMode ? (
+                <>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void saveOrder()}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground disabled:opacity-60"
+                  >
+                    {saving ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                    Save layout
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={cancelEdit}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
+                  >
+                    <X className="size-3.5" />
+                    Cancel
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  disabled={orderLoading || !orderLoaded}
+                  onClick={startEdit}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card/60 px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary/40"
+                >
+                  {orderLoading ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <LayoutGrid className="size-3.5" />
+                  )}
+                  Edit tool order
+                </button>
+              )
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -77,44 +312,38 @@ export function CollecToolsHub() {
         </p>
       ) : null}
 
+      {editMode ? (
+        <p className="mb-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+          Drag tiles to reorder your hub. Tap <span className="font-medium text-foreground">Save layout</span>{" "}
+          when you&apos;re done — your order syncs to your account.
+        </p>
+      ) : null}
+      {saveError ? (
+        <p className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          {saveError}
+        </p>
+      ) : null}
+
       <div className="grid grid-cols-2 gap-2">
-        {tools.map((tool) => {
-          const Icon = tool.icon
-          return (
-            <button
-              key={tool.id}
-              type="button"
-              onClick={() => setSelected(tool)}
-              className={cn(
-                "group flex w-full flex-col items-start gap-2 rounded-xl border border-border bg-card/60 p-3 text-left transition-colors",
-                "hover:border-primary/40 hover:bg-card",
-                tool.supremeOnly && "border-primary/25 bg-primary/[0.03]",
-              )}
-            >
-              <span className="flex w-full items-center justify-between gap-2">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
-                  <Icon className="size-4" strokeWidth={2} />
-                </span>
-                <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-              </span>
-              <span className="min-w-0 w-full">
-                <span className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-base font-bold leading-tight text-foreground sm:text-lg">
-                    {tool.name}
-                  </span>
-                  {tool.supremeOnly ? (
-                    <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary">
-                      Supreme
-                    </span>
-                  ) : null}
-                </span>
-                <span className="mt-1 block text-xs leading-snug text-muted-foreground line-clamp-2">
-                  {tool.blurb}
-                </span>
-              </span>
-            </button>
-          )
-        })}
+        {tools.map((tool) => (
+          <HubToolTile
+            key={tool.id}
+            tool={tool}
+            editMode={editMode}
+            dragOver={dragOverId === tool.id}
+            onOpen={() => setSelected(tool)}
+            onDragStart={() => setDraggingId(tool.id)}
+            onDragEnd={() => {
+              setDraggingId(null)
+              setDragOverId(null)
+            }}
+            onDragOver={(event) => {
+              event.preventDefault()
+              setDragOverId(tool.id)
+            }}
+            onDrop={() => handleDropOn(tool.id)}
+          />
+        ))}
       </div>
 
       <FooterAd className="mt-10" />
@@ -124,6 +353,14 @@ export function CollecToolsHub() {
         </Link>
         {" · "}
         ad-free full SlabCrack from $4.99/mo · PokeWatch with Pro
+        {canCustomize ? (
+          <>
+            {" · "}
+            <span className="text-foreground">
+              {entitlements?.supreme ? "Supreme" : "Pro"} can customize hub layout
+            </span>
+          </>
+        ) : null}
       </p>
       <SiteFooter className="mt-auto pt-10" />
 

@@ -61,6 +61,9 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
           data.fullSlabCrack ??
             (data.plan === "premium" || data.plan === "pro" || data.plan === "supreme"),
         ),
+        customHubLayout: Boolean(
+          data.customHubLayout ?? (data.plan === "pro" || data.plan === "supreme"),
+        ),
         supreme: Boolean(data.supreme ?? data.plan === "supreme"),
         status: data.status ?? null,
         currentPeriodEnd: data.currentPeriodEnd ?? null,
