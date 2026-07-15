@@ -4,11 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
   <meta name="robots" content="noindex,nofollow" />
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
   <title>Live Binder HUD</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="./app.css" />
+  <link rel="stylesheet" href="./app.css?v=20260715c" />
 </head>
 <body>
   <div id="stage">
@@ -33,16 +34,16 @@
       </div>
 
       <div class="meta">
-        <span>Mode: <strong>Direct → Gemini</strong></span>
-        <span>No local outline tracking · one still frame per scan</span>
+        <span>Build: <strong id="buildTag">20260715c</strong></span>
+        <span>Direct → Gemini box_2d · no local tracking</span>
         <span id="modelTag">Prices via PriceCharting</span>
       </div>
     </div>
   </div>
 
-  <script src="./js/cache.js"></script>
-  <script src="./js/api.js"></script>
-  <script src="./js/hud.js"></script>
-  <script src="./js/main.js"></script>
+  <script src="./js/cache.js?v=20260715c"></script>
+  <script src="./js/api.js?v=20260715c"></script>
+  <script src="./js/hud.js?v=20260715c"></script>
+  <script src="./js/main.js?v=20260715c"></script>
 </body>
 </html>

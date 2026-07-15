@@ -2,7 +2,9 @@ import { NextResponse } from "next/server"
 import { detectCardsInFrame } from "@/lib/live-binder-hud/scan-page"
 
 export const dynamic = "force-dynamic"
+/** Keep under typical Vercel limits; detection itself uses ≤2 Gemini calls. */
 export const maxDuration = 60
+
 
 export async function POST(request: Request) {
   try {

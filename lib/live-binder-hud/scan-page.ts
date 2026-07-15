@@ -1,15 +1,11 @@
 import "server-only"
-import {
-  geminiVisionModelCandidates,
-  isGeminiModelUnavailable,
-} from "@/lib/slabcrack/gemini-models"
+import { isGeminiModelUnavailable } from "@/lib/slabcrack/gemini-models"
 import {
   extractGeminiAnswerText,
   thinkingConfigForModel,
   type GeminiGenerateResponse,
 } from "@/lib/slabcrack/identify-parse"
 import {
-  BINDER_HUD_ARRAY_SCHEMA,
   BINDER_HUD_RESPONSE_SCHEMA,
   BINDER_HUD_SCAN_PROMPT,
 } from "@/lib/live-binder-hud/gemini-schema"
@@ -27,17 +23,11 @@ export type BinderHudImageInput = {
   image?: string
 }
 
+/** Keep the cascade tiny — Vercel will 504 if we fan out across many models/schemas. */
 export function binderHudGeminiModels(): string[] {
   const preferred = (process.env.GEMINI_VISION_MODEL || "").trim()
-  // Prefer models known for spatial / box_2d detection
-  const hudDefaults = [
-    "gemini-2.5-flash",
-    "gemini-3.5-flash",
-    "gemini-2.0-flash",
-    "gemini-flash-latest",
-    "gemini-3.1-flash-lite",
-  ]
-  return [preferred, ...hudDefaults, ...geminiVisionModelCandidates()].filter(
+  const defaults = ["gemini-2.5-flash", "gemini-3.5-flash"]
+  return [preferred, ...defaults].filter(
     (m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i,
   )
 }
@@ -67,66 +57,75 @@ function resolveInlineImage(input: BinderHudImageInput | string): {
   throw new Error("Missing image data (send mimeType + data base64 without prefix).")
 }
 
-type SchemaMode = "object" | "array" | "none"
-
 async function callGeminiDetect(opts: {
   apiKey: string
   model: string
   mimeType: string
   base64: string
-  schemaMode: SchemaMode
+  useSchema: boolean
+  timeoutMs: number
 }): Promise<{ text: string; finishReason?: string }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(opts.model)}:generateContent`
   const thinking = thinkingConfigForModel(opts.model)
   const generationConfig: Record<string, unknown> = {
     responseMimeType: "application/json",
-    maxOutputTokens: 8192,
+    maxOutputTokens: 4096,
     temperature: 0.2,
     ...(thinking ? { thinkingConfig: thinking } : {}),
   }
-  if (opts.schemaMode === "object") {
+  if (opts.useSchema) {
     generationConfig.responseSchema = BINDER_HUD_RESPONSE_SCHEMA
-  } else if (opts.schemaMode === "array") {
-    generationConfig.responseSchema = BINDER_HUD_ARRAY_SCHEMA
   }
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": opts.apiKey,
-    },
-    body: JSON.stringify({
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: BINDER_HUD_SCAN_PROMPT },
-            { inlineData: { mimeType: opts.mimeType, data: opts.base64 } },
-          ],
-        },
-      ],
-      generationConfig,
-    }),
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs)
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": opts.apiKey,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: BINDER_HUD_SCAN_PROMPT },
+              { inlineData: { mimeType: opts.mimeType, data: opts.base64 } },
+            ],
+          },
+        ],
+        generationConfig,
+      }),
+    })
 
-  const bodyText = await response.text()
-  if (!response.ok) {
-    const err = new Error(
-      `Gemini ${opts.model} HTTP ${response.status}: ${bodyText.slice(0, 320)}`,
-    ) as Error & { status?: number; body?: string }
-    err.status = response.status
-    err.body = bodyText
+    const bodyText = await response.text()
+    if (!response.ok) {
+      const err = new Error(
+        `Gemini ${opts.model} HTTP ${response.status}: ${bodyText.slice(0, 280)}`,
+      ) as Error & { status?: number; body?: string }
+      err.status = response.status
+      err.body = bodyText
+      throw err
+    }
+
+    const data = JSON.parse(bodyText) as GeminiGenerateResponse
+    const extracted = extractGeminiAnswerText(data)
+    return { text: extracted.text, finishReason: extracted.finishReason }
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`Gemini ${opts.model} timed out after ${opts.timeoutMs}ms`)
+    }
     throw err
+  } finally {
+    clearTimeout(timer)
   }
-
-  const data = JSON.parse(bodyText) as GeminiGenerateResponse
-  const extracted = extractGeminiAnswerText(data)
-  return { text: extracted.text, finishReason: extracted.finishReason }
 }
 
 /**
- * Zero-shot multi-card detect on a single still frame.
+ * Fast zero-shot multi-card detect — 1–2 Gemini calls max.
  */
 export async function detectCardsInFrame(input: BinderHudImageInput | string): Promise<{
   cards: BinderHudDetectedCard[]
@@ -143,78 +142,59 @@ export async function detectCardsInFrame(input: BinderHudImageInput | string): P
   console.log("[live-binder-hud] Gemini request", {
     mimeType,
     base64Chars: base64.length,
-    base64Head: base64.slice(0, 32),
+    models: binderHudGeminiModels(),
   })
 
   let lastError = "Gemini detection failed."
   let lastRaw = ""
 
-  const schemaModes: SchemaMode[] = ["object", "array", "none"]
-
   for (const model of binderHudGeminiModels()) {
-    for (const schemaMode of schemaModes) {
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        try {
-          const { text, finishReason } = await callGeminiDetect({
-            apiKey,
-            model,
-            mimeType,
-            base64,
-            schemaMode,
-          })
+    // Prefer structured schema; one free-JSON fallback if schema fails / empty.
+    for (const useSchema of [true, false]) {
+      try {
+        const { text, finishReason } = await callGeminiDetect({
+          apiKey,
+          model,
+          mimeType,
+          base64,
+          useSchema,
+          timeoutMs: 28_000,
+        })
 
-          lastRaw = text || ""
-          console.log("[live-binder-hud] Gemini raw JSON string:", text)
-          console.log("[live-binder-hud] meta", { model, schemaMode, finishReason })
+        lastRaw = text || ""
+        console.log("[live-binder-hud] Gemini raw JSON string:", text)
+        console.log("[live-binder-hud] meta", { model, useSchema, finishReason })
 
-          const cards = parseBinderHudDetectJson(text || "[]")
-          console.log(
-            "[live-binder-hud] Parsed cards:",
-            cards.map((c) => ({ name: c.name, box_2d: c.box_2d })),
-          )
+        const cards = parseBinderHudDetectJson(text || '{"cards":[]}')
+        console.log(
+          "[live-binder-hud] Parsed cards:",
+          cards.map((c) => ({ name: c.name, box_2d: c.box_2d })),
+        )
 
-          // Empty cards is NOT success — try next schema/model
-          if (!cards.length) {
-            lastError = "Gemini returned JSON but no usable card boxes."
-            continue
-          }
-
+        if (cards.length) {
           return { cards, model, rawJson: text }
-        } catch (err) {
-          const status = (err as { status?: number }).status
-          const body = String((err as { body?: string }).body || "")
-          const message = err instanceof Error ? err.message : "Gemini call failed"
-          lastError = message
-          console.warn("[live-binder-hud] Gemini attempt failed", {
-            model,
-            schemaMode,
-            attempt,
-            status,
-            message: message.slice(0, 280),
-          })
-
-          if (status && isGeminiModelUnavailable(status, body)) break
-          if (
-            schemaMode !== "none" &&
-            (status === 400 || /schema|response_schema|invalid/i.test(message))
-          ) {
-            break // next schema mode
-          }
-          if (status === 429 || (status != null && status >= 500)) {
-            await new Promise((r) => setTimeout(r, 400 * (attempt + 1)))
-            continue
-          }
-          if (schemaMode === "none" && status && status < 500 && status !== 429) {
-            break
-          }
         }
+        lastError = "Gemini returned JSON but no usable card boxes."
+      } catch (err) {
+        const status = (err as { status?: number }).status
+        const body = String((err as { body?: string }).body || "")
+        const message = err instanceof Error ? err.message : "Gemini call failed"
+        lastError = message
+        console.warn("[live-binder-hud] attempt failed", { model, useSchema, status, message: message.slice(0, 240) })
+
+        if (status && isGeminiModelUnavailable(status, body)) break
+        if (useSchema && (status === 400 || /schema|response_schema|invalid/i.test(message))) {
+          continue // try without schema
+        }
+        // On timeout / 5xx, try next model
+        if (/timed out/i.test(message) || status === 429 || (status != null && status >= 500)) {
+          break
+        }
+        if (!useSchema) break
       }
     }
   }
 
-  // Surface last raw payload in the error for debugging when possible
-  if (lastRaw) {
-    throw new Error(`${lastError} raw=${lastRaw.slice(0, 240)}`)
-  }
+  if (lastRaw) throw new Error(`${lastError} raw=${lastRaw.slice(0, 200)}`)
   throw new Error(lastError)
 }
