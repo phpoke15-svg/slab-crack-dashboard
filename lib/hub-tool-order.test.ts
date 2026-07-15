@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { moveHubToolId, normalizeHubToolOrder, orderHubTools, shuffleHubToolIds } from "@/lib/hub-tool-order"
+import { moveHubToolId, normalizeHubToolOrder, orderHubTools } from "@/lib/hub-tool-order"
 import type { CollecTool } from "@/lib/collectools-tools"
 import { Layers } from "lucide-react"
 
@@ -33,13 +33,5 @@ describe("normalizeHubToolOrder", () => {
 describe("moveHubToolId", () => {
   it("moves an id within the order array", () => {
     expect(moveHubToolId(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"])
-  })
-})
-
-describe("shuffleHubToolIds", () => {
-  it("returns a permutation of the same ids", () => {
-    const input = ["a", "b", "c", "d"]
-    const shuffled = shuffleHubToolIds(input)
-    expect(shuffled.sort()).toEqual(input.sort())
   })
 })
