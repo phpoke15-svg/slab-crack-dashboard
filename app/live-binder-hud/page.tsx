@@ -22,7 +22,7 @@ export default async function LiveBinderHudPage() {
     <main className="fixed inset-0 bg-black">
       <iframe
         title="Live Binder HUD"
-        src="/live-binder-hud/app.html?v=20260715d"
+        src="/live-binder-hud/app.html?v=20260715e"
         className="h-full w-full border-0"
         allow="camera; microphone=(); fullscreen"
       />

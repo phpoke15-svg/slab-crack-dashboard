@@ -143,25 +143,38 @@ export async function priceCard(card, apiKey) {
   return toPricePayload(product, card)
 }
 
+const PRICE_LOOKUP_CONCURRENCY = 4
+
+async function mapPool(items, concurrency, worker) {
+  let cursor = 0
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+      while (cursor < items.length) {
+        const i = cursor
+        cursor += 1
+        await worker(items[i], i)
+      }
+    }),
+  )
+}
+
 /**
  * @param {{ slot: number, name: string, set?: string, number?: string }[]} cards
  * @param {string} [apiKey]
  */
 export async function priceCards(cards, apiKey) {
-  const results = []
-  for (const card of cards) {
+  return mapPool(cards, PRICE_LOOKUP_CONCURRENCY, async (card) => {
     try {
-      results.push({ ok: true, ...((await priceCard(card, apiKey))) })
+      return { ok: true, ...(await priceCard(card, apiKey)) }
     } catch (err) {
-      results.push({
+      return {
         ok: false,
         slot: card.slot,
         name: card.name,
         set: card.set || "",
         number: card.number || "",
         error: err instanceof Error ? err.message : "Price lookup failed",
-      })
+      }
     }
-  }
-  return results
+  })
 }

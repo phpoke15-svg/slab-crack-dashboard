@@ -1,12 +1,10 @@
 const configured = (process.env.GEMINI_VISION_MODEL || "").trim()
-const MODEL_CANDIDATES = [
-  // Prefer current Flash — gemini-2.5-flash 404s on many keys.
-  /gemini-2\.5-flash/i.test(configured) ? "" : configured,
-  "gemini-3.5-flash",
-  "gemini-flash-latest",
-  "gemini-3.1-flash-lite",
-  "gemini-2.5-flash",
-].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i)
+const isStale25 = /gemini-2\.5-flash/i.test(configured)
+const primary = !isStale25 && configured ? configured : "gemini-3.5-flash"
+const fallback = "gemini-flash-latest"
+const MODEL_CANDIDATES = primary === fallback ? [primary] : [primary, fallback]
+
+const GEMINI_DETECT_TIMEOUT_MS = 22_000
 
 const OBJECT_SCHEMA = {
   type: "OBJECT",
@@ -172,7 +170,7 @@ async function callGemini({ apiKey, model, mimeType, base64, useSchema, timeoutM
   const thinking = thinkingConfigForModel(model)
   const generationConfig = {
     responseMimeType: "application/json",
-    maxOutputTokens: 4096,
+    maxOutputTokens: 2048,
     temperature: 0.2,
     ...(thinking ? { thinkingConfig: thinking } : {}),
   }
@@ -237,7 +235,7 @@ export async function detectCardsInFrame(input) {
           mimeType,
           base64,
           useSchema,
-          timeoutMs: 28_000,
+          timeoutMs: GEMINI_DETECT_TIMEOUT_MS,
         })
         const text = extractText(data)
         lastRaw = text || ""
