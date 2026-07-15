@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
+  BackHandler,
   Linking,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native"
-import { useNavigation } from "@react-navigation/native"
+import { useFocusEffect, useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
@@ -73,6 +74,7 @@ export default function SiteWebScreen() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
   const webRef = useRef<WebView>(null)
+  const canGoBackRef = useRef(false)
   const { refreshProAccess } = useQueueWatch()
 
   useEffect(() => {
@@ -132,8 +134,24 @@ export default function SiteWebScreen() {
   const retry = useCallback(() => {
     setLoadError(null)
     setLoading(true)
+    canGoBackRef.current = false
     setReloadKey((k) => k + 1)
   }, [])
+
+  // Android system back / gesture: walk WebView history before exiting the app.
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        if (canGoBackRef.current) {
+          webRef.current?.goBack()
+          return true
+        }
+        return false
+      }
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack)
+      return () => sub.remove()
+    }, []),
+  )
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
@@ -151,6 +169,7 @@ export default function SiteWebScreen() {
           if (nativeEvent.progress >= 0.9) setLoading(false)
         }}
         onNavigationStateChange={(nav) => {
+          canGoBackRef.current = Boolean(nav.canGoBack)
           if (isQueueWatchPath(nav.url)) {
             // Re-inject CTA after client-side navigations (Next.js).
             setTimeout(injectHelpers, 400)

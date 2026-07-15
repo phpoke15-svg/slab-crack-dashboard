@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useRef } from "react"
 import {
   ActivityIndicator,
+  BackHandler,
   Pressable,
   StyleSheet,
   Switch,
@@ -8,7 +9,7 @@ import {
   View,
 } from "react-native"
 import * as Linking from "expo-linking"
-import { useNavigation } from "@react-navigation/native"
+import { useFocusEffect, useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
@@ -42,6 +43,7 @@ export default function QueueWatchScreen() {
     refreshProAccess,
   } = useQueueWatch()
   const webRef = useRef<WebView>(null)
+  const pcCanGoBackRef = useRef(false)
 
   const statusLabel = useMemo(() => {
     if (state?.live) return "Queue is LIVE"
@@ -96,6 +98,26 @@ export default function QueueWatchScreen() {
     navigation.navigate("Home")
     void Linking.openURL(`${COLLECTOOLS_BASE_URL}/pricing`)
   }, [navigation])
+
+  // Prefer Pokemon Center WebView history, then pop back to Home — never exit the app from Queue.
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        if (monitoring && pcCanGoBackRef.current) {
+          webRef.current?.goBack()
+          return true
+        }
+        if (navigation.canGoBack()) {
+          navigation.goBack()
+          return true
+        }
+        navigation.navigate("Home")
+        return true
+      }
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack)
+      return () => sub.remove()
+    }, [monitoring, navigation]),
+  )
 
   if (proChecking && hasPro === null) {
     return (
@@ -228,6 +250,9 @@ export default function QueueWatchScreen() {
             onMessage={onMessage}
             injectedJavaScript={WEBVIEW_MONITOR_SCRIPT}
             onLoadEnd={reinject}
+            onNavigationStateChange={(nav) => {
+              pcCanGoBackRef.current = Boolean(nav.canGoBack)
+            }}
             originWhitelist={["https://*", "http://*"]}
             sharedCookiesEnabled
             thirdPartyCookiesEnabled
