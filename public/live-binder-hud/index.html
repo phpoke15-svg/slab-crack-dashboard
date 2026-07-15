@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#05080f" />
-  <title>Live Binder HUD · Simulator</title>
+  <title>Live Binder HUD · Live Scan</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -113,6 +113,17 @@
       color: #1aff9c;
       background: rgba(26,255,156,0.12);
     }
+    .scan-busy { pointer-events: none; opacity: 0.72; }
+    .pocket-scanning {
+      animation: lockedPulse 1.1s ease-in-out infinite;
+      box-shadow: inset 0 0 0 2px rgba(26,255,156,0.65), 0 0 18px rgba(26,255,156,0.2);
+    }
+    .pocket-failed {
+      box-shadow: inset 0 0 0 2px rgba(255,77,109,0.7), 0 0 14px rgba(255,77,109,0.18);
+    }
+    .pocket-empty {
+      box-shadow: inset 0 0 0 1px rgba(138,160,184,0.35);
+    }
     @media (min-width: 1024px) {
       .desktop-sidebar { display: flex !important; }
       .desktop-calibrate { display: block !important; }
@@ -146,13 +157,13 @@
           <h1 class="font-display truncate text-xs font-semibold tracking-[0.16em] text-hud-line sm:text-sm">
             LIVE BINDER HUD
           </h1>
-          <p class="truncate text-[10px] text-hud-mute sm:text-[11px]">3×3 pocket scanner · sim</p>
+          <p id="hudSubtitle" class="truncate text-[10px] text-hud-mute sm:text-[11px]">Align grid · scan pockets · live prices</p>
         </div>
       </div>
       <div class="flex shrink-0 items-center gap-1.5">
         <span id="lockBadge" class="locked-pulse hidden items-center gap-1 rounded-full border border-hud-line/50 bg-black/55 px-2.5 py-2 text-[10px] font-semibold uppercase tracking-wider text-hud-line sm:inline-flex">
           <i data-lucide="lock" class="size-3.5"></i>
-          Locked
+          Live
         </span>
         <button
           id="flipCamBtn"
@@ -171,6 +182,14 @@
           <i data-lucide="camera" class="size-4"></i>
           <span id="camBtnLabel">Camera</span>
         </button>
+        <button
+          id="scanPageBtn"
+          type="button"
+          class="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-hud-line/50 bg-hud-line/15 px-3 text-xs font-semibold text-hud-line shadow-neon"
+        >
+          <i data-lucide="scan-line" class="size-4"></i>
+          <span id="scanPageBtnLabel">Scan</span>
+        </button>
       </div>
     </header>
 
@@ -185,7 +204,7 @@
         <p id="highestValueMobile" class="truncate font-mono text-sm font-semibold tabular-nums text-hud-dim">$0.00</p>
       </div>
       <div class="glass rounded-xl border border-hud-line/20 bg-hud-panel px-2.5 py-2">
-        <p class="text-[9px] uppercase tracking-wider text-hud-mute">Ticks</p>
+        <p class="text-[9px] uppercase tracking-wider text-hud-mute">Matched</p>
         <p id="tickCountMobile" class="font-mono text-sm font-semibold tabular-nums text-white">0</p>
       </div>
     </div>
@@ -213,7 +232,7 @@
               <p id="avgValue" class="font-mono text-sm font-semibold tabular-nums">$0.00</p>
             </div>
             <div class="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2">
-              <p class="text-[10px] uppercase tracking-wider text-hud-mute">Ticks</p>
+              <p class="text-[10px] uppercase tracking-wider text-hud-mute">Matched</p>
               <p id="tickCount" class="font-mono text-sm font-semibold tabular-nums">0</p>
             </div>
           </div>
@@ -253,7 +272,7 @@
               <span id="layoutBadge" class="font-mono">9 CARD LOCK</span>
             </div>
             <div class="absolute bottom-2.5 left-3 right-3 flex items-center justify-between text-[9px] text-hud-mute sm:bottom-3 sm:left-4 sm:right-4 sm:text-[10px]">
-              <span>SIM FEED</span>
+              <span id="feedLabel">LIVE SCAN</span>
               <span id="clock" class="font-mono text-hud-dim">00:00:00</span>
             </div>
           </div>
@@ -275,9 +294,9 @@
           <i data-lucide="sliders-horizontal" class="size-4"></i>
           Align
         </button>
-        <button type="button" id="dockCamBtn" class="inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/10 text-[10px] font-medium text-hud-mute">
-          <i data-lucide="camera" class="size-4"></i>
-          Camera
+        <button type="button" id="dockScanBtn" class="inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-hud-line/40 bg-hud-line/10 text-[10px] font-semibold text-hud-line">
+          <i data-lucide="scan-line" class="size-4"></i>
+          Scan
         </button>
         <button type="button" data-sheet="log" class="dock-btn inline-flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-white/10 text-[10px] font-medium text-hud-mute">
           <i data-lucide="scroll-text" class="size-4"></i>
@@ -313,7 +332,7 @@
             <p id="avgValueSheet" class="font-mono text-sm font-semibold tabular-nums">$0.00</p>
           </div>
           <div class="rounded-xl border border-white/10 bg-black/30 px-2.5 py-2">
-            <p class="text-[10px] uppercase tracking-wider text-hud-mute">Ticks</p>
+            <p class="text-[10px] uppercase tracking-wider text-hud-mute">Matched</p>
             <p id="tickCountSheet" class="font-mono text-sm font-semibold tabular-nums">0</p>
           </div>
         </div>
@@ -335,7 +354,7 @@
       </div>
       <div id="calibrateControlsMobile" class="space-y-2 text-[11px] text-hud-mute"></div>
       <p class="mt-3 text-[10px] leading-relaxed text-hud-mute">
-        Hold your phone over the binder page, then tilt/scale the neon grid until pockets line up. Tap a pocket for details.
+        Hold your phone over the binder page, tilt/scale the neon grid until pockets line up, then tap <strong>Scan</strong>. Each pocket is cropped, identified with AI, and priced from the catalog.
       </p>
     </section>
 
@@ -358,6 +377,20 @@
     </div>
   </div>
 
+  <!-- Scan progress -->
+  <div id="scanProgress" class="pointer-events-none fixed inset-x-0 bottom-[calc(5.25rem+var(--safe-bottom))] z-[55] mx-auto hidden w-[min(92vw,28rem)] rounded-2xl border border-hud-line/35 bg-black/85 px-4 py-3 shadow-panel glass lg:bottom-6">
+    <div class="flex items-center justify-between gap-3">
+      <div class="min-w-0">
+        <p class="text-[10px] font-semibold uppercase tracking-[0.18em] text-hud-line">Scanning page</p>
+        <p id="scanProgressLabel" class="mt-1 truncate text-sm text-white/90">Preparing…</p>
+      </div>
+      <p id="scanProgressCount" class="shrink-0 font-mono text-sm text-hud-dim">0/0</p>
+    </div>
+    <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+      <div id="scanProgressBar" class="h-full w-0 rounded-full bg-hud-line transition-[width] duration-300"></div>
+    </div>
+  </div>
+
   <!-- Detail modal -->
   <div id="modal" class="fixed inset-0 z-[60] hidden items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-3">
     <div class="glass relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-hud-line/30 bg-[#071018]/96 shadow-panel sm:rounded-3xl">
@@ -366,19 +399,21 @@
       </button>
       <div class="p-4 pb-[max(1.25rem,var(--safe-bottom))] sm:p-6">
         <div class="flex gap-3 sm:gap-4">
-          <div id="modalArt" class="flex aspect-[3/4] w-20 shrink-0 items-center justify-center rounded-xl border border-hud-line/30 bg-gradient-to-br from-[#123]/90 to-[#061018] font-display text-xs tracking-wider text-hud-line sm:w-28"></div>
+          <div id="modalArt" class="flex aspect-[3/4] w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-hud-line/30 bg-gradient-to-br from-[#123]/90 to-[#061018] font-display text-xs tracking-wider text-hud-line sm:w-28"></div>
           <div class="min-w-0 flex-1 pr-8">
             <p class="text-[10px] uppercase tracking-[0.22em] text-hud-mute">Pocket <span id="modalSlot">A1</span></p>
             <h3 id="modalName" class="mt-1 font-display text-lg font-semibold tracking-wide text-white sm:text-xl">Card</h3>
             <p id="modalSet" class="text-sm text-hud-mute">Set</p>
             <p id="modalPrice" class="mt-2 font-mono text-xl font-semibold text-hud-line tabular-nums sm:text-2xl">$0.00</p>
-            <p id="modalDelta" class="mt-1 text-xs font-medium text-hud-mute">—</p>
+            <p id="modalDelta" class="mt-1 text-xs font-medium text-hud-mute">Raw NM market</p>
           </div>
         </div>
 
+        <div id="modalGrades" class="mt-4 grid grid-cols-4 gap-2 text-center"></div>
+
         <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label class="block text-xs text-hud-mute">
-            Condition
+            Condition (raw adj.)
             <select id="conditionSelect" class="mt-1.5 min-h-12 w-full rounded-xl border border-hud-line/25 bg-black/50 px-3 py-3 text-sm text-white outline-none">
               <option value="NM">NM — Near Mint</option>
               <option value="LP">LP — Lightly Played</option>
@@ -386,24 +421,28 @@
             </select>
           </label>
           <div class="rounded-xl border border-white/10 bg-black/30 px-3 py-2">
-            <p class="text-[10px] uppercase tracking-wider text-hud-mute">Trend</p>
-            <p id="modalTrend" class="mt-1 text-sm font-semibold text-hud-dim">Stable</p>
-            <p id="modalCondNote" class="mt-1 text-[11px] text-hud-mute">NM multiplier 1.00×</p>
+            <p class="text-[10px] uppercase tracking-wider text-hud-mute">Match</p>
+            <p id="modalTrend" class="mt-1 text-sm font-semibold text-hud-dim">—</p>
+            <p id="modalCondNote" class="mt-1 text-[11px] text-hud-mute">Scan for live comps</p>
           </div>
         </div>
 
-        <div class="mt-4 rounded-2xl border border-hud-line/20 bg-black/35 p-3">
-          <div class="mb-2 flex items-center justify-between">
-            <p class="text-[10px] uppercase tracking-[0.2em] text-hud-mute">7-day price path</p>
-            <i data-lucide="chart-spline" class="size-3.5 text-hud-line"></i>
-          </div>
-          <div class="h-36">
-            <canvas id="priceChart"></canvas>
-          </div>
+        <p id="modalInsight" class="mt-3 text-[11px] leading-relaxed text-hud-mute"></p>
+
+        <div class="mt-4 flex gap-2">
+          <button id="rescanPocketBtn" type="button" class="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl border border-hud-line/40 bg-hud-line/10 px-3 text-sm font-semibold text-hud-line">
+            <i data-lucide="scan-line" class="size-4"></i>
+            Rescan pocket
+          </button>
+          <a id="openInScanLink" href="/slabcrack/scan" class="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 bg-black/40 px-3 text-sm text-hud-mute">
+            Full Scan
+          </a>
         </div>
       </div>
     </div>
   </div>
+
+  <canvas id="captureCanvas" class="hidden" aria-hidden="true"></canvas>
 
   <template id="calibrateFieldsTemplate">
     <div class="mb-3 rounded-xl border border-hud-line/20 bg-black/30 p-2.5">
@@ -425,7 +464,7 @@
         <button type="button" data-detect-count class="min-h-9 rounded-lg border border-hud-line/40 bg-hud-line/10 px-2.5 text-[10px] font-semibold text-hud-line">Detect</button>
       </div>
       <p class="mt-2 text-[10px] leading-snug text-hud-mute/90">
-        HUD reflows from 1–9 pockets so partial pages still lock to the cards in view.
+        Set how many cards are in frame (1–9), align the grid, then Scan to identify + price each pocket.
       </p>
     </div>
     <label class="block">
@@ -461,19 +500,8 @@
       MP: { label: "MP", mult: 0.65, tone: "text-hud-down" },
     };
 
-    const CARD_POOL = [
-      { name: "Charizard ex", set: "Obsidian Flames", number: "223", base: 68.5, art: "🔥" },
-      { name: "Lugia V", set: "Silver Tempest", number: "186", base: 92.0, art: "🪶" },
-      { name: "Umbreon VMAX", set: "Evolving Skies", number: "215", base: 410.0, art: "🌙" },
-      { name: "Pikachu VMAX", set: "Vivid Voltage", number: "188", base: 145.0, art: "⚡" },
-      { name: "Mew ex", set: "Paldea Evolved", number: "232", base: 54.25, art: "🧬" },
-      { name: "Giratina VSTAR", set: "Lost Origin", number: "186", base: 118.0, art: "👁" },
-      { name: "Rayquaza VMAX", set: "Evolving Skies", number: "218", base: 175.5, art: "🐉" },
-      { name: "Gardevoir ex", set: "Scarlet & Violet", number: "245", base: 39.8, art: "💎" },
-      { name: "Moonbreon", set: "Japanese EE", number: "095", base: 620.0, art: "🌑" },
-    ];
-
     const SLOT_LABELS = ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3"];
+    const SCAN_CONCURRENCY = 2;
     const isMobile = () => window.matchMedia("(max-width: 1023px)").matches;
 
     /** Choose a pocket grid that fits N cards (1–9) without forcing empty 3×3 chrome. */
@@ -491,97 +519,96 @@
       pockets: [],
       cardCount: 9,
       selectedId: null,
-      ticks: 0,
       log: [],
-      chart: null,
       stream: null,
       facingMode: "environment",
+      scanning: false,
+      scanToken: 0,
       cal: { persp: 900, rotX: 12, rotY: 0, scale: 100, offX: 0, offY: 0 },
     };
 
     const el = (id) => document.getElementById(id);
 
+    function esc(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
     function money(n) {
+      if (!Number.isFinite(n) || n <= 0) return "—";
       return `$${n.toFixed(2)}`;
     }
 
-    function seedHistory(base) {
-      const points = [];
-      let v = base * (0.9 + Math.random() * 0.1);
-      for (let i = 0; i < 14; i += 1) {
-        v *= 1 + (Math.random() - 0.48) * 0.04;
-        points.push(Number(v.toFixed(2)));
-      }
-      points[points.length - 1] = base;
-      return points;
-    }
-
-    function trendFromHistory(history) {
-      if (history.length < 2) return "flat";
-      const a = history[history.length - 2];
-      const b = history[history.length - 1];
-      const pct = ((b - a) / a) * 100;
-      if (pct > 0.35) return "up";
-      if (pct < -0.35) return "down";
-      return "flat";
-    }
-
     function effectivePrice(pocket) {
-      return pocket.rawPrice * CONDITIONS[pocket.condition].mult;
+      if (!Number.isFinite(pocket.rawPrice) || pocket.rawPrice <= 0) return 0;
+      const mult = CONDITIONS[pocket.condition]?.mult ?? 1;
+      return pocket.rawPrice * mult;
     }
 
-    function shufflePool() {
-      const pool = [...CARD_POOL];
-      for (let i = pool.length - 1; i > 0; i -= 1) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-      }
-      return pool;
+    function matchedCount() {
+      return state.pockets.filter((p) => p.status === "matched").length;
     }
 
-    function makePocket(card, index) {
-      const jitter = 1 + (Math.random() - 0.5) * 0.08;
-      const rawPrice = Number((card.base * jitter).toFixed(2));
-      const history = seedHistory(rawPrice);
+    function makeEmptyPocket(index) {
       return {
-        id: `p${index}-${card.number}-${Math.random().toString(36).slice(2, 6)}`,
+        id: `p${index}-${Math.random().toString(36).slice(2, 7)}`,
+        index,
         slot: SLOT_LABELS[index] || `X${index + 1}`,
-        name: card.name,
-        set: card.set,
-        number: card.number,
-        art: card.art,
+        status: "empty", // empty | scanning | matched | failed
+        name: "Awaiting scan",
+        set: "Align grid, then Scan",
+        number: "",
+        imageUrl: "",
         condition: "NM",
-        rawPrice,
-        history,
-        trend: trendFromHistory(history),
+        rawPrice: 0,
+        psa: { 7: 0, 8: 0, 9: 0, 10: 0 },
+        confidence: 0,
+        matchScore: 0,
+        marketInsight: "",
+        cardId: "",
+        pokemonTcgId: "",
+        error: "",
+        pricingSource: "",
       };
     }
 
-    function initPockets(count = state.cardCount, reshuffle = false) {
+    function applyCardToPocket(pocket, card, meta = {}) {
+      const quotes = Array.isArray(card?.gradeQuotes) ? card.gradeQuotes : [];
+      const byGrade = { 7: 0, 8: 0, 9: 0, 10: 0 };
+      for (const q of quotes) {
+        if (byGrade[q.grade] !== undefined) byGrade[q.grade] = Number(q.slabPrice) || 0;
+      }
+      pocket.status = "matched";
+      pocket.name = card.cardName || meta.detectedName || pocket.name;
+      pocket.set = card.setName || meta.detectedSet || pocket.set;
+      pocket.number = card.cardNumber || meta.detectedNumber || "";
+      pocket.imageUrl = card.imageUrl || pocket.imageUrl || "";
+      pocket.rawPrice = Number(card.rawPrice) || 0;
+      pocket.psa = byGrade;
+      pocket.marketInsight = card.marketInsight || meta.notes || "";
+      pocket.cardId = card.id || "";
+      pocket.pokemonTcgId = card.pokemonTcgId || meta.pokemonTcgId || "";
+      pocket.confidence = Number(meta.confidence) || pocket.confidence || 0;
+      pocket.matchScore = Number(meta.matchScore) || pocket.matchScore || 0;
+      pocket.pricingSource = meta.pricingSource || pocket.pricingSource || "";
+      pocket.error = "";
+    }
+
+    function initPockets(count = state.cardCount) {
       const nextCount = Math.max(1, Math.min(9, Number(count) || 9));
       state.cardCount = nextCount;
-
-      if (reshuffle || !state.pockets.length) {
-        const source = reshuffle ? shufflePool() : CARD_POOL;
-        state.pockets = source.slice(0, nextCount).map((card, i) => makePocket(card, i));
-      } else if (state.pockets.length > nextCount) {
-        state.pockets = state.pockets.slice(0, nextCount);
-      } else if (state.pockets.length < nextCount) {
-        const used = new Set(state.pockets.map((p) => p.number));
-        const available = CARD_POOL.filter((c) => !used.has(c.number));
-        let idx = state.pockets.length;
-        while (state.pockets.length < nextCount) {
-          const card = available.shift() || CARD_POOL[idx % CARD_POOL.length];
-          state.pockets.push(makePocket(card, idx));
-          idx += 1;
+      const prev = state.pockets;
+      state.pockets = Array.from({ length: nextCount }, (_, i) => {
+        const existing = prev[i];
+        if (existing && (existing.status === "matched" || existing.status === "failed")) {
+          return { ...existing, index: i, slot: SLOT_LABELS[i] || `X${i + 1}` };
         }
-      }
-
-      // Keep slot labels aligned to the active page positions.
-      state.pockets.forEach((pocket, i) => {
-        pocket.slot = SLOT_LABELS[i] || `X${i + 1}`;
+        return makeEmptyPocket(i);
       });
-
       if (state.selectedId && !state.pockets.some((p) => p.id === state.selectedId)) {
         closeModal();
       }
@@ -596,10 +623,8 @@
       grid.style.gridTemplateColumns = `repeat(${layout.cols}, minmax(0, 1fr))`;
       grid.style.gridTemplateRows = `repeat(${layout.rows}, minmax(0, 1fr))`;
 
-      // Scale the HUD frame to the active layout so 1–4 cards aren't tiny in a 3×3 box.
       const widthFactor = layout.cols === 1 ? 0.42 : layout.cols === 2 ? 0.62 : 0.92;
-      const heightFactor =
-        layout.rows === 1 ? 0.34 : layout.rows === 2 ? 0.48 : 0.58;
+      const heightFactor = layout.rows === 1 ? 0.34 : layout.rows === 2 ? 0.48 : 0.58;
       plane.style.width = `min(${Math.round(widthFactor * 100)}vw, ${layout.cols === 3 ? 360 : layout.cols === 2 ? 300 : 220}px)`;
       plane.style.height = `min(${Math.round(heightFactor * 100)}dvh, ${layout.rows === 3 ? 520 : layout.rows === 2 ? 420 : 280}px)`;
 
@@ -620,12 +645,12 @@
       });
     }
 
-    function setCardCount(count, { reshuffle = false, announce = true } = {}) {
+    function setCardCount(count, { announce = true } = {}) {
       const next = Math.max(1, Math.min(9, Number(count) || 1));
       document.querySelectorAll('[data-cal="cardCount"]').forEach((input) => {
         input.value = String(next);
       });
-      initPockets(next, reshuffle);
+      initPockets(next);
       if (announce) {
         const layout = layoutForCount(next);
         pushLog(`Frame lock · ${next} card${next === 1 ? "" : "s"} · ${layout.label}`, "up");
@@ -633,7 +658,7 @@
     }
 
     function detectCardCount() {
-      // Simulated frame detection: prefer fuller pages, still allows sparse frames.
+      // Heuristic helper until multi-card CV lands — bias toward common binder fills.
       const weights = [1, 2, 3, 4, 5, 6, 7, 8, 9];
       const bias = [1, 2, 3, 4, 3, 5, 2, 3, 6];
       const bag = [];
@@ -641,8 +666,8 @@
         for (let k = 0; k < bias[i]; k += 1) bag.push(n);
       });
       const detected = bag[Math.floor(Math.random() * bag.length)];
-      setCardCount(detected, { reshuffle: true, announce: false });
-      pushLog(`Detector locked ${detected} card${detected === 1 ? "" : "s"} in frame`, "up");
+      setCardCount(detected, { announce: false });
+      pushLog(`Count set to ${detected} — align pockets, then Scan`, "up");
     }
 
     function mountCalibrateControls() {
@@ -659,7 +684,7 @@
         if (key === "cardCount") {
           input.value = String(state.cardCount);
           input.addEventListener("input", () => {
-            setCardCount(input.value, { reshuffle: false });
+            setCardCount(input.value, { announce: false });
           });
           return;
         }
@@ -675,7 +700,7 @@
 
       document.querySelectorAll(".count-preset").forEach((btn) => {
         btn.addEventListener("click", () => {
-          setCardCount(btn.getAttribute("data-count-preset"), { reshuffle: false });
+          setCardCount(btn.getAttribute("data-count-preset"));
         });
       });
       document.querySelectorAll("[data-detect-count]").forEach((btn) => {
@@ -739,7 +764,7 @@
                 row.tone === "up" ? "bg-hud-line" : row.tone === "down" ? "bg-hud-down" : "bg-hud-mute"
               }"></span>
             </div>
-            <p class="mt-1 leading-snug text-white/85">${row.message}</p>
+            <p class="mt-1 leading-snug text-white/85">${esc(row.message)}</p>
           </li>`
         )
         .join("");
@@ -752,19 +777,13 @@
     }
 
     function renderSidebar() {
-      const values = state.pockets.map(effectivePrice);
+      const priced = state.pockets.filter((p) => p.status === "matched" && effectivePrice(p) > 0);
+      const values = priced.map(effectivePrice);
       const total = values.reduce((a, b) => a + b, 0);
       const avg = values.length ? total / values.length : 0;
-      let highest = state.pockets[0];
-      for (const p of state.pockets) {
+      let highest = priced[0] || null;
+      for (const p of priced) {
         if (effectivePrice(p) > effectivePrice(highest)) highest = p;
-      }
-      if (!highest) {
-        ["totalValue", "totalValueMobile", "totalValueSheet", "avgValue", "avgValueSheet"].forEach((id) => {
-          const node = el(id);
-          if (node) node.textContent = money(0);
-        });
-        return;
       }
 
       const setText = (id, value) => {
@@ -777,37 +796,72 @@
       setText("totalValueSheet", money(total));
       setText("avgValue", money(avg));
       setText("avgValueSheet", money(avg));
-      setText("highestCard", highest.name);
-      setText("highestCardSheet", highest.name);
-      setText("highestValue", `${money(effectivePrice(highest))} · ${highest.condition}`);
-      setText("highestValueMobile", money(effectivePrice(highest)));
-      setText("highestValueSheet", `${money(effectivePrice(highest))} · ${highest.condition}`);
-      setText("tickCount", String(state.ticks));
-      setText("tickCountMobile", String(state.ticks));
-      setText("tickCountSheet", String(state.ticks));
+      setText("highestCard", highest ? highest.name : "—");
+      setText("highestCardSheet", highest ? highest.name : "—");
+      setText("highestValue", highest ? `${money(effectivePrice(highest))} · ${highest.condition}` : "—");
+      setText("highestValueMobile", highest ? money(effectivePrice(highest)) : "—");
+      setText("highestValueSheet", highest ? `${money(effectivePrice(highest))} · ${highest.condition}` : "—");
+      const matched = String(matchedCount());
+      setText("tickCount", matched);
+      setText("tickCountMobile", matched);
+      setText("tickCountSheet", matched);
     }
 
     function pocketMarkup(pocket) {
       const price = effectivePrice(pocket);
-      const trendClass =
-        pocket.trend === "up" ? "trend-up" : pocket.trend === "down" ? "trend-down" : "trend-flat";
-      const trendIcon = pocket.trend === "up" ? "↗" : pocket.trend === "down" ? "↘" : "→";
       const cond = CONDITIONS[pocket.condition];
+      let toneClass = "pocket-empty";
+      let trendIcon = "·";
+      if (pocket.status === "scanning") {
+        toneClass = "pocket-scanning";
+        trendIcon = "…";
+      } else if (pocket.status === "failed") {
+        toneClass = "pocket-failed";
+        trendIcon = "!";
+      } else if (pocket.status === "matched") {
+        toneClass = price > 0 ? "trend-up" : "trend-flat";
+        trendIcon = price > 0 ? "↗" : "→";
+      }
+
+      const safeImage =
+        typeof pocket.imageUrl === "string" && /^https?:\/\//i.test(pocket.imageUrl)
+          ? pocket.imageUrl
+          : "";
+      const art = safeImage
+        ? `<img src="${esc(safeImage)}" alt="" class="max-h-full max-w-full object-contain" loading="lazy" />`
+        : `<span class="text-[10px] uppercase tracking-wider text-hud-mute/70">${
+            pocket.status === "scanning" ? "Scan…" : pocket.status === "failed" ? "Retry" : "Ready"
+          }</span>`;
+
+      const title =
+        pocket.status === "matched"
+          ? pocket.name
+          : pocket.status === "failed"
+            ? "No match"
+            : pocket.status === "scanning"
+              ? "Identifying…"
+              : "Tap Scan";
+
+      const priceLabel =
+        pocket.status === "matched" ? money(price) : pocket.status === "failed" ? "—" : "—";
+
       return `
         <button
           type="button"
-          data-id="${pocket.id}"
-          class="grid-pocket group relative flex min-h-0 flex-col justify-between overflow-hidden rounded-lg bg-black/45 p-1.5 text-left sm:p-2 ${trendClass}"
+          data-id="${esc(pocket.id)}"
+          class="grid-pocket group relative flex min-h-0 flex-col justify-between overflow-hidden rounded-lg bg-black/45 p-1.5 text-left sm:p-2 ${toneClass}"
         >
           <div class="flex items-start justify-between gap-1">
-            <span class="font-mono text-[9px] uppercase tracking-wider text-hud-line/80">${pocket.slot}</span>
-            <span class="rounded bg-black/50 px-1 py-0.5 text-[9px] font-semibold ${cond.tone}">${cond.label}</span>
+            <span class="font-mono text-[9px] uppercase tracking-wider text-hud-line/80">${esc(pocket.slot)}</span>
+            <span class="rounded bg-black/50 px-1 py-0.5 text-[9px] font-semibold ${
+              pocket.status === "matched" ? cond.tone : "text-hud-mute"
+            }">${pocket.status === "matched" ? cond.label : pocket.status === "scanning" ? "AI" : "—"}</span>
           </div>
-          <div class="my-0.5 flex flex-1 items-center justify-center text-xl sm:my-1 sm:text-2xl">${pocket.art}</div>
+          <div class="my-0.5 flex flex-1 items-center justify-center overflow-hidden">${art}</div>
           <div>
-            <p class="truncate text-[10px] font-semibold leading-tight text-white sm:text-[11px]">${pocket.name}</p>
+            <p class="truncate text-[10px] font-semibold leading-tight text-white sm:text-[11px]">${esc(title)}</p>
             <div class="mt-0.5 flex items-center justify-between gap-1">
-              <span class="font-mono text-[10px] font-semibold text-hud-line tabular-nums sm:text-[11px]">${money(price)}</span>
+              <span class="font-mono text-[10px] font-semibold text-hud-line tabular-nums sm:text-[11px]">${priceLabel}</span>
               <span class="text-[10px] text-hud-mute">${trendIcon}</span>
             </div>
           </div>
@@ -836,124 +890,388 @@
         btn.addEventListener("click", () => openModal(btn.getAttribute("data-id")));
       });
       renderSidebar();
+      if (window.lucide) lucide.createIcons();
     }
 
-    function tickPrices() {
-      state.ticks += 1;
-      for (const pocket of state.pockets) {
-        const shock = (Math.random() - 0.48) * 0.018;
-        pocket.rawPrice = Math.max(0.5, Number((pocket.rawPrice * (1 + shock)).toFixed(2)));
-        pocket.history.push(pocket.rawPrice);
-        if (pocket.history.length > 24) pocket.history.shift();
-        const prevTrend = pocket.trend;
-        pocket.trend = trendFromHistory(pocket.history);
-        if (prevTrend !== pocket.trend && Math.random() > 0.55) {
-          pushLog(
-            `${pocket.name} trend → ${pocket.trend.toUpperCase()} @ ${money(effectivePrice(pocket))}`,
-            pocket.trend === "up" ? "up" : pocket.trend === "down" ? "down" : "neutral"
-          );
+    function setScanUi(busy, label = "Scan") {
+      state.scanning = busy;
+      el("scanPageBtnLabel").textContent = busy ? "…" : label;
+      el("scanPageBtn").classList.toggle("scan-busy", busy);
+      el("dockScanBtn")?.classList.toggle("scan-busy", busy);
+      const prog = el("scanProgress");
+      if (!busy) prog.classList.add("hidden");
+    }
+
+    function updateScanProgress(done, total, label) {
+      const prog = el("scanProgress");
+      prog.classList.remove("hidden");
+      el("scanProgressLabel").textContent = label;
+      el("scanProgressCount").textContent = `${done}/${total}`;
+      el("scanProgressBar").style.width = `${total ? Math.round((done / total) * 100) : 0}%`;
+    }
+
+    /** Map a screen-space pocket rect into video pixel space (object-fit: cover). */
+    function mapScreenRectToVideo(rect, video) {
+      const videoRect = video.getBoundingClientRect();
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const displayW = videoRect.width;
+      const displayH = videoRect.height;
+      const videoAspect = vw / vh;
+      const displayAspect = displayW / displayH;
+
+      let renderedW;
+      let renderedH;
+      let offsetX;
+      let offsetY;
+      if (displayAspect > videoAspect) {
+        renderedW = displayW;
+        renderedH = displayW / videoAspect;
+        offsetX = 0;
+        offsetY = (displayH - renderedH) / 2;
+      } else {
+        renderedH = displayH;
+        renderedW = displayH * videoAspect;
+        offsetX = (displayW - renderedW) / 2;
+        offsetY = 0;
+      }
+
+      const scaleX = vw / renderedW;
+      const scaleY = vh / renderedH;
+      const x = (rect.left - videoRect.left - offsetX) * scaleX;
+      const y = (rect.top - videoRect.top - offsetY) * scaleY;
+      const w = rect.width * scaleX;
+      const h = rect.height * scaleY;
+      return { x, y, w, h };
+    }
+
+    function captureVideoFrame() {
+      const video = el("camera");
+      const canvas = el("captureCanvas");
+      if (!video?.videoWidth) throw new Error("Camera isn’t ready yet — wait for Live, then Scan.");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not capture camera frame.");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return { canvas, video };
+    }
+
+    function cropPocketDataUrl(frameCanvas, crop, inset = 0.08) {
+      const padX = crop.w * inset;
+      const padY = crop.h * inset;
+      let x = Math.max(0, Math.floor(crop.x + padX));
+      let y = Math.max(0, Math.floor(crop.y + padY));
+      let w = Math.min(frameCanvas.width - x, Math.floor(crop.w - padX * 2));
+      let h = Math.min(frameCanvas.height - y, Math.floor(crop.h - padY * 2));
+      if (w < 16 || h < 16) {
+        x = Math.max(0, Math.floor(crop.x));
+        y = Math.max(0, Math.floor(crop.y));
+        w = Math.min(frameCanvas.width - x, Math.max(16, Math.floor(crop.w)));
+        h = Math.min(frameCanvas.height - y, Math.max(16, Math.floor(crop.h)));
+      }
+      const out = document.createElement("canvas");
+      out.width = w;
+      out.height = h;
+      const ctx = out.getContext("2d");
+      ctx.drawImage(frameCanvas, x, y, w, h, 0, 0, w, h);
+      return out.toDataURL("image/jpeg", 0.88);
+    }
+
+    function compressImageDataUrl(dataUrl, maxEdge = 768, quality = 0.52) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            reject(new Error("Could not process pocket crop."));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = () => reject(new Error("Could not read pocket crop."));
+        img.src = dataUrl;
+      });
+    }
+
+    async function fetchPricedCard(hit) {
+      const params = new URLSearchParams();
+      if (hit.id?.startsWith("pc-")) {
+        params.set("id", hit.id);
+        params.set("cardName", hit.cardName || "");
+        params.set("setName", hit.setName || "");
+        params.set("cardNumber", hit.cardNumber || "");
+        if (hit.pokemonTcgId) params.set("pokemonTcgId", hit.pokemonTcgId);
+      } else if (hit.pokemonTcgId) {
+        params.set("pokemonTcgId", hit.pokemonTcgId);
+        params.set("cardName", hit.cardName || "");
+        params.set("setName", hit.setName || "");
+        params.set("cardNumber", hit.cardNumber || "");
+      } else {
+        params.set("cardName", hit.cardName || "");
+        params.set("setName", hit.setName || "");
+        params.set("cardNumber", hit.cardNumber || "");
+      }
+      if (!hit.id?.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl);
+
+      const res = await fetch(`/api/cards/lookup?${params.toString()}`);
+      if (!res.ok) return null;
+      return res.json();
+    }
+
+    async function identifyPocketImage(dataUrl) {
+      const compressed = await compressImageDataUrl(dataUrl);
+
+      const visionRes = await fetch("/api/slabcrack/identify/vision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: compressed }),
+      });
+      const vision = await visionRes.json().catch(() => null);
+      if (!visionRes.ok || !vision?.ok || !vision.detected) {
+        throw new Error(vision?.error || "Vision could not read this pocket.");
+      }
+
+      const matchRes = await fetch("/api/slabcrack/identify/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ detected: vision.detected, source: vision.source }),
+      });
+      const match = await matchRes.json().catch(() => null);
+      if (!matchRes.ok || !match?.ok) {
+        throw new Error(match?.error || "Catalog match failed for this pocket.");
+      }
+
+      let card = match.card || null;
+      if ((!card || match.needsLiveRefresh) && match.hit) {
+        const live = await fetchPricedCard(match.hit).catch(() => null);
+        if (live) card = live;
+      }
+      if (!card && match.candidates?.[0]) {
+        const live = await fetchPricedCard(match.candidates[0]).catch(() => null);
+        if (live) card = live;
+        else {
+          card = {
+            cardName: match.candidates[0].cardName,
+            setName: match.candidates[0].setName,
+            cardNumber: match.candidates[0].cardNumber,
+            imageUrl: match.candidates[0].imageUrl,
+            rawPrice: 0,
+            gradeQuotes: [],
+            id: match.candidates[0].id,
+            pokemonTcgId: match.candidates[0].pokemonTcgId,
+          };
         }
       }
+      if (!card) {
+        throw new Error(
+          `Read “${vision.detected.cardName}” but no catalog/price hit.`
+        );
+      }
+
+      return {
+        card,
+        detected: vision.detected,
+        matchScore: match.matchScore,
+        pricingSource: match.pricingSource,
+        hit: match.hit,
+      };
+    }
+
+    async function scanPocketByIndex(index, frameCanvas, video, token) {
+      const pocket = state.pockets[index];
+      if (!pocket || token !== state.scanToken) return;
+
+      pocket.status = "scanning";
+      pocket.error = "";
       renderGrid();
-      if (state.selectedId) refreshModal(false);
+
+      try {
+        const btn = el("pocketGrid").querySelector(`[data-id="${pocket.id}"]`);
+        if (!btn) throw new Error("Pocket overlay missing — try again.");
+        const rect = btn.getBoundingClientRect();
+        const crop = mapScreenRectToVideo(rect, video);
+        const cropUrl = cropPocketDataUrl(frameCanvas, crop);
+        const result = await identifyPocketImage(cropUrl);
+        if (token !== state.scanToken) return;
+
+        applyCardToPocket(pocket, result.card, {
+          detectedName: result.detected.cardName,
+          detectedSet: result.detected.setName,
+          detectedNumber: result.detected.cardNumber,
+          confidence: result.detected.confidence,
+          matchScore: result.matchScore,
+          pricingSource: result.pricingSource,
+          notes: result.detected.notes,
+          pokemonTcgId: result.hit?.pokemonTcgId,
+        });
+        pushLog(
+          `${pocket.slot} · ${pocket.name} #${pocket.number || "?"} · ${money(pocket.rawPrice)}`,
+          "up"
+        );
+      } catch (err) {
+        if (token !== state.scanToken) return;
+        pocket.status = "failed";
+        pocket.error = err instanceof Error ? err.message : "Scan failed";
+        pocket.name = "No match";
+        pocket.set = pocket.error;
+        pushLog(`${pocket.slot} · ${pocket.error}`, "down");
+      }
+
+      renderGrid();
+      if (state.selectedId === pocket.id) refreshModal();
+    }
+
+    async function runPool(items, worker, concurrency) {
+      let cursor = 0;
+      const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+        while (cursor < items.length) {
+          const i = cursor;
+          cursor += 1;
+          await worker(items[i], i);
+        }
+      });
+      await Promise.all(runners);
+    }
+
+    async function scanPage() {
+      if (state.scanning) return;
+      closeSheets();
+      const token = ++state.scanToken;
+      setScanUi(true, "Scan");
+
+      try {
+        const { canvas, video } = captureVideoFrame();
+        const indices = state.pockets.map((_, i) => i);
+        let done = 0;
+        updateScanProgress(0, indices.length, "Capturing pockets…");
+        pushLog(`Page scan started · ${indices.length} pocket${indices.length === 1 ? "" : "s"}`, "up");
+
+        await runPool(
+          indices,
+          async (index) => {
+            if (token !== state.scanToken) return;
+            const pocket = state.pockets[index];
+            updateScanProgress(done, indices.length, `Reading ${pocket.slot}…`);
+            await scanPocketByIndex(index, canvas, video, token);
+            done += 1;
+            if (token === state.scanToken) {
+              const label =
+                pocket.status === "matched"
+                  ? `${pocket.slot} · ${pocket.name}`
+                  : `${pocket.slot} · retry later`;
+              updateScanProgress(done, indices.length, label);
+            }
+          },
+          SCAN_CONCURRENCY
+        );
+
+        if (token === state.scanToken) {
+          const ok = matchedCount();
+          const fail = state.pockets.filter((p) => p.status === "failed").length;
+          pushLog(`Page scan done · ${ok} matched${fail ? ` · ${fail} failed` : ""}`, ok ? "up" : "down");
+          el("feedLabel").textContent = ok ? "PRICED" : "SCAN";
+        }
+      } catch (err) {
+        pushLog(err instanceof Error ? err.message : "Page scan failed", "down");
+      } finally {
+        if (token === state.scanToken) setScanUi(false);
+      }
+    }
+
+    async function rescanSelectedPocket() {
+      if (state.scanning || !state.selectedId) return;
+      const index = state.pockets.findIndex((p) => p.id === state.selectedId);
+      if (index < 0) return;
+      const token = ++state.scanToken;
+      setScanUi(true);
+      try {
+        const { canvas, video } = captureVideoFrame();
+        updateScanProgress(0, 1, `Rescanning ${state.pockets[index].slot}…`);
+        await scanPocketByIndex(index, canvas, video, token);
+        updateScanProgress(1, 1, "Done");
+      } catch (err) {
+        pushLog(err instanceof Error ? err.message : "Rescan failed", "down");
+      } finally {
+        if (token === state.scanToken) setScanUi(false);
+      }
     }
 
     function openModal(id) {
       state.selectedId = id;
       el("modal").classList.remove("hidden");
       el("modal").classList.add("flex");
-      document.body.style.overflow = "hidden";
-      refreshModal(true);
-      const pocket = state.pockets.find((p) => p.id === id);
-      if (pocket) pushLog(`Focused ${pocket.slot} · ${pocket.name}`, "neutral");
+      refreshModal();
     }
 
     function closeModal() {
       state.selectedId = null;
       el("modal").classList.add("hidden");
       el("modal").classList.remove("flex");
-      document.body.style.overflow = "";
-      if (state.chart) {
-        state.chart.destroy();
-        state.chart = null;
-      }
     }
 
-    function refreshModal(rebuildChart) {
+    function refreshModal() {
       const pocket = state.pockets.find((p) => p.id === state.selectedId);
       if (!pocket) return;
-      const price = effectivePrice(pocket);
-      const hist = pocket.history;
-      const prev = hist[hist.length - 2] ?? price;
-      const delta = price - prev * CONDITIONS[pocket.condition].mult;
-      const pct = prev ? (delta / (prev * CONDITIONS[pocket.condition].mult)) * 100 : 0;
 
       el("modalSlot").textContent = pocket.slot;
       el("modalName").textContent = pocket.name;
-      el("modalSet").textContent = `${pocket.set} · #${pocket.number}`;
-      el("modalArt").textContent = pocket.art;
-      el("modalPrice").textContent = money(price);
-      el("modalDelta").textContent = `${delta >= 0 ? "+" : ""}${money(Math.abs(delta))} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%) last tick`;
-      el("modalDelta").className = `mt-1 text-xs font-medium ${
-        pocket.trend === "up" ? "text-hud-line" : pocket.trend === "down" ? "text-hud-down" : "text-hud-mute"
-      }`;
-      el("modalTrend").textContent =
-        pocket.trend === "up" ? "Bullish lift" : pocket.trend === "down" ? "Softening" : "Stable channel";
-      el("conditionSelect").value = pocket.condition;
-      el("modalCondNote").textContent = `${pocket.condition} multiplier ${CONDITIONS[pocket.condition].mult.toFixed(2)}× · raw ${money(pocket.rawPrice)}`;
+      el("modalSet").textContent = [pocket.set, pocket.number ? `#${pocket.number}` : ""]
+        .filter(Boolean)
+        .join(" · ");
+      el("modalPrice").textContent = pocket.status === "matched" ? money(effectivePrice(pocket)) : "—";
+      el("modalDelta").textContent =
+        pocket.status === "matched"
+          ? `Raw NM ${money(pocket.rawPrice)} · cond ${CONDITIONS[pocket.condition].mult.toFixed(2)}×`
+          : pocket.status === "failed"
+            ? pocket.error || "Scan failed"
+            : "Align this pocket, then Scan / Rescan";
 
-      const labels = pocket.history.map((_, i) => `T-${pocket.history.length - 1 - i}`);
-      const condMult = CONDITIONS[pocket.condition].mult;
-      const series = pocket.history.map((v) => Number((v * condMult).toFixed(2)));
-
-      if (rebuildChart || !state.chart) {
-        if (state.chart) state.chart.destroy();
-        const ctx = el("priceChart").getContext("2d");
-        state.chart = new Chart(ctx, {
-          type: "line",
-          data: {
-            labels,
-            datasets: [
-              {
-                label: "Price",
-                data: series,
-                borderColor: "#1aff9c",
-                backgroundColor: "rgba(26,255,156,0.12)",
-                fill: true,
-                tension: 0.35,
-                pointRadius: 0,
-                borderWidth: 2,
-              },
-            ],
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-              legend: { display: false },
-              tooltip: { callbacks: { label: (c) => money(c.parsed.y) } },
-            },
-            scales: {
-              x: {
-                ticks: { color: "#8aa0b8", maxTicksLimit: 5, font: { size: 10 } },
-                grid: { color: "rgba(26,255,156,0.06)" },
-              },
-              y: {
-                ticks: {
-                  color: "#8aa0b8",
-                  font: { size: 10 },
-                  callback: (v) => `$${v}`,
-                },
-                grid: { color: "rgba(26,255,156,0.08)" },
-              },
-            },
-          },
-        });
+      const art = el("modalArt");
+      if (typeof pocket.imageUrl === "string" && /^https?:\/\//i.test(pocket.imageUrl)) {
+        art.innerHTML = `<img src="${esc(pocket.imageUrl)}" alt="" class="h-full w-full object-cover" />`;
       } else {
-        state.chart.data.labels = labels;
-        state.chart.data.datasets[0].data = series;
-        state.chart.update("none");
+        art.textContent = pocket.slot;
       }
+
+      const grades = el("modalGrades");
+      grades.innerHTML = [10, 9, 8, 7]
+        .map(
+          (g) => `
+          <div class="rounded-xl border border-white/10 bg-black/30 px-2 py-2">
+            <p class="text-[9px] uppercase tracking-wider text-hud-mute">PSA ${g}</p>
+            <p class="mt-1 font-mono text-xs font-semibold text-white tabular-nums">${money(pocket.psa?.[g] || 0)}</p>
+          </div>`
+        )
+        .join("");
+
+      el("conditionSelect").value = pocket.condition;
+      const scoreBits = [];
+      if (pocket.matchScore) scoreBits.push(`score ${pocket.matchScore}`);
+      if (pocket.confidence) scoreBits.push(`AI ${Math.round(pocket.confidence * (pocket.confidence <= 1 ? 100 : 1))}%`);
+      if (pocket.pricingSource) scoreBits.push(pocket.pricingSource);
+      el("modalTrend").textContent =
+        pocket.status === "matched"
+          ? scoreBits.join(" · ") || "Matched"
+          : pocket.status === "scanning"
+            ? "Scanning…"
+            : pocket.status === "failed"
+              ? "Failed"
+              : "Unscanned";
+      el("modalCondNote").textContent =
+        pocket.status === "matched"
+          ? `${pocket.condition} multiplier on raw market`
+          : "Prices come from catalog + PriceCharting";
+      el("modalInsight").textContent = pocket.marketInsight || pocket.error || "";
+
+      if (window.lucide) lucide.createIcons();
     }
 
     async function startCamera() {
@@ -984,7 +1302,6 @@
         try {
           stream = await navigator.mediaDevices.getUserMedia(constraints);
         } catch {
-          // Fallback without facingMode ideal (some Android WebViews)
           stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: true });
         }
 
@@ -1003,7 +1320,7 @@
       } catch (err) {
         el("camError").classList.remove("hidden");
         el("camBtnLabel").textContent = "Retry";
-        pushLog("Camera unavailable — dark-stage sim", "down");
+        pushLog("Camera unavailable — enable access to scan", "down");
         console.warn(err);
       }
     }
@@ -1014,7 +1331,6 @@
       const backdrop = el("sheetBackdrop");
       if (!sheet) return;
       backdrop.classList.remove("hidden");
-      // force reflow then open
       void sheet.offsetWidth;
       sheet.classList.add("open");
       document.querySelectorAll(".dock-btn").forEach((btn) => {
@@ -1035,7 +1351,9 @@
       el("resetCal").addEventListener("click", resetCalibration);
       el("resetCalMobile").addEventListener("click", resetCalibration);
       el("camBtn").addEventListener("click", () => void startCamera());
-      el("dockCamBtn").addEventListener("click", () => void startCamera());
+      el("scanPageBtn").addEventListener("click", () => void scanPage());
+      el("dockScanBtn").addEventListener("click", () => void scanPage());
+      el("rescanPocketBtn").addEventListener("click", () => void rescanSelectedPocket());
       el("flipCamBtn").addEventListener("click", () => {
         state.facingMode = state.facingMode === "environment" ? "user" : "environment";
         void startCamera();
@@ -1064,7 +1382,7 @@
         pocket.condition = e.target.value;
         pushLog(`${pocket.name} condition → ${pocket.condition}`, "neutral");
         renderGrid();
-        refreshModal(true);
+        refreshModal();
       });
 
       document.querySelectorAll(".dock-btn").forEach((btn) => {
@@ -1081,10 +1399,7 @@
       el("sheetBackdrop").addEventListener("click", closeSheets);
 
       window.addEventListener("orientationchange", () => {
-        window.setTimeout(() => {
-          applyCalibration();
-          if (state.chart) state.chart.resize();
-        }, 250);
+        window.setTimeout(() => applyCalibration(), 250);
       });
     }
 
@@ -1095,21 +1410,21 @@
     function boot() {
       lucide.createIcons();
       bindControls();
-      setCardCount(9, { reshuffle: false, announce: false });
-      pushLog("HUD online · 1–9 card frame lock", "up");
+      setCardCount(9, { announce: false });
+      pushLog("HUD online · real Scan + live pricing", "up");
       pushLog(
         isMobile()
-          ? "Tap Align → set card count or Detect"
-          : "Use calibrate panel to set cards in frame (1–9)",
-        "neutral",
+          ? "Align pockets → tap Scan"
+          : "Calibrate grid to your binder, then Scan",
+        "neutral"
       );
       tickClock();
       setInterval(tickClock, 1000);
-      setInterval(tickPrices, 2200);
       void startCamera();
     }
 
     boot();
   </script>
+
 </body>
 </html>
