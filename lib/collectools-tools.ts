@@ -9,6 +9,7 @@ import {
   Package,
   Radar,
   Ratio,
+  ScanEye,
   ScanSearch,
 } from "lucide-react"
 
@@ -152,6 +153,22 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Priority alerts and recommended action badges",
     ],
     icon: Radar,
+    supremeOnly: true,
+  },
+  {
+    id: "live-binder-hud",
+    href: "/live-binder-hud",
+    name: "Live Binder HUD",
+    tagline: "Supreme · in development",
+    blurb: "Point your camera at a binder page for live card IDs and prices.",
+    description:
+      "Live Binder HUD tracks cards in your camera frame with Gemini Vision, then pulls PriceCharting comps onto each card as an AR-style overlay. Supreme preview while the product is still in development.",
+    highlights: [
+      "Live camera tracking for up to 9 cards in frame",
+      "Gemini Vision identifies each tracked card",
+      "PriceCharting raw NM + PSA comps on the HUD",
+    ],
+    icon: ScanEye,
     supremeOnly: true,
   },
   {
