@@ -1,6 +1,7 @@
 "use client"
 
 const VAPID_STORAGE_KEY = "collectools-push-endpoint"
+const PUSH_ENABLED_KEY = "collectools-push-alerts-enabled"
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4)
@@ -89,6 +90,7 @@ export async function enableWebPush(prefs: PushOptInPrefs): Promise<{ ok: true }
 
   try {
     localStorage.setItem(VAPID_STORAGE_KEY, json.endpoint)
+    localStorage.setItem(PUSH_ENABLED_KEY, "1")
   } catch {
     // ignore
   }
@@ -114,15 +116,42 @@ export async function disableWebPush(): Promise<void> {
 
   try {
     localStorage.removeItem(VAPID_STORAGE_KEY)
+    localStorage.removeItem(PUSH_ENABLED_KEY)
   } catch {
     // ignore
   }
 }
 
+/** True when this browser has granted permission and an active push subscription. */
 export async function hasActivePushSubscription(): Promise<boolean> {
   if (!isWebPushSupported()) return false
   if (Notification.permission !== "granted") return false
-  const registration = await navigator.serviceWorker.getRegistration("/")
-  const subscription = await registration?.pushManager.getSubscription()
-  return Boolean(subscription)
+
+  try {
+    if (localStorage.getItem(PUSH_ENABLED_KEY) === "1") {
+      await navigator.serviceWorker.register("/sw.js", { scope: "/" })
+      const registration = await navigator.serviceWorker.ready
+      const subscription = await registration.pushManager.getSubscription()
+      if (subscription?.endpoint) return true
+      localStorage.removeItem(PUSH_ENABLED_KEY)
+    }
+
+    await navigator.serviceWorker.register("/sw.js", { scope: "/" })
+    const registration = await navigator.serviceWorker.ready
+    const subscription = await registration.pushManager.getSubscription()
+    const active = Boolean(subscription?.endpoint)
+    if (active) {
+      try {
+        localStorage.setItem(PUSH_ENABLED_KEY, "1")
+        if (subscription?.endpoint) {
+          localStorage.setItem(VAPID_STORAGE_KEY, subscription.endpoint)
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return active
+  } catch {
+    return false
+  }
 }

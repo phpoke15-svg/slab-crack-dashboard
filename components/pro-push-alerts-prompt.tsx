@@ -60,7 +60,8 @@ export function ProPushAlertsPrompt() {
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pushEnabled, setPushEnabled] = useState<boolean | null>(null)
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [checking, setChecking] = useState(true)
 
   const skipPath =
     pathname?.startsWith("/pokewatch") ||
@@ -68,12 +69,22 @@ export function ProPushAlertsPrompt() {
     pathname?.startsWith("/sign-in")
 
   const evaluatePrompt = useCallback(async () => {
-    if (skipPath || authModalOpen || authLoading || entitlements.isLoading || !user || !hasPro) return
-    if (isDismissed() || wasShownThisSession()) return
+    if (skipPath || authModalOpen || authLoading || entitlements.isLoading || !user || !hasPro) {
+      setChecking(false)
+      return
+    }
 
+    setChecking(true)
     const enabled = await hasActivePushSubscription()
     setPushEnabled(enabled)
-    if (enabled) return
+    setChecking(false)
+
+    if (enabled) {
+      setOpen(false)
+      return
+    }
+
+    if (isDismissed() || wasShownThisSession()) return
 
     markShownThisSession()
     setOpen(true)
@@ -85,12 +96,23 @@ export function ProPushAlertsPrompt() {
     const supabase = getSupabase()
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN") {
-        try {
-          sessionStorage.removeItem(SESSION_SHOWN_KEY)
-        } catch {
-          // ignore
-        }
-        window.setTimeout(() => void evaluatePrompt(), 400)
+        window.setTimeout(() => {
+          void (async () => {
+            const enabled = await hasActivePushSubscription()
+            if (enabled) {
+              setPushEnabled(true)
+              setOpen(false)
+              setChecking(false)
+              return
+            }
+            try {
+              sessionStorage.removeItem(SESSION_SHOWN_KEY)
+            } catch {
+              // ignore
+            }
+            void evaluatePrompt()
+          })()
+        }, 500)
       }
     })
 
@@ -125,7 +147,7 @@ export function ProPushAlertsPrompt() {
     close()
   }
 
-  if (!open || pushEnabled) return null
+  if (checking || !open || pushEnabled) return null
 
   const supported = isWebPushSupported()
 
