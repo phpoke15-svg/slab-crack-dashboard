@@ -69,6 +69,7 @@ export const PLAN_TIERS: PlanTier[] = [
       "7-day free trial",
       "Everything in Premium",
       "Full SlabCrack + SlabLab feeds, search, and camera scanner",
+      "Custom hub layout — reorder your tool tiles",
       "Pokemon Center PokeWatch (web + phone alerts)",
       "Cancel anytime",
     ],
@@ -134,6 +135,8 @@ export type Entitlements = {
   cardScanner: boolean
   /** Catalog search + SlabLab board filter. */
   fullSearch: boolean
+  /** Reorder hub tool tiles (Pro+). */
+  customHubLayout: boolean
   /** In-development tools + site metrics console (Supreme only). */
   supreme: boolean
   status: string | null
@@ -168,6 +171,7 @@ export function entitlementsForPlan(plan: PlanId, extras?: Partial<Entitlements>
     slabFeedAccess: supreme ? "full" : tier?.slabFeedAccess ?? "preview",
     cardScanner: supreme || Boolean(tier?.cardScanner),
     fullSearch: supreme || Boolean(tier?.fullSearch),
+    customHubLayout: supreme || plan === "pro",
     supreme,
     status: extras?.status ?? (plan === "free" ? null : "active"),
     currentPeriodEnd: extras?.currentPeriodEnd ?? null,

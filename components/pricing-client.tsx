@@ -207,6 +207,7 @@ export function PricingClient() {
               {entitlements.slabFeedAccess === "full" ? " · Full boards" : ""}
               {entitlements.cardScanner ? " · Scanner" : ""}
               {entitlements.fullSearch ? " · Search" : ""}
+              {entitlements.customHubLayout ? " · Custom hub" : ""}
               {entitlements.queueWatch ? " · PokeWatch" : ""}
               {entitlements.cancelAtPeriodEnd && renewalLabel
                 ? ` · Cancels ${renewalLabel}`

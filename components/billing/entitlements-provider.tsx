@@ -60,6 +60,7 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
         slabFeedAccess: data.slabFeedAccess ?? "preview",
         cardScanner: Boolean(data.cardScanner),
         fullSearch: Boolean(data.fullSearch),
+        customHubLayout: Boolean(data.customHubLayout),
         supreme: Boolean(data.supreme ?? data.plan === "supreme"),
         status: data.status ?? null,
         currentPeriodEnd: data.currentPeriodEnd ?? null,
