@@ -65,21 +65,42 @@ create table public.slab_price_snapshots (
 create index slab_price_snapshots_lookup_idx
   on public.slab_price_snapshots (watchlist_id, grade, snapshot_date desc);
 
+create table public.slab_sale_events (
+  id bigserial primary key,
+  watchlist_id text not null references public.slab_watchlist_cards(id) on delete cascade,
+  grade integer not null check (grade between 0 and 10),
+  sold_date date not null,
+  total_price numeric(10, 2) not null,
+  title text not null default '',
+  url text,
+  source text not null default 'ebay',
+  dedupe_key text not null,
+  captured_at timestamptz not null default now(),
+  unique (dedupe_key)
+);
+
+create index slab_sale_events_lookup_idx
+  on public.slab_sale_events (watchlist_id, grade, sold_date desc);
+
 alter table public.slab_cards enable row level security;
 alter table public.slab_watchlist_cards enable row level security;
 alter table public.slab_anomalies enable row level security;
 alter table public.slab_price_snapshots enable row level security;
+alter table public.slab_sale_events enable row level security;
 
 grant select on public.slab_cards to anon, authenticated;
 grant select on public.slab_watchlist_cards to anon, authenticated;
 grant select on public.slab_anomalies to anon, authenticated;
 grant select on public.slab_price_snapshots to anon, authenticated;
+grant select on public.slab_sale_events to anon, authenticated;
 
 grant all on public.slab_cards to service_role;
 grant all on public.slab_watchlist_cards to service_role;
 grant all on public.slab_anomalies to service_role;
 grant all on public.slab_price_snapshots to service_role;
+grant all on public.slab_sale_events to service_role;
 grant usage, select on sequence public.slab_price_snapshots_id_seq to service_role;
+grant usage, select on sequence public.slab_sale_events_id_seq to service_role;
 
 drop policy if exists "slab_cards_public_read" on public.slab_cards;
 create policy "slab_cards_public_read"
@@ -102,5 +123,11 @@ create policy "slab_anomalies_public_read"
 drop policy if exists "slab_price_snapshots_public_read" on public.slab_price_snapshots;
 create policy "slab_price_snapshots_public_read"
   on public.slab_price_snapshots for select
+  to anon, authenticated
+  using (true);
+
+drop policy if exists "slab_sale_events_public_read" on public.slab_sale_events;
+create policy "slab_sale_events_public_read"
+  on public.slab_sale_events for select
   to anon, authenticated
   using (true);

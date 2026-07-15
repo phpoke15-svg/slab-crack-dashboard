@@ -81,7 +81,7 @@ export function medianSoldPrice(items: EbaySoldItem[], maxSamples = 12): number 
   return median(prices)
 }
 
-export function toRecentSales(items: EbaySoldItem[], limit = 1): RecentSale[] {
+export function toRecentSales(items: EbaySoldItem[], limit = 40): RecentSale[] {
   return items.slice(0, limit).map((item) => ({
     title: item.title,
     price: parseFloat(item.soldPrice) || 0,
@@ -108,7 +108,7 @@ async function fetchGradeComps(
   return {
     price: medianSoldPrice(filtered),
     count: filtered.length,
-    recentSales: toRecentSales(filtered, 1),
+    recentSales: toRecentSales(filtered, 40),
   }
 }
 

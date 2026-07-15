@@ -9,39 +9,56 @@ type HistoryPoint = {
   rawPrice: number
   slabPrice: number
   snapshotDate: string
+  rawSaleCount?: number
+  slabSaleCount?: number
+  fromSales?: boolean
 }
 
 type HistoryResponse = {
   points?: HistoryPoint[]
   history?: number[]
+  days?: number
+  salesDays?: number
+  hasSalesHistory?: boolean
   error?: string
 }
 
+function formatShortDate(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`)
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+}
+
 function DualPriceChart({
-  raw,
-  slab,
+  points,
   width,
   height,
+  grade,
+  onHover,
 }: {
-  raw: number[]
-  slab: number[]
+  points: HistoryPoint[]
   width: number
   height: number
+  grade: PsaGradeNumber
+  onHover: (index: number | null) => void
 }) {
   const rawGradId = useId()
   const slabGradId = useId()
+  const raw = points.map((p) => p.rawPrice)
+  const slab = points.map((p) => p.slabPrice)
   if (raw.length < 2 || slab.length < 2) return null
 
   const min = Math.min(...raw, ...slab)
   const max = Math.max(...raw, ...slab)
   const range = max - min || 1
-  const padX = 4
-  const padY = 6
+  const padX = 28
+  const padY = 14
+  const chartW = width - padX * 2
+  const chartH = height - padY * 2
 
   const toPoints = (data: number[]) =>
     data.map((v, i) => {
-      const x = padX + (i / (data.length - 1)) * (width - padX * 2)
-      const y = height - padY - ((v - min) / range) * (height - padY * 2)
+      const x = padX + (i / (data.length - 1)) * chartW
+      const y = padY + chartH - ((v - min) / range) * chartH
       return [x, y] as const
     })
 
@@ -49,7 +66,9 @@ function DualPriceChart({
   const slabPts = toPoints(slab)
   const rawLine = rawPts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
   const slabLine = slabPts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
-  const slabArea = `${padX},${height - padY} ${slabLine} ${width - padX},${height - padY}`
+  const slabArea = `${padX},${padY + chartH} ${slabLine} ${padX + chartW},${padY + chartH}`
+
+  const yTicks = [min, min + range / 2, max]
 
   return (
     <svg
@@ -58,8 +77,9 @@ function DualPriceChart({
       height={height}
       className="overflow-visible"
       role="img"
-      aria-label="30-day raw and slab price history"
+      aria-label={`Daily raw and PSA ${grade} price history`}
       preserveAspectRatio="none"
+      onMouseLeave={() => onHover(null)}
     >
       <defs>
         <linearGradient id={slabGradId} x1="0" y1="0" x2="0" y2="1">
@@ -71,6 +91,32 @@ function DualPriceChart({
           <stop offset="100%" stopColor="var(--muted-foreground)" stopOpacity={0} />
         </linearGradient>
       </defs>
+
+      {yTicks.map((tick) => {
+        const y = padY + chartH - ((tick - min) / range) * chartH
+        return (
+          <g key={tick}>
+            <line
+              x1={padX}
+              x2={padX + chartW}
+              y1={y}
+              y2={y}
+              stroke="var(--border)"
+              strokeOpacity={0.5}
+              strokeWidth={0.75}
+            />
+            <text
+              x={padX - 4}
+              y={y + 3}
+              textAnchor="end"
+              className="fill-muted-foreground text-[8px]"
+            >
+              ${Math.round(tick)}
+            </text>
+          </g>
+        )
+      })}
+
       <polygon points={slabArea} fill={`url(#${slabGradId})`} />
       <polyline
         points={rawLine}
@@ -90,24 +136,36 @@ function DualPriceChart({
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <circle
-        cx={rawPts[rawPts.length - 1]![0]}
-        cy={rawPts[rawPts.length - 1]![1]}
-        r={2.4}
-        fill="var(--muted-foreground)"
-      />
-      <circle
-        cx={slabPts[slabPts.length - 1]![0]}
-        cy={slabPts[slabPts.length - 1]![1]}
-        r={2.75}
-        fill="var(--primary)"
-      />
+
+      {rawPts.map(([x, y], i) => (
+        <circle
+          key={`hit-${i}`}
+          cx={x}
+          cy={y}
+          r={10}
+          fill="transparent"
+          className="cursor-crosshair"
+          onMouseEnter={() => onHover(i)}
+        />
+      ))}
+
+      <text x={padX} y={height - 2} className="fill-muted-foreground text-[8px]">
+        {formatShortDate(points[0]!.snapshotDate)}
+      </text>
+      <text
+        x={padX + chartW}
+        y={height - 2}
+        textAnchor="end"
+        className="fill-muted-foreground text-[8px]"
+      >
+        {formatShortDate(points[points.length - 1]!.snapshotDate)}
+      </text>
     </svg>
   )
 }
 
 type PriceHistoryChartProps = {
-  /** Watchlist id used by slab_price_snapshots */
+  /** Watchlist id used by slab_price_snapshots / slab_sale_events */
   cardId: string
   grade: PsaGradeNumber
   currentRaw?: number
@@ -116,6 +174,7 @@ type PriceHistoryChartProps = {
   compact?: boolean
   /** Label override, e.g. SlabLab */
   title?: string
+  days?: number
 }
 
 export function PriceHistoryChart({
@@ -126,12 +185,16 @@ export function PriceHistoryChart({
   className,
   compact = false,
   title,
+  days = 30,
 }: PriceHistoryChartProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [points, setPoints] = useState<HistoryPoint[]>([])
+  const [salesDays, setSalesDays] = useState(0)
+  const [hasSalesHistory, setHasSalesHistory] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null)
 
   useEffect(() => {
     const el = rootRef.current
@@ -151,7 +214,7 @@ export function PriceHistoryChart({
     let cancelled = false
     setLoading(true)
     void fetch(
-      `/api/card-deficit-history?id=${encodeURIComponent(cardId)}&grade=${grade}`,
+      `/api/card-deficit-history?id=${encodeURIComponent(cardId)}&grade=${grade}&days=${days}`,
     )
       .then(async (res) => {
         const data = (await res.json().catch(() => null)) as HistoryResponse | null
@@ -166,6 +229,8 @@ export function PriceHistoryChart({
               p.slabPrice > 0,
           ),
         )
+        setSalesDays(typeof data?.salesDays === "number" ? data.salesDays : 0)
+        setHasSalesHistory(Boolean(data?.hasSalesHistory))
         setLoaded(true)
       })
       .catch(() => {
@@ -180,12 +245,13 @@ export function PriceHistoryChart({
     return () => {
       cancelled = true
     }
-  }, [visible, loaded, cardId, grade])
+  }, [visible, loaded, cardId, grade, days])
 
   useEffect(() => {
     setLoaded(false)
     setPoints([])
-  }, [cardId, grade])
+    setHoverIndex(null)
+  }, [cardId, grade, days])
 
   const series = useMemo(() => {
     if (points.length > 0) return points
@@ -215,6 +281,13 @@ export function PriceHistoryChart({
   const firstSlab = slab[0] ?? latestSlab
   const rawDelta = latestRaw - firstRaw
   const slabDelta = latestSlab - firstSlab
+  const hoverPoint = hoverIndex != null ? series[hoverIndex] : null
+
+  const subtitle = hasSalesHistory
+    ? `${salesDays} day${salesDays === 1 ? "" : "s"} of eBay sold comps`
+    : series.length >= 2
+      ? "Daily sync medians"
+      : "Building daily history"
 
   return (
     <div
@@ -228,9 +301,12 @@ export function PriceHistoryChart({
       onKeyDown={(e) => e.stopPropagation()}
     >
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          {title ?? `30-day prices · PSA ${grade}`}
-        </span>
+        <div className="min-w-0">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {title ?? `${days}-day sales · PSA ${grade}`}
+          </span>
+          <p className="text-[9px] text-muted-foreground">{subtitle}</p>
+        </div>
         <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
           <span className="inline-flex items-center gap-1">
             <span className="inline-block h-0.5 w-3 border-t border-dashed border-muted-foreground" />
@@ -243,19 +319,38 @@ export function PriceHistoryChart({
         </div>
       </div>
 
+      {hoverPoint && (
+        <div className="mb-1.5 rounded-lg border border-border/70 bg-card/80 px-2 py-1.5 text-[10px]">
+          <p className="font-medium text-foreground">{formatShortDate(hoverPoint.snapshotDate)}</p>
+          <p className="text-muted-foreground">
+            Raw ${hoverPoint.rawPrice.toFixed(0)}
+            {hoverPoint.rawSaleCount ? ` · ${hoverPoint.rawSaleCount} sale${hoverPoint.rawSaleCount === 1 ? "" : "s"}` : ""}
+            {" · "}
+            PSA {grade} ${hoverPoint.slabPrice.toFixed(0)}
+            {hoverPoint.slabSaleCount ? ` · ${hoverPoint.slabSaleCount} sale${hoverPoint.slabSaleCount === 1 ? "" : "s"}` : ""}
+          </p>
+        </div>
+      )}
+
       {series.length >= 2 ? (
-        <DualPriceChart raw={raw} slab={slab} width={320} height={compact ? 52 : 72} />
+        <DualPriceChart
+          points={series}
+          width={320}
+          height={compact ? 72 : 96}
+          grade={grade}
+          onHover={setHoverIndex}
+        />
       ) : (
         <div
           className={cn(
             "flex items-center text-[11px] text-muted-foreground",
-            compact ? "min-h-[52px]" : "min-h-[72px]",
+            compact ? "min-h-[72px]" : "min-h-[96px]",
           )}
         >
           {loading
             ? "Loading price history…"
             : series.length === 1
-              ? "Building history — daily syncs will fill this chart."
+              ? "Building history — daily syncs store sold comps for this chart."
               : "No price history yet for this card."}
         </div>
       )}
