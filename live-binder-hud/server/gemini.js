@@ -1,7 +1,11 @@
+const configured = (process.env.GEMINI_VISION_MODEL || "").trim()
 const MODEL_CANDIDATES = [
-  process.env.GEMINI_VISION_MODEL,
-  "gemini-2.5-flash",
+  // Prefer current Flash — gemini-2.5-flash 404s on many keys.
+  /gemini-2\.5-flash/i.test(configured) ? "" : configured,
   "gemini-3.5-flash",
+  "gemini-flash-latest",
+  "gemini-3.1-flash-lite",
+  "gemini-2.5-flash",
 ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i)
 
 const OBJECT_SCHEMA = {
