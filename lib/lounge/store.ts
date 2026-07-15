@@ -9,6 +9,7 @@ import {
   type LoungeMediaUpload,
 } from "@/lib/lounge/media"
 import { resolvePlansForUserIds } from "@/lib/billing/resolve-plans"
+import { notifyPostComment, notifyPostLike } from "@/lib/notifications/triggers"
 import type { PlanId } from "@/lib/billing/plans"
 import type {
   LoungeAuthor,
@@ -414,6 +415,42 @@ export async function createLoungePost(opts: {
   }
 
   const [post] = await enrichPosts(admin, [data as PostRow], opts.authorId)
+
+  if (opts.parentId) {
+    const { data: parent } = await admin
+      .from("lounge_posts")
+      .select("id, author_id, parent_id")
+      .eq("id", opts.parentId)
+      .maybeSingle()
+
+    if (parent && parent.author_id !== opts.authorId) {
+      let rootPostId = opts.parentId
+      if (parent.parent_id) {
+        let cursor = parent.parent_id as string
+        for (let i = 0; i < 12; i++) {
+          const { data: ancestor } = await admin
+            .from("lounge_posts")
+            .select("id, parent_id")
+            .eq("id", cursor)
+            .maybeSingle()
+          if (!ancestor?.parent_id) {
+            rootPostId = ancestor?.id ?? rootPostId
+            break
+          }
+          cursor = ancestor.parent_id as string
+        }
+      }
+
+      void notifyPostComment({
+        recipientId: parent.author_id as string,
+        commenterId: opts.authorId,
+        postId: data.id as string,
+        rootPostId,
+        commentPreview: body,
+      })
+    }
+  }
+
   return post!
 }
 
@@ -451,7 +488,7 @@ export async function toggleLoungeLike(opts: {
 
   const { data: post } = await admin
     .from("lounge_posts")
-    .select("id")
+    .select("id, author_id, body")
     .eq("id", opts.postId)
     .maybeSingle()
   if (!post) throw new Error("Post not found")
@@ -475,6 +512,15 @@ export async function toggleLoungeLike(opts: {
       user_id: opts.viewerId,
     })
     if (error) throw new Error(error.message)
+
+    if (post.author_id !== opts.viewerId) {
+      void notifyPostLike({
+        postAuthorId: post.author_id as string,
+        likerId: opts.viewerId,
+        postId: opts.postId,
+        postPreview: (post.body as string) ?? "",
+      })
+    }
   }
 
   const { count } = await admin
