@@ -8,50 +8,20 @@ import {
   Text,
   View,
 } from "react-native"
-import { useFocusEffect, useNavigation } from "@react-navigation/native"
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
+import { useFocusEffect } from "@react-navigation/native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes"
 import { COLLECTOOLS_BASE_URL, isCollectoolsHost } from "../lib/config"
-import type { RootStackParamList } from "../lib/navigation"
 import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { BRIDGE_INJECT, saveQueueWatchCredentials } from "../lib/queue-watch/report-to-server"
-
-/** Floating CTA on /pokewatch so native monitoring is reached from the site, not a tab. */
-const NATIVE_QUEUE_CTA_INJECT = `
-(function(){
-  try {
-    if (!window.ReactNativeWebView) return;
-    var path = (location.pathname || '');
-    if (path.indexOf('/pokewatch') !== 0) {
-      var old = document.getElementById('ct-native-qw-cta');
-      if (old) old.remove();
-      return;
-    }
-    if (document.getElementById('ct-native-qw-cta')) return;
-    var b = document.createElement('button');
-    b.id = 'ct-native-qw-cta';
-    b.type = 'button';
-    b.textContent = 'Open native PokeWatch';
-    b.style.cssText = 'position:fixed;left:12px;right:12px;bottom:16px;z-index:2147483646;padding:14px 16px;border:0;border-radius:14px;background:#16a34a;color:#fff;font:700 15px/1.2 system-ui,sans-serif;box-shadow:0 10px 28px rgba(0,0,0,.4);cursor:pointer;';
-    b.onclick = function(){
-      window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'open-native-queue' }));
-    };
-    document.documentElement.appendChild(b);
-  } catch (e) {}
-  true;
-})();
-`
 
 function isAllowedInApp(url: string) {
   if (!url || url === "about:blank") return true
   try {
     const target = new URL(url)
     if (target.protocol !== "http:" && target.protocol !== "https:") return true
-    // Apex collectools.app 308s to www — both must stay in the WebView or Android
-    // opens Chrome and the APK looks like a browser bookmark.
     if (isCollectoolsHost(target.hostname)) return true
     return false
   } catch {
@@ -59,17 +29,7 @@ function isAllowedInApp(url: string) {
   }
 }
 
-function isQueueWatchPath(url: string) {
-  try {
-    const path = new URL(url).pathname
-    return path === "/pokewatch" || path.startsWith("/pokewatch/")
-  } catch {
-    return false
-  }
-}
-
 export default function SiteWebScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
@@ -85,17 +45,12 @@ export default function SiteWebScreen() {
 
   const injectHelpers = useCallback(() => {
     webRef.current?.injectJavaScript(BRIDGE_INJECT)
-    webRef.current?.injectJavaScript(NATIVE_QUEUE_CTA_INJECT)
   }, [])
 
   const finishLoading = useCallback(() => {
     setLoading(false)
     injectHelpers()
   }, [injectHelpers])
-
-  const openNativeQueue = useCallback(() => {
-    navigation.navigate("Queue")
-  }, [navigation])
 
   const onShouldStartLoadWithRequest = useCallback((request: ShouldStartLoadRequest) => {
     if (isAllowedInApp(request.url)) return true
@@ -112,10 +67,6 @@ export default function SiteWebScreen() {
           sessionId?: string
           token?: string
         }
-        if (data?.type === "open-native-queue") {
-          openNativeQueue()
-          return
-        }
         if (data?.type === "collectools-qw-creds") {
           void saveQueueWatchCredentials({
             sessionId: data.sessionId,
@@ -128,7 +79,7 @@ export default function SiteWebScreen() {
         // ignore
       }
     },
-    [openNativeQueue, refreshProAccess],
+    [refreshProAccess],
   )
 
   const retry = useCallback(() => {
@@ -138,7 +89,6 @@ export default function SiteWebScreen() {
     setReloadKey((k) => k + 1)
   }, [])
 
-  // Android system back / gesture: walk WebView history before exiting the app.
   useFocusEffect(
     useCallback(() => {
       const onHardwareBack = () => {
@@ -154,11 +104,11 @@ export default function SiteWebScreen() {
   )
 
   return (
-    <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
+    <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
       <WebView
         key={reloadKey}
         ref={webRef}
-        source={{ uri: COLLECTOOLS_BASE_URL }}
+        source={{ uri: `${COLLECTOOLS_BASE_URL}/pokewatch` }}
         style={styles.web}
         onLoadStart={() => {
           setLoadError(null)
@@ -170,10 +120,7 @@ export default function SiteWebScreen() {
         }}
         onNavigationStateChange={(nav) => {
           canGoBackRef.current = Boolean(nav.canGoBack)
-          if (isQueueWatchPath(nav.url)) {
-            // Re-inject CTA after client-side navigations (Next.js).
-            setTimeout(injectHelpers, 400)
-          }
+          setTimeout(injectHelpers, 400)
         }}
         onError={(event) => {
           setLoading(false)
@@ -186,15 +133,11 @@ export default function SiteWebScreen() {
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         originWhitelist={["https://*", "http://*", "about:blank"]}
         allowsBackForwardNavigationGestures
-        allowsInlineMediaPlayback
-        mediaPlaybackRequiresUserAction={false}
-        mediaCapturePermissionGrantType="grant"
         sharedCookiesEnabled
         thirdPartyCookiesEnabled
         javaScriptEnabled
         domStorageEnabled
         setSupportMultipleWindows={false}
-        startInLoadingState={false}
       />
       {loading && !loadError && (
         <View style={styles.loading} pointerEvents="none">
@@ -206,7 +149,6 @@ export default function SiteWebScreen() {
         <View style={styles.errorOverlay}>
           <Text style={styles.errorTitle}>Couldn’t load the site</Text>
           <Text style={styles.errorBody}>{loadError}</Text>
-          <Text style={styles.errorHint}>{COLLECTOOLS_BASE_URL}</Text>
           <Pressable style={styles.retryButton} onPress={retry}>
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
@@ -237,7 +179,6 @@ const styles = StyleSheet.create({
   },
   errorTitle: { color: colors.text, fontSize: 18, fontWeight: "700" },
   errorBody: { color: colors.textMuted, fontSize: 13, textAlign: "center" },
-  errorHint: { color: colors.textDim, fontSize: 11, textAlign: "center", marginTop: 4 },
   retryButton: {
     marginTop: 12,
     borderRadius: 12,

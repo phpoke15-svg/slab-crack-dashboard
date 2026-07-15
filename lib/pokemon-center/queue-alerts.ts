@@ -3,7 +3,10 @@ import { hasImpervaChallengeSignals } from "@/lib/pokemon-center/queue-detector"
 import { maybeSendNtfyAlert } from "@/lib/pokemon-center/ntfy-alerts"
 import {
   claimPushAlertDedupe,
+  recordPushAlertDedupe,
+  releasePushAlertDedupe,
   sendWebPushToTopic,
+  wasGlobalPushSentRecently,
 } from "@/lib/push/web-push"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { getSiteUrl } from "@/lib/site-url"
@@ -236,44 +239,59 @@ async function maybeSendChallengeDiscordAlert(report: QueueWatchReport): Promise
   return true
 }
 
-async function maybeSendChallengeWebPush(report: QueueWatchReport): Promise<boolean> {
-  if (!reportHasChallenge(report)) return false
+async function maybeSendChallengeWebPush(
+  report: QueueWatchReport,
+): Promise<{ sent: boolean; reason?: string }> {
+  if (!reportHasChallenge(report)) {
+    return { sent: false, reason: "no_challenge_signals" }
+  }
 
   const claimed = await claimPushAlertDedupe("imperva_challenge_global", CHALLENGE_PUSH_COOLDOWN_MS)
-  if (!claimed) return false
+  if (!claimed) return { sent: false, reason: "deduped" }
 
   const site = getSiteUrl()
   const result = await sendWebPushToTopic("queue_live", {
     title: "Pokémon Center drop guard is UP",
-    body: "Imperva human verification detected — open Pokemon Center and pass the check now.",
+    body: "Imperva human verification detected — open your browser, go to pokemoncenter.com, and pass the check now.",
     url: `${site}/pokewatch`,
     tag: "pc-imperva-challenge",
   })
 
-  return result.sent > 0
+  if (result.sent === 0) {
+    await releasePushAlertDedupe("imperva_challenge_global")
+    console.error("[queue-watch] challenge push not delivered:", result.reason, result)
+    return { sent: false, reason: result.reason || "send_failed" }
+  }
+
+  await recordPushAlertDedupe("imperva_challenge_global")
+  return { sent: true }
 }
 
-async function maybeSendQueueLiveWebPush(report: QueueWatchReport): Promise<boolean> {
-  if (!report.live) return false
+async function maybeSendQueueLiveWebPush(
+  report: QueueWatchReport,
+): Promise<{ sent: boolean; reason?: string }> {
+  if (!report.live) return { sent: false, reason: "not_live" }
 
   const claimed = await claimPushAlertDedupe("queue_live_global", PUSH_COOLDOWN_MS)
-  if (!claimed) return false
+  if (!claimed) return { sent: false, reason: "deduped" }
 
   const site = getSiteUrl()
 
-  const signalSummary =
-    report.signals.length > 0
-      ? report.signals.map((s) => s.label).join(", ")
-      : "Queue activity detected"
-
   const result = await sendWebPushToTopic("queue_live", {
-    title: "Pokémon Center queue is LIVE",
-    body: signalSummary,
+    title: "🚨 Pokémon Center Queue is LIVE!",
+    body: "Tap to open your browser and tap your Queue Watcher bookmark on pokemoncenter.com.",
     url: `${site}/pokewatch`,
     tag: "pc-queue-live",
   })
 
-  return result.sent > 0
+  if (result.sent === 0) {
+    await releasePushAlertDedupe("queue_live_global")
+    console.error("[queue-watch] queue-live push not delivered:", result.reason, result)
+    return { sent: false, reason: result.reason || "send_failed" }
+  }
+
+  await recordPushAlertDedupe("queue_live_global")
+  return { sent: true }
 }
 
 export async function maybeSendMobileAlerts(
@@ -284,16 +302,33 @@ export async function maybeSendMobileAlerts(
   ntfySent: boolean
   pushSent: boolean
   challengePushSent: boolean
+  pushReason?: string
+  challengePushReason?: string
 }> {
+  const hadChallenge = previous ? reportHasChallenge(previous) : false
+  const challengePresent = reportHasChallenge(report)
   const challengeEdge =
-    reportHasChallenge(report) && !(previous ? reportHasChallenge(previous) : false)
-  const liveEdge = report.live && !previous?.live
+    challengePresent &&
+    (!hadChallenge ||
+      !(await wasGlobalPushSentRecently("imperva_challenge_global", CHALLENGE_PUSH_COOLDOWN_MS)))
+
+  const liveEdge =
+    report.live &&
+    (!previous?.live ||
+      !(await wasGlobalPushSentRecently("queue_live_global", PUSH_COOLDOWN_MS)))
 
   if (!challengeEdge && !liveEdge) {
-    return { discordSent: false, ntfySent: false, pushSent: false, challengePushSent: false }
+    return {
+      discordSent: false,
+      ntfySent: false,
+      pushSent: false,
+      challengePushSent: false,
+      pushReason: report.live ? "deduped_or_no_edge" : undefined,
+      challengePushReason: challengePresent ? "deduped_or_no_edge" : undefined,
+    }
   }
 
-  const [challengeDiscord, liveDiscord, ntfySent, challengePushSent, pushSent] = await Promise.all([
+  const [challengeDiscord, liveDiscord, ntfySent, challengePush, livePush] = await Promise.all([
     challengeEdge ? maybeSendChallengeDiscordAlert(report) : Promise.resolve(false),
     liveEdge ? maybeSendDiscordAlert(report) : Promise.resolve(false),
     liveEdge && report.ntfyTopic
@@ -304,14 +339,16 @@ export async function maybeSendMobileAlerts(
           pageUrl: report.pageUrl,
         })
       : Promise.resolve(false),
-    challengeEdge ? maybeSendChallengeWebPush(report) : Promise.resolve(false),
-    liveEdge ? maybeSendQueueLiveWebPush(report) : Promise.resolve(false),
+    challengeEdge ? maybeSendChallengeWebPush(report) : Promise.resolve({ sent: false }),
+    liveEdge ? maybeSendQueueLiveWebPush(report) : Promise.resolve({ sent: false }),
   ])
 
   return {
     discordSent: challengeDiscord || liveDiscord,
     ntfySent,
-    pushSent,
-    challengePushSent,
+    pushSent: livePush.sent,
+    challengePushSent: challengePush.sent,
+    pushReason: livePush.reason,
+    challengePushReason: challengePush.reason,
   }
 }

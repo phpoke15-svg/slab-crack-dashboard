@@ -8,10 +8,6 @@ import {
 import type { QueueSignal } from "@/lib/pokemon-center/queue-detector"
 import { requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { verifyQueueWatchToken } from "@/lib/billing/queue-watch-token"
-import {
-  isQueueWatchWorkerSessionId,
-  verifyQueueWatchWorkerSecret,
-} from "@/lib/pokemon-center/queue-watch-worker-auth"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
@@ -37,8 +33,26 @@ type ReportBody = {
   token?: string
 }
 
-function syncHtml(ok: boolean, message: string, status: number) {
-  const payload = JSON.stringify({ type: "pcw-sync", ok, error: ok ? null : message })
+function syncHtml(
+  ok: boolean,
+  message: string,
+  status: number,
+  meta?: {
+    pushSent?: boolean
+    challengePushSent?: boolean
+    pushReason?: string
+    challengePushReason?: string
+  },
+) {
+  const payload = JSON.stringify({
+    type: "pcw-sync",
+    ok,
+    error: ok ? null : message,
+    pushSent: meta?.pushSent ?? false,
+    challengePushSent: meta?.challengePushSent ?? false,
+    pushReason: meta?.pushReason ?? null,
+    challengePushReason: meta?.challengePushReason ?? null,
+  })
   const bg = ok ? "#111" : "#7f1d1d"
   const body = ok
     ? "PokeWatch ping OK"
@@ -79,32 +93,27 @@ async function resolveProUserId(request: Request, bodyToken?: string): Promise<s
   return null
 }
 
-async function resolveReporter(
-  request: Request,
-  bodyToken?: string,
-): Promise<{ userId?: string; isWorker: boolean } | null> {
-  if (verifyQueueWatchWorkerSecret(request)) {
-    return { isWorker: true }
-  }
-
-  const proUserId = await resolveProUserId(request, bodyToken)
-  if (proUserId) return { userId: proUserId, isWorker: false }
-  return null
-}
-
 async function processReport(
   request: Request,
   body: ReportBody,
 ): Promise<
-  | { ok: true; discordSent: boolean; ntfySent: boolean; pushSent: boolean; challengePushSent: boolean }
+  | {
+      ok: true
+      discordSent: boolean
+      ntfySent: boolean
+      pushSent: boolean
+      challengePushSent: boolean
+      pushReason?: string
+      challengePushReason?: string
+    }
   | { ok: false; status: number; error: string }
 > {
-  const reporter = await resolveReporter(request, body.token)
-  if (!reporter) {
+  const proUserId = await resolveProUserId(request, body.token)
+  if (!proUserId) {
     return {
       ok: false,
       status: 403,
-      error: "Auth failed — Pro token or QUEUE_WATCH_WORKER_SECRET required.",
+      error: "Auth failed — re-copy the bookmarklet from PokeWatch while signed in with Pro.",
     }
   }
 
@@ -113,25 +122,17 @@ async function processReport(
     return { ok: false, status: 400, error: "sessionId required" }
   }
 
-  if (reporter.isWorker && !isQueueWatchWorkerSessionId(sessionId)) {
-    return {
-      ok: false,
-      status: 400,
-      error: 'Worker sessionId must be "remote-monitor" or "remote-monitor-*".',
-    }
-  }
-
   const previous = await getQueueWatchReport(sessionId)
   const report: QueueWatchReport = {
     sessionId,
     live: Boolean(body.live),
     confidence: typeof body.confidence === "number" ? body.confidence : body.live ? 100 : 0,
     signals: Array.isArray(body.signals) ? body.signals : [],
-    source: reporter.isWorker ? "server" : (body.source ?? "bookmarklet"),
+    source: body.source ?? "bookmarklet",
     pageUrl: body.pageUrl,
     ntfyTopic: body.ntfyTopic?.trim(),
     reportedAt: new Date().toISOString(),
-    userId: reporter.userId,
+    userId: proUserId,
   }
 
   const saved = await saveQueueWatchReport(report)
@@ -146,11 +147,17 @@ async function processReport(
     }
   }
 
-  const { discordSent, ntfySent, pushSent, challengePushSent } = await maybeSendMobileAlerts(
-    report,
-    previous,
-  )
-  return { ok: true, discordSent, ntfySent, pushSent, challengePushSent }
+  const { discordSent, ntfySent, pushSent, challengePushSent, pushReason, challengePushReason } =
+    await maybeSendMobileAlerts(report, previous)
+  return {
+    ok: true,
+    discordSent,
+    ntfySent,
+    pushSent,
+    challengePushSent,
+    pushReason,
+    challengePushReason,
+  }
 }
 
 /**
@@ -184,7 +191,12 @@ export async function GET(request: Request) {
     return syncHtml(false, result.error, result.status)
   }
 
-  return syncHtml(true, "ok", 200)
+  return syncHtml(true, "ok", 200, {
+    pushSent: result.pushSent,
+    challengePushSent: result.challengePushSent,
+    pushReason: result.pushReason,
+    challengePushReason: result.challengePushReason,
+  })
 }
 
 export async function POST(request: Request) {
@@ -210,6 +222,8 @@ export async function POST(request: Request) {
       ntfySent: result.ntfySent,
       pushSent: result.pushSent,
       challengePushSent: result.challengePushSent,
+      pushReason: result.pushReason,
+      challengePushReason: result.challengePushReason,
     },
     { headers: CORS_HEADERS },
   )
