@@ -79,7 +79,7 @@ async function processReport(
   request: Request,
   body: ReportBody,
 ): Promise<
-  | { ok: true; discordSent: boolean; ntfySent: boolean; pushSent: boolean }
+  | { ok: true; discordSent: boolean; ntfySent: boolean; pushSent: boolean; challengePushSent: boolean }
   | { ok: false; status: number; error: string }
 > {
   const proUserId = await resolveProUserId(request, body.token)
@@ -121,8 +121,11 @@ async function processReport(
     }
   }
 
-  const { discordSent, ntfySent, pushSent } = await maybeSendMobileAlerts(report, previous)
-  return { ok: true, discordSent, ntfySent, pushSent }
+  const { discordSent, ntfySent, pushSent, challengePushSent } = await maybeSendMobileAlerts(
+    report,
+    previous,
+  )
+  return { ok: true, discordSent, ntfySent, pushSent, challengePushSent }
 }
 
 /**
@@ -181,6 +184,7 @@ export async function POST(request: Request) {
       discordSent: result.discordSent,
       ntfySent: result.ntfySent,
       pushSent: result.pushSent,
+      challengePushSent: result.challengePushSent,
     },
     { headers: CORS_HEADERS },
   )

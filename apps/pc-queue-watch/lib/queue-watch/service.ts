@@ -3,6 +3,7 @@ import * as Linking from "expo-linking"
 import { Platform } from "react-native"
 import { POKEMON_CENTER_URL } from "../config"
 import { checkPokemonCenterQueue, type QueueSignal } from "./detect"
+import { hasImpervaChallengeSignals } from "../../../lib/pokemon-center/queue-detector"
 
 export const QUEUE_WATCH_TASK = "collectools-queue-watch-background"
 /** Weak fallback only — Imperva often blocks headless fetch. Prefer WebView. */
@@ -26,6 +27,7 @@ export type WebViewReport = {
   confidence: number
   signals?: QueueSignal[]
   blocked?: boolean
+  challenge?: boolean
   pageUrl?: string
   checkedAt?: string
 }
@@ -44,6 +46,7 @@ class QueueWatchService {
   private pollTimer: ReturnType<typeof setInterval> | null = null
   private listeners = new Set<Listener>()
   private lastLive = false
+  private lastChallenge = false
   private active = false
   private lastState: QueueCheckState | null = null
   private notificationReady = false
@@ -110,6 +113,25 @@ class QueueWatchService {
     for (const listener of this.listeners) listener(state)
   }
 
+  private async notifyChallenge(signals: QueueSignal[]) {
+    const detail =
+      signals.length > 0
+        ? signals.map((s) => s.label).join(" · ")
+        : "Imperva human verification detected on Pokemon Center"
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: "⚠️ Pokemon Center drop guard is UP",
+        body: detail,
+        data: { url: POKEMON_CENTER_URL },
+        sound: true,
+        priority: Notifications.AndroidNotificationPriority.MAX,
+        sticky: Platform.OS === "android",
+      },
+      trigger: null,
+    })
+  }
+
   private async notifyLive(signals: QueueSignal[]) {
     const detail =
       signals.length > 0
@@ -165,6 +187,8 @@ class QueueWatchService {
     this.clearPoll()
 
     const signals = Array.isArray(report.signals) ? report.signals : []
+    const challenge =
+      Boolean(report.challenge) || hasImpervaChallengeSignals(signals)
     const state: QueueCheckState = {
       live: Boolean(report.live) && !report.blocked,
       confidence: report.blocked ? 0 : typeof report.confidence === "number" ? report.confidence : 0,
@@ -177,9 +201,13 @@ class QueueWatchService {
 
     this.emit(state)
 
+    if (challenge && !this.lastChallenge) {
+      await this.notifyChallenge(signals)
+    }
     if (state.live && !this.lastLive) {
       await this.notifyLive(signals)
     }
+    this.lastChallenge = challenge
     this.lastLive = state.live
     return state
   }
@@ -260,6 +288,7 @@ class QueueWatchService {
     this.clearPoll()
     this.active = false
     this.lastLive = false
+    this.lastChallenge = false
     this.lastWebViewAt = 0
     this.mode = "webview"
     void this.setRunningNotification(false)

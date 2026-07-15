@@ -80,6 +80,7 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
             confidence: state.confidence,
             signals: state.signals,
             blocked: Boolean(state.blocked),
+            challenge: Boolean(state.challenge),
             pageUrl: location.href,
             checkedAt: new Date().toISOString(),
           }),
@@ -95,7 +96,9 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
   window.__pcQueueWatchActive = true;
 
   var lastLive = false;
+  var lastChallenge = false;
   var lastReportedLive = null;
+  var lastReportedChallenge = null;
   var lastReportAt = 0;
   var stickySignals = window.__pcQueueSticky || [];
   window.__pcQueueSticky = stickySignals;
@@ -135,14 +138,46 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
     return /queue-it\\.(?:net|com)|queueit\\.net|\\/waitingroom|\\/waiting-room/i.test(s);
   }
 
-  /** Imperva challenge page — not the same as queue-it assets on a passed page. */
+  /** Imperva hard block (access denied). */
   function isBlockedPage() {
     var text = document.documentElement.innerHTML || "";
     if (/Request unsuccessful|access denied/i.test(text)) return true;
-    if (/_Incapsula_Resource/i.test(text) && /incident_id=/i.test(text)) return true;
     var title = (document.title || "").toLowerCase();
     if (title.indexOf("access denied") >= 0 || title.indexOf("request unsuccessful") >= 0) return true;
     return false;
+  }
+
+  /** Human checkbox / image CAPTCHA — earliest drop signal. */
+  function isImpervaChallengePage(haystack) {
+    if (/are you human|verify you are human|confirm you are human|please verify you(?:'|')?re a human/i.test(haystack)) {
+      return true;
+    }
+    if (/g-recaptcha|recaptcha-anchor|hcaptcha|h-captcha|cf-turnstile/i.test(haystack)) return true;
+    if (/geo\\.captcha-delivery\\.com|distil_captcha|incapsula.*challenge/i.test(haystack)) return true;
+    if (/select all (?:images|squares|tiles)|pick (?:all )?(?:images|squares)|tap the matching/i.test(haystack)) {
+      return true;
+    }
+    if (/_Incapsula_Resource[\\s\\S]{0,600}(?:captcha|human|verify)/i.test(haystack)) return true;
+    if (/iframe[\\s\\S]{0,300}(?:captcha|incapsula|imperva)/i.test(haystack)) return true;
+    return false;
+  }
+
+  function addChallengeSignals(domSignals, haystack) {
+    if (/are you human|verify you are human|confirm you are human|please verify you(?:'|')?re a human/i.test(haystack)) {
+      pushSignal(domSignals, "imperva-human-verify", "Imperva human verification", 95);
+    }
+    if (/g-recaptcha|recaptcha-anchor|hcaptcha|h-captcha|cf-turnstile/i.test(haystack)) {
+      pushSignal(domSignals, "captcha-widget", "CAPTCHA widget", 90);
+    }
+    if (/geo\\.captcha-delivery\\.com|distil_captcha|incapsula.*challenge/i.test(haystack)) {
+      pushSignal(domSignals, "imperva-captcha-host", "Imperva CAPTCHA host", 90);
+    }
+    if (/select all (?:images|squares|tiles)|pick (?:all )?(?:images|squares)|tap the matching/i.test(haystack)) {
+      pushSignal(domSignals, "image-captcha", "Image matching CAPTCHA", 88);
+    }
+    if (/_Incapsula_Resource[\\s\\S]{0,600}(?:captcha|human|verify)/i.test(haystack)) {
+      pushSignal(domSignals, "imperva-challenge-shell", "Imperva challenge shell", 85);
+    }
   }
 
   function scanDocument() {
@@ -175,8 +210,10 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
       }
     } catch (e) {}
 
+    addChallengeSignals(domSignals, haystack);
+
     var nodes = document.querySelectorAll(
-      "script[src], iframe[src], link[href], [class*='queue-it'], [id*='queue-it'], .queue-it-countdown",
+      "script[src], iframe[src], link[href], [class*='queue-it'], [id*='queue-it'], .queue-it-countdown, [class*='captcha'], [id*='captcha']",
     );
     for (var i = 0; i < nodes.length; i++) {
       var el = nodes[i];
@@ -192,13 +229,15 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
       return Math.max(max, s.confidence);
     }, 0);
     var blocked = isBlockedPage();
+    var challenge = isImpervaChallengePage(haystack);
     var live = confidence >= 60;
     if (blocked && live) blocked = false;
     return {
       live: blocked ? false : live,
       confidence: blocked ? 0 : confidence,
       signals: signals,
-      blocked: blocked,
+      blocked: blocked || challenge,
+      challenge: challenge,
     };
   }
 
@@ -207,19 +246,31 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
   function report(state, force) {
     var now = Date.now();
     var changed = lastReportedLive === null || lastReportedLive !== state.live;
-    if (!force && !changed && now - lastReportAt < HEARTBEAT_MS) return;
+    var challengeChanged =
+      lastReportedChallenge === null || lastReportedChallenge !== Boolean(state.challenge);
+    if (!force && !changed && !challengeChanged && now - lastReportAt < HEARTBEAT_MS) return;
 
     postToNative(state);
     lastReportAt = now;
     lastReportedLive = state.live;
+    lastReportedChallenge = Boolean(state.challenge);
     lastLive = state.live;
+    lastChallenge = Boolean(state.challenge);
 
-    badge.textContent = state.blocked
-      ? "Pass bot check…"
-      : state.live
-        ? "PC Queue LIVE"
-        : "PokeWatch active";
-    badge.style.background = state.live ? "#059669" : state.blocked ? "#b45309" : "#111827";
+    badge.textContent = state.live
+      ? "PC Queue LIVE"
+      : state.challenge
+        ? "Drop guard UP"
+        : state.blocked
+          ? "Pass bot check…"
+          : "PokeWatch active";
+    badge.style.background = state.live
+      ? "#059669"
+      : state.challenge
+        ? "#d97706"
+        : state.blocked
+          ? "#b45309"
+          : "#111827";
   }
 
   function evaluate(force) {
@@ -231,12 +282,15 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
           confidence: 100,
           signals: mergeSignals([{ id: "queue-it-net", label: "Queue-it network request", confidence: 100 }]),
           blocked: false,
+          challenge: false,
         },
         true,
       );
       return;
     }
-    report(scanDocument(), Boolean(force));
+    var scanned = scanDocument();
+    var challengeEdge = scanned.challenge && !lastChallenge;
+    report(scanned, Boolean(force) || challengeEdge);
   }
 
   function onQueueNetwork(url) {

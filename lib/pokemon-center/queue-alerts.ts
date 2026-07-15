@@ -1,4 +1,5 @@
 import type { QueueDetection } from "@/lib/pokemon-center/queue-detector"
+import { hasImpervaChallengeSignals } from "@/lib/pokemon-center/queue-detector"
 import { maybeSendNtfyAlert } from "@/lib/pokemon-center/ntfy-alerts"
 import {
   claimPushAlertDedupe,
@@ -25,6 +26,11 @@ const lastDiscordAt = new Map<string, number>()
 
 const DISCORD_COOLDOWN_MS = 5 * 60 * 1000
 const PUSH_COOLDOWN_MS = 5 * 60 * 1000
+const CHALLENGE_PUSH_COOLDOWN_MS = 30 * 60 * 1000
+
+function reportHasChallenge(report: QueueWatchReport): boolean {
+  return hasImpervaChallengeSignals(report.signals)
+}
 
 function rowToReport(data: {
   session_id: string
@@ -194,6 +200,59 @@ export async function maybeSendDiscordAlert(report: QueueWatchReport): Promise<b
   return true
 }
 
+async function maybeSendChallengeDiscordAlert(report: QueueWatchReport): Promise<boolean> {
+  if (!reportHasChallenge(report)) return false
+
+  const webhook = process.env.POKEMON_CENTER_DISCORD_WEBHOOK?.trim()
+  if (!webhook) return false
+
+  const key = `${report.sessionId}:challenge`
+  const last = lastDiscordAt.get(key) ?? 0
+  if (Date.now() - last < DISCORD_COOLDOWN_MS) return false
+
+  const signalSummary =
+    report.signals.length > 0
+      ? report.signals.map((s) => s.label).join(", ")
+      : "Imperva human verification detected"
+
+  const payload = {
+    content: [
+      "@everyone **Pokemon Center drop guard is UP**",
+      "Imperva human verification (checkbox / image CAPTCHA) — open Pokemon Center now.",
+      signalSummary,
+      report.pageUrl ? `<${report.pageUrl}>` : "https://www.pokemoncenter.com/",
+      `_Reported ${new Date(report.reportedAt).toLocaleString("en-US", { timeZone: "America/New_York" })} ET_`,
+    ].join("\n"),
+  }
+
+  const response = await fetch(webhook, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) return false
+  lastDiscordAt.set(key, Date.now())
+  return true
+}
+
+async function maybeSendChallengeWebPush(report: QueueWatchReport): Promise<boolean> {
+  if (!reportHasChallenge(report)) return false
+
+  const claimed = await claimPushAlertDedupe("imperva_challenge_global", CHALLENGE_PUSH_COOLDOWN_MS)
+  if (!claimed) return false
+
+  const site = getSiteUrl()
+  const result = await sendWebPushToTopic("queue_live", {
+    title: "Pokémon Center drop guard is UP",
+    body: "Imperva human verification detected — open Pokemon Center and pass the check now.",
+    url: `${site}/pokewatch`,
+    tag: "pc-imperva-challenge",
+  })
+
+  return result.sent > 0
+}
+
 async function maybeSendQueueLiveWebPush(report: QueueWatchReport): Promise<boolean> {
   if (!report.live) return false
 
@@ -220,14 +279,24 @@ async function maybeSendQueueLiveWebPush(report: QueueWatchReport): Promise<bool
 export async function maybeSendMobileAlerts(
   report: QueueWatchReport,
   previous: QueueWatchReport | null,
-): Promise<{ discordSent: boolean; ntfySent: boolean; pushSent: boolean }> {
-  if (!report.live || previous?.live) {
-    return { discordSent: false, ntfySent: false, pushSent: false }
+): Promise<{
+  discordSent: boolean
+  ntfySent: boolean
+  pushSent: boolean
+  challengePushSent: boolean
+}> {
+  const challengeEdge =
+    reportHasChallenge(report) && !(previous ? reportHasChallenge(previous) : false)
+  const liveEdge = report.live && !previous?.live
+
+  if (!challengeEdge && !liveEdge) {
+    return { discordSent: false, ntfySent: false, pushSent: false, challengePushSent: false }
   }
 
-  const [discordSent, ntfySent, pushSent] = await Promise.all([
-    maybeSendDiscordAlert(report),
-    report.ntfyTopic
+  const [challengeDiscord, liveDiscord, ntfySent, challengePushSent, pushSent] = await Promise.all([
+    challengeEdge ? maybeSendChallengeDiscordAlert(report) : Promise.resolve(false),
+    liveEdge ? maybeSendDiscordAlert(report) : Promise.resolve(false),
+    liveEdge && report.ntfyTopic
       ? maybeSendNtfyAlert({
           topic: report.ntfyTopic,
           live: true,
@@ -235,8 +304,14 @@ export async function maybeSendMobileAlerts(
           pageUrl: report.pageUrl,
         })
       : Promise.resolve(false),
-    maybeSendQueueLiveWebPush(report),
+    challengeEdge ? maybeSendChallengeWebPush(report) : Promise.resolve(false),
+    liveEdge ? maybeSendQueueLiveWebPush(report) : Promise.resolve(false),
   ])
 
-  return { discordSent, ntfySent, pushSent }
+  return {
+    discordSent: challengeDiscord || liveDiscord,
+    ntfySent,
+    pushSent,
+    challengePushSent,
+  }
 }

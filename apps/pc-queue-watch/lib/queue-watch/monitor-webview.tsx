@@ -36,6 +36,7 @@ export function MonitorWebView({ visible, onReport, style }: Props) {
           confidence?: number
           signals?: WebViewReport["signals"]
           blocked?: boolean
+          challenge?: boolean
           pageUrl?: string
           checkedAt?: string
         }
@@ -45,6 +46,7 @@ export function MonitorWebView({ visible, onReport, style }: Props) {
           confidence: typeof data.confidence === "number" ? data.confidence : 0,
           signals: data.signals,
           blocked: Boolean(data.blocked),
+          challenge: Boolean(data.challenge),
           pageUrl: data.pageUrl,
           checkedAt: data.checkedAt,
         })

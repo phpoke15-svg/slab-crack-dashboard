@@ -53,10 +53,12 @@ export default function QueueWatchScreen() {
   const statusLabel = useMemo(() => {
     if (state?.live) return "Queue is LIVE"
     if (!monitoring) return "Idle"
-    if (state?.blocked) return "Pass the bot check"
+    const challenge =
+      state?.signals?.some((s) => /imperva|captcha/i.test(s.id)) ?? false
+    if (challenge || state?.blocked) return "Drop guard — pass verification"
     if (webViewConnected || state?.source === "webview") return "Monitoring…"
     return "Loading Pokemon Center…"
-  }, [state?.live, state?.blocked, state?.source, monitoring, webViewConnected])
+  }, [state?.live, state?.blocked, state?.source, state?.signals, monitoring, webViewConnected])
 
   const toggleMonitoring = () => {
     if (monitoring) stop()

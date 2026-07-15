@@ -64,7 +64,12 @@ const REPORT_MIN_MS = 8_000
 /** Sync WebView queue state to CollecTools so /pokewatch shows connected. */
 export async function reportQueueStateToServer(report: WebViewReport): Promise<void> {
   const now = Date.now()
-  const force = Boolean(report.live)
+  const challenge = Boolean(
+    report.live ||
+      (Array.isArray(report.signals) &&
+        report.signals.some((s) => /imperva|captcha/i.test(s.id))),
+  )
+  const force = Boolean(report.live) || challenge
   if (!force && now - lastReportAt < REPORT_MIN_MS) return
 
   const token = (await AsyncStorage.getItem(TOKEN_KEY))?.trim()

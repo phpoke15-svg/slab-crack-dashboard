@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { detectQueueFromContent } from "@/lib/pokemon-center/queue-detector"
+import { detectQueueFromContent, hasImpervaChallengeSignals } from "@/lib/pokemon-center/queue-detector"
 
 describe("detectQueueFromContent", () => {
   it("marks Imperva challenge pages as blocked and not live", () => {
@@ -54,5 +54,22 @@ describe("detectQueueFromContent", () => {
     })
     expect(result.blocked).toBe(true)
     expect(result.live).toBe(false)
+  })
+
+  it("detects Imperva human verification as challenge (early drop signal)", () => {
+    const result = detectQueueFromContent({
+      html: '<div>Are you human? Please verify you\'re a human</div><div class="g-recaptcha"></div>',
+      url: "https://www.pokemoncenter.com/",
+    })
+    expect(result.challenge).toBe(true)
+    expect(hasImpervaChallengeSignals(result.signals)).toBe(true)
+  })
+
+  it("detects image matching CAPTCHA copy", () => {
+    const result = detectQueueFromContent({
+      html: "<p>Select all images with a bus</p>",
+      url: "https://www.pokemoncenter.com/",
+    })
+    expect(result.challenge).toBe(true)
   })
 })

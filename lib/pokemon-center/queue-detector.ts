@@ -9,6 +9,8 @@ export type QueueDetection = {
   confidence: number
   signals: QueueSignal[]
   blocked?: boolean
+  /** Imperva human checkbox / image CAPTCHA — early drop signal. */
+  challenge?: boolean
   finalUrl?: string
   checkedAt: string
   /** True when this result came from cache, not a fresh fetch. */
@@ -37,6 +39,45 @@ const QUEUE_PATTERNS: Array<{ id: string; label: string; confidence: number; re:
   },
 ]
 
+/** Imperva "are you human" / image CAPTCHA — often the first sign a drop is starting. */
+export const IMPERVA_CHALLENGE_PATTERNS: Array<{
+  id: string
+  label: string
+  confidence: number
+  re: RegExp
+}> = [
+  {
+    id: "imperva-human-verify",
+    label: "Imperva human verification",
+    confidence: 95,
+    re: /are you human|verify you are human|confirm you are human|please verify you(?:'|')?re a human/i,
+  },
+  {
+    id: "captcha-widget",
+    label: "CAPTCHA widget",
+    confidence: 90,
+    re: /g-recaptcha|recaptcha-anchor|hcaptcha|h-captcha|cf-turnstile/i,
+  },
+  {
+    id: "imperva-captcha-host",
+    label: "Imperva CAPTCHA host",
+    confidence: 90,
+    re: /geo\.captcha-delivery\.com|distil_captcha|incapsula.*challenge/i,
+  },
+  {
+    id: "image-captcha",
+    label: "Image matching CAPTCHA",
+    confidence: 88,
+    re: /select all (?:images|squares|tiles)|pick (?:all )?(?:images|squares)|tap the matching/i,
+  },
+  {
+    id: "imperva-challenge-shell",
+    label: "Imperva challenge shell",
+    confidence: 85,
+    re: /_Incapsula_Resource[\s\S]{0,600}(?:captcha|human|verify)/i,
+  },
+]
+
 const BLOCKED_PATTERNS: Array<{ id: string; label: string; re: RegExp }> = [
   {
     id: "incapsula-block",
@@ -45,6 +86,13 @@ const BLOCKED_PATTERNS: Array<{ id: string; label: string; re: RegExp }> = [
   },
   { id: "access-denied", label: "Access denied", re: /access denied|request unsuccessful/i },
 ]
+
+const CHALLENGE_SIGNAL_IDS = new Set(IMPERVA_CHALLENGE_PATTERNS.map((p) => p.id))
+
+/** True when signals include Imperva human-verification / CAPTCHA UI. */
+export function hasImpervaChallengeSignals(signals: QueueSignal[]): boolean {
+  return signals.some((s) => CHALLENGE_SIGNAL_IDS.has(s.id))
+}
 
 /** Soft probes only — Imperva blocks Vercel IPs almost immediately if we hammer. */
 const SERVER_PROBE_TTL_MS = 10 * 60 * 1000
@@ -77,6 +125,12 @@ export function detectQueueFromContent(input: {
     }
   }
 
+  for (const pattern of IMPERVA_CHALLENGE_PATTERNS) {
+    if (pattern.re.test(haystack)) {
+      signals.push({ id: pattern.id, label: pattern.label, confidence: pattern.confidence })
+    }
+  }
+
   for (const pattern of QUEUE_PATTERNS) {
     if (pattern.re.test(haystack)) {
       signals.push({ id: pattern.id, label: pattern.label, confidence: pattern.confidence })
@@ -85,6 +139,7 @@ export function detectQueueFromContent(input: {
 
   const queueSignals = signals.filter((s) => s.confidence > 0)
   const confidence = queueSignals.reduce((max, s) => Math.max(max, s.confidence), 0)
+  const challenge = hasImpervaChallengeSignals(signals)
   const live = confidence >= 60
   let blocked =
     input.blocked ??
@@ -96,6 +151,7 @@ export function detectQueueFromContent(input: {
     confidence: blocked ? 0 : confidence,
     signals,
     blocked,
+    challenge,
     finalUrl: input.url,
     checkedAt,
   }
