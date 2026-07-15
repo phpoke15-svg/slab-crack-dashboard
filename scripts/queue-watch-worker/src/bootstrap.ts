@@ -11,11 +11,12 @@ async function main() {
   console.log(`[bootstrap] profile: ${config.profileDir}`)
   if (config.proxyServer) console.log(`[bootstrap] proxy: ${config.proxyServer}`)
 
-  console.log("[bootstrap] Launching Chrome (up to 2 min)…")
+  console.log("[bootstrap] Launching installed Google Chrome (up to 2 min)…")
   const context = await openMonitorContext({
     profileDir: config.profileDir,
     proxyServer: config.proxyServer || undefined,
     headed: true,
+    useSystemChrome: true,
   })
 
   const page = context.pages()[0] ?? (await context.newPage())
