@@ -1,5 +1,7 @@
 import {
   claimPushAlertDedupe,
+  recordPushAlertDedupe,
+  releasePushAlertDedupe,
   sendWebPushToTopic,
 } from "@/lib/push/web-push"
 import { getSiteUrl } from "@/lib/site-url"
@@ -118,7 +120,12 @@ export async function sendWalmartWednesdayReminder(opts?: {
 
   const pushSent = pushResult.sent
   const sent = pushSent > 0 || discordSent
-  if (sent || opts?.force) lastSentWeekKey = weekKey
+  if (sent || opts?.force) {
+    lastSentWeekKey = weekKey
+    await recordPushAlertDedupe(`walmart_wed:${weekKey}`)
+  } else if (!opts?.force) {
+    await releasePushAlertDedupe(`walmart_wed:${weekKey}`)
+  }
 
   if (!sent) {
     return {

@@ -4,7 +4,7 @@ import { checkPokeMatchSetup } from "@/lib/trade-binder/setup-health"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
 import { isQueueWatchReportsTableReady } from "@/lib/pokemon-center/queue-alerts"
 import { isWalmartAffiliateConfigured } from "@/lib/restocks/walmart"
-import { isWebPushConfigured } from "@/lib/push/web-push"
+import { isWebPushConfigured, countProQueuePushSubscribers } from "@/lib/push/web-push"
 import { isAdsDisplayEnabled } from "@/lib/adsense-config"
 import { isStripeConfigured } from "@/lib/billing/stripe"
 import { LEGAL_SITE_NAME, LEGAL_SITE_URL } from "@/lib/legal/config"
@@ -22,6 +22,14 @@ export async function GET() {
   const stripeConfigured = isStripeConfigured()
   const walmartAffiliateConfigured = isWalmartAffiliateConfigured()
   const webPushConfigured = isWebPushConfigured()
+  let proQueuePushSubscribers: number | null = null
+  if (webPushConfigured && supabaseConfigured) {
+    try {
+      proQueuePushSubscribers = await countProQueuePushSubscribers()
+    } catch {
+      proQueuePushSubscribers = null
+    }
+  }
   const restockReportSecured = Boolean(process.env.RESTOCKS_REPORT_SECRET?.trim())
 
   let pokematchReady: boolean | null = null
@@ -73,6 +81,7 @@ export async function GET() {
         stripeConfigured,
         walmartAffiliateConfigured,
         webPushConfigured,
+        proQueuePushSubscribers,
         restockReportSecured,
         pokematchReady,
         queueWatchReportsReady,

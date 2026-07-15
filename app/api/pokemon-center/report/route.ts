@@ -33,8 +33,26 @@ type ReportBody = {
   token?: string
 }
 
-function syncHtml(ok: boolean, message: string, status: number) {
-  const payload = JSON.stringify({ type: "pcw-sync", ok, error: ok ? null : message })
+function syncHtml(
+  ok: boolean,
+  message: string,
+  status: number,
+  meta?: {
+    pushSent?: boolean
+    challengePushSent?: boolean
+    pushReason?: string
+    challengePushReason?: string
+  },
+) {
+  const payload = JSON.stringify({
+    type: "pcw-sync",
+    ok,
+    error: ok ? null : message,
+    pushSent: meta?.pushSent ?? false,
+    challengePushSent: meta?.challengePushSent ?? false,
+    pushReason: meta?.pushReason ?? null,
+    challengePushReason: meta?.challengePushReason ?? null,
+  })
   const bg = ok ? "#111" : "#7f1d1d"
   const body = ok
     ? "PokeWatch ping OK"
@@ -79,7 +97,15 @@ async function processReport(
   request: Request,
   body: ReportBody,
 ): Promise<
-  | { ok: true; discordSent: boolean; ntfySent: boolean; pushSent: boolean; challengePushSent: boolean }
+  | {
+      ok: true
+      discordSent: boolean
+      ntfySent: boolean
+      pushSent: boolean
+      challengePushSent: boolean
+      pushReason?: string
+      challengePushReason?: string
+    }
   | { ok: false; status: number; error: string }
 > {
   const proUserId = await resolveProUserId(request, body.token)
@@ -121,11 +147,17 @@ async function processReport(
     }
   }
 
-  const { discordSent, ntfySent, pushSent, challengePushSent } = await maybeSendMobileAlerts(
-    report,
-    previous,
-  )
-  return { ok: true, discordSent, ntfySent, pushSent, challengePushSent }
+  const { discordSent, ntfySent, pushSent, challengePushSent, pushReason, challengePushReason } =
+    await maybeSendMobileAlerts(report, previous)
+  return {
+    ok: true,
+    discordSent,
+    ntfySent,
+    pushSent,
+    challengePushSent,
+    pushReason,
+    challengePushReason,
+  }
 }
 
 /**
@@ -159,7 +191,12 @@ export async function GET(request: Request) {
     return syncHtml(false, result.error, result.status)
   }
 
-  return syncHtml(true, "ok", 200)
+  return syncHtml(true, "ok", 200, {
+    pushSent: result.pushSent,
+    challengePushSent: result.challengePushSent,
+    pushReason: result.pushReason,
+    challengePushReason: result.challengePushReason,
+  })
 }
 
 export async function POST(request: Request) {
@@ -185,6 +222,8 @@ export async function POST(request: Request) {
       ntfySent: result.ntfySent,
       pushSent: result.pushSent,
       challengePushSent: result.challengePushSent,
+      pushReason: result.pushReason,
+      challengePushReason: result.challengePushReason,
     },
     { headers: CORS_HEADERS },
   )

@@ -168,18 +168,77 @@ export async function claimPushAlertDedupe(
           return false
         }
       }
-
-      await supabase.from("push_alert_dedupe").upsert({
-        alert_key: alertKey,
-        sent_at: new Date(now).toISOString(),
-      })
     } catch {
-      // memory-only dedupe
+      // fall through to memory claim
     }
   }
 
   memoryDedupe.set(alertKey, now)
   return true
+}
+
+/** Undo a dedupe claim when delivery failed (so the next edge can retry). */
+export async function releasePushAlertDedupe(alertKey: string): Promise<void> {
+  memoryDedupe.delete(alertKey)
+  if (!isSupabaseConfigured()) return
+  try {
+    const supabase = createAdminClient()
+    await supabase.from("push_alert_dedupe").delete().eq("alert_key", alertKey)
+  } catch {
+    // ignore
+  }
+}
+
+/** True when a global alert was recorded inside the TTL window. */
+export async function wasGlobalPushSentRecently(
+  alertKey: string,
+  ttlMs: number,
+): Promise<boolean> {
+  const now = Date.now()
+  const lastMem = memoryDedupe.get(alertKey)
+  if (lastMem && now - lastMem < ttlMs) return true
+
+  if (!isSupabaseConfigured()) return false
+
+  try {
+    const supabase = createAdminClient()
+    const { data } = await supabase
+      .from("push_alert_dedupe")
+      .select("sent_at")
+      .eq("alert_key", alertKey)
+      .maybeSingle()
+    if (!data?.sent_at) return false
+    const sentAt = new Date(data.sent_at as string).getTime()
+    if (now - sentAt < ttlMs) {
+      memoryDedupe.set(alertKey, sentAt)
+      return true
+    }
+  } catch {
+    // ignore
+  }
+  return false
+}
+
+/** Record successful global push (call after sent > 0). */
+export async function recordPushAlertDedupe(alertKey: string): Promise<void> {
+  const now = Date.now()
+  memoryDedupe.set(alertKey, now)
+  if (!isSupabaseConfigured()) return
+  try {
+    const supabase = createAdminClient()
+    await supabase.from("push_alert_dedupe").upsert({
+      alert_key: alertKey,
+      sent_at: new Date(now).toISOString(),
+    })
+  } catch {
+    // memory-only
+  }
+}
+
+export async function countProQueuePushSubscribers(): Promise<number> {
+  const subs = await listSubscriptions("queue_live")
+  const pro = await filterProQueueSubscribers(subs)
+  return pro.length
 }
 
 export async function sendWebPushToTopic(
