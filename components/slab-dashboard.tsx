@@ -34,6 +34,7 @@ import { useOptionalEntitlements } from "@/components/billing/entitlements-provi
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
 import { FREE_SLAB_FEED_LIMIT, limitSlabFeed } from "@/lib/slab-feed-access"
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags"
 import {
   findWatchedIdForHit,
   isSearchHitWatched,
@@ -204,7 +205,7 @@ export function SlabDashboard() {
 
   const slabFeedAccess = entitlements?.slabFeedAccess ?? "preview"
   const fullSearch = Boolean(entitlements?.fullSearch)
-  const cardScanner = Boolean(entitlements?.cardScanner)
+  const showCardScanner = CARD_SCANNER_ENABLED && Boolean(entitlements?.cardScanner)
 
   const results = useMemo(() => {
     const baseFeed =
@@ -278,7 +279,7 @@ export function SlabDashboard() {
             </div>
           </div>
 
-          {/* Search + Scan */}
+          {/* Search */}
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -286,18 +287,21 @@ export function SlabDashboard() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search card, set, or set + card…"
               className={cn(
-                "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
+                "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 text-sm text-foreground placeholder:text-muted-foreground",
+                showCardScanner ? "pr-[4.75rem]" : "pr-3",
                 "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
               )}
             />
-            <Link
-              href={cardScanner ? "/slabcrack/scan" : "/pricing"}
-              className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-              aria-label={cardScanner ? "Scan a card" : "Upgrade to Pro for card scanner"}
-            >
-              <Camera className="size-3.5" aria-hidden />
-              {cardScanner ? "Scan" : "Pro Scan"}
-            </Link>
+            {showCardScanner ? (
+              <Link
+                href="/slabcrack/scan"
+                className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+                aria-label="Scan a card"
+              >
+                <Camera className="size-3.5" aria-hidden />
+                Scan
+              </Link>
+            ) : null}
           </div>
         </div>
 
@@ -340,7 +344,7 @@ export function SlabDashboard() {
             <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground">Find undervalued cards.</p>
               <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                Pro unlocks the full deficit feed, search, and camera scanner.
+                Pro unlocks the full deficit feed and catalog search.
               </p>
             </div>
           </div>
@@ -452,8 +456,8 @@ export function SlabDashboard() {
                 </p>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
                   {slabFeedAccess === "preview"
-                    ? `Showing ${FREE_SLAB_FEED_LIMIT} mid-deficit cards (not the top opportunities). Search and scanner need Pro.`
-                    : "Showing the top 100 deficit cards. Upgrade to Pro for the full feed, search, and camera scanner."}
+                    ? `Showing ${FREE_SLAB_FEED_LIMIT} mid-deficit cards (not the top opportunities). Search needs Pro.`
+                    : "Showing the top 100 deficit cards. Upgrade to Pro for the full feed and search."}
                 </p>
                 <Link
                   href="/pricing"
@@ -479,8 +483,8 @@ export function SlabDashboard() {
               <>
                 <p className="mt-4 font-medium text-foreground">Search is a Pro feature</p>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Starter and Premium browse a limited SlabCrack board. Pro unlocks catalog search, the
-                  full feed, and the camera scanner.
+                  Starter and Premium browse a limited SlabCrack board. Pro unlocks catalog search and the
+                  full feed.
                 </p>
                 <Link
                   href="/pricing"

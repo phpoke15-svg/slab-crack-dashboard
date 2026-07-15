@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation"
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags"
 import { SlabcrackScanClient } from "@/components/slabcrack-scan-client"
 import { getEntitlementsForUser } from "@/lib/billing/stripe"
 import { pageMetadata } from "@/lib/seo"
@@ -13,6 +14,8 @@ export const metadata = pageMetadata({
 })
 
 export default async function SlabcrackScanPage() {
+  if (!CARD_SCANNER_ENABLED) redirect("/slabcrack")
+
   const auth = await requireUser()
   if (!auth.ok) {
     redirect(`/sign-in?next=${encodeURIComponent("/slabcrack/scan")}`)

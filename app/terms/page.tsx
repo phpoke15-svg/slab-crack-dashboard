@@ -140,7 +140,7 @@ export default function TermsPage() {
           </li>
           <li>
             <strong className="text-foreground">Pro</strong> — everything in Premium, plus full
-            SlabCrack + SlabLab feeds, camera scanner, catalog search, and Pokemon Center Queue
+            SlabCrack + SlabLab feeds, catalog search, and Pokemon Center Queue
             Watch ($9.99/mo or $99.99/yr).
           </li>
         </ul>

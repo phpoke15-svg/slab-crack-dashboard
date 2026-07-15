@@ -63,7 +63,7 @@ After changing env vars, **Redeploy**.
 2. Run [`supabase/hub-tool-order.sql`](./supabase/hub-tool-order.sql) for Pro custom hub layouts.
 3. Create Stripe products/prices:
    - **Premium** — $4.99/mo + $39.99/yr (top 100 SlabCrack + SlabLab, ad-free)
-   - **Pro** — $9.99/mo + $99.99/yr (full feeds, scanner, search, PokeWatch)
+   - **Pro** — $9.99/mo + $99.99/yr (full feeds, search, PokeWatch)
 4. Set Vercel env: `STRIPE_SECRET_KEY` (**must** be `sk_live_…` or `sk_test_…` from Stripe → Developers → API keys — not `pk_`, `mk_`, or other keys), `STRIPE_WEBHOOK_SECRET`, and the four `STRIPE_PRICE_*` IDs.
 5. Stripe webhook endpoint: `https://YOUR_HOST/api/billing/webhook` (events: `checkout.session.completed`, `customer.subscription.*`).
 6. Pricing page: `/pricing`

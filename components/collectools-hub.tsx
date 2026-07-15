@@ -306,7 +306,7 @@ export function CollecToolsHub() {
       ) : null}
       {showProNudge ? (
         <p className="mb-4 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
-          You&apos;re on Premium. Go Pro for the full feeds, camera scanner, search, and PokeWatch.{" "}
+          You&apos;re on Premium. Go Pro for the full feeds, search, and PokeWatch.{" "}
           <Link href="/pricing" className="font-medium text-primary hover:underline">
             Upgrade
           </Link>

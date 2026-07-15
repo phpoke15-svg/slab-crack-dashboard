@@ -1,3 +1,5 @@
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags"
+
 export type PlanId = "free" | "premium" | "pro" | "supreme"
 
 /** Public display name for each plan (free is branded as Starter). */
@@ -57,7 +59,7 @@ export const PLAN_TIERS: PlanTier[] = [
   {
     id: "pro",
     name: "Pro",
-    tagline: "All six tools, scanner + search",
+    tagline: "All six tools, search + PokeWatch",
     monthlyPrice: 9.99,
     yearlyPrice: 99.99,
     adFree: true,
@@ -68,7 +70,7 @@ export const PLAN_TIERS: PlanTier[] = [
     features: [
       "7-day free trial",
       "Everything in Premium",
-      "Full SlabCrack + SlabLab feeds, search, and camera scanner",
+      "Full SlabCrack + SlabLab feeds and catalog search",
       "Custom hub layout — reorder your tool tiles",
       "Pokemon Center PokeWatch (web + phone alerts)",
       "Cancel anytime",
@@ -77,11 +79,11 @@ export const PLAN_TIERS: PlanTier[] = [
 ]
 
 export const FREE_PLAN_FEATURES = [
-  "SlabCrack + SlabLab: 10 mid-ranked cards each (no scanner)",
+  "SlabCrack + SlabLab: 10 mid-ranked cards each",
   "Full CardLounge collector social feed",
   "Full PokeMatch trading",
   "Full Feedback voting + submissions",
-  "Upgrade for top 100 boards, ad-free, or Pro for scanner + PokeWatch",
+  "Upgrade for top 100 boards, ad-free, or Pro for search + PokeWatch",
 ] as const
 
 export type PriceKey = "premium_month" | "premium_year" | "pro_month" | "pro_year"
@@ -169,7 +171,7 @@ export function entitlementsForPlan(plan: PlanId, extras?: Partial<Entitlements>
     adFree: supreme || Boolean(tier?.adFree),
     queueWatch: supreme || Boolean(tier?.includesQueueWatch),
     slabFeedAccess: supreme ? "full" : tier?.slabFeedAccess ?? "preview",
-    cardScanner: supreme || Boolean(tier?.cardScanner),
+    cardScanner: CARD_SCANNER_ENABLED && (supreme || Boolean(tier?.cardScanner)),
     fullSearch: supreme || Boolean(tier?.fullSearch),
     customHubLayout: supreme || plan === "pro",
     supreme,

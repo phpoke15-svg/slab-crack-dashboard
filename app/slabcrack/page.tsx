@@ -28,7 +28,7 @@ export default function SlabCrackPage() {
         bullets={[
           "Compare raw market prices against PSA graded slab quotes",
           "Browse live deficit opportunities for Pokémon TCG singles",
-          "Starter: 10 mid-ranked cards · Premium: top 100 · Pro: full feed + search + scanner",
+          "Starter: 10 mid-ranked cards · Premium: top 100 · Pro: full feed + search",
         ]}
         related={[
           { href: "/slablab", label: "SlabLab" },

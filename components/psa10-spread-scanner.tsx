@@ -32,6 +32,7 @@ import {
 import type { SlabLabCard } from "@/lib/slablab"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags"
 
 const DEFAULT_GRADING_COST = DEFAULT_PSA_GRADING_FEE
 
@@ -105,7 +106,7 @@ export function Psa10SpreadScanner() {
   const entitlements = useOptionalEntitlements()
   const slabFeedAccess: SlabFeedAccess = entitlements?.slabFeedAccess ?? "preview"
   const fullSearch = Boolean(entitlements?.fullSearch)
-  const cardScanner = Boolean(entitlements?.cardScanner)
+  const showCardScanner = CARD_SCANNER_ENABLED && Boolean(entitlements?.cardScanner)
 
   const [cards, setCards] = useState<ScannerCard[]>([])
   const [loading, setLoading] = useState(true)
@@ -192,19 +193,22 @@ export function Psa10SpreadScanner() {
             }
             disabled={!fullSearch}
             className={cn(
-              "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
+              "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 text-sm text-foreground placeholder:text-muted-foreground",
+              showCardScanner ? "pr-[4.75rem]" : "pr-3",
               "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
               !fullSearch && "cursor-not-allowed opacity-60",
             )}
           />
-          <Link
-            href={cardScanner ? "/slablab/scan" : "/pricing"}
-            className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-            aria-label={cardScanner ? "Scan a card" : "Upgrade to Pro for card scanner"}
-          >
-            <Camera className="size-3.5" aria-hidden />
-            {cardScanner ? "Scan" : "Pro Scan"}
-          </Link>
+          {showCardScanner ? (
+            <Link
+              href="/slablab/scan"
+              className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+              aria-label="Scan a card"
+            >
+              <Camera className="size-3.5" aria-hidden />
+              Scan
+            </Link>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -288,7 +292,7 @@ export function Psa10SpreadScanner() {
               ? `Top ${rows.length} of ${TOP_CARDS_LIMIT} · tap a card for full breakdown`
               : slabFeedAccess === "top100"
                 ? `Premium top ${PREMIUM_SLAB_FEED_LIMIT} · ${rows.length} shown · Pro unlocks full board + search`
-                : `Starter preview (${FREE_SLAB_FEED_LIMIT} mid-ranked) · Pro unlocks top 100+ and scanner`}
+                : `Starter preview (${FREE_SLAB_FEED_LIMIT} mid-ranked) · Pro unlocks top 100+`}
       </p>
 
       {/* Simplified feed */}
