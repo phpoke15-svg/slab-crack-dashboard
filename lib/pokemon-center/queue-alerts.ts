@@ -245,7 +245,7 @@ async function maybeSendChallengeWebPush(report: QueueWatchReport): Promise<bool
   const site = getSiteUrl()
   const result = await sendWebPushToTopic("queue_live", {
     title: "Pokémon Center drop guard is UP",
-    body: "Imperva human verification detected — open Pokemon Center and pass the check now.",
+    body: "Imperva human verification detected — open your browser, go to pokemoncenter.com, and pass the check now.",
     url: `${site}/pokewatch`,
     tag: "pc-imperva-challenge",
   })
