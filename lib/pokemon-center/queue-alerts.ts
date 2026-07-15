@@ -261,14 +261,9 @@ async function maybeSendQueueLiveWebPush(report: QueueWatchReport): Promise<bool
 
   const site = getSiteUrl()
 
-  const signalSummary =
-    report.signals.length > 0
-      ? report.signals.map((s) => s.label).join(", ")
-      : "Queue activity detected"
-
   const result = await sendWebPushToTopic("queue_live", {
-    title: "Pokémon Center queue is LIVE",
-    body: signalSummary,
+    title: "🚨 Pokémon Center Queue is LIVE!",
+    body: "Tap to open Safari and click your bookmarklet to monitor your place in line.",
     url: `${site}/pokewatch`,
     tag: "pc-queue-live",
   })

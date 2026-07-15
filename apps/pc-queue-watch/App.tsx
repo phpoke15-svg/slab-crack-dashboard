@@ -1,4 +1,3 @@
-import "./lib/queue-watch/background"
 import { NavigationContainer, DarkTheme } from "@react-navigation/native"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import { StatusBar } from "expo-status-bar"
@@ -6,7 +5,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context"
 import type { RootStackParamList } from "./lib/navigation"
 import { colors } from "./lib/theme"
 import { QueueWatchProvider } from "./lib/queue-watch"
-import QueueWatchScreen from "./screens/QueueWatchScreen"
+import InstallQueueWatcherScreen from "./screens/InstallQueueWatcherScreen"
 import SiteWebScreen from "./screens/SiteWebScreen"
 
 export type { RootStackParamList } from "./lib/navigation"
@@ -34,7 +33,6 @@ export default function App() {
           <StatusBar style="light" />
           <Stack.Navigator
             initialRouteName="Home"
-            detachInactiveScreens={false}
             screenOptions={{
               headerStyle: { backgroundColor: colors.card },
               headerTintColor: colors.text,
@@ -44,14 +42,14 @@ export default function App() {
           >
             <Stack.Screen
               name="Home"
-              component={SiteWebScreen}
-              options={{ headerShown: false }}
+              component={InstallQueueWatcherScreen}
+              options={{ title: "PokeWatch", headerShown: true }}
             />
             <Stack.Screen
-              name="Queue"
-              component={QueueWatchScreen}
+              name="CollecTools"
+              component={SiteWebScreen}
               options={{
-                title: "PokeWatch",
+                title: "CollecTools",
                 headerBackTitle: "Back",
               }}
             />
