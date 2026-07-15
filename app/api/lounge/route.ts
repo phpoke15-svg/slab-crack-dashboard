@@ -15,11 +15,13 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const mode = (searchParams.get("mode") === "following" ? "following" : "all") as LoungeFeedMode
     const parentId = searchParams.get("parentId")
+    const thread = searchParams.get("thread") === "1" || searchParams.get("thread") === "true"
     const feed = await getLoungeFeed({
       viewerId: auth.user.id,
       viewerEmail: auth.user.email,
       mode,
       parentId: parentId || null,
+      thread,
     })
     return NextResponse.json(feed)
   } catch (error) {

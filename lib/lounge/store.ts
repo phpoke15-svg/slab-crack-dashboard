@@ -132,10 +132,89 @@ async function loadMediaByPost(
   return map
 }
 
+/** Count every descendant under each root (nested replies included). */
+async function countThreadReplies(
+  admin: ReturnType<typeof createAdminClient>,
+  rootIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>(rootIds.map((id) => [id, 0]))
+  if (rootIds.length === 0) return counts
+
+  const rootOf = new Map<string, string>(rootIds.map((id) => [id, id]))
+  let frontier = [...rootIds]
+
+  while (frontier.length > 0) {
+    const { data, error } = await admin
+      .from("lounge_posts")
+      .select("id, parent_id")
+      .in("parent_id", frontier)
+    if (error) throw new Error(error.message)
+
+    const next: string[] = []
+    for (const row of data ?? []) {
+      const parentId = row.parent_id as string
+      const rootId = rootOf.get(parentId)
+      if (!rootId) continue
+      const childId = row.id as string
+      rootOf.set(childId, rootId)
+      counts.set(rootId, (counts.get(rootId) ?? 0) + 1)
+      next.push(childId)
+    }
+    frontier = next
+  }
+
+  return counts
+}
+
+/** Direct child counts for posts inside an expanded thread. */
+async function countDirectReplies(
+  admin: ReturnType<typeof createAdminClient>,
+  postIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>()
+  if (postIds.length === 0) return counts
+  const { data, error } = await admin
+    .from("lounge_posts")
+    .select("parent_id")
+    .in("parent_id", postIds)
+  if (error) throw new Error(error.message)
+  for (const row of data ?? []) {
+    const id = row.parent_id as string
+    if (!id) continue
+    counts.set(id, (counts.get(id) ?? 0) + 1)
+  }
+  return counts
+}
+
+/** Load every nested reply under a root post (conversation thread). */
+async function loadThreadDescendants(
+  admin: ReturnType<typeof createAdminClient>,
+  rootId: string,
+): Promise<PostRow[]> {
+  const collected: PostRow[] = []
+  let frontier = [rootId]
+
+  while (frontier.length > 0) {
+    const { data, error } = await admin
+      .from("lounge_posts")
+      .select("id, author_id, body, parent_id, created_at")
+      .in("parent_id", frontier)
+      .order("created_at", { ascending: true })
+    if (error) throw new Error(error.message)
+
+    const rows = (data ?? []) as PostRow[]
+    collected.push(...rows)
+    frontier = rows.map((row) => row.id)
+  }
+
+  return collected
+}
+
 async function enrichPosts(
   admin: ReturnType<typeof createAdminClient>,
   rows: PostRow[],
   viewerId: string,
+  opts?: { threadReplyCounts?: boolean },
 ): Promise<LoungePost[]> {
   if (rows.length === 0) return []
 
@@ -144,7 +223,7 @@ async function enrichPosts(
   const authors = await loadAuthors(admin, authorIds)
   const mediaByPost = await loadMediaByPost(admin, postIds)
 
-  const [{ data: likeRows }, { data: myLikes }, { data: replyRows }, { data: followRows }] =
+  const [{ data: likeRows }, { data: myLikes }, replyCounts, { data: followRows }] =
     await Promise.all([
       admin.from("lounge_likes").select("post_id").in("post_id", postIds),
       admin
@@ -152,7 +231,9 @@ async function enrichPosts(
         .select("post_id")
         .eq("user_id", viewerId)
         .in("post_id", postIds),
-      admin.from("lounge_posts").select("parent_id").in("parent_id", postIds),
+      opts?.threadReplyCounts
+        ? countThreadReplies(admin, postIds)
+        : countDirectReplies(admin, postIds),
       admin
         .from("lounge_follows")
         .select("following_id")
@@ -167,12 +248,6 @@ async function enrichPosts(
   }
 
   const likedByMe = new Set((myLikes ?? []).map((r) => r.post_id as string))
-  const replyCounts = new Map<string, number>()
-  for (const row of replyRows ?? []) {
-    const id = row.parent_id as string
-    if (!id) continue
-    replyCounts.set(id, (replyCounts.get(id) ?? 0) + 1)
-  }
   const following = new Set((followRows ?? []).map((r) => r.following_id as string))
 
   const fallback: LoungeAuthor = {
@@ -202,6 +277,8 @@ export async function getLoungeFeed(opts: {
   viewerEmail?: string | null
   mode?: LoungeFeedMode
   parentId?: string | null
+  /** When true with parentId, return the full nested thread under that root. */
+  thread?: boolean
 }): Promise<LoungeFeedResponse> {
   if (!isSupabaseConfigured()) {
     throw new Error("Supabase is not configured")
@@ -212,6 +289,18 @@ export async function getLoungeFeed(opts: {
   const myPlan = (await resolvePlansForUserIds([opts.viewerId])).get(opts.viewerId) ?? "free"
   const me = toAuthor(meProfile, myPlan)
   const mode: LoungeFeedMode = opts.mode === "following" ? "following" : "all"
+
+  if (opts.parentId && opts.thread) {
+    const rows = await loadThreadDescendants(admin, opts.parentId)
+    const posts = await enrichPosts(admin, rows, opts.viewerId)
+    return {
+      ok: true,
+      mode,
+      me,
+      posts,
+      asOf: new Date().toISOString(),
+    }
+  }
 
   let query = admin
     .from("lounge_posts")
@@ -238,7 +327,9 @@ export async function getLoungeFeed(opts: {
   const { data, error } = await query
   if (error) throw new Error(error.message)
 
-  const posts = await enrichPosts(admin, (data ?? []) as PostRow[], opts.viewerId)
+  const posts = await enrichPosts(admin, (data ?? []) as PostRow[], opts.viewerId, {
+    threadReplyCounts: !opts.parentId,
+  })
 
   return {
     ok: true,
