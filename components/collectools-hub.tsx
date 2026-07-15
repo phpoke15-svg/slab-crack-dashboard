@@ -32,27 +32,16 @@ export function CollecToolsHub() {
         </div>
 
         <div className="mt-6 w-full space-y-4">
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Free tools for Pokémon TCG collectors. Pick one below to get started.
+          <p className="w-full text-base font-medium leading-snug text-foreground sm:text-lg">
+            The Ultimate Tool Kit for Pokemon Card Collectors!
           </p>
-          <dl className="grid w-full gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
-            <div className="min-w-0 border-l-2 border-primary/40 pl-3">
-              <dt className="font-semibold text-foreground">SlabCrack</dt>
-              <dd className="mt-0.5 text-muted-foreground">Find graded vs raw arbitrage</dd>
-            </div>
-            <div className="min-w-0 border-l-2 border-primary/40 pl-3">
-              <dt className="font-semibold text-foreground">SlabLab</dt>
-              <dd className="mt-0.5 text-muted-foreground">PSA 10 spread, multiplier, and ROI</dd>
-            </div>
-            <div className="min-w-0 border-l-2 border-primary/40 pl-3">
-              <dt className="font-semibold text-foreground">PokeMatch</dt>
-              <dd className="mt-0.5 text-muted-foreground">Build binders and trade with collectors</dd>
-            </div>
-            <div className="min-w-0 border-l-2 border-primary/40 pl-3">
-              <dt className="font-semibold text-foreground">PokeWatch</dt>
-              <dd className="mt-0.5 text-muted-foreground">Pokemon Center queue alerts</dd>
-            </div>
-          </dl>
+          <Link
+            href="/pricing"
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-primary/40 bg-primary/15 px-4 text-sm font-semibold text-primary transition-colors hover:bg-primary/25"
+          >
+            View membership tiers
+            <span className="ml-2 font-medium text-muted-foreground">Free · Premium · Pro</span>
+          </Link>
         </div>
       </header>
 
