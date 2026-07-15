@@ -26,6 +26,7 @@ export async function openMonitorContext(input: {
     timezoneId: "America/New_York",
     proxy: input.proxyServer ? { server: input.proxyServer } : undefined,
     args: ["--disable-blink-features=AutomationControlled"],
+    timeout: 120_000,
   })
 }
 

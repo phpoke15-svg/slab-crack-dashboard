@@ -11,6 +11,7 @@ async function main() {
   console.log(`[bootstrap] profile: ${config.profileDir}`)
   if (config.proxyServer) console.log(`[bootstrap] proxy: ${config.proxyServer}`)
 
+  console.log("[bootstrap] Launching Chrome (up to 2 min)…")
   const context = await openMonitorContext({
     profileDir: config.profileDir,
     proxyServer: config.proxyServer || undefined,
@@ -18,11 +19,24 @@ async function main() {
   })
 
   const page = context.pages()[0] ?? (await context.newPage())
-  await page.goto(POKEMON_CENTER_URL, { waitUntil: "domcontentloaded" })
+  console.log(`[bootstrap] Loading ${POKEMON_CENTER_URL} …`)
+
+  try {
+    await page.goto(POKEMON_CENTER_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 180_000,
+    })
+    console.log("[bootstrap] Page loaded.")
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.warn(`[bootstrap] Navigation slow or timed out (${message})`)
+    console.warn("[bootstrap] Chrome should still be open — navigate to pokemoncenter.com manually if needed.")
+  }
 
   console.log("")
-  console.log("Complete the Imperva checkbox / image CAPTCHA in the browser window.")
-  console.log("When pokemoncenter.com loads normally, press Enter here to save and exit.")
+  console.log("1) Complete the Imperva checkbox / image CAPTCHA in the Chrome window")
+  console.log("2) Wait until the normal Pokemon Center storefront appears")
+  console.log("3) Press Enter here to save cookies and exit")
   console.log("")
 
   await new Promise<void>((resolve) => {
@@ -30,7 +44,7 @@ async function main() {
   })
 
   await context.close()
-  console.log("[bootstrap] Saved. Deploy this profile folder to your cloud worker volume.")
+  console.log("[bootstrap] Saved. Upload pc-profile/ to your Fly volume before deploy.")
 }
 
 main().catch((err) => {
