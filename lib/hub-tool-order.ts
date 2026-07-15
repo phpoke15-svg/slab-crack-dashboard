@@ -69,15 +69,3 @@ export function moveHubToolId(order: string[], fromIndex: number, toIndex: numbe
   next.splice(toIndex, 0, item)
   return next
 }
-
-/** Randomize tool id order (Fisher–Yates). */
-export function shuffleHubToolIds(order: string[]): string[] {
-  const next = [...order]
-  for (let i = next.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const tmp = next[i]!
-    next[i] = next[j]!
-    next[j] = tmp
-  }
-  return next
-}
