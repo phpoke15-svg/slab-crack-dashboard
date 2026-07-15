@@ -11,7 +11,7 @@ import {
   MessageSquare,
   Package,
   User,
-  Users,
+  UserPlus,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -119,14 +119,8 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
           className="flex items-center rounded-xl border border-border bg-secondary/60 p-1"
         >
           <SocialNavTab
-            label="Profile"
-            icon={<User className="size-4" aria-hidden="true" />}
-            onClick={() => social.openProfile(user.id)}
-            ariaLabel="Open your profile"
-          />
-          <SocialNavTab
             label="Friends"
-            icon={<Users className="size-4" aria-hidden="true" />}
+            icon={<UserPlus className="size-4" aria-hidden="true" />}
             badge={
               social.pendingFriendRequestCount > 0
                 ? social.pendingFriendRequestCount
@@ -181,6 +175,21 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
               <p className="truncate text-xs text-muted-foreground">{user.email}</p>
             )}
           </div>
+
+          {social ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setMenuOpen(false)
+                social.openProfile(user.id)
+              }}
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-foreground transition-colors hover:bg-accent"
+            >
+              <User className="size-4 text-muted-foreground" aria-hidden="true" />
+              Profile
+            </button>
+          ) : null}
 
           <Link
             href="/binder"
