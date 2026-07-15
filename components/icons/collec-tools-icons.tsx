@@ -30,17 +30,13 @@ export const PokeMatchIcon = createLucideIcon("PokeMatch", [
 ])
 
 /**
- * CardLounge — curved sofa with two collectors and a chat bubble.
- * Signals social hangout + collector feed.
+ * CardLounge — three people (same silhouette style as User / add friend).
  */
 export const CardLoungeIcon = createLucideIcon("CardLounge", [
-  ["path", { d: "M4 16h16", key: "seat" }],
-  ["path", { d: "M5 16v2H3.5M20.5 18H19", key: "legs" }],
-  ["path", { d: "M5 16V12c0-2 2.5-3.5 7-3.5s7 1.5 7 3.5v4", key: "back" }],
-  ["path", { d: "M4 14.5c2-1.5 4-2 8-2s6 .5 8 2", key: "cushion" }],
-  ["circle", { cx: "8.5", cy: "10", r: "1.35", key: "head-l" }],
-  ["circle", { cx: "15.5", cy: "10", r: "1.35", key: "head-r" }],
-  ["path", { d: "M7.5 11.5c.8.8 1.7 1.2 2.5 1.2M16.5 11.5c-.8.8-1.7 1.2-2.5 1.2", key: "shoulders" }],
-  ["path", { d: "M14.5 4.5h3.5a1 1 0 0 1 1 1v1.5h-4.5V5.5a1 1 0 0 1 1-1z", key: "bubble" }],
-  ["path", { d: "M14.5 7 13.5 8.5", key: "bubble-tail" }],
+  ["circle", { cx: "6", cy: "8.5", r: "1.75", key: "head-l" }],
+  ["path", { d: "M4 17.5v-1a2 2 0 0 1 4 0v1", key: "body-l" }],
+  ["circle", { cx: "12", cy: "7.5", r: "2.25", key: "head-c" }],
+  ["path", { d: "M8.25 18v-1.5a3.75 3.75 0 0 1 7.5 0V18", key: "body-c" }],
+  ["circle", { cx: "18", cy: "8.5", r: "1.75", key: "head-r" }],
+  ["path", { d: "M16 17.5v-1a2 2 0 0 1 4 0v1", key: "body-r" }],
 ])
