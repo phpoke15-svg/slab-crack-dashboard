@@ -11,6 +11,7 @@ import {
   FolderOpen,
   Search,
   Sparkles,
+  Star,
   TrendingUp,
   X,
 } from "lucide-react"
@@ -28,6 +29,7 @@ import type { SlabLabCard } from "@/lib/slablab"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
+import { WatchlistButton } from "@/components/save-for-later/watchlist-button"
 import {
   isSavedForLater,
   loadSaveForLaterStore,
@@ -37,6 +39,14 @@ import {
   toggleSavedForLater,
   type SaveForLaterStore,
 } from "@/lib/save-for-later-storage"
+import {
+  isSlabLabWatched,
+  loadSlabLabWatchlistStore,
+  resolveSlabLabWatchedCards,
+  saveSlabLabWatchlistStore,
+  toggleSlabLabWatchlistCard,
+  type SlabLabWatchlistStore,
+} from "@/lib/slablab-watchlist-storage"
 
 const DEFAULT_GRADING_COST = DEFAULT_PSA_GRADING_FEE
 
@@ -52,7 +62,7 @@ const AVAILABLE_FEES = PSA_AVAILABLE_GRADING_TIERS.map((t) => t.fee)
 const GRADING_SLIDER_MIN = Math.floor(Math.min(...AVAILABLE_FEES))
 const GRADING_SLIDER_MAX = Math.ceil(Math.max(...AVAILABLE_FEES))
 type SortMode = "spread" | "multiplier" | "roi"
-type SlabLabView = "board" | "saved"
+type SlabLabView = "board" | "watchlist" | "saved"
 
 type ScannerCard = SlabLabCard
 
@@ -117,14 +127,23 @@ export function Psa10SpreadScanner() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [query, setQuery] = useState("")
   const [saveStore, setSaveStore] = useState<SaveForLaterStore>({ folders: [], items: [] })
+  const [watchlistStore, setWatchlistStore] = useState<SlabLabWatchlistStore>({
+    ids: [],
+    cards: {},
+  })
 
   useEffect(() => {
     setSaveStore(loadSaveForLaterStore())
+    setWatchlistStore(loadSlabLabWatchlistStore())
   }, [])
 
   useEffect(() => {
     saveSaveForLaterStore(saveStore)
   }, [saveStore])
+
+  useEffect(() => {
+    saveSlabLabWatchlistStore(watchlistStore)
+  }, [watchlistStore])
 
   useEffect(() => {
     let cancelled = false
@@ -166,7 +185,13 @@ export function Psa10SpreadScanner() {
     [saveStore, liveById],
   )
 
-  const sourceCards = view === "saved" ? savedCards : cards
+  const watchedCards = useMemo(
+    () => resolveSlabLabWatchedCards(watchlistStore, liveById),
+    [watchlistStore, liveById],
+  )
+
+  const sourceCards =
+    view === "saved" ? savedCards : view === "watchlist" ? watchedCards : cards
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -183,15 +208,21 @@ export function Psa10SpreadScanner() {
       if (sortMode === "multiplier") return b.gradedMultiplier - a.gradedMultiplier
       return b.trueRoiScore - a.trueRoiScore
     })
-    return view === "saved" ? computed : computed.slice(0, TOP_CARDS_LIMIT)
-  }, [cards, gradingCost, query, sortMode, sourceCards, view])
+    return view === "board" ? computed : computed
+  }, [gradingCost, query, sortMode, sourceCards, view])
 
   const toggleSave = (card: ScannerCard) => {
     setSaveStore((prev) => toggleSavedForLater(prev, { source: "slablab", card }))
   }
 
+  const toggleWatch = (card: ScannerCard) => {
+    setWatchlistStore((prev) => toggleSlabLabWatchlistCard(prev, card))
+  }
+
   const isRowSaved = (row: ScannerCard) =>
     isSavedForLater(saveStore, "slablab", row.watchlistId || row.id)
+
+  const isRowWatched = (row: ScannerCard) => isSlabLabWatched(watchlistStore, row)
 
   const selected = rows.find((r) => r.id === selectedId) ?? null
 
@@ -249,6 +280,26 @@ export function Psa10SpreadScanner() {
             <button
               type="button"
               role="tab"
+              aria-selected={view === "watchlist"}
+              onClick={() => setView("watchlist")}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors sm:text-xs",
+                view === "watchlist"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <Star className="size-3.5" aria-hidden />
+              Watchlist
+              {watchlistStore.ids.length > 0 ? (
+                <span className="rounded-full bg-primary-foreground/15 px-1.5 py-0.5 font-mono text-[10px]">
+                  {watchlistStore.ids.length}
+                </span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={view === "saved"}
               onClick={() => setView("saved")}
               className={cn(
@@ -270,13 +321,17 @@ export function Psa10SpreadScanner() {
 
           {view === "board" ? (
             <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">All-time scan</p>
+          ) : view === "watchlist" ? (
+            <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
+              Your watchlist
+            </p>
           ) : (
             <p className="text-[11px] font-medium text-muted-foreground sm:text-xs">
               Saved for later folder
             </p>
           )}
 
-          {view === "board" ? (
+          {view === "board" || view === "watchlist" || view === "saved" ? (
             <div
               className="ml-auto flex rounded-xl border border-border bg-secondary/40 p-0.5"
               role="tablist"
@@ -352,6 +407,10 @@ export function Psa10SpreadScanner() {
           ? rows.length === 0
             ? "Your Saved for later folder is empty. Tap the bookmark on any card to add it."
             : `${rows.length} saved card${rows.length === 1 ? "" : "s"} in your folder`
+          : view === "watchlist"
+            ? rows.length === 0
+              ? "Your watchlist is empty. Tap the star on any card to track it here."
+              : `${rows.length} card${rows.length === 1 ? "" : "s"} on your watchlist`
           : loading
             ? "Loading top grading opportunities…"
             : error
@@ -371,6 +430,11 @@ export function Psa10SpreadScanner() {
               <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
                 <Bookmark className="size-8 text-muted-foreground/70" aria-hidden />
                 <p>Nothing saved yet. Use Save for later on any grading candidate.</p>
+              </div>
+            ) : view === "watchlist" ? (
+              <div className="mx-auto flex max-w-sm flex-col items-center gap-3">
+                <Star className="size-8 text-muted-foreground/70" aria-hidden />
+                <p>Nothing on your watchlist yet. Tap the star on any card to add it.</p>
               </div>
             ) : error ? (
               "Could not load opportunities. Try refresh."
@@ -401,7 +465,7 @@ export function Psa10SpreadScanner() {
               >
                 <div className="flex w-full items-center gap-3">
                   <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground">
-                    {index + 1}
+                    {view === "board" ? index + 1 : "·"}
                   </span>
                   <div className="relative aspect-[3/4] w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-muted/40 sm:w-16">
                     <CardImage
@@ -417,6 +481,11 @@ export function Psa10SpreadScanner() {
                       className="object-contain p-0.5 transition-transform duration-300 group-hover:scale-105"
                       upgrade={false}
                     />
+                    {isRowWatched(row) ? (
+                      <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                        <Sparkles className="size-2.5" />
+                      </span>
+                    ) : null}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -442,11 +511,18 @@ export function Psa10SpreadScanner() {
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <SaveForLaterButton
-                      saved={isRowSaved(row)}
-                      onToggle={() => toggleSave(row)}
-                      compact
-                    />
+                    <div className="flex items-center gap-1">
+                      <WatchlistButton
+                        watched={isRowWatched(row)}
+                        onToggle={() => toggleWatch(row)}
+                        compact
+                      />
+                      <SaveForLaterButton
+                        saved={isRowSaved(row)}
+                        onToggle={() => toggleSave(row)}
+                        compact
+                      />
+                    </div>
                     <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
                       {metric.label}
                     </span>
@@ -490,7 +566,9 @@ export function Psa10SpreadScanner() {
       {selected && (
         <SlabLabDetailDrawer
           row={selected}
+          watched={isRowWatched(selected)}
           saved={isRowSaved(selected)}
+          onToggleWatch={() => toggleWatch(selected)}
           onToggleSave={() => toggleSave(selected)}
           onClose={() => setSelectedId(null)}
         />
@@ -501,12 +579,16 @@ export function Psa10SpreadScanner() {
 
 function SlabLabDetailDrawer({
   row,
+  watched,
   saved,
+  onToggleWatch,
   onToggleSave,
   onClose,
 }: {
   row: ComputedRow
+  watched: boolean
   saved: boolean
+  onToggleWatch: () => void
   onToggleSave: () => void
   onClose: () => void
 }) {
@@ -652,11 +734,16 @@ function SlabLabDetailDrawer({
             Search eBay PSA 10
           </a>
 
-          <div className="mt-4">
-            <SaveForLaterButton saved={saved} onToggle={onToggleSave} className="w-full" />
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row">
+            <WatchlistButton watched={watched} onToggle={onToggleWatch} className="flex-1" />
+            <SaveForLaterButton saved={saved} onToggle={onToggleSave} className="flex-1" />
           </div>
 
           <p className="mt-4 text-[11px] text-muted-foreground">
+            Watchlist and Saved for later are stored on this device.
+          </p>
+
+          <p className="mt-2 text-[11px] text-muted-foreground">
             ROI is PSA 10 price minus raw and your selected grading cost.
           </p>
         </div>
