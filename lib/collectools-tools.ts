@@ -19,6 +19,9 @@ export type CollecTool = {
   href: string
   name: string
   tagline: string
+  /** One short sentence shown on the compact hub row. */
+  blurb: string
+  /** Longer overview shown after the user opens the tool detail. */
   description: string
   highlights?: string[]
   icon: LucideIcon
@@ -32,13 +35,14 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/slabcrack",
     name: "SlabCrack",
     tagline: "Graded slab arbitrage",
+    blurb: "Find undervalued graded slabs vs raw market prices.",
     description:
-      "Find undervalued cards. Premium unlocks the full feed of deficits.",
+      "SlabCrack compares raw NM prices against PSA slab quotes so you can spot buy-crack-sell opportunities, collection bargains, and graded vs raw gaps. Premium unlocks the full deficit feed; Scan in search opens Crack + Lab pricing from a photo.",
     highlights: [
-      "Buy, crack, and sell — spot slabs where cracking and selling raw beats the market price",
-      "Buy high-end cards under market for your personal collection",
-      "Market awareness — track graded vs raw pricing gaps and stay ahead of the market",
-      "Camera scan in search — AI identifies a card and opens Crack + Lab prices",
+      "Buy, crack, and sell when cracking a slab beats holding it",
+      "Hunt high-end cards priced under market for your collection",
+      "Track graded vs raw gaps with live comps",
+      "Camera scan in search for instant Crack + Lab prices",
     ],
     icon: Layers,
   },
@@ -47,13 +51,14 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/slablab",
     name: "SlabLab",
     tagline: "Spread · multiplier · ROI",
+    blurb: "Rank PSA 10 submission ROI across the top modern cards.",
     description:
-      "Rank the top 200 modern cards by PSA 10 gross spread, graded multiplier, and net ROI after grading cost.",
+      "SlabLab ranks the top 200 modern Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and net ROI after grading cost so you can pick stronger submission candidates. Scan in search opens the same Crack + Lab view from a photo.",
     highlights: [
-      "Live market comps for the top 200 PSA 10 grading opportunities",
+      "Live market comps for top PSA 10 grading opportunities",
       "Model net ROI with current PSA grading tiers",
       "Flag Prime Submission slots and 10-or-Bust danger zones",
-      "Camera scan in search — snap a card for Crack + Lab ROI",
+      "Camera scan in search for instant Crack + Lab ROI",
     ],
     icon: Ratio,
   },
@@ -62,8 +67,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/binder",
     name: "PokeMatch",
     tagline: "Collect & trade",
+    blurb: "Build your binder and trade with other collectors.",
     description:
-      "Build your binder, mark cards for trade or wishlist, and connect with other collectors.",
+      "PokeMatch lets you build a digital binder, mark cards for trade or wishlist, and match with other collectors who need what you have.",
     icon: BookOpen,
   },
   {
@@ -71,8 +77,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/pokewatch",
     name: "PokeWatch",
     tagline: "Pro · Pokemon Center alerts",
+    blurb: "Get alerts when the Pokemon Center queue goes live.",
     description:
-      "Instant browser and phone alerts when the Pokemon Center virtual queue goes live. Included with CollecTools Pro.",
+      "PokeWatch sends instant browser and phone alerts when the Pokemon Center virtual queue goes live so you can jump in faster. Included with CollecTools Pro.",
     icon: Bell,
   },
   {
@@ -80,9 +87,12 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/restocks",
     name: "Restocks",
     tagline: RESTOCKS_ENABLED ? "Walmart sealed stock" : "Supreme · in development",
+    blurb: RESTOCKS_ENABLED
+      ? "Track Walmart sealed Pokémon TCG stock in one place."
+      : "Walmart sealed restock tracker — Supreme preview for now.",
     description: RESTOCKS_ENABLED
-      ? "Auto-discovers Pokémon TCG sealed products at Walmart and tracks in-stock vs OOS. Pokémon Center drops use PokeWatch."
-      : "Walmart sealed auto-discovery. Hidden from public until Affiliate is live — Supreme can preview.",
+      ? "Restocks auto-discovers Pokémon TCG sealed products at Walmart and tracks in-stock vs out-of-stock. Pokémon Center drops still use PokeWatch."
+      : "Walmart sealed auto-discovery is in development and hidden from the public until Affiliate is live. Supreme accounts can preview the work in progress.",
     icon: Package,
     supremeOnly: !RESTOCKS_ENABLED,
   },
@@ -91,8 +101,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/grade-check",
     name: "Grade Check",
     tagline: "Supreme · in development",
+    blurb: "Quick condition and centering help before you submit.",
     description:
-      "Condition / centering helper for submission decisions. Supreme preview while the UX is unfinished.",
+      "Grade Check is a condition and centering helper for submission decisions. It is still in development and available as a Supreme preview.",
     icon: ScanSearch,
     supremeOnly: true,
   },
@@ -101,12 +112,13 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/card-lounge",
     name: "CardLounge",
     tagline: "Collector social feed",
+    blurb: "Share posts, photos, and follows with other collectors.",
     description:
-      "Twitter-style collector feed — short posts, photos, videos, follows, likes, and replies.",
+      "CardLounge is a collector social feed for short posts, photos, videos, follows, likes, and replies — built for Pokémon TCG chatter and show-and-tell.",
     highlights: [
-      "280-character posts with photo & video uploads",
-      "Follow other collectors · Starter through Supreme badges",
-      "CardLounge feed + Following timeline",
+      "280-character posts with photo and video uploads",
+      "Follow other collectors with plan badges",
+      "Main feed plus a Following timeline",
     ],
     icon: MessageSquare,
   },
@@ -115,13 +127,13 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/buyout-radar",
     name: "Buyout Radar",
     tagline: "Supreme · in development",
+    blurb: "Spot buyout spikes before retail prices move.",
     description:
-      "Detect high-volume buyout clusters and speculation spikes before retail prices move.",
+      "Buyout Radar detects high-volume buyout clusters and speculation spikes across the catalog so you can react before retail prices catch up. Supreme preview while the product is still in development.",
     highlights: [
-      "Full catalog market scan (batched) via eBay sold comps",
+      "Batched catalog scan via eBay sold comps",
       "24h volume vs 14-day baseline with spike scoring",
-      "Critical / High / Warning priority alerts",
-      "Recommended action badges for speculative buys",
+      "Priority alerts and recommended action badges",
     ],
     icon: Radar,
     supremeOnly: true,
@@ -131,8 +143,9 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/supreme",
     name: "Site Insights",
     tagline: "Owner metrics",
+    blurb: "Live product, billing, and ops metrics for owners.",
     description:
-      "Live product, billing, and ops insights across CollecTools. Supreme accounts only.",
+      "Site Insights shows live product, billing, and ops metrics across CollecTools. Available to Supreme accounts only.",
     icon: Activity,
     supremeOnly: true,
   },
