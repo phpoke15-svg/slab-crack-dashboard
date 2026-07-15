@@ -1,19 +1,24 @@
 ;(function (global) {
   /**
-   * Map Gemini box_2d [ymin, xmin, ymax, xmax] (0–1000) onto the HUD layer
-   * and render clickable absolute-positioned card overlays.
+   * Gemini official box_2d: [ymin, xmin, ymax, xmax] normalized 0–1000
+   * → absolute pixels on the video container.
    */
-  function boxToStyle(box2d, width, height) {
+  function boxToPixels(box2d, canvasWidth, canvasHeight) {
     const [ymin, xmin, ymax, xmax] = box2d
-    const top = (ymin / 1000) * height
-    const left = (xmin / 1000) * width
-    const h = ((ymax - ymin) / 1000) * height
-    const w = ((xmax - xmin) / 1000) * width
+    const left = (xmin / 1000) * canvasWidth
+    const top = (ymin / 1000) * canvasHeight
+    const width = ((xmax - xmin) / 1000) * canvasWidth
+    const height = ((ymax - ymin) / 1000) * canvasHeight
+    return { left, top, width, height, ymin, xmin, ymax, xmax }
+  }
+
+  function boxToStyle(box2d, canvasWidth, canvasHeight) {
+    const { left, top, width, height } = boxToPixels(box2d, canvasWidth, canvasHeight)
     return {
-      top: `${Math.max(0, top)}px`,
-      left: `${Math.max(0, left)}px`,
-      width: `${Math.max(8, w)}px`,
-      height: `${Math.max(8, h)}px`,
+      top: `${top}px`,
+      left: `${left}px`,
+      width: `${Math.max(1, width)}px`,
+      height: `${Math.max(1, height)}px`,
     }
   }
 
@@ -41,16 +46,28 @@
     function render(nextCards) {
       cards = Array.isArray(nextCards) ? nextCards : []
       layer.innerHTML = ""
-      const w = layer.clientWidth || 1
-      const h = layer.clientHeight || 1
+
+      const canvasWidth = layer.clientWidth || 1
+      const canvasHeight = layer.clientHeight || 1
+      console.log("[BinderHud] videoContainer size", { canvasWidth, canvasHeight })
 
       cards.forEach((card, index) => {
+        const mapped = boxToPixels(card.box_2d, canvasWidth, canvasHeight)
+        console.log("[BinderHud] mapped pixel coords", {
+          index,
+          name: card.name,
+          box_2d: card.box_2d,
+          left: mapped.left,
+          top: mapped.top,
+          width: mapped.width,
+          height: mapped.height,
+        })
+
         const el = document.createElement("button")
         el.type = "button"
         el.className = "card-hud" + (card.pricing ? "" : " is-loading")
         el.dataset.index = String(index)
-        const style = boxToStyle(card.box_2d, w, h)
-        Object.assign(el.style, style)
+        Object.assign(el.style, boxToStyle(card.box_2d, canvasWidth, canvasHeight))
 
         const meta = [card.set, card.number].filter(Boolean).join(" · ")
         const price = card.pricing?.prices
@@ -81,13 +98,11 @@
       })
     }
 
-    /** Relayout after viewport resize using the same card data. */
     function relayout() {
       if (!cards.length) return
       render(cards)
       if (activeIndex >= 0) {
-        const el = layer.querySelector(`.card-hud[data-index="${activeIndex}"]`)
-        el?.classList.add("is-active")
+        layer.querySelector(`.card-hud[data-index="${activeIndex}"]`)?.classList.add("is-active")
       }
     }
 
@@ -96,8 +111,7 @@
       cards[index] = { ...cards[index], ...patch }
       render(cards)
       if (activeIndex >= 0) {
-        const el = layer.querySelector(`.card-hud[data-index="${activeIndex}"]`)
-        el?.classList.add("is-active")
+        layer.querySelector(`.card-hud[data-index="${activeIndex}"]`)?.classList.add("is-active")
       }
     }
 
@@ -109,8 +123,8 @@
       return cards
     }
 
-    return { clear, render, relayout, updateCard, setOnSelect, getCards, boxToStyle }
+    return { clear, render, relayout, updateCard, setOnSelect, getCards, boxToStyle, boxToPixels }
   }
 
-  global.BinderHud = { createHud, boxToStyle }
+  global.BinderHud = { createHud, boxToStyle, boxToPixels }
 })(window)

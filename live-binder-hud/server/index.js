@@ -32,21 +32,28 @@ app.get("/api/health", (_req, res) => {
 
 /**
  * Full-frame zero-shot detect.
- * Body: { image: "data:image/jpeg;base64,..." }
+ * Preferred body: { mimeType: "image/jpeg", data: "<base64 without prefix>" }
+ * Fallback: { image: "data:image/jpeg;base64,..." }
  */
 app.post("/api/scan", async (req, res) => {
   try {
-    const image = req.body?.image
-    if (!image || typeof image !== "string") {
-      return res.status(400).json({ ok: false, error: "image data URL required" })
+    const { data, mimeType, image } = req.body || {}
+    if (!(data && String(data).length > 100) && !(image && String(image).length > 100)) {
+      return res.status(400).json({
+        ok: false,
+        error: "Send mimeType + data (base64 without prefix), or image data URL",
+      })
     }
-    if (image.length > 6_000_000) {
-      return res.status(400).json({ ok: false, error: "image too large" })
-    }
-    const result = await detectCardsInFrame(image)
-    res.json({ ok: true, cards: result.cards, model: result.model })
+    const result = await detectCardsInFrame({ data, mimeType, image })
+    res.json({
+      ok: true,
+      cards: result.cards,
+      model: result.model,
+      rawJson: result.rawJson,
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Scan failed"
+    console.error("[api/scan]", message)
     const status = /not configured/i.test(message) ? 503 : 500
     res.status(status).json({ ok: false, error: message })
   }

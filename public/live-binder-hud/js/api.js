@@ -8,8 +8,7 @@
   }
 
   function scanUrl() {
-    const base = apiBase()
-    return `${base}/scan`
+    return `${apiBase()}/scan`
   }
 
   function pricesUrl() {
@@ -17,14 +16,34 @@
     return base === "/api/live-binder-hud" ? `${base}/price` : `${base}/prices`
   }
 
-  /** Full-frame Gemini box_2d detect. */
-  async function scanFrame(imageDataUrl) {
+  /**
+   * Full-frame Gemini box_2d detect.
+   * @param {{ mimeType: string, data: string }} payload data = raw base64 WITHOUT data-URL prefix
+   */
+  async function scanFrame(payload) {
+    const body =
+      typeof payload === "string"
+        ? { mimeType: "image/jpeg", data: payload.replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, "") }
+        : {
+            mimeType: payload.mimeType || "image/jpeg",
+            data: String(payload.data || "").replace(/^data:image\/[a-zA-Z0-9.+-]+;base64,/, ""),
+          }
+
+    console.log("[BinderApi] scan payload", {
+      mimeType: body.mimeType,
+      dataChars: body.data.length,
+      dataHead: body.data.slice(0, 40),
+      hasDataPrefix: body.data.startsWith("data:"),
+    })
+
     const res = await fetch(scanUrl(), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: imageDataUrl }),
+      body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
+    console.log("[BinderApi] scan response rawJson:", data.rawJson)
+    console.log("[BinderApi] scan response cards:", data.cards)
     if (!res.ok || data.ok === false) {
       throw new Error(data.error || `Scan failed (${res.status})`)
     }
