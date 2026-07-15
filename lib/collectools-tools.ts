@@ -2,16 +2,18 @@ import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   Bell,
-  BookOpen,
-  Layers,
-  MessageSquare,
   MessageSquarePlus,
   Package,
   Radar,
-  Ratio,
   ScanEye,
   ScanSearch,
 } from "lucide-react"
+import {
+  CardLoungeIcon,
+  PokeMatchIcon,
+  SlabCrackIcon,
+  SlabLabIcon,
+} from "@/components/icons/collec-tools-icons"
 
 /** Flip to true when Walmart Affiliate Restocks ships again for everyone. */
 export const RESTOCKS_ENABLED = false
@@ -46,7 +48,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Track graded vs raw gaps with live comps",
       "Camera scan in search for instant Crack + Lab prices",
     ],
-    icon: Layers,
+    icon: SlabCrackIcon,
   },
   {
     id: "slablab",
@@ -62,7 +64,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Flag Prime Submission slots and 10-or-Bust danger zones",
       "Camera scan in search for instant Crack + Lab ROI",
     ],
-    icon: Ratio,
+    icon: SlabLabIcon,
   },
   {
     id: "binder",
@@ -72,7 +74,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     blurb: "Build your binder and trade with other collectors.",
     description:
       "PokeMatch lets you build a digital binder, mark cards for trade or wishlist, and match with other collectors who need what you have.",
-    icon: BookOpen,
+    icon: PokeMatchIcon,
   },
   {
     id: "pokewatch",
@@ -137,7 +139,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Follow other collectors with plan badges",
       "Main feed plus a Following timeline",
     ],
-    icon: MessageSquare,
+    icon: CardLoungeIcon,
   },
   {
     id: "buyout-radar",
