@@ -75,6 +75,7 @@ After changing env vars, **Redeploy**.
 - `/api/cron/sync-binder-prices` — daily 07:00 UTC
 - `/api/cron/sync-restocks` — daily 08:00 UTC on Hobby (Vercel Hobby allows only once/day crons; upgrade to Pro for `*/15`)
 - `/api/cron/walmart-wednesday-reminder` — Thu 01:00 UTC (Wed 9pm ET during EDT); Web Push + optional Discord
+- `/api/check-queue` — Mon–Fri 14:00 UTC (~10am ET drop window start); server canary for queue redirects (Hobby: once/day; bookmarklet is primary detection)
 
 ## Web Push (phone alerts)
 
