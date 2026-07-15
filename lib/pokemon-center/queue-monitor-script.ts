@@ -63,11 +63,11 @@ export const QUEUE_MONITOR_EARLY_SCRIPT = `
 })();
 `
 
-export type QueueMonitorBridge = "native" | "none"
+export type QueueMonitorBridge = "native" | "worker" | "none"
 
 /** Full monitor — DOM scan, badge, heartbeats. */
 export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native"): string {
-  const postNative =
+  const postBridge =
     bridge === "native"
       ? `
   function postToNative(state) {
@@ -88,7 +88,23 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
       }
     } catch (e) {}
   }`
-      : `function postToNative() {}`
+      : bridge === "worker"
+        ? `
+  function postToNative(state) {
+    try {
+      window.__pcWorkerLastReport = JSON.stringify({
+        type: "pc-queue-watch",
+        live: state.live,
+        confidence: state.confidence,
+        signals: state.signals,
+        blocked: Boolean(state.blocked),
+        challenge: Boolean(state.challenge),
+        pageUrl: location.href,
+        checkedAt: new Date().toISOString(),
+      });
+    } catch (e) {}
+  }`
+        : `function postToNative() {}`
 
   return `
 (function () {
@@ -241,7 +257,7 @@ export function buildQueueMonitorMainScript(bridge: QueueMonitorBridge = "native
     };
   }
 
-  ${postNative}
+  ${postBridge}
 
   function report(state, force) {
     var now = Date.now();

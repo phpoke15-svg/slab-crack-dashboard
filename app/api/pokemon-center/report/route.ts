@@ -8,6 +8,10 @@ import {
 import type { QueueSignal } from "@/lib/pokemon-center/queue-detector"
 import { requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { verifyQueueWatchToken } from "@/lib/billing/queue-watch-token"
+import {
+  isQueueWatchWorkerSessionId,
+  verifyQueueWatchWorkerSecret,
+} from "@/lib/pokemon-center/queue-watch-worker-auth"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
@@ -75,6 +79,19 @@ async function resolveProUserId(request: Request, bodyToken?: string): Promise<s
   return null
 }
 
+async function resolveReporter(
+  request: Request,
+  bodyToken?: string,
+): Promise<{ userId?: string; isWorker: boolean } | null> {
+  if (verifyQueueWatchWorkerSecret(request)) {
+    return { isWorker: true }
+  }
+
+  const proUserId = await resolveProUserId(request, bodyToken)
+  if (proUserId) return { userId: proUserId, isWorker: false }
+  return null
+}
+
 async function processReport(
   request: Request,
   body: ReportBody,
@@ -82,12 +99,12 @@ async function processReport(
   | { ok: true; discordSent: boolean; ntfySent: boolean; pushSent: boolean; challengePushSent: boolean }
   | { ok: false; status: number; error: string }
 > {
-  const proUserId = await resolveProUserId(request, body.token)
-  if (!proUserId) {
+  const reporter = await resolveReporter(request, body.token)
+  if (!reporter) {
     return {
       ok: false,
       status: 403,
-      error: "Auth failed — re-copy the bookmarklet from PokeWatch while signed in with Pro.",
+      error: "Auth failed — Pro token or QUEUE_WATCH_WORKER_SECRET required.",
     }
   }
 
@@ -96,17 +113,25 @@ async function processReport(
     return { ok: false, status: 400, error: "sessionId required" }
   }
 
+  if (reporter.isWorker && !isQueueWatchWorkerSessionId(sessionId)) {
+    return {
+      ok: false,
+      status: 400,
+      error: 'Worker sessionId must be "remote-monitor" or "remote-monitor-*".',
+    }
+  }
+
   const previous = await getQueueWatchReport(sessionId)
   const report: QueueWatchReport = {
     sessionId,
     live: Boolean(body.live),
     confidence: typeof body.confidence === "number" ? body.confidence : body.live ? 100 : 0,
     signals: Array.isArray(body.signals) ? body.signals : [],
-    source: body.source ?? "bookmarklet",
+    source: reporter.isWorker ? "server" : (body.source ?? "bookmarklet"),
     pageUrl: body.pageUrl,
     ntfyTopic: body.ntfyTopic?.trim(),
     reportedAt: new Date().toISOString(),
-    userId: proUserId,
+    userId: reporter.userId,
   }
 
   const saved = await saveQueueWatchReport(report)

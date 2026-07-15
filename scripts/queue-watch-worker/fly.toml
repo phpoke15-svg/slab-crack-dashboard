@@ -1,0 +1,24 @@
+# Fly.io app for the remote PokeWatch worker.
+# Create once: fly apps create collectools-pokewatch-worker
+
+app = "collectools-pokewatch-worker"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  COLLECTOOLS_URL = "https://www.collectools.app"
+  SESSION_ID = "remote-monitor-fly"
+  POLL_MS = "15000"
+  PROFILE_DIR = "/data/pc-profile"
+
+[[mounts]]
+  source = "pc_profile"
+  destination = "/data"
+  initial_size = "1gb"
+
+[[vm]]
+  memory = "1024mb"
+  cpu_kind = "shared"
+  cpus = 1
