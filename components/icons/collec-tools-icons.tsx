@@ -1,15 +1,9 @@
 import { createLucideIcon } from "lucide-react"
 
-/**
- * SlabCrack — PSA slab with a jagged crack and a separated chip.
- * Reads as “break the slab” at small sizes.
- */
+/** SlabCrack — rectangle split in half with interlocking jagged edges. */
 export const SlabCrackIcon = createLucideIcon("SlabCrack", [
-  ["path", { d: "M5 6.5h6.5v11H5a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 5 6.5z", key: "slab-l" }],
-  ["path", { d: "M11.5 7.5 10 12l1.5 2.5", key: "crack" }],
-  ["path", { d: "M12.5 8.5 14 12l-1 2.5", key: "crack-2" }],
-  ["path", { d: "M14.5 8h5a1.5 1.5 0 0 1 1.5 1.5v6.5a1.5 1.5 0 0 1-1.5 1.5H14", key: "slab-r" }],
-  ["path", { d: "M17.5 18.5 19 20.5 17 21.5 15.5 20z", key: "chip" }],
+  ["path", { d: "M5 7h5l-2 2 2 2-2 2 2 2-2 2H5V7", key: "left" }],
+  ["path", { d: "M14 7h5v10h-3l2-2-2-2 2-2-2-2 2-2V7", key: "right" }],
 ])
 
 /** SlabLab — Erlenmeyer flask: tall neck, flared rim, rounded base, liquid + bubbles. */
