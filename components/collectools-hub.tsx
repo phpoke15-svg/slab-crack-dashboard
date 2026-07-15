@@ -8,6 +8,7 @@ import {
   GripVertical,
   LayoutGrid,
   Loader2,
+  Shuffle,
   X,
 } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
@@ -16,7 +17,7 @@ import { FooterAd } from "@/components/footer-ad"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { hubToolsForUser, type CollecTool } from "@/lib/collectools-tools"
-import { moveHubToolId, orderHubTools, parseHubToolOrder } from "@/lib/hub-tool-order"
+import { moveHubToolId, orderHubTools, parseHubToolOrder, shuffleHubToolIds } from "@/lib/hub-tool-order"
 import { cn } from "@/lib/utils"
 
 function HubToolTile({
@@ -106,7 +107,11 @@ export function CollecToolsHub() {
   const showProNudge =
     !entitlements?.isLoading && entitlements?.signedIn && entitlements.plan === "premium"
   const canCustomize =
-    Boolean(entitlements?.customHubLayout && entitlements?.signedIn && !entitlements?.isLoading)
+    Boolean(
+      entitlements?.signedIn &&
+        !entitlements?.isLoading &&
+        (entitlements?.customHubLayout || entitlements?.supreme),
+    )
 
   const defaultTools = useMemo(
     () => hubToolsForUser({ supreme: Boolean(entitlements?.supreme) }),
@@ -228,6 +233,41 @@ export function CollecToolsHub() {
     setDragOverId(null)
   }
 
+  const shuffleDraft = () => {
+    setDraftOrder(shuffleHubToolIds(draftOrder.length ? draftOrder : defaultOrder))
+    setSaveError(null)
+  }
+
+  const shuffleAndSave = async () => {
+    const shuffled = shuffleHubToolIds(savedOrder ?? defaultOrder)
+    setDraftOrder(shuffled)
+    setSaving(true)
+    setSaveError(null)
+    try {
+      const res = await fetch("/api/hub/tool-order", {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toolOrder: shuffled }),
+      })
+      const json = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        toolOrder?: string[]
+        error?: string
+      } | null
+      if (!res.ok || !json?.ok || !json.toolOrder?.length) {
+        throw new Error(json?.error || "Could not save layout")
+      }
+      setSavedOrder(json.toolOrder)
+      setDraftOrder(json.toolOrder)
+      setEditMode(false)
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Could not save layout")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-8">
@@ -268,6 +308,15 @@ export function CollecToolsHub() {
                   <button
                     type="button"
                     disabled={saving}
+                    onClick={shuffleDraft}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
+                  >
+                    <Shuffle className="size-3.5" />
+                    Shuffle
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
                     onClick={cancelEdit}
                     className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground"
                   >
@@ -276,19 +325,34 @@ export function CollecToolsHub() {
                   </button>
                 </>
               ) : (
-                <button
-                  type="button"
-                  disabled={orderLoading || !orderLoaded}
-                  onClick={startEdit}
-                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card/60 px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary/40"
-                >
-                  {orderLoading ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : (
-                    <LayoutGrid className="size-3.5" />
-                  )}
-                  Edit tool order
-                </button>
+                <>
+                  <button
+                    type="button"
+                    disabled={orderLoading || !orderLoaded || saving}
+                    onClick={startEdit}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card/60 px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary/40"
+                  >
+                    {orderLoading ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <LayoutGrid className="size-3.5" />
+                    )}
+                    Edit tool order
+                  </button>
+                  <button
+                    type="button"
+                    disabled={orderLoading || !orderLoaded || saving}
+                    onClick={() => void shuffleAndSave()}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/20"
+                  >
+                    {saving ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Shuffle className="size-3.5" />
+                    )}
+                    Shuffle
+                  </button>
+                </>
               )
             ) : null}
           </div>
@@ -314,8 +378,9 @@ export function CollecToolsHub() {
 
       {editMode ? (
         <p className="mb-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
-          Drag tiles to reorder your hub. Tap <span className="font-medium text-foreground">Save layout</span>{" "}
-          when you&apos;re done — your order syncs to your account.
+          Drag tiles to reorder, or tap <span className="font-medium text-foreground">Shuffle</span> for a
+          random layout. Tap <span className="font-medium text-foreground">Save layout</span> when you&apos;re
+          done — your order syncs to your account.
         </p>
       ) : null}
       {saveError ? (
