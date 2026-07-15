@@ -44,6 +44,19 @@ const nextConfig = {
           },
         ],
       },
+      {
+        // Binder HUD iterates quickly — never serve a stale simulator build.
+        source: "/live-binder-hud",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, max-age=0" },
+        ],
+      },
+      {
+        source: "/live-binder-hud/(.*)",
+        headers: [
+          { key: "Cache-Control", value: "no-store, no-cache, must-revalidate, max-age=0" },
+        ],
+      },
     ]
   },
 }
