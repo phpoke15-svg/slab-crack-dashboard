@@ -22,8 +22,8 @@
   }
 
   function showToast(message) {
+    console.warn("[BinderHud] toast:", message)
     if (!toastEl) {
-      console.warn("[BinderHud]", message)
       setStatus(message)
       return
     }
@@ -34,7 +34,7 @@
     toastTimer = setTimeout(() => {
       toastEl.classList.remove("is-visible")
       toastEl.hidden = true
-    }, 4200)
+    }, 4800)
   }
 
   function pcKey() {
@@ -46,7 +46,6 @@
     localStorage.setItem("lbhud:pcKey", pcKeyInput.value.trim())
   })
 
-  /** Letterbox raw <video> + HUD layer together. No CV filters. */
   function layoutViewport() {
     const vw = video.videoWidth || 1280
     const vh = video.videoHeight || 720
@@ -66,11 +65,7 @@
     hud.relayout()
   }
 
-  /**
-   * Direct capture pipeline:
-   * raw <video> → hidden canvas → JPEG base64 @ 0.85 → API
-   * No outline/contour/edge validation.
-   */
+  /** Raw video → hidden canvas → JPEG @ 0.85. No local CV. */
   function captureFrameDirect() {
     const w = video.videoWidth
     const h = video.videoHeight
@@ -86,11 +81,7 @@
     const prefix = "data:image/jpeg;base64,"
     const data = dataUrl.startsWith(prefix) ? dataUrl.slice(prefix.length) : dataUrl
 
-    console.log("[BinderHud] direct capture", {
-      size: `${w}x${h}`,
-      base64Chars: data.length,
-    })
-
+    console.log("[BinderHud] direct capture", { size: `${w}x${h}`, base64Chars: data.length })
     return { mimeType: "image/jpeg", data }
   }
 
@@ -108,9 +99,42 @@
     await video.play()
     layoutViewport()
     setStatus("Point at cards — tap Scan Feed")
-    // Keep layout in sync as metadata arrives; no tracking loop.
     video.addEventListener("loadedmetadata", layoutViewport)
     video.addEventListener("resize", layoutViewport)
+  }
+
+  async function priceDetectedCards(cards) {
+    const toFetch = []
+    cards.forEach((c, i) => {
+      const cached = BinderCache.getPrice(c)
+      if (cached?.prices) hud.updateCard(i, { pricing: cached })
+      else toFetch.push({ index: i, card: c })
+    })
+    if (!toFetch.length) return
+
+    try {
+      const results = await BinderApi.priceCards(
+        toFetch.map(({ index, card }) => ({
+          slot: index + 1,
+          name: card.name,
+          set: card.set,
+          number: card.number,
+        })),
+        pcKey(),
+      )
+      results.forEach((r, j) => {
+        const index = toFetch[j]?.index
+        if (index == null) return
+        if (r.ok === false) {
+          hud.updateCard(index, { priceError: r.error || "lookup failed" })
+          return
+        }
+        BinderCache.setPrice(cards[index], r)
+        hud.updateCard(index, { pricing: r })
+      })
+    } catch (priceErr) {
+      console.warn("[BinderHud] pricing failed (outlines still shown)", priceErr)
+    }
   }
 
   async function runScan() {
@@ -139,51 +163,27 @@
         return
       }
 
+      // Ensure viewport has real size before placing overlays
+      layoutViewport()
       hud.render(cards)
+
       modelTag.textContent = `Model ${result.model || "gemini"} · ${cards.length} card${
         cards.length === 1 ? "" : "s"
       }`
-      setStatus(`Found ${cards.length} card${cards.length === 1 ? "" : "s"} — pricing…`)
+      setStatus(`Outlined ${cards.length} card${cards.length === 1 ? "" : "s"} — pricing…`)
 
-      const toFetch = []
-      cards.forEach((c, i) => {
-        const cached = BinderCache.getPrice(c)
-        if (cached?.prices) hud.updateCard(i, { pricing: cached })
-        else toFetch.push({ index: i, card: c })
-      })
-
-      if (toFetch.length) {
-        try {
-          const results = await BinderApi.priceCards(
-            toFetch.map(({ index, card }) => ({
-              slot: index + 1,
-              name: card.name,
-              set: card.set,
-              number: card.number,
-            })),
-            pcKey(),
-          )
-          results.forEach((r, j) => {
-            const index = toFetch[j]?.index
-            if (index == null) return
-            if (r.ok === false) {
-              hud.updateCard(index, { priceError: r.error || "lookup failed" })
-              return
-            }
-            BinderCache.setPrice(cards[index], r)
-            hud.updateCard(index, { pricing: r })
-          })
-        } catch (priceErr) {
-          console.warn("[BinderHud] pricing failed (HUD still shown)", priceErr)
-        }
-      }
-
-      setStatus(`Done — ${cards.length} card${cards.length === 1 ? "" : "s"} ready`)
+      await priceDetectedCards(cards)
+      setStatus(`Done — ${cards.length} card${cards.length === 1 ? "" : "s"} outlined`)
     } catch (err) {
       console.error("[BinderHud] scan error", err)
-      showToast("No cards detected. Try adjusting lighting or camera angle.")
+      const msg = err instanceof Error ? err.message : "Scan failed"
+      // Don't pretend this is "no cards" when the API itself failed
+      if (/not configured|GEMINI|HTTP|failed|missing|unavailable/i.test(msg)) {
+        showToast(`Scan failed: ${msg.slice(0, 160)}`)
+      } else {
+        showToast("No cards detected. Try adjusting lighting or camera angle.")
+      }
       setStatus("Ready — tap Scan Feed")
-      // Camera keeps running; HUD from last successful scan is left alone unless empty response cleared it.
     } finally {
       scanning = false
       scanBtn.disabled = false

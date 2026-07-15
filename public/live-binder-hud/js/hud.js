@@ -14,11 +14,12 @@
 
   function boxToStyle(box2d, canvasWidth, canvasHeight) {
     const { left, top, width, height } = boxToPixels(box2d, canvasWidth, canvasHeight)
+    // Keep overlays visible even if Gemini returns a tight/noisy box
     return {
       top: `${top}px`,
       left: `${left}px`,
-      width: `${Math.max(1, width)}px`,
-      height: `${Math.max(1, height)}px`,
+      width: `${Math.max(36, width)}px`,
+      height: `${Math.max(48, height)}px`,
     }
   }
 

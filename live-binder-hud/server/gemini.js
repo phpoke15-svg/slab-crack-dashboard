@@ -1,29 +1,30 @@
 const MODEL_CANDIDATES = [
   process.env.GEMINI_VISION_MODEL,
   "gemini-2.5-flash",
-  "gemini-2.0-flash",
   "gemini-3.5-flash",
+  "gemini-2.0-flash",
   "gemini-flash-latest",
   "gemini-3.1-flash-lite",
 ].filter((m, i, arr) => Boolean(m) && arr.indexOf(m) === i)
 
-const RESPONSE_SCHEMA = {
-  type: "object",
+const OBJECT_SCHEMA = {
+  type: "OBJECT",
   properties: {
     cards: {
-      type: "array",
+      type: "ARRAY",
       items: {
-        type: "object",
+        type: "OBJECT",
         properties: {
           box_2d: {
-            type: "array",
-            items: { type: "integer" },
-            description:
-              "Bounding box coordinates normalized to 0-1000 in ymin, xmin, ymax, xmax format.",
+            type: "ARRAY",
+            description: "Bounding box [ymin, xmin, ymax, xmax] normalized 0-1000",
+            items: { type: "INTEGER", format: "int32" },
+            minItems: 4,
+            maxItems: 4,
           },
-          name: { type: "string" },
-          set: { type: "string" },
-          number: { type: "string" },
+          name: { type: "STRING" },
+          set: { type: "STRING" },
+          number: { type: "STRING" },
         },
         required: ["box_2d", "name", "set", "number"],
       },
@@ -32,14 +33,31 @@ const RESPONSE_SCHEMA = {
   required: ["cards"],
 }
 
+const ARRAY_SCHEMA = {
+  type: "ARRAY",
+  items: {
+    type: "OBJECT",
+    properties: {
+      box_2d: {
+        type: "ARRAY",
+        items: { type: "INTEGER", format: "int32" },
+        minItems: 4,
+        maxItems: 4,
+      },
+      name: { type: "STRING" },
+      set: { type: "STRING" },
+      number: { type: "STRING" },
+    },
+    required: ["box_2d", "name"],
+  },
+}
+
 const SCAN_PROMPT = [
-  "Detect every Pokemon / trading card visible in this photo.",
-  "Cards may appear alone, in a hand, on a table, or in a binder page (any count).",
-  "Use Gemini 2D bounding boxes normalized from 0 to 1000.",
-  "box_2d MUST be [ymin, xmin, ymax, xmax] integers on that 0–1000 scale.",
-  "Return JSON matching the response schema exactly.",
-  "Include every clearly visible trading card.",
-  "Prefer English names. If set or number is unknown use an empty string.",
+  "Detect every Pokemon trading card visible in this image.",
+  "Cards may be alone, in a hand, on a table, or in a binder page — any count.",
+  "Return bounding boxes for each card.",
+  "box_2d MUST be [ymin, xmin, ymax, xmax] with integer coordinates normalized from 0 to 1000.",
+  "Also return name, set, and number for each card (use empty string if unknown).",
   "Tight boxes around each card only. Do not invent prices.",
 ].join(" ")
 
@@ -85,18 +103,48 @@ function thinkingConfigForModel(model) {
   return null
 }
 
-function clamp1000(n) {
-  if (!Number.isFinite(n)) return 0
-  return Math.max(0, Math.min(1000, Math.round(n)))
+function toNum(v) {
+  if (typeof v === "number") return v
+  if (typeof v === "string") return Number(v.trim())
+  return NaN
 }
 
-function normalizeBox(raw) {
-  if (!Array.isArray(raw) || raw.length < 4) return null
-  const ymin = clamp1000(Number(raw[0]))
-  const xmin = clamp1000(Number(raw[1]))
-  const ymax = clamp1000(Number(raw[2]))
-  const xmax = clamp1000(Number(raw[3]))
+export function normalizeBox(raw) {
+  let ymin, xmin, ymax, xmax
+  if (Array.isArray(raw) && raw.length >= 4) {
+    ;[ymin, xmin, ymax, xmax] = raw.map(toNum)
+  } else if (raw && typeof raw === "object") {
+    if (raw.ymin != null) {
+      ymin = toNum(raw.ymin)
+      xmin = toNum(raw.xmin)
+      ymax = toNum(raw.ymax)
+      xmax = toNum(raw.xmax)
+    } else if (raw.x != null && raw.y != null) {
+      const x = toNum(raw.x)
+      const y = toNum(raw.y)
+      const w = toNum(raw.w ?? raw.width)
+      const h = toNum(raw.h ?? raw.height)
+      ymin = y
+      xmin = x
+      ymax = y + h
+      xmax = x + w
+    } else return null
+  } else return null
+
+  if (![ymin, xmin, ymax, xmax].every((n) => Number.isFinite(n))) return null
+  const maxAbs = Math.max(Math.abs(ymin), Math.abs(xmin), Math.abs(ymax), Math.abs(xmax))
+  if (maxAbs <= 1.5) {
+    ymin *= 1000
+    xmin *= 1000
+    ymax *= 1000
+    xmax *= 1000
+  }
+  ymin = Math.max(0, Math.min(1000, Math.round(ymin)))
+  xmin = Math.max(0, Math.min(1000, Math.round(xmin)))
+  ymax = Math.max(0, Math.min(1000, Math.round(ymax)))
+  xmax = Math.max(0, Math.min(1000, Math.round(xmax)))
   if (ymax <= ymin || xmax <= xmin) return null
+  if (ymax - ymin < 20 || xmax - xmin < 20) return null
   return [ymin, xmin, ymax, xmax]
 }
 
@@ -105,15 +153,26 @@ export function parseDetectJson(text) {
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim()
-  const start = cleaned.indexOf("{")
-  const end = cleaned.lastIndexOf("}")
-  if (start < 0 || end <= start) throw new Error("Gemini did not return JSON.")
-  const parsed = JSON.parse(cleaned.slice(start, end + 1))
-  const cards = Array.isArray(parsed?.cards) ? parsed.cards : []
+  let payload
+  if (cleaned.startsWith("[")) payload = JSON.parse(cleaned)
+  else {
+    const start = cleaned.indexOf("{")
+    const end = cleaned.lastIndexOf("}")
+    if (start < 0 || end <= start) throw new Error("Gemini did not return JSON.")
+    payload = JSON.parse(cleaned.slice(start, end + 1))
+  }
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.cards)
+      ? payload.cards
+      : Array.isArray(payload?.boxes)
+        ? payload.boxes
+        : []
   const out = []
-  for (const c of cards) {
-    const box = normalizeBox(c.box_2d) || normalizeBox(c.box2d) || normalizeBox(c.bbox)
-    const name = String(c.name || c.cardName || "").trim()
+  for (const c of list) {
+    if (!c || typeof c !== "object") continue
+    const box = normalizeBox(c.box_2d) || normalizeBox(c.box2d) || normalizeBox(c.bbox) || normalizeBox(c)
+    const name = String(c.name || c.cardName || c.label || "").trim()
     if (!box || !name) continue
     out.push({
       box_2d: box,
@@ -126,16 +185,17 @@ export function parseDetectJson(text) {
   return out
 }
 
-async function callGemini({ apiKey, model, mimeType, base64, useSchema }) {
+async function callGemini({ apiKey, model, mimeType, base64, schemaMode }) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
   const thinking = thinkingConfigForModel(model)
   const generationConfig = {
     responseMimeType: "application/json",
     maxOutputTokens: 8192,
-    temperature: 0,
+    temperature: 0.2,
     ...(thinking ? { thinkingConfig: thinking } : {}),
   }
-  if (useSchema) generationConfig.responseSchema = RESPONSE_SCHEMA
+  if (schemaMode === "object") generationConfig.responseSchema = OBJECT_SCHEMA
+  if (schemaMode === "array") generationConfig.responseSchema = ARRAY_SCHEMA
 
   const response = await fetch(url, {
     method: "POST",
@@ -156,7 +216,6 @@ async function callGemini({ apiKey, model, mimeType, base64, useSchema }) {
       generationConfig,
     }),
   })
-
   const bodyText = await response.text()
   if (!response.ok) {
     const err = new Error(`Gemini ${model} HTTP ${response.status}: ${bodyText.slice(0, 320)}`)
@@ -167,9 +226,6 @@ async function callGemini({ apiKey, model, mimeType, base64, useSchema }) {
   return JSON.parse(bodyText)
 }
 
-/**
- * @param {{ data?: string, mimeType?: string, image?: string } | string} input
- */
 export async function detectCardsInFrame(input) {
   const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured.")
@@ -185,39 +241,52 @@ export async function detectCardsInFrame(input) {
   })
 
   let lastError = "Gemini detection failed."
+  let lastRaw = ""
 
   for (const model of MODEL_CANDIDATES) {
-    for (const useSchema of [true, false]) {
+    for (const schemaMode of ["object", "array", "none"]) {
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
-          const data = await callGemini({ apiKey, model, mimeType, base64, useSchema })
+          const data = await callGemini({ apiKey, model, mimeType, base64, schemaMode })
           const text = extractText(data)
+          lastRaw = text || ""
           console.log("[live-binder-hud] Gemini raw JSON string:", text)
-          console.log("[live-binder-hud] model:", model, "schema:", useSchema)
-
-          const cards = parseDetectJson(text || '{"cards":[]}')
+          const cards = parseDetectJson(text || "[]")
           console.log(
             "[live-binder-hud] Parsed cards:",
             cards.map((c) => ({ name: c.name, box_2d: c.box_2d })),
           )
+          if (!cards.length) {
+            lastError = "Gemini returned JSON but no usable card boxes."
+            continue
+          }
           return { cards, model, rawJson: text }
         } catch (err) {
           const status = err?.status
           const body = String(err?.body || "")
           const message = err instanceof Error ? err.message : "Gemini call failed"
           lastError = message
-          console.warn("[live-binder-hud] attempt failed", { model, useSchema, attempt, status, message: message.slice(0, 240) })
+          console.warn("[live-binder-hud] attempt failed", {
+            model,
+            schemaMode,
+            attempt,
+            status,
+            message: message.slice(0, 240),
+          })
           if (status && isModelUnavailable(status, body)) break
-          if (useSchema && (status === 400 || /schema|response_schema|invalid/i.test(message))) break
+          if (schemaMode !== "none" && (status === 400 || /schema|response_schema|invalid/i.test(message))) {
+            break
+          }
           if (status === 429 || (status != null && status >= 500)) {
             await new Promise((r) => setTimeout(r, 400 * (attempt + 1)))
             continue
           }
-          if (!useSchema && status && status < 500 && status !== 429) break
+          if (schemaMode === "none" && status && status < 500 && status !== 429) break
         }
       }
     }
   }
 
+  if (lastRaw) throw new Error(`${lastError} raw=${lastRaw.slice(0, 240)}`)
   throw new Error(lastError)
 }
