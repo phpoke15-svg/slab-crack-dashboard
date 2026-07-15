@@ -110,6 +110,11 @@ export async function requireQueueWatchAccess(userId: string): Promise<boolean> 
   return entitlements.queueWatch
 }
 
+export async function isSupremeUser(userId: string): Promise<boolean> {
+  const entitlements = await getEntitlementsForUser(userId)
+  return entitlements.supreme
+}
+
 type UpsertSubscriptionInput = {
   userId: string
   stripeSubscriptionId: string

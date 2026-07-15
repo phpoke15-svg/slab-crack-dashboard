@@ -1,5 +1,5 @@
 import webpush from "web-push"
-import { requireQueueWatchAccess } from "@/lib/billing/stripe"
+import { getEntitlementsForUser, requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 
 export type PushTopic = "queue_live" | "walmart_wednesday"
@@ -128,8 +128,8 @@ async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionReco
   )
 }
 
-/** Queue-live alerts only go to signed-in Pro members. */
-async function filterProQueueSubscribers(
+/** Queue-live alerts go to Pro + Supreme members who opted in; Supreme always receives every topic. */
+async function filterQueueWatchSubscribers(
   subs: PushSubscriptionRecord[],
 ): Promise<PushSubscriptionRecord[]> {
   const withUser = subs.filter((s) => Boolean(s.userId))
@@ -139,8 +139,34 @@ async function filterProQueueSubscribers(
   const flags = await Promise.all(
     uniqueIds.map(async (id) => [id, await requireQueueWatchAccess(id)] as const),
   )
-  const proIds = new Set(flags.filter(([, ok]) => ok).map(([id]) => id))
-  return withUser.filter((s) => s.userId && proIds.has(s.userId))
+  const allowedIds = new Set(flags.filter(([, ok]) => ok).map(([id]) => id))
+  return withUser.filter((s) => s.userId && allowedIds.has(s.userId))
+}
+
+function mergeSubscriptionsByEndpoint(
+  ...groups: PushSubscriptionRecord[][]
+): PushSubscriptionRecord[] {
+  const byEndpoint = new Map<string, PushSubscriptionRecord>()
+  for (const group of groups) {
+    for (const sub of group) {
+      if (!byEndpoint.has(sub.endpoint)) byEndpoint.set(sub.endpoint, sub)
+    }
+  }
+  return [...byEndpoint.values()]
+}
+
+/** Every push subscription tied to a Supreme account (all alert types). */
+async function listSupremePushSubscriptions(): Promise<PushSubscriptionRecord[]> {
+  const all = await listAllSubscriptions()
+  const withUser = all.filter((s) => Boolean(s.userId))
+  if (withUser.length === 0) return []
+
+  const uniqueIds = [...new Set(withUser.map((s) => s.userId!))]
+  const flags = await Promise.all(
+    uniqueIds.map(async (id) => [id, (await getEntitlementsForUser(id)).supreme] as const),
+  )
+  const supremeIds = new Set(flags.filter(([, ok]) => ok).map(([id]) => id))
+  return withUser.filter((s) => s.userId && supremeIds.has(s.userId))
 }
 
 /** Returns true if this alert_key was not sent recently (and records it). */
@@ -237,8 +263,9 @@ export async function recordPushAlertDedupe(alertKey: string): Promise<void> {
 
 export async function countProQueuePushSubscribers(): Promise<number> {
   const subs = await listSubscriptions("queue_live")
-  const pro = await filterProQueueSubscribers(subs)
-  return pro.length
+  const queueWatch = await filterQueueWatchSubscribers(subs)
+  const supreme = await listSupremePushSubscriptions()
+  return mergeSubscriptionsByEndpoint(queueWatch, supreme).length
 }
 
 export async function sendWebPushToTopic(
@@ -252,14 +279,15 @@ export async function sendWebPushToTopic(
   configureWebPush()
   let subs = await listSubscriptions(topic)
   if (topic === "queue_live") {
-    subs = await filterProQueueSubscribers(subs)
+    subs = await filterQueueWatchSubscribers(subs)
   }
+  subs = mergeSubscriptionsByEndpoint(subs, await listSupremePushSubscriptions())
   if (subs.length === 0) {
     return {
       sent: 0,
       failed: 0,
       skipped: true,
-      reason: topic === "queue_live" ? "no_pro_subscribers" : "no_subscribers",
+      reason: topic === "queue_live" ? "no_queue_subscribers" : "no_subscribers",
     }
   }
 

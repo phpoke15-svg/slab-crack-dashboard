@@ -31,6 +31,7 @@ export function PushAlertsOptIn({
   const { user, isLoading: authLoading } = useAuth()
   const entitlements = useEntitlements()
   const hasPro = entitlements.queueWatch
+  const isSupreme = entitlements.supreme
 
   const [supported, setSupported] = useState(true)
   const [enabled, setEnabled] = useState(false)
@@ -54,12 +55,17 @@ export function PushAlertsOptIn({
     void refresh()
   }, [refresh])
 
-  // Queue-live requires Pro; if they aren't Pro, uncheck it.
+  // Queue-live requires Pro or Supreme; Supreme always receives every alert type.
   useEffect(() => {
+    if (!authLoading && isSupreme) {
+      setQueueLive(true)
+      setWalmartWednesday(true)
+      return
+    }
     if (!authLoading && (!user || !hasPro) && queueLive) {
       setQueueLive(false)
     }
-  }, [authLoading, user, hasPro, queueLive])
+  }, [authLoading, user, hasPro, isSupreme, queueLive])
 
   const onEnable = async () => {
     setBusy(true)
@@ -116,10 +122,11 @@ export function PushAlertsOptIn({
       </p>
       {!compact && (
         <p className="mt-2 text-sm text-muted-foreground">
-          When <strong className="font-medium text-foreground">any</strong> Pro member detects the
-          Pokémon Center queue live on their phone or browser, <strong className="font-medium text-foreground">all</strong>{" "}
-          Pro members who enabled queue alerts get a push. Wednesday 9pm ET Walmart reminders are
-          separate.
+          When <strong className="font-medium text-foreground">any</strong> Pro or Supreme member
+          detects the Pokémon Center queue live, <strong className="font-medium text-foreground">all</strong>{" "}
+          Pro and Supreme members who enabled phone alerts get a push. Supreme accounts always receive
+          every alert type (queue live, drop guard, Walmart Wednesday). Wednesday 9pm ET Walmart
+          reminders are separate for everyone else.
         </p>
       )}
 
@@ -135,7 +142,7 @@ export function PushAlertsOptIn({
             />
             <span>
               Pokémon Center queue live{" "}
-              <span className="text-xs">(Pro)</span>
+              <span className="text-xs">(Pro / Supreme)</span>
             </span>
           </label>
           {!user && (
@@ -146,7 +153,12 @@ export function PushAlertsOptIn({
               with Pro to enable queue alerts.
             </p>
           )}
-          {user && !hasPro && (
+          {isSupreme && (
+            <p className="pl-6 text-xs text-primary">
+              Supreme: all phone alert types are enabled automatically on this device.
+            </p>
+          )}
+          {user && !hasPro && !isSupreme && (
             <p className="pl-6 text-xs">
               <Link href="/pricing" className="text-primary hover:underline">
                 Upgrade to Pro
