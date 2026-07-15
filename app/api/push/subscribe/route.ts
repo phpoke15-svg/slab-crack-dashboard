@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireQueueWatchAccess } from "@/lib/billing/stripe"
+import { isSupremeUser, requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { removePushSubscription, upsertPushSubscription } from "@/lib/push/web-push"
 
@@ -31,8 +31,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "subscription too large" }, { status: 400 })
   }
 
-  const queueLive = body.queueLive === true
-  const walmartWednesday = body.walmartWednesday !== false
+  let queueLive = body.queueLive === true
+  let walmartWednesday = body.walmartWednesday !== false
 
   if (!queueLive && !walmartWednesday) {
     return NextResponse.json({ error: "Select at least one alert type" }, { status: 400 })
@@ -44,6 +44,11 @@ export async function POST(request: Request) {
     if (authResult.ok) userId = authResult.user.id
   } catch {
     // Walmart-only may still work without sign-in
+  }
+
+  if (userId && (await isSupremeUser(userId))) {
+    queueLive = true
+    walmartWednesday = true
   }
 
   if (queueLive) {
