@@ -265,7 +265,7 @@ export function pricingOfferCatalogJsonLd(description: string) {
         priceCurrency: "USD",
         availability: "https://schema.org/InStock",
         url: `${base}/pricing`,
-        description: "Full SlabCrack feed and ad-free browsing",
+        description: "Full SlabCrack feed, ad-free browsing, and monthly giveaway entries after 10 active min/day",
       },
       {
         "@type": "Offer",
@@ -274,7 +274,7 @@ export function pricingOfferCatalogJsonLd(description: string) {
         priceCurrency: "USD",
         availability: "https://schema.org/InStock",
         url: `${base}/pricing`,
-        description: "Premium plus Pokemon Center PokeWatch alerts",
+        description: "Premium plus PokeWatch alerts and fastest giveaway entry threshold (5 active min/day)",
       },
     ],
   }

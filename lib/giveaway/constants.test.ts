@@ -3,6 +3,7 @@ import {
   activeMinutesRequired,
   FREE_ACTIVE_MINUTES_REQUIRED,
   giveawayPrizeArvUsd,
+  giveawayTierFeatureLine,
   GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
   isPremiumPlan,
   monthPeriod,
@@ -31,6 +32,13 @@ describe("giveaway constants", () => {
     expect(activeMinutesRequired("premium")).toBe(PREMIUM_ACTIVE_MINUTES_REQUIRED)
     expect(activeMinutesRequired("pro")).toBe(PRO_ACTIVE_MINUTES_REQUIRED)
     expect(activeMinutesRequired("supreme")).toBe(PRO_ACTIVE_MINUTES_REQUIRED)
+  })
+
+  it("formats tier giveaway feature lines", () => {
+    expect(giveawayTierFeatureLine("free")).toContain("30 active minutes")
+    expect(giveawayTierFeatureLine("premium")).toContain("10 active minutes")
+    expect(giveawayTierFeatureLine("pro")).toContain("5 active minutes")
+    expect(giveawayTierFeatureLine("pro")).toContain("PayPal")
   })
 
   it("formats month period", () => {

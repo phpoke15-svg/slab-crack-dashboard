@@ -1,3 +1,5 @@
+import { giveawayTierFeatureLine } from "@/lib/giveaway/constants"
+
 export type PlanId = "free" | "premium" | "pro" | "supreme"
 
 /** Public display name for each plan (free is branded as Starter). */
@@ -44,6 +46,7 @@ export const PLAN_TIERS: PlanTier[] = [
       "7-day free trial",
       "Full SlabCrack deficit feed (all graded opportunities)",
       "Ad-free SlabCrack and PokeMatch",
+      giveawayTierFeatureLine("premium"),
       "Cancel anytime",
     ],
   },
@@ -61,6 +64,7 @@ export const PLAN_TIERS: PlanTier[] = [
       "Everything in Premium",
       "Custom hub layout — reorder your tool tiles",
       "Pokemon Center PokeWatch (web + phone alerts)",
+      giveawayTierFeatureLine("pro"),
       "Cancel anytime",
     ],
   },
@@ -70,6 +74,7 @@ export const FREE_PLAN_FEATURES = [
   "SlabCrack preview: 10 mid-deficit cards",
   "CardLounge collector social feed",
   "PokeMatch with ads",
+  giveawayTierFeatureLine("free"),
   "Upgrade anytime for the full feed",
 ] as const
 
