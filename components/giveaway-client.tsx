@@ -124,7 +124,7 @@ export function GiveawayClient({
           <section className="mb-8 rounded-3xl border border-border bg-card p-8 text-center">
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-5 animate-spin" />
-              Loading today&apos;s prize value…
+              Loading this month&apos;s giveaway value as of today…
             </div>
           </section>
         ) : prizeData.error ? (

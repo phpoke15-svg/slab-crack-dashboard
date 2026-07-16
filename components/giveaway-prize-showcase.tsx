@@ -60,7 +60,7 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand, usedLivePriceCh
     <section className="mb-8 space-y-5">
       <div className="rounded-3xl border-2 border-primary/35 bg-gradient-to-b from-primary/15 via-primary/5 to-background px-5 py-8 text-center shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-          Today&apos;s giveaway prize value
+          This month&apos;s giveaway value as of today
         </p>
         <p className="mt-3 text-5xl font-bold tracking-tight text-primary sm:text-6xl">
           {formatGiveawayUsd(prize.prizeArvUsd)}
