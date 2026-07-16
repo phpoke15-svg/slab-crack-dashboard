@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, Loader2, RefreshCw, Search, ScanLine, X } from "lucide-react"
+import { ArrowLeft, Layers, Loader2, RefreshCw, Search, ScanLine, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
@@ -39,6 +39,7 @@ function formatSigned(n: number) {
 
 export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool }) {
   const backHref = tool === "slablab" ? "/slablab" : "/slabcrack"
+  const multiScanHref = tool === "slablab" ? "/slablab/multi-scan" : "/slabcrack/multi-scan"
   const toolLabel = tool === "slablab" ? "SlabLab Scan" : "SlabCrack Scan"
 
   const seededHitsRef = useRef<CardSearchHit[]>([])
@@ -292,6 +293,16 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         </div>
         <SiteAuthButton className="shrink-0" />
       </header>
+
+      <div className="flex shrink-0 justify-end border-b border-white/10 bg-zinc-950 px-4 py-2">
+        <Link
+          href={multiScanHref}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-white/80 hover:bg-white/10"
+        >
+          <Layers className="size-3.5 text-primary" />
+          Multi-card (1–9)
+        </Link>
+      </div>
 
       <div className="relative z-0 min-h-0 flex-1 overflow-hidden bg-zinc-950">
         {phase === "camera" || isScanning ? (

@@ -37,3 +37,38 @@ export type ScanPipelineResult = {
     totalMs: number
   }
 }
+
+/** Normalized box from detect API (0–1 fractions). */
+export type DetectedCardBounds = {
+  x: number
+  y: number
+  w: number
+  h: number
+  confidence: number
+}
+
+export type BatchScanItemInput = {
+  image: string
+  phash?: string
+  bounds: DetectedCardBounds
+}
+
+export type BatchScanCardResult = {
+  index: number
+  bounds: DetectedCardBounds
+  ok: boolean
+  error?: string
+  result?: ScanPipelineResult
+}
+
+export type BatchScanResult = {
+  ok: true
+  cardCount: number
+  cards: BatchScanCardResult[]
+  detectSource?: "gemini" | "openai"
+  timings: {
+    detectMs: number
+    identifyMs: number
+    totalMs: number
+  }
+}
