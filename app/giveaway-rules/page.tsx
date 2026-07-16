@@ -5,11 +5,13 @@ import {
   FREE_ACTIVE_MINUTES_REQUIRED,
   GIVEAWAY_CONTACT_EMAIL,
   GIVEAWAY_MAILING_ADDRESS,
+  GIVEAWAY_PRIZE_ARV_CAP_USD,
   MAIL_IN_ENTRIES_PER_POSTCARD,
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
   MONTHLY_ENTRY_CAP,
   PREMIUM_ACTIVE_MINUTES_REQUIRED,
   PRO_ACTIVE_MINUTES_REQUIRED,
+  giveawayPrizeArvUsd,
 } from "@/lib/giveaway/constants"
 import {
   formatGiveawayUsd,
@@ -18,7 +20,6 @@ import {
   giveawayPrizeRulesFormulaText,
 } from "@/lib/giveaway/prize-formula"
 import {
-  LEGAL_CONTACT_EMAIL,
   LEGAL_SITE_NAME,
   LEGAL_SITE_URL,
 } from "@/lib/legal/config"
@@ -56,8 +57,7 @@ export default function GiveawayRulesPage() {
         </p>
         <p>
           Questions:{" "}
-          <a href={`mailto:${GIVEAWAY_CONTACT_EMAIL}`}>{GIVEAWAY_CONTACT_EMAIL}</a> (or{" "}
-          <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>).
+          <a href={`mailto:${GIVEAWAY_CONTACT_EMAIL}`}>{GIVEAWAY_CONTACT_EMAIL}</a>.
         </p>
       </LegalSection>
 
@@ -108,9 +108,9 @@ export default function GiveawayRulesPage() {
             <strong className="text-foreground">Mail-in alternate method of entry (AMOE):</strong> Hand-print your
             full name, email address associated with your {LEGAL_SITE_NAME} account (or note that you do not yet
             have an account), mailing address, and the words &quot;{LEGAL_SITE_NAME} Monthly Giveaway&quot; on a
-            postcard or letter and mail it in a stamped envelope to the address in Section 10. Each valid mail-in
-            received and processed during a Promotion period awards {MAIL_IN_ENTRIES_PER_POSTCARD} entries for that
-            period, up to {MAX_MAIL_IN_POSTCARDS_PER_MONTH} mail-ins per person per period.
+            standard postcard or a piece of paper, and mail it with proper postage to the address in Section 10.
+            Each valid mail-in received and processed during a Promotion period awards {MAIL_IN_ENTRIES_PER_POSTCARD}{" "}
+            entries for that period, up to {MAX_MAIL_IN_POSTCARDS_PER_MONTH} mail-ins per person per period.
           </li>
         </ul>
         <p>
@@ -153,14 +153,15 @@ export default function GiveawayRulesPage() {
             the drawing is conducted for that period.
           </li>
           <li>
-            The cash prize paid to the winner equals that calculated ARV (rounded to the nearest cent). Any card
-            examples shown on the giveaway page are for illustration only and are not the prize.
+            The cash prize paid to the winner equals that calculated ARV (rounded to the nearest cent), not to
+            exceed {formatGiveawayUsd(GIVEAWAY_PRIZE_ARV_CAP_USD)} USD per Promotion period. Any card examples shown on the giveaway page
+            are for illustration only and are not the prize.
           </li>
         </ul>
         <p>
           <strong className="text-foreground">Example:</strong> {giveawayPrizeCalculationLine(exampleAccounts)}. The
-          winner would receive {formatGiveawayUsd(exampleAccounts * 0.1)} cash via PayPal, subject to verification
-          and these Official Rules.
+          winner would receive {formatGiveawayUsd(giveawayPrizeArvUsd(exampleAccounts))} cash via PayPal, subject
+          to verification and these Official Rules.
         </p>
         <p>
           Prize is non-transferable except at Sponsor&apos;s discretion. Sponsor may withhold or delay payment if
@@ -225,9 +226,9 @@ export default function GiveawayRulesPage() {
           <strong className="text-foreground">{GIVEAWAY_MAILING_ADDRESS}</strong>
         </p>
         <p>
-          Each mail-in must be postmarked by the last day of the Promotion period and received within a reasonable
-          processing window as determined by Sponsor. Limit {MAX_MAIL_IN_POSTCARDS_PER_MONTH} mail-ins per person
-          per period. Questions about mail-in eligibility:{" "}
+          Each mail-in must be postmarked by the last day of the Promotion period and received no later than five
+          (5) business days after the end of the Promotion period. Limit {MAX_MAIL_IN_POSTCARDS_PER_MONTH} mail-ins
+          per person per period. Questions about mail-in eligibility:{" "}
           <a href={`mailto:${GIVEAWAY_CONTACT_EMAIL}`}>{GIVEAWAY_CONTACT_EMAIL}</a>.
         </p>
       </LegalSection>
