@@ -2,18 +2,16 @@ import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   Bell,
+  Layers,
+  MessageSquare,
   MessageSquarePlus,
   Package,
   Radar,
+  Ratio,
   ScanEye,
   ScanSearch,
 } from "lucide-react"
-import {
-  CardLoungeIcon,
-  PokeMatchIcon,
-  SlabCrackIcon,
-  SlabLabIcon,
-} from "@/components/icons/collec-tools-icons"
+import { PokeMatchIcon } from "@/components/icons/collec-tools-icons"
 
 /** Flip to true when Walmart Affiliate Restocks ships again for everyone. */
 export const RESTOCKS_ENABLED = false
@@ -48,7 +46,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Track graded vs raw gaps with live comps",
       "Camera scan in search for instant Crack + Lab prices",
     ],
-    icon: SlabCrackIcon,
+    icon: Layers,
   },
   {
     id: "slablab",
@@ -64,7 +62,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Flag Prime Submission slots and 10-or-Bust danger zones",
       "Camera scan in search for instant Crack + Lab ROI",
     ],
-    icon: SlabLabIcon,
+    icon: Ratio,
   },
   {
     id: "binder",
@@ -139,7 +137,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "Follow other collectors with plan badges",
       "Main feed plus a Following timeline",
     ],
-    icon: CardLoungeIcon,
+    icon: MessageSquare,
   },
   {
     id: "buyout-radar",
