@@ -129,8 +129,13 @@ export default function GiveawayRulesPage() {
         </p>
         <ul>
           <li>
-            When Sponsor conducts the monthly drawing for a completed Promotion period, Sponsor counts the total
-            number of registered user accounts on {LEGAL_SITE_NAME} at that time (the &quot;Account Snapshot&quot;).
+            Each calendar day during a Promotion period, Sponsor records a running total of registered user accounts
+            on {LEGAL_SITE_NAME} (a &quot;Daily Account Snapshot&quot;).
+          </li>
+          <li>
+            The <strong className="text-foreground">Account Snapshot</strong> for that Promotion period is the
+            Daily Account Snapshot taken on the last calendar day of that month (UTC). That month-end total is the
+            official prize value for the drawing held for that period.
           </li>
           <li>
             Prize ARV = Account Snapshot × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)} per account.

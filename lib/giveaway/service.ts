@@ -4,6 +4,7 @@ import {
   activeMinutesRequired,
   DAILY_APP_ENTRY_CAP,
   GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
+  isLastDayOfMonth,
   isPremiumPlan,
   MAIL_IN_ENTRIES_PER_POSTCARD,
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
@@ -14,6 +15,9 @@ import {
 } from "@/lib/giveaway/constants"
 import {
   computeLivePrizeSnapshot,
+  getLatestDailySnapshotForMonth,
+  getMonthEndDailySnapshot,
+  recordDailyAccountSnapshot,
   type PrizeSnapshot,
 } from "@/lib/giveaway/prize-snapshot"
 
@@ -338,33 +342,54 @@ async function persistPrizeSnapshot(admin: ReturnType<typeof createAdminClient>,
   }
 }
 
-/** Prize ARV for a promotion month (live count for current month; locked after draw). */
+/** Prize ARV for a promotion month (daily running total for current month; month-end snapshot when final). */
 export async function getPrizeSnapshotForMonth(month: string): Promise<PrizeSnapshot> {
   if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
 
   const admin = createAdminClient()
   const currentMonth = monthPeriod()
 
-  if (month !== currentMonth) {
-    const { data: drawRow } = await admin
-      .from("giveaway_draws")
-      .select("account_snapshot, prize_arv_usd, prize_per_account_usd, drawn_at")
-      .eq("month_period", month)
-      .maybeSingle()
+  const { data: drawRow } = await admin
+    .from("giveaway_draws")
+    .select("account_snapshot, prize_arv_usd, prize_per_account_usd, drawn_at")
+    .eq("month_period", month)
+    .maybeSingle()
 
-    if (drawRow?.account_snapshot != null && drawRow.prize_arv_usd != null) {
-      return {
-        monthPeriod: month,
-        snapshotAt: (drawRow.drawn_at as string) ?? new Date().toISOString(),
-        accountSnapshot: Number(drawRow.account_snapshot),
-        prizePerAccountUsd: Number(drawRow.prize_per_account_usd ?? GIVEAWAY_PRIZE_PER_ACCOUNT_USD),
-        prizeArvUsd: Number(drawRow.prize_arv_usd),
-      }
+  if (drawRow?.account_snapshot != null && drawRow.prize_arv_usd != null) {
+    return {
+      monthPeriod: month,
+      snapshotAt: (drawRow.drawn_at as string) ?? new Date().toISOString(),
+      accountSnapshot: Number(drawRow.account_snapshot),
+      prizePerAccountUsd: Number(drawRow.prize_per_account_usd ?? GIVEAWAY_PRIZE_PER_ACCOUNT_USD),
+      prizeArvUsd: Number(drawRow.prize_arv_usd),
+      isMonthEndFinal: true,
     }
+  }
+
+  if (month !== currentMonth) {
+    const monthEnd = await getMonthEndDailySnapshot(admin, month)
+    if (monthEnd) return monthEnd
+  }
+
+  if (month === currentMonth) {
+    const latest = await getLatestDailySnapshotForMonth(admin, month)
+    if (latest) return latest
   }
 
   const snap = await computeLivePrizeSnapshot(admin, month)
   await persistPrizeSnapshot(admin, snap)
+  return snap
+}
+
+/** Capture today's running account total (daily cron). Locks month-end value into prize_snapshots. */
+export async function captureDailyAccountSnapshot(asOf = new Date()): Promise<PrizeSnapshot> {
+  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
+
+  const admin = createAdminClient()
+  const snap = await recordDailyAccountSnapshot(admin, asOf)
+  if (isLastDayOfMonth(asOf)) {
+    await persistPrizeSnapshot(admin, snap)
+  }
   return snap
 }
 

@@ -31,6 +31,10 @@
       "schedule": "0 1 * * 4"
     },
     {
+      "path": "/api/cron/giveaway-daily-snapshot",
+      "schedule": "30 4 * * *"
+    },
+    {
       "path": "/api/cron/giveaway-draw",
       "schedule": "0 6 1 * *"
     },
