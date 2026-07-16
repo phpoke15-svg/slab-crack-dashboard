@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BarChart3,
   FlaskConical,
+  Gift,
   Loader2,
   RefreshCw,
   ShieldAlert,
@@ -225,6 +226,13 @@ export function SupremeConsoleClient() {
           </div>
         ) : (
           <>
+            <section id="giveaway" className="mb-10 scroll-mt-8">
+              <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                <Gift className="size-3.5 text-primary" /> Monthly giveaway
+              </h2>
+              <GiveawayAdminPanel />
+            </section>
+
             <section className="mb-10">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                 <FlaskConical className="size-3.5" /> In development
@@ -264,10 +272,6 @@ export function SupremeConsoleClient() {
                 pushOptIns={data?.ops.pushSubscriptions ?? data?.overview.pushSubscriptions ?? null}
                 webPushConfigured={data?.checks.webPushConfigured ?? null}
               />
-            </div>
-
-            <div className="mb-8">
-              <GiveawayAdminPanel />
             </div>
 
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
