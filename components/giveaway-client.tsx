@@ -9,6 +9,10 @@ import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import {
   FREE_ACTIVE_MINUTES_REQUIRED,
+  GIVEAWAY_CONTACT_EMAIL,
+  GIVEAWAY_MAILING_ADDRESS,
+  MAIL_IN_ENTRIES_PER_POSTCARD,
+  MAX_MAIL_IN_POSTCARDS_PER_MONTH,
   MONTHLY_ENTRY_CAP,
   PREMIUM_ACTIVE_MINUTES_REQUIRED,
 } from "@/lib/giveaway/constants"
@@ -80,8 +84,23 @@ export function GiveawayClient() {
               combined)
             </li>
             <li>
-              <strong className="text-foreground">Mail-in (AMOE):</strong> up to 4 postcards/month, 7 entries each —
-              contact us for mailing address
+              <strong className="text-foreground">Mail-in (AMOE):</strong> up to{" "}
+              {MAX_MAIL_IN_POSTCARDS_PER_MONTH} postcards/month, {MAIL_IN_ENTRIES_PER_POSTCARD} entries each —
+              {GIVEAWAY_MAILING_ADDRESS ? (
+                <> mail to {GIVEAWAY_MAILING_ADDRESS}</>
+              ) : (
+                <>
+                  {" "}
+                  email{" "}
+                  <a
+                    href={`mailto:${GIVEAWAY_CONTACT_EMAIL}?subject=Giveaway%20mail-in%20address`}
+                    className="font-medium text-primary hover:underline"
+                  >
+                    {GIVEAWAY_CONTACT_EMAIL}
+                  </a>{" "}
+                  for the mailing address
+                </>
+              )}
             </li>
           </ul>
           <p className="text-xs text-muted-foreground">
