@@ -10,7 +10,6 @@ import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import {
   FREE_ACTIVE_MINUTES_REQUIRED,
-  GIVEAWAY_CONTACT_EMAIL,
   GIVEAWAY_MAILING_ADDRESS,
   MAIL_IN_ENTRIES_PER_POSTCARD,
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
@@ -32,11 +31,68 @@ type Status = {
   mailInPostcardsMax: number
 }
 
-export function GiveawayClient({ prizeData }: { prizeData: GiveawayPagePrizeData }) {
+const EMPTY_PRIZE_DATA: GiveawayPagePrizeData = {
+  prize: null,
+  cards: [],
+  priceBand: null,
+  error: null,
+}
+
+export function GiveawayClient({
+  prizeData: initialPrizeData = EMPTY_PRIZE_DATA,
+}: {
+  prizeData?: GiveawayPagePrizeData
+}) {
   const { user } = useAuth()
   const [status, setStatus] = useState<Status | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [prizeData, setPrizeData] = useState(initialPrizeData)
+  const [prizeLoading, setPrizeLoading] = useState(!initialPrizeData.prize && !initialPrizeData.error)
+
+  useEffect(() => {
+    setPrizeData(initialPrizeData)
+    setPrizeLoading(!initialPrizeData.prize && !initialPrizeData.error)
+  }, [initialPrizeData])
+
+  useEffect(() => {
+    if (prizeData.prize || prizeData.error) return
+
+    fetch("/api/giveaway/prize-cards", { credentials: "same-origin" })
+      .then(async (r) => {
+        const json = (await r.json()) as {
+          ok?: boolean
+          prize?: GiveawayPagePrizeData["prize"]
+          cards?: GiveawayPagePrizeData["cards"]
+          priceBand?: GiveawayPagePrizeData["priceBand"]
+          error?: string
+        }
+        if (!json.ok || !json.prize) {
+          setPrizeData({
+            prize: null,
+            cards: [],
+            priceBand: null,
+            error: json.error || "Could not load giveaway prize",
+          })
+          return
+        }
+        setPrizeData({
+          prize: json.prize,
+          cards: json.cards ?? [],
+          priceBand: json.priceBand ?? null,
+          error: null,
+        })
+      })
+      .catch(() => {
+        setPrizeData({
+          prize: null,
+          cards: [],
+          priceBand: null,
+          error: "Could not load giveaway prize",
+        })
+      })
+      .finally(() => setPrizeLoading(false))
+  }, [prizeData.prize, prizeData.error])
 
   useEffect(() => {
     if (!user) return
@@ -68,6 +124,25 @@ export function GiveawayClient({ prizeData }: { prizeData: GiveawayPagePrizeData
             <p className="text-sm text-muted-foreground">Earn entries by using the app — no purchase necessary.</p>
           </div>
         </div>
+
+        {prizeLoading ? (
+          <section className="mb-6 rounded-2xl border border-border bg-card p-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              Loading today&apos;s prize value…
+            </div>
+          </section>
+        ) : prizeData.error ? (
+          <section className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Could not load giveaway prize: {prizeData.error}
+          </section>
+        ) : prizeData.prize ? (
+          <GiveawayPrizeShowcase
+            prize={prizeData.prize}
+            cards={prizeData.cards}
+            priceBand={prizeData.priceBand}
+          />
+        ) : null}
 
         <section className="mb-6 space-y-3 rounded-2xl border border-border bg-card p-4 text-sm">
           <h2 className="font-semibold">How to earn entries</h2>
@@ -103,18 +178,6 @@ export function GiveawayClient({ prizeData }: { prizeData: GiveawayPagePrizeData
             .
           </p>
         </section>
-
-        {prizeData.error ? (
-          <section className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            Could not load giveaway prize: {prizeData.error}
-          </section>
-        ) : prizeData.prize ? (
-          <GiveawayPrizeShowcase
-            prize={prizeData.prize}
-            cards={prizeData.cards}
-            priceBand={prizeData.priceBand}
-          />
-        ) : null}
 
         {!user ? (
           <p className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
