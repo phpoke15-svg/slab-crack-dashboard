@@ -11,6 +11,7 @@ import { DeficitBadge } from "@/components/deficit-badge"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { CardScanner } from "@/components/card-scanner"
+import { ScanMatchFeedback } from "@/components/scan-match-feedback"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
@@ -62,6 +63,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
   const [card, setCard] = useState<MockCardEntry | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [matchMeta, setMatchMeta] = useState<{
+    matchMethod?: "visual_phash" | "vision"
+    matchScore?: number
+  } | null>(null)
 
   const enterManualHandoff = useCallback(
     (opts: {
@@ -160,6 +165,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
       setDetectedLabel(label || null)
       aiCandidatesRef.current = json.candidates ?? []
+      setMatchMeta({
+        matchMethod: json.matchMethod,
+        matchScore: json.matchScore,
+      })
 
       if (json.matchMethod === "visual_phash") {
         setIdentifyStatus("Visual match — loading prices…")
@@ -254,6 +263,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     setLookupError(null)
     setDetectedLabel(null)
     setDrawerOpen(false)
+    setMatchMeta(null)
     setPhase("camera")
   }
 
@@ -356,7 +366,20 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   <Loader2 className="size-3 animate-spin" />
                   Loading live prices…
                 </p>
-              ) : null}
+              ) : (
+                <ScanMatchFeedback
+                  key={card.id}
+                  scanMode="single"
+                  cardId={card.id}
+                  cardName={card.cardName}
+                  setName={card.setName}
+                  cardNumber={card.cardNumber}
+                  matchMethod={matchMeta?.matchMethod}
+                  matchScore={matchMeta?.matchScore}
+                  onWrong={showWrongCardPicker}
+                  className="mb-3"
+                />
+              )}
               <div className="flex items-start gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-900">
                   {card.imageUrl ? (

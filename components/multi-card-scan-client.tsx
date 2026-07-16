@@ -9,6 +9,7 @@ import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { MultiCardScanner } from "@/components/multi-card-scanner"
+import { ScanMatchFeedback } from "@/components/scan-match-feedback"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
 import type { BatchScanResult } from "@/lib/scanner/types"
@@ -28,6 +29,8 @@ type ResultRow = {
   card: MockCardEntry | null
   error?: string
   loading?: boolean
+  matchMethod?: "visual_phash" | "vision"
+  matchScore?: number
 }
 
 function formatMoney(n: number) {
@@ -79,17 +82,24 @@ export function MultiCardScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
           return { index: slot.index, card: null, error: slot.error || "Unidentified" }
         }
         const r = slot.result
+        const meta = { matchMethod: r.matchMethod, matchScore: r.matchScore }
         if (r.card) {
-          return { index: slot.index, card: normalizeCardEntry(r.card), loading: r.needsLiveRefresh }
+          return {
+            index: slot.index,
+            card: normalizeCardEntry(r.card),
+            loading: r.needsLiveRefresh,
+            ...meta,
+          }
         }
         if (r.candidates?.length) {
           return {
             index: slot.index,
             card: normalizeCardEntry(searchHitToPlaceholder(r.candidates[0]!)),
             loading: true,
+            ...meta,
           }
         }
-        return { index: slot.index, card: null, error: "No catalog match" }
+        return { index: slot.index, card: null, error: "No catalog match", ...meta }
       })
 
       setRows(initial)
@@ -239,15 +249,21 @@ export function MultiCardScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
                   return (
                     <li key={row.index}>
-                      <button
-                        type="button"
-                        disabled={!card}
-                        onClick={() => card && setDrawerCard(card)}
+                      <div
                         className={cn(
-                          "flex w-full flex-col rounded-xl border border-white/10 bg-white/5 p-2 text-left",
-                          card ? "hover:bg-white/10" : "opacity-60",
+                          "flex w-full flex-col rounded-xl border border-white/10 bg-white/5 p-2",
+                          card ? "" : "opacity-60",
                         )}
                       >
+                        <button
+                          type="button"
+                          disabled={!card}
+                          onClick={() => card && setDrawerCard(card)}
+                          className={cn(
+                            "flex w-full flex-col text-left",
+                            card ? "hover:opacity-95" : "",
+                          )}
+                        >
                         <div className="relative mb-2 aspect-[63/88] w-full overflow-hidden rounded-lg border border-white/10 bg-zinc-900">
                           {card?.imageUrl ? (
                             <Image
@@ -294,7 +310,23 @@ export function MultiCardScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                         ) : (
                           <p className="text-[11px] text-amber-200">{row.error || "Unknown"}</p>
                         )}
-                      </button>
+                        </button>
+                        {card && !row.loading ? (
+                          <ScanMatchFeedback
+                            key={`${row.index}-${card.id}`}
+                            scanMode="multi"
+                            cardId={card.id}
+                            cardName={card.cardName}
+                            setName={card.setName}
+                            cardNumber={card.cardNumber}
+                            matchMethod={row.matchMethod}
+                            matchScore={row.matchScore}
+                            batchIndex={row.index}
+                            compact
+                            className="mt-2 border-t border-white/10 pt-2"
+                          />
+                        ) : null}
+                      </div>
                     </li>
                   )
                 })}
