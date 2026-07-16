@@ -38,14 +38,16 @@ export function LegalPageShell({ title, description, children }: LegalPageShellP
 }
 
 export function LegalSection({
+  id,
   title,
   children,
 }: {
+  id?: string
   title: string
   children: ReactNode
 }) {
   return (
-    <section className="mb-8">
+    <section id={id} className="mb-8">
       <h2 className="mb-3 text-lg font-semibold text-foreground">{title}</h2>
       <div className="space-y-3 text-sm leading-relaxed text-muted-foreground [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2 [&_li]:ml-4 [&_li]:list-disc [&_ul]:space-y-2">
         {children}
