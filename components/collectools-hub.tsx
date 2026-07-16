@@ -365,7 +365,7 @@ export function CollecToolsHub() {
           Premium & Pro plans
         </Link>
         {" · "}
-        ad-free full SlabCrack from $4.99/mo · PokeWatch with Pro
+        ad-free full SlabCrack from $4.99/mo · PokeWatch with Pro · all tiers earn monthly giveaway entries
         {canCustomize ? (
           <>
             {" · "}
