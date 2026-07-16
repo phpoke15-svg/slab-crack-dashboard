@@ -44,6 +44,7 @@ export default function PokeWatchPage() {
       <ToolSeoIntro
         title="PokeWatch"
         description={description}
+        disclaimer="Use at your own risk."
         bullets={[
           "24/7 monitoring for Pokemon Center virtual queue drops",
           "Browser and phone push alerts when the queue goes live",

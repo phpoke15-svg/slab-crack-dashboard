@@ -292,6 +292,9 @@ export function QueueWatchClient() {
             </Link>
             .
           </p>
+          <p className="mt-3 max-w-xl rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-muted-foreground">
+            <strong className="text-foreground">Use at your own risk.</strong>
+          </p>
         </div>
         <SiteAuthButton className="shrink-0" />
       </header>
