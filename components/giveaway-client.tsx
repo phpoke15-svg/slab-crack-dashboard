@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Gift, Loader2 } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
-import { GiveawayPrizeCards } from "@/components/giveaway-prize-cards"
+import { GiveawayPrizeShowcase } from "@/components/giveaway-prize-showcase"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -17,6 +17,7 @@ import {
   MONTHLY_ENTRY_CAP,
   PREMIUM_ACTIVE_MINUTES_REQUIRED,
 } from "@/lib/giveaway/constants"
+import type { GiveawayPagePrizeData } from "@/lib/giveaway/types"
 
 type Status = {
   monthPeriod: string
@@ -31,7 +32,7 @@ type Status = {
   mailInPostcardsMax: number
 }
 
-export function GiveawayClient() {
+export function GiveawayClient({ prizeData }: { prizeData: GiveawayPagePrizeData }) {
   const { user } = useAuth()
   const [status, setStatus] = useState<Status | null>(null)
   const [loading, setLoading] = useState(false)
@@ -103,7 +104,17 @@ export function GiveawayClient() {
           </p>
         </section>
 
-        <GiveawayPrizeCards />
+        {prizeData.error ? (
+          <section className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Could not load giveaway prize: {prizeData.error}
+          </section>
+        ) : prizeData.prize ? (
+          <GiveawayPrizeShowcase
+            prize={prizeData.prize}
+            cards={prizeData.cards}
+            priceBand={prizeData.priceBand}
+          />
+        ) : null}
 
         {!user ? (
           <p className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
