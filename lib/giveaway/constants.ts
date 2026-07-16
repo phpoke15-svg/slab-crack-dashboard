@@ -14,6 +14,10 @@ export const GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT = 10
 /** Strict ± band around today's prize ARV when matching catalog cards (0.05 = ±5%). */
 export const GIVEAWAY_PRIZE_CARD_BAND_PERCENT = 0.05
 
+/** Live PriceCharting lookups when the cached catalog has too few ±5% matches. */
+export const GIVEAWAY_PRIZE_CARD_PC_LOOKUP_LIMIT = 18
+export const GIVEAWAY_PRIZE_CARD_PC_CANDIDATE_POOL = 60
+
 export function giveawayPrizeArvUsd(accountCount: number): number {
   return accountCount * GIVEAWAY_PRIZE_PER_ACCOUNT_USD
 }

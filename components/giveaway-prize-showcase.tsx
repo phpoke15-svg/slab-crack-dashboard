@@ -2,8 +2,13 @@
 
 import Image from "next/image"
 import { useCallback, useEffect, useState } from "react"
-import { ChevronLeft, ChevronRight, Sparkles } from "lucide-react"
-import { GIVEAWAY_PRIZE_PER_ACCOUNT_USD } from "@/lib/giveaway/constants"
+import { ChevronLeft, ChevronRight } from "lucide-react"
+import { GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT } from "@/lib/giveaway/constants"
+import {
+  formatGiveawayUsd,
+  giveawayPrizeCalculationLine,
+  giveawayPrizePageFootnote,
+} from "@/lib/giveaway/prize-formula"
 import type { GiveawayPrizeCard, PrizeCardPriceBand } from "@/lib/giveaway/prize-cards"
 import type { GiveawayPrizePayload } from "@/lib/giveaway/types"
 import { cn } from "@/lib/utils"
@@ -12,20 +17,17 @@ type Props = {
   prize: GiveawayPrizePayload
   cards: GiveawayPrizeCard[]
   priceBand: PrizeCardPriceBand | null
-}
-
-function formatUsd(amount: number): string {
-  return amount.toLocaleString("en-US", { style: "currency", currency: "USD" })
+  usedLivePriceCharting?: boolean
 }
 
 function priceDeltaLabel(cardPrice: number, target: number): string {
   const diff = cardPrice - target
   if (Math.abs(diff) < 0.01) return "Matches prize value"
   const prefix = diff > 0 ? "+" : "−"
-  return `${prefix}${formatUsd(Math.abs(diff))} vs prize`
+  return `${prefix}${formatGiveawayUsd(Math.abs(diff))} vs prize`
 }
 
-export function GiveawayPrizeShowcase({ prize, cards, priceBand }: Props) {
+export function GiveawayPrizeShowcase({ prize, cards, priceBand, usedLivePriceCharting }: Props) {
   const [activeIndex, setActiveIndex] = useState(0)
 
   const goTo = useCallback(
@@ -51,41 +53,33 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand }: Props) {
   }, [activeIndex, cards.length, goTo])
 
   const activeCard = cards[activeIndex]
-  const snapshotLabel = prize.snapshotDate ?? prize.monthPeriod
 
   return (
-    <section className="mb-6 space-y-4">
-      <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
-        <div className="mb-3 flex items-start gap-2">
-          <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
-          <div>
-            <h2 className="text-sm font-semibold">Today&apos;s giveaway prize value</h2>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Running total as of {snapshotLabel}
-            </p>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-xl border border-border bg-background p-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Registered accounts</p>
-            <p className="text-2xl font-bold">{prize.accountSnapshot.toLocaleString("en-US")}</p>
-          </div>
-          <div className="rounded-xl border border-border bg-background p-3">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Prize ARV</p>
-            <p className="text-2xl font-bold text-primary">{formatUsd(prize.prizeArvUsd)}</p>
-          </div>
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          {prize.accountSnapshot.toLocaleString("en-US")} × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)} per account.
-          The total on the last day of the month is the official prize value for that month&apos;s drawing.
+    <section className="mb-8 space-y-5">
+      <div className="rounded-3xl border-2 border-primary/35 bg-gradient-to-b from-primary/15 via-primary/5 to-background px-5 py-8 text-center shadow-sm">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          Today&apos;s giveaway prize value
+        </p>
+        <p className="mt-3 text-5xl font-bold tracking-tight text-primary sm:text-6xl">
+          {formatGiveawayUsd(prize.prizeArvUsd)}
+        </p>
+        <p className="mx-auto mt-4 max-w-md text-xs leading-relaxed text-muted-foreground">
+          {giveawayPrizeCalculationLine(prize.accountSnapshot)}
+        </p>
+        <p className="mx-auto mt-2 max-w-md text-[11px] leading-relaxed text-muted-foreground/90">
+          {giveawayPrizePageFootnote()}
         </p>
       </div>
 
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-        <h3 className="text-sm font-semibold">Top {cards.length || 10} cards within 5% of {formatUsd(prize.prizeArvUsd)}</h3>
+        <h2 className="text-sm font-semibold">
+          Top {cards.length || GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT} cards within 5% of{" "}
+          {formatGiveawayUsd(prize.prizeArvUsd)}
+        </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           Only cards priced within ±5% of today&apos;s giveaway value are shown
-          {priceBand ? ` (${formatUsd(priceBand.min)}–${formatUsd(priceBand.max)})` : ""}
+          {priceBand ? ` (${formatGiveawayUsd(priceBand.min)}–${formatGiveawayUsd(priceBand.max)})` : ""}
+          {usedLivePriceCharting ? ". Some prices refreshed live from PriceCharting." : ""}
         </p>
 
         {cards.length && activeCard ? (
@@ -108,9 +102,9 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand }: Props) {
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
                       #{activeIndex + 1} of {cards.length}
                     </p>
-                    <h4 className="mt-1 line-clamp-2 text-base font-semibold leading-tight text-foreground">
+                    <h3 className="mt-1 line-clamp-2 text-base font-semibold leading-tight text-foreground">
                       {activeCard.name}
-                    </h4>
+                    </h3>
                     <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                       {activeCard.set}
                       {activeCard.cardNumber ? ` · ${activeCard.cardNumber}` : ""}
@@ -119,13 +113,13 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand }: Props) {
 
                   <div className="mt-3 space-y-1">
                     <div className="flex flex-wrap items-baseline gap-2">
-                      <p className="text-2xl font-bold text-primary">{formatUsd(activeCard.rawPrice)}</p>
+                      <p className="text-2xl font-bold text-primary">{formatGiveawayUsd(activeCard.rawPrice)}</p>
                       <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                         Raw NM
                       </p>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Prize target {formatUsd(prize.prizeArvUsd)} ·{" "}
+                      Prize target {formatGiveawayUsd(prize.prizeArvUsd)} ·{" "}
                       {priceDeltaLabel(activeCard.rawPrice, prize.prizeArvUsd)}
                     </p>
                   </div>
@@ -169,8 +163,8 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand }: Props) {
           </div>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">
-            No priced catalog cards within ±5% of today&apos;s prize value yet — the prize total above still
-            updates daily. Examples appear when catalog prices align with the running giveaway ARV.
+            No catalog cards within ±5% of today&apos;s prize value right now. The prize total above still reflects
+            the live account count.
           </p>
         )}
       </div>

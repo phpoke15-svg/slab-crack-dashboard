@@ -6,6 +6,7 @@ import { getPrizeSnapshotForMonth } from "@/lib/giveaway/service"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 /** Supreme preview: cards near today's running giveaway prize ARV. */
 export async function GET(request: Request) {
@@ -28,13 +29,14 @@ export async function GET(request: Request) {
 
   try {
     const prize = await getPrizeSnapshotForMonth(month)
-    const { band, cards } = await getGiveawayPrizeCards(prize.prizeArvUsd)
+    const { band, cards, usedLivePriceCharting } = await getGiveawayPrizeCards(prize.prizeArvUsd)
 
     return NextResponse.json({
       ok: true,
       prize,
       priceBand: band,
       cards,
+      usedLivePriceCharting,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load prize cards"

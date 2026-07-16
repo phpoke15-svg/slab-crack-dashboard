@@ -3,10 +3,13 @@ import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import {
   GIVEAWAY_PRIZE_CARD_BAND_PERCENT,
+  GIVEAWAY_PRIZE_CARD_PC_CANDIDATE_POOL,
+  GIVEAWAY_PRIZE_CARD_PC_LOOKUP_LIMIT,
   GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT,
 } from "@/lib/giveaway/constants"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import type { MockCardEntry } from "@/lib/slab-data"
+import { attachBinderCardPrices } from "@/lib/trade-binder/binder-prices"
 import {
   isEnglishOrJapanesePricedCard,
   type PricedCatalogCard,
@@ -25,6 +28,12 @@ export type PrizeCardPriceBand = {
   min: number
   max: number
   target: number
+}
+
+export type GiveawayPrizeCardsResult = {
+  band: PrizeCardPriceBand
+  cards: GiveawayPrizeCard[]
+  usedLivePriceCharting: boolean
 }
 
 function roundUsd(amount: number): number {
@@ -194,20 +203,67 @@ async function queryCatalogInBand(band: PrizeCardPriceBand): Promise<GiveawayPri
   return mockCardsInBand(band.min, band.max, band.target)
 }
 
-/** Cards from the priced catalog within ±5% of today's prize ARV. */
-export async function getGiveawayPrizeCards(
-  targetUsd: number,
-  limit = GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT,
-): Promise<{ band: PrizeCardPriceBand; cards: GiveawayPrizeCard[] }> {
-  const band = prizeCardPriceBand(targetUsd)
-  if (band.target <= 0) {
-    return { band: { min: 0, max: 0, target: 0 }, cards: [] }
+async function priceChartingCardsInBand(
+  band: PrizeCardPriceBand,
+  limit: number,
+  excludeIds: Set<string>,
+): Promise<GiveawayPrizeCard[]> {
+  if (!process.env.PRICECHARTING_API_KEY || !isSupabaseConfigured()) return []
+
+  const admin = createAdminClient()
+  const priceByCardId = await getRawPriceByCardId()
+
+  const { data: slabs, error } = await admin
+    .from("slab_cards")
+    .select("id, name, set_name, card_number, rarity, image_large, image_small")
+    .order("release_date", { ascending: false })
+    .limit(GIVEAWAY_PRIZE_CARD_PC_CANDIDATE_POOL)
+
+  if (error) {
+    console.warn("[giveaway-prize-cards] slab_cards candidate load failed:", error.message)
+    return []
   }
 
-  const cards = (await queryCatalogInBand(band)).filter((card) =>
-    isWithinPrizeCardBand(card.rawPrice, band.target),
+  const candidates = ((slabs ?? []) as SlabCardRow[])
+    .filter((slab) => !excludeIds.has(slab.id))
+    .sort((a, b) => {
+      const pa = priceByCardId.get(a.id) ?? 0
+      const pb = priceByCardId.get(b.id) ?? 0
+      if (pa > 0 && pb > 0) {
+        return Math.abs(pa - band.target) - Math.abs(pb - band.target)
+      }
+      if (pa > 0) return -1
+      if (pb > 0) return 1
+      return a.name.localeCompare(b.name)
+    })
+
+  const priced = await attachBinderCardPrices(
+    candidates.map((slab) => ({
+      id: slab.id,
+      name: slab.name,
+      set: slab.set_name,
+      cardNumber: slab.card_number,
+    })),
+    {
+      cachedPrices: priceByCardId,
+      limit: GIVEAWAY_PRIZE_CARD_PC_LOOKUP_LIMIT,
+      concurrency: 2,
+    },
   )
 
+  const cards: GiveawayPrizeCard[] = []
+  for (const slab of candidates) {
+    const rawPrice = priced.get(slab.id)
+    if (!rawPrice || !isWithinPrizeCardBand(rawPrice, band.target)) continue
+    const card = slabToPrizeCard(slab, rawPrice)
+    if (card) cards.push(card)
+    if (cards.length >= limit) break
+  }
+
+  return sortPrizeCards(cards, band.target)
+}
+
+function dedupePrizeCards(cards: GiveawayPrizeCard[], limit: number): GiveawayPrizeCard[] {
   const seen = new Set<string>()
   const unique: GiveawayPrizeCard[] = []
   for (const card of cards) {
@@ -216,8 +272,37 @@ export async function getGiveawayPrizeCards(
     unique.push(card)
     if (unique.length >= limit) break
   }
+  return unique
+}
 
-  return { band, cards: unique }
+/** Cards from the priced catalog within ±5% of today's prize ARV. */
+export async function getGiveawayPrizeCards(
+  targetUsd: number,
+  limit = GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT,
+): Promise<GiveawayPrizeCardsResult> {
+  const band = prizeCardPriceBand(targetUsd)
+  if (band.target <= 0) {
+    return { band: { min: 0, max: 0, target: 0 }, cards: [], usedLivePriceCharting: false }
+  }
+
+  const cached = dedupePrizeCards(
+    (await queryCatalogInBand(band)).filter((card) => isWithinPrizeCardBand(card.rawPrice, band.target)),
+    limit,
+  )
+
+  if (cached.length >= limit) {
+    return { band, cards: cached, usedLivePriceCharting: false }
+  }
+
+  const excludeIds = new Set(cached.map((card) => card.id))
+  const live = await priceChartingCardsInBand(band, limit - cached.length, excludeIds)
+  const merged = dedupePrizeCards([...cached, ...live], limit)
+
+  return {
+    band,
+    cards: merged,
+    usedLivePriceCharting: live.length > 0,
+  }
 }
 
 /** Map priced catalog rows (tests / reuse). */

@@ -9,6 +9,7 @@ import { pageMetadata } from "@/lib/seo"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 export const metadata = pageMetadata({
   title: "Monthly Giveaway",
@@ -31,8 +32,8 @@ async function loadGiveawayPrizeData(): Promise<GiveawayPagePrizeData> {
     }
 
     try {
-      const { band, cards } = await getGiveawayPrizeCards(snap.prizeArvUsd)
-      return { prize, cards, priceBand: band, error: null }
+      const { band, cards, usedLivePriceCharting } = await getGiveawayPrizeCards(snap.prizeArvUsd)
+      return { prize, cards, priceBand: band, usedLivePriceCharting, error: null }
     } catch (cardError) {
       console.warn("[giveaway-page] prize cards failed:", cardError)
       return { prize, cards: [], priceBand: null, error: null }

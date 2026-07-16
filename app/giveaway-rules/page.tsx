@@ -5,13 +5,15 @@ import {
   FREE_ACTIVE_MINUTES_REQUIRED,
   GIVEAWAY_CONTACT_EMAIL,
   GIVEAWAY_MAILING_ADDRESS,
-  GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
-  giveawayPrizeArvUsd,
   MAIL_IN_ENTRIES_PER_POSTCARD,
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
   MONTHLY_ENTRY_CAP,
   PREMIUM_ACTIVE_MINUTES_REQUIRED,
 } from "@/lib/giveaway/constants"
+import {
+  giveawayPrizeCalculationLine,
+  giveawayPrizeRulesFormulaText,
+} from "@/lib/giveaway/prize-formula"
 import {
   LEGAL_CONTACT_EMAIL,
   LEGAL_SITE_NAME,
@@ -27,13 +29,8 @@ export const metadata: Metadata = pageMetadata({
 
 const RULES_LAST_UPDATED = "July 16, 2026"
 
-function formatUsd(amount: number): string {
-  return amount.toLocaleString("en-US", { style: "currency", currency: "USD" })
-}
-
 export default function GiveawayRulesPage() {
   const exampleAccounts = 10_000
-  const examplePrize = giveawayPrizeArvUsd(exampleAccounts)
 
   return (
     <LegalPageShell
@@ -129,24 +126,30 @@ export default function GiveawayRulesPage() {
         </p>
         <ul>
           <li>
-            When Sponsor conducts the monthly drawing for a completed Promotion period, Sponsor counts the total
-            number of registered user accounts on {LEGAL_SITE_NAME} at that time (the &quot;Account Snapshot&quot;).
+            Sponsor counts the total number of registered user accounts on {LEGAL_SITE_NAME} (the &quot;Account
+            Snapshot&quot;).
           </li>
           <li>
-            Prize ARV = Account Snapshot × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)} per account.
+            <strong className="text-foreground">{giveawayPrizeRulesFormulaText()}</strong>
+          </li>
+          <li>
+            While a Promotion period is in progress, the running prize value displayed on the giveaway page reflects
+            the Account Snapshot counted when that page is loaded.
+          </li>
+          <li>
+            For the monthly drawing of a completed Promotion period, Sponsor uses the Account Snapshot counted when
+            the drawing is conducted for that period.
           </li>
           <li>
             Sponsor will select a Prize Card with a fair-market value reasonably close to that ARV, based on
-            reputable third-party market sources (e.g., recent sold listings or established price guides) at or
-            near the time of fulfillment.
+            reputable third-party market sources (e.g., PriceCharting, recent sold listings, or established price
+            guides) at or near the time of fulfillment.
           </li>
         </ul>
         <p>
-          <strong className="text-foreground">Example:</strong> If the Account Snapshot is{" "}
-          {exampleAccounts.toLocaleString("en-US")} accounts, the Prize ARV is {formatUsd(examplePrize)} (
-          {exampleAccounts.toLocaleString("en-US")} × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)}). The actual card,
-          set, grade, and condition are chosen by Sponsor in its sole discretion, provided the market value aligns
-          with the calculated ARV.
+          <strong className="text-foreground">Example:</strong> {giveawayPrizeCalculationLine(exampleAccounts)}. The
+          actual card, set, grade, and condition are chosen by Sponsor in its sole discretion, provided the market
+          value aligns with the calculated ARV.
         </p>
         <p>
           Prize is non-transferable except at Sponsor&apos;s discretion. No cash equivalent or substitution except

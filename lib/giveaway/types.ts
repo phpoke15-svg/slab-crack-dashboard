@@ -12,5 +12,6 @@ export type GiveawayPagePrizeData = {
   prize: GiveawayPrizePayload | null
   cards: GiveawayPrizeCard[]
   priceBand: PrizeCardPriceBand | null
+  usedLivePriceCharting?: boolean
   error: string | null
 }

@@ -65,6 +65,7 @@ export function GiveawayClient({
           prize?: GiveawayPagePrizeData["prize"]
           cards?: GiveawayPagePrizeData["cards"]
           priceBand?: GiveawayPagePrizeData["priceBand"]
+          usedLivePriceCharting?: boolean
           error?: string
         }
         if (!json.ok || !json.prize) {
@@ -80,6 +81,7 @@ export function GiveawayClient({
           prize: json.prize,
           cards: json.cards ?? [],
           priceBand: json.priceBand ?? null,
+          usedLivePriceCharting: json.usedLivePriceCharting,
           error: null,
         })
       })
@@ -115,6 +117,26 @@ export function GiveawayClient({
       </header>
 
       <main className="flex-1 px-4 py-6">
+        {prizeLoading ? (
+          <section className="mb-8 rounded-3xl border border-border bg-card p-8 text-center">
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-5 animate-spin" />
+              Loading today&apos;s prize value…
+            </div>
+          </section>
+        ) : prizeData.error ? (
+          <section className="mb-8 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
+            Could not load giveaway prize: {prizeData.error}
+          </section>
+        ) : prizeData.prize ? (
+          <GiveawayPrizeShowcase
+            prize={prizeData.prize}
+            cards={prizeData.cards}
+            priceBand={prizeData.priceBand}
+            usedLivePriceCharting={prizeData.usedLivePriceCharting}
+          />
+        ) : null}
+
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/15">
             <Gift className="size-6 text-primary" />
@@ -124,25 +146,6 @@ export function GiveawayClient({
             <p className="text-sm text-muted-foreground">Earn entries by using the app — no purchase necessary.</p>
           </div>
         </div>
-
-        {prizeLoading ? (
-          <section className="mb-6 rounded-2xl border border-border bg-card p-4">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" />
-              Loading today&apos;s prize value…
-            </div>
-          </section>
-        ) : prizeData.error ? (
-          <section className="mb-6 rounded-2xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">
-            Could not load giveaway prize: {prizeData.error}
-          </section>
-        ) : prizeData.prize ? (
-          <GiveawayPrizeShowcase
-            prize={prizeData.prize}
-            cards={prizeData.cards}
-            priceBand={prizeData.priceBand}
-          />
-        ) : null}
 
         <section className="mb-6 space-y-3 rounded-2xl border border-border bg-card p-4 text-sm">
           <h2 className="font-semibold">How to earn entries</h2>
