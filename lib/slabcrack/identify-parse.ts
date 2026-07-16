@@ -157,6 +157,7 @@ export function scoreHit(hit: ScoreableHit, detected: DetectedCard): number {
   let score = 0
   if (number && hitNum && number === hitNum) score += 50
   else if (number && hitNum && (hitNum.includes(number) || number.includes(hitNum))) score += 20
+  else if (number && hitNum && number !== hitNum) score -= 45
 
   if (name && hitName) {
     if (hitName.includes(name) || name.includes(hitName)) score += 35
@@ -168,11 +169,51 @@ export function scoreHit(hit: ScoreableHit, detected: DetectedCard): number {
 
   if (setName && hitSet.includes(setName)) score += 20
   else if (setName) {
-    const token = setName.split(/\s+/).find((t) => t.length > 3)
-    if (token && hitSet.includes(token.toLowerCase())) score += 10
+    const tokens = setName.split(/\s+/).filter((t) => t.length > 3)
+    for (const token of tokens) {
+      if (hitSet.includes(token.toLowerCase())) {
+        score += 12
+        break
+      }
+    }
   }
 
   return score
+}
+
+/** Pick the best catalog row for a vision detect; enforces collector number when present. */
+export function pickBestCatalogHit<T extends ScoreableHit>(
+  candidates: T[],
+  detected: DetectedCard,
+): { hit: T | null; matchScore: number } {
+  if (!candidates.length) return { hit: null, matchScore: 0 }
+
+  const number = cleanNumber(detected.cardNumber)
+  const ranked = [...candidates].sort((a, b) => scoreHit(b, detected) - scoreHit(a, detected))
+
+  if (number) {
+    const byNumber = ranked.filter(
+      (h) => cleanNumber(h.cardNumber.split("/")[0] ?? "") === number,
+    )
+    if (byNumber.length) {
+      const best = byNumber[0]!
+      const matchScore = scoreHit(best, detected)
+      if (matchScore >= minAutoMatchScore(detected)) {
+        return { hit: best, matchScore }
+      }
+    }
+
+    const top = ranked[0]!
+    const topNum = cleanNumber(top.cardNumber.split("/")[0] ?? "")
+    if (topNum && topNum !== number) {
+      return { hit: null, matchScore: scoreHit(top, detected) }
+    }
+  }
+
+  const top = ranked[0]!
+  const matchScore = scoreHit(top, detected)
+  if (matchScore < minAutoMatchScore(detected)) return { hit: null, matchScore }
+  return { hit: top, matchScore }
 }
 
 /** Minimum score before auto-opening HUD (avoids wrong-card "success"). */

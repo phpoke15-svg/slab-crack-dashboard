@@ -19,6 +19,7 @@
     "enrich-images": "npx tsx scripts/enrich-images.ts",
     "seed-catalog": "node scripts/seed-catalog.mjs",
     "seed-top-200": "node scripts/seed-top-200.mjs",
+    "compute-catalog-phash": "node scripts/compute-catalog-phash.mjs",
     "live-binder-hud": "npm --prefix live-binder-hud run dev"
   },
   "dependencies": {
@@ -33,6 +34,7 @@
     "react": "^19",
     "react-dom": "^19",
     "shadcn": "^4.8.0",
+    "sharp": "^0.34.3",
     "stripe": "^22.3.1",
     "tailwind-merge": "^3.3.1",
     "tw-animate-css": "^1.4.0",

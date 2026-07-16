@@ -5,6 +5,7 @@ import {
   extractJsonObject,
   minAutoMatchScore,
   parseDetectedJson,
+  pickBestCatalogHit,
   scoreHit,
   simplifyCardName,
   thinkingConfigForModel,
@@ -125,5 +126,32 @@ describe("identify-parse", () => {
         confidence: 0.8,
       }),
     ).toBe(35)
+  })
+
+  it("prefers matching collector number over another card with the same name", () => {
+    const detected = {
+      cardName: "Piplup",
+      setName: "Phantasmal Flames",
+      cardNumber: "98",
+      confidence: 0.9,
+    }
+    const phantasmal = {
+      cardName: "Piplup",
+      setName: "Phantasmal Flames",
+      cardNumber: "98/094",
+    }
+    const buildABear = {
+      cardName: "Piplup",
+      setName: "Build-A-Bear Workshop",
+      cardNumber: "32/094",
+    }
+    expect(scoreHit(phantasmal, detected)).toBeGreaterThan(scoreHit(buildABear, detected))
+
+    const picked = pickBestCatalogHit([buildABear, phantasmal], detected)
+    expect(picked.hit?.cardNumber).toBe("98/094")
+    expect(picked.hit?.setName).toContain("Phantasmal")
+
+    const wrongOnly = pickBestCatalogHit([buildABear], detected)
+    expect(wrongOnly.hit).toBeNull()
   })
 })

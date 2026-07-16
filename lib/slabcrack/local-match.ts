@@ -6,7 +6,7 @@ import {
 } from "@/lib/card-lookup"
 import {
   cleanNumber,
-  minAutoMatchScore,
+  pickBestCatalogHit,
   scoreHit,
   simplifyCardName,
   type DetectedCard,
@@ -111,8 +111,23 @@ async function searchSlabCardsLocal(detected: DetectedCard): Promise<CardSearchH
 
   if (!firstName && !number) return []
 
-  // Prefer name search (fast enough on catalog size); number is ranked in JS so
-  // padded DB values like "025/198" still match cleaned "25".
+  const rowsById = new Map<string, SlabCardRow>()
+  const addRows = (data: SlabCardRow[] | null | undefined) => {
+    for (const row of data ?? []) rowsById.set(row.id, row)
+  }
+
+  if (firstName && number) {
+    const tight = await supabase
+      .from("slab_cards")
+      .select("id, name, set_name, card_number, rarity, image_large, image_small")
+      .ilike("name", `%${escapeIlike(firstName)}%`)
+      .or(
+        `card_number.eq.${number},card_number.ilike.${number}/%,card_number.ilike.%/${number}`,
+      )
+      .limit(32)
+    if (!tight.error) addRows(tight.data as SlabCardRow[])
+  }
+
   let query = supabase
     .from("slab_cards")
     .select("id, name, set_name, card_number, rarity, image_large, image_small")
@@ -129,10 +144,11 @@ async function searchSlabCardsLocal(detected: DetectedCard): Promise<CardSearchH
   const { data, error } = await query
   if (error) {
     console.warn("[slabcrack-local] slab_cards query failed:", error.message)
-    return []
+  } else {
+    addRows(data as SlabCardRow[])
   }
 
-  const rows = (data ?? []) as SlabCardRow[]
+  const rows = [...rowsById.values()]
   if (!rows.length) return []
 
   const ranked = rows
@@ -252,11 +268,8 @@ export async function matchDetectedCardLocal(
     const ranked = [...candidates].sort(
       (a, b) => scoreHit(b, detected) - scoreHit(a, detected),
     )
-    const top = ranked[0]!
-    const matchScore = scoreHit(top, detected)
-    if (matchScore < Math.min(20, minAutoMatchScore(detected))) {
-      return null
-    }
+    const { hit: top, matchScore } = pickBestCatalogHit(ranked, detected)
+    if (!top) return null
 
     const card = await priceHitLocal(top)
     const needsLiveRefresh =

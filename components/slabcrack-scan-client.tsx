@@ -3,23 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
-import {
-  ArrowLeft,
-  Camera,
-  ImagePlus,
-  Loader2,
-  RefreshCw,
-  Search,
-  ScanLine,
-  X,
-} from "lucide-react"
+import { ArrowLeft, Layers, Loader2, RefreshCw, Search, ScanLine, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { SlabDrawer } from "@/components/slab-drawer"
+import { CardScanner } from "@/components/card-scanner"
+import { ScanMatchFeedback } from "@/components/scan-match-feedback"
+import type { ScanPipelineResult } from "@/lib/scanner/types"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
+import { cleanNumber } from "@/lib/slabcrack/identify-parse"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import {
   getBestGradeQuote,
@@ -30,37 +25,7 @@ import {
 } from "@/lib/slab-data"
 
 type ScanTool = "slabcrack" | "slablab"
-type Phase = "camera" | "identifying" | "manual" | "hud"
-
-type DetectedPayload = {
-  cardName: string
-  setName: string
-  cardNumber: string
-  confidence: number
-  notes?: string
-}
-
-type VisionResponse = {
-  ok?: boolean
-  error?: string
-  detected?: DetectedPayload
-  query?: string
-  source?: "gemini" | "openai"
-}
-
-type IdentifyResponse = {
-  ok?: boolean
-  error?: string
-  detected?: DetectedPayload
-  query?: string
-  hit?: CardSearchHit | null
-  candidates?: CardSearchHit[]
-  card?: MockCardEntry | null
-  matchScore?: number
-  source?: "gemini" | "openai"
-  pricingSource?: "local" | "live"
-  needsLiveRefresh?: boolean
-}
+type Phase = "camera" | "manual" | "hud"
 
 function formatMoney(n: number) {
   if (!Number.isFinite(n) || n <= 0) return "—"
@@ -74,69 +39,11 @@ function formatSigned(n: number) {
   return `${n < 0 ? "-" : ""}$${formatted}`
 }
 
-/** Downscale/compress camera photos so vision API stays fast + under body limits. */
-async function compressImageDataUrl(dataUrl: string, maxEdge = 768, quality = 0.52): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image()
-    img.onload = () => {
-      const scale = Math.min(1, maxEdge / Math.max(img.width, img.height))
-      const w = Math.max(1, Math.round(img.width * scale))
-      const h = Math.max(1, Math.round(img.height * scale))
-      const canvas = document.createElement("canvas")
-      canvas.width = w
-      canvas.height = h
-      const ctx = canvas.getContext("2d")
-      if (!ctx) {
-        reject(new Error("Could not process this photo. Try Take photo again as JPEG."))
-        return
-      }
-      ctx.drawImage(img, 0, 0, w, h)
-      resolve(canvas.toDataURL("image/jpeg", quality))
-    }
-    img.onerror = () =>
-      reject(new Error("Could not read this image. Use Take photo (not HEIC/Live Photo)."))
-    img.src = dataUrl
-  })
-}
-
-function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 4000): Promise<void> {
-  if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve()
-
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      window.clearTimeout(timer)
-      video.removeEventListener("loadeddata", onReady)
-      video.removeEventListener("loadedmetadata", onReady)
-    }
-    const onReady = () => {
-      if (video.videoWidth > 0 && video.videoHeight > 0) {
-        cleanup()
-        resolve()
-      }
-    }
-    const timer = window.setTimeout(() => {
-      cleanup()
-      if (video.videoWidth > 0 && video.videoHeight > 0) resolve()
-      else reject(new Error("Camera preview never produced a frame."))
-    }, timeoutMs)
-    video.addEventListener("loadeddata", onReady)
-    video.addEventListener("loadedmetadata", onReady)
-  })
-}
-
 export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool }) {
   const backHref = tool === "slablab" ? "/slablab" : "/slabcrack"
+  const multiScanHref = tool === "slablab" ? "/slablab/multi-scan" : "/slabcrack/multi-scan"
   const toolLabel = tool === "slablab" ? "SlabLab Scan" : "SlabCrack Scan"
-  const toolBlurb =
-    "Take a photo and we'll detect the card, then open SlabCrack arbitrage and SlabLab PSA 10 ROI together."
-  const toolTagline = "Snap a card — Crack + Lab data"
 
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const cameraInputRef = useRef<HTMLInputElement>(null)
-  const galleryInputRef = useRef<HTMLInputElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-  const identifyingRef = useRef(false)
   const seededHitsRef = useRef<CardSearchHit[]>([])
   const seedQueryRef = useRef("")
   const aiCandidatesRef = useRef<CardSearchHit[]>([])
@@ -144,9 +51,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const priceRefreshGenRef = useRef(0)
 
   const [phase, setPhase] = useState<Phase>("camera")
-  const [cameraError, setCameraError] = useState<string | null>(null)
-  const [cameraReady, setCameraReady] = useState(false)
-  const [cameraStarting, setCameraStarting] = useState(false)
+  const [isScanning, setIsScanning] = useState(false)
   const [snapshot, setSnapshot] = useState<string | null>(null)
   const [identifyStatus, setIdentifyStatus] = useState("Reading card…")
 
@@ -159,74 +64,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
   const [card, setCard] = useState<MockCardEntry | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
-
-  const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
-    if (videoRef.current) videoRef.current.srcObject = null
-    setCameraReady(false)
-  }, [])
-
-  const startCamera = useCallback(async () => {
-    setCameraError(null)
-    setCameraStarting(true)
-    setCameraReady(false)
-    stopCamera()
-
-    if (typeof window !== "undefined" && !window.isSecureContext) {
-      setCameraError("Camera needs HTTPS. Use Take photo / Upload instead.")
-      setCameraStarting(false)
-      return
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError("Live camera isn’t available here. Use Take photo or Upload.")
-      setCameraStarting(false)
-      return
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      })
-      streamRef.current = stream
-      const video = videoRef.current
-      if (!video) {
-        setCameraError("Camera preview failed to load.")
-        stream.getTracks().forEach((t) => t.stop())
-        setCameraStarting(false)
-        return
-      }
-      video.srcObject = stream
-      video.setAttribute("playsinline", "true")
-      video.muted = true
-      await video.play()
-      await waitForVideoFrame(video)
-      setCameraReady(true)
-    } catch (err) {
-      stopCamera()
-      const name = err instanceof DOMException ? err.name : ""
-      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-        setCameraError("Camera permission blocked. Use Take photo instead, or allow camera in settings.")
-      } else {
-        setCameraError("Could not open live camera. Use Take photo or Upload.")
-      }
-    } finally {
-      setCameraStarting(false)
-    }
-  }, [stopCamera])
-
-  useEffect(() => {
-    if (phase !== "camera") {
-      stopCamera()
-    }
-    return () => stopCamera()
-  }, [phase, stopCamera])
+  const [matchMeta, setMatchMeta] = useState<{
+    matchMethod?: "visual_phash" | "vision"
+    matchScore?: number
+  } | null>(null)
 
   const enterManualHandoff = useCallback(
     (opts: {
@@ -256,7 +97,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     const seeded = seededHitsRef.current
     const seedQuery = seedQueryRef.current.trim()
 
-    // Keep AI candidates until the user edits away from the seeded query.
     if (q === seedQuery && seeded.length) {
       setHits(seeded)
       setSearchLoading(false)
@@ -281,7 +121,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     return () => window.clearTimeout(timer)
   }, [phase, query])
 
-  /** Jump straight into full SlabCrack / SlabLab card data for the closest match. */
   const presentMatch = useCallback((entry: MockCardEntry, opts?: { openDrawer?: boolean }) => {
     const normalized = normalizeCardEntry(entry)
     presentedCardIdRef.current = normalized.id
@@ -301,7 +140,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         })
     if (!hit.id.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl)
     if (hit.id.startsWith("pc-")) {
-      // Also pass name context so the API can recover if the PC id fetch fails.
       params.set("cardName", hit.cardName)
       params.set("setName", hit.setName)
       params.set("cardNumber", hit.cardNumber)
@@ -316,206 +154,139 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     return normalizeCardEntry(data)
   }, [])
 
-  const autoIdentify = useCallback(
-    async (dataUrl: string) => {
-      if (identifyingRef.current) return
-      identifyingRef.current = true
-      priceRefreshGenRef.current += 1
-      setPhase("identifying")
-      setIdentifyStatus("Detecting card with AI…")
-      setLookupError(null)
-      setDetectedLabel(null)
-      setCard(null)
-      presentedCardIdRef.current = null
-      seededHitsRef.current = []
-      seedQueryRef.current = ""
-      aiCandidatesRef.current = []
+  const processScanResult = useCallback(
+    async (json: ScanPipelineResult, snapshotUrl: string) => {
+      setSnapshot(snapshotUrl)
+      const label = [
+        json.detected?.cardName,
+        json.detected?.cardNumber ? `#${json.detected.cardNumber}` : null,
+      ]
+        .filter(Boolean)
+        .join(" ")
 
-      try {
-        setIdentifyStatus("Preparing photo…")
-        const compressed = await compressImageDataUrl(dataUrl)
+      setDetectedLabel(label || null)
+      aiCandidatesRef.current = json.candidates ?? []
+      setMatchMeta({
+        matchMethod: json.matchMethod,
+        matchScore: json.matchScore,
+      })
 
-        // Step 1: vision only — surface the AI name as soon as Gemini answers.
-        setIdentifyStatus("AI identifying card…")
-        const visionRes = await fetch("/api/slabcrack/identify/vision", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: compressed }),
-        })
-        const vision = (await visionRes.json().catch(() => null)) as VisionResponse | null
-        const visionLabel = [
-          vision?.detected?.cardName,
-          vision?.detected?.cardNumber ? `#${vision.detected.cardNumber}` : null,
-        ]
-          .filter(Boolean)
-          .join(" ")
+      const detNum = cleanNumber(json.detected?.cardNumber ?? "")
+      const cardMatchesDetect = (entry: MockCardEntry) =>
+        !detNum || cleanNumber(entry.cardNumber.split("/")[0] ?? "") === detNum
 
-        if (!visionRes.ok || !vision?.ok || !vision.detected) {
-          enterManualHandoff({
-            query: vision?.query || vision?.detected?.cardName || "",
-            error: vision?.error || "Could not identify this card automatically.",
-            label: visionLabel || null,
-          })
-          return
+      const resolvePresentedCard = (): {
+        card: MockCardEntry | null
+        hit: CardSearchHit | null
+      } => {
+        if (json.card && cardMatchesDetect(normalizeCardEntry(json.card))) {
+          return { card: normalizeCardEntry(json.card), hit: json.hit }
         }
-
-        setDetectedLabel(visionLabel || null)
-        setIdentifyStatus(
-          visionLabel
-            ? `Found ${visionLabel} — loading prices…`
-            : "Loading catalog + prices…",
-        )
-
-        // Step 2: catalog match + pricing (user already sees the AI hit).
-        const matchRes = await fetch("/api/slabcrack/identify/match", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            detected: vision.detected,
-            source: vision.source,
-          }),
-        })
-        const json = (await matchRes.json().catch(() => null)) as IdentifyResponse | null
-        const label = [
-          json?.detected?.cardName || vision.detected.cardName,
-          (json?.detected?.cardNumber || vision.detected.cardNumber)
-            ? `#${json?.detected?.cardNumber || vision.detected.cardNumber}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" ")
-
-        if (!matchRes.ok || !json?.ok) {
-          enterManualHandoff({
-            query: vision.query || label,
-            candidates: json?.candidates,
-            error: json?.error || "Found the card, but catalog match failed. Search manually below.",
-            label: label || null,
-          })
-          return
-        }
-
-        setDetectedLabel(label || null)
-        aiCandidatesRef.current = json.candidates ?? []
-
-        if (json.card) {
-          const localCard = normalizeCardEntry(json.card)
-          presentMatch(localCard)
-
-          // Local-first match: open drawer immediately, then quietly refresh live comps.
-          if (json.needsLiveRefresh && json.hit) {
-            const hit = json.hit
-            const refreshGen = ++priceRefreshGenRef.current
-            setLookupLoading(true)
-            setIdentifyStatus(
-              json.pricingSource === "local"
-                ? "Refreshing live slab comps…"
-                : "Loading live prices…",
-            )
-            void fetchPricedCard(hit)
-              .then((priced) => {
-                if (priceRefreshGenRef.current !== refreshGen) return
-                presentMatch(priced, { openDrawer: true })
-                if (priced.hasPricing === false) {
-                  setLookupError(
-                    "Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.",
-                  )
-                } else {
-                  setLookupError(null)
-                }
-              })
-              .catch(() => {
-                if (priceRefreshGenRef.current !== refreshGen) return
-                if (localCard.hasPricing === false) {
-                  setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
-                }
-              })
-              .finally(() => {
-                if (priceRefreshGenRef.current === refreshGen) setLookupLoading(false)
-              })
-            return
-          }
-
-          if (json.card.hasPricing === false) {
-            setLookupError("Matched the card, but live PriceCharting comps didn’t load. Try Wrong card or Rescan.")
-          }
-          return
-        }
-
-        if (json.candidates?.length) {
-          const top = json.candidates[0]!
-          const placeholder = searchHitToPlaceholder(top)
-          presentMatch(placeholder)
-          setLookupLoading(true)
-          try {
-            const priced = await fetchPricedCard(top)
-            if (presentedCardIdRef.current !== placeholder.id) return
-            setCard(priced)
-            if (priced.hasPricing === false) {
-              setLookupError("Matched the card, but live prices are unavailable. Try another match via Wrong card.")
+        if (detNum && json.candidates?.length) {
+          const byNumber = json.candidates.find(
+            (c) => cleanNumber(c.cardNumber.split("/")[0] ?? "") === detNum,
+          )
+          if (byNumber) {
+            return {
+              card: normalizeCardEntry(searchHitToPlaceholder(byNumber)),
+              hit: byNumber,
             }
-          } catch {
-            if (presentedCardIdRef.current !== placeholder.id) return
-            setCard(normalizeCardEntry(placeholder))
-            setLookupError("Matched the card, but price lookup failed. Try Wrong card or Rescan.")
-          } finally {
-            if (presentedCardIdRef.current === placeholder.id) setLookupLoading(false)
           }
-          return
         }
+        if (json.card && !detNum) {
+          return { card: normalizeCardEntry(json.card), hit: json.hit }
+        }
+        return { card: null, hit: null }
+      }
 
+      if (json.matchMethod === "visual_phash") {
+        setIdentifyStatus("Visual match — loading prices…")
+      } else {
+        setIdentifyStatus("Identifying — loading prices…")
+      }
+
+      const resolved = resolvePresentedCard()
+      if (resolved.card && detNum && !cardMatchesDetect(resolved.card)) {
         enterManualHandoff({
-          query: json.query || vision.query || label || "",
+          query: json.query || label,
           candidates: json.candidates,
-          error: "AI read the card, but catalog search found no match. Edit the search and pick one.",
+          error: "Detected number doesn’t match the catalog pick — choose the right card.",
           label: label || null,
         })
-      } catch (error) {
-        enterManualHandoff({
-          query: "",
-          error:
-            error instanceof Error
-              ? error.message
-              : "Identification failed. Search manually below.",
-        })
-      } finally {
-        identifyingRef.current = false
+        return
       }
+
+      if (resolved.card) {
+        const localCard = resolved.card
+        const matchHit = resolved.hit
+        presentMatch(localCard)
+
+        if (json.needsLiveRefresh && matchHit) {
+          const hit = matchHit
+          setIdentifyStatus("Loading live prices…")
+          setLookupLoading(true)
+          try {
+            const priced = await fetchPricedCard(hit)
+            if (cardMatchesDetect(priced)) {
+              presentMatch(priced, { openDrawer: true })
+            } else {
+              setCard(priced)
+              setLookupError("Live prices loaded, but the catalog id may not match your card number.")
+            }
+            if (priced.hasPricing === false) {
+              setLookupError(
+                "Matched the card, but live PriceCharting comps didn’t load.",
+              )
+            }
+          } finally {
+            setLookupLoading(false)
+          }
+          return
+        }
+
+        if (localCard.hasPricing === false) {
+          setLookupError("Matched the card, but live PriceCharting comps didn’t load.")
+        }
+        return
+      }
+
+      if (json.candidates?.length) {
+        const top =
+          json.candidates.find(
+            (c) => cleanNumber(c.cardNumber.split("/")[0] ?? "") === detNum,
+          ) ?? json.candidates[0]!
+        setIdentifyStatus("Loading prices…")
+        setLookupLoading(true)
+        try {
+          const priced = await fetchPricedCard(top)
+          if (!cardMatchesDetect(priced) && detNum) {
+            enterManualHandoff({
+              query: json.query || label,
+              candidates: json.candidates,
+              error: "Could not auto-match this number — pick the right card.",
+              label: label || null,
+            })
+            return
+          }
+          presentMatch(priced)
+        } catch {
+          presentMatch(normalizeCardEntry(searchHitToPlaceholder(top)))
+          setLookupError("Price lookup failed.")
+        } finally {
+          setLookupLoading(false)
+        }
+        return
+      }
+
+      enterManualHandoff({
+        query: json.query || label,
+        candidates: json.candidates,
+        error: "Could not match this card. Search manually below.",
+        label: label || null,
+      })
     },
     [enterManualHandoff, fetchPricedCard, presentMatch],
   )
-
-  const goIdentify = (dataUrl: string) => {
-    if (identifyingRef.current) return
-    setSnapshot(dataUrl)
-    void autoIdentify(dataUrl)
-  }
-
-  const captureFrame = () => {
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas || !cameraReady) return
-    if (video.videoWidth <= 0 || video.videoHeight <= 0) {
-      setCameraError("Camera isn’t ready yet — wait a second, then Capture again.")
-      return
-    }
-
-    const w = video.videoWidth
-    const h = video.videoHeight
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-    ctx.drawImage(video, 0, 0, w, h)
-    goIdentify(canvas.toDataURL("image/jpeg", 0.88))
-  }
-
-  const onPickFile = (file: File | null) => {
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => goIdentify(String(reader.result))
-    reader.readAsDataURL(file)
-  }
 
   const lookupHit = async (hit: CardSearchHit) => {
     const refreshGen = ++priceRefreshGenRef.current
@@ -539,12 +310,12 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   }
 
   const resetScan = () => {
-    identifyingRef.current = false
     priceRefreshGenRef.current += 1
     presentedCardIdRef.current = null
     seededHitsRef.current = []
     seedQueryRef.current = ""
     aiCandidatesRef.current = []
+    setIsScanning(false)
     setSnapshot(null)
     setCard(null)
     setHits([])
@@ -552,7 +323,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     setLookupError(null)
     setDetectedLabel(null)
     setDrawerOpen(false)
-    setCameraError(null)
+    setMatchMeta(null)
     setPhase("camera")
   }
 
@@ -579,29 +350,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col bg-black text-white">
-      <canvas ref={canvasRef} className="hidden" aria-hidden />
-      <input
-        ref={cameraInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => {
-          onPickFile(e.target.files?.[0] ?? null)
-          e.target.value = ""
-        }}
-      />
-      <input
-        ref={galleryInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => {
-          onPickFile(e.target.files?.[0] ?? null)
-          e.target.value = ""
-        }}
-      />
-
       <header className="relative z-40 flex shrink-0 items-center justify-between gap-3 border-b border-white/10 bg-zinc-950 px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
           <Link
@@ -616,63 +364,57 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         <SiteAuthButton className="shrink-0" />
       </header>
 
+      <div className="flex shrink-0 justify-end border-b border-white/10 bg-zinc-950 px-4 py-2">
+        <Link
+          href={multiScanHref}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-white/80 hover:bg-white/10"
+        >
+          <Layers className="size-3.5 text-primary" />
+          Multi-card (1–9)
+        </Link>
+      </div>
+
       <div className="relative z-0 min-h-0 flex-1 overflow-hidden bg-zinc-950">
-        {phase === "camera" ? (
-          <>
-            <video
-              ref={videoRef}
-              playsInline
-              muted
-              autoPlay
-              className={cn(
-                "pointer-events-none absolute inset-0 size-full object-cover",
-                !cameraReady && "opacity-0",
-              )}
-            />
-            {!cameraReady ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950 px-6 text-center">
-                <Camera className="size-10 text-primary" />
-                <p className="text-sm font-medium text-white">{toolTagline}</p>
-                <p className="max-w-xs text-xs text-white/55">{toolBlurb}</p>
-              </div>
-            ) : (
-              <>
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_45%,rgba(0,0,0,0.5)_100%)]" />
-                <div className="pointer-events-none absolute inset-x-[12%] top-[14%] bottom-[14%] rounded-[1.5rem] border-2 border-primary/70" />
-                <div className="pointer-events-none absolute inset-x-0 top-4 flex justify-center">
-                  <span className="rounded-full border border-white/20 bg-black/55 px-3 py-1 text-[11px] font-medium text-white/90">
-                    Line up the card face
-                  </span>
-                </div>
-              </>
-            )}
-          </>
+        {phase === "camera" || isScanning ? (
+          <CardScanner
+            autoScan
+            scanning={isScanning}
+            processingMessage={identifyStatus}
+            onScanStart={() => {
+              setIsScanning(true)
+              setIdentifyStatus("Scanning card…")
+              setLookupError(null)
+              setDetectedLabel(null)
+              setCard(null)
+              presentedCardIdRef.current = null
+              seededHitsRef.current = []
+              seedQueryRef.current = ""
+              aiCandidatesRef.current = []
+            }}
+            onScanComplete={(result, snap) => {
+              void processScanResult(result, snap).finally(() => setIsScanning(false))
+            }}
+            onScanFail={(error, snap) => {
+              if (snap) setSnapshot(snap)
+              setIsScanning(false)
+              enterManualHandoff({ query: "", error })
+            }}
+            className="absolute inset-0 size-full rounded-none border-0"
+            immersive
+          />
         ) : snapshot ? (
           <div className="relative size-full">
             <Image src={snapshot} alt="Captured card" fill className="object-cover" unoptimized priority />
-            {phase === "identifying" ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/65 px-6 text-center backdrop-blur-sm">
-                <Loader2 className="size-8 animate-spin text-primary" />
-                <p className="text-sm font-semibold text-white">{identifyStatus}</p>
-                {detectedLabel ? (
-                  <p className="rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
-                    {detectedLabel}
-                  </p>
-                ) : (
-                  <p className="text-xs text-white/60">AI first, then prices</p>
-                )}
-              </div>
-            ) : null}
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-white/60">No snapshot</div>
         )}
 
-        {phase === "hud" && card ? (
+        {phase === "hud" && card && !isScanning ? (
           <div className="absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black via-black/95 to-transparent px-4 pb-5 pt-14">
             <div className="rounded-2xl border border-white/15 bg-black/70 p-3 backdrop-blur-md">
               {detectedLabel ? (
-                <p className="mb-2 text-[11px] font-medium text-primary">AI match · {detectedLabel}</p>
+                <p className="mb-2 text-[11px] font-medium text-primary">Match · {detectedLabel}</p>
               ) : null}
               {lookupError ? (
                 <p className="mb-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-2 py-1.5 text-[11px] text-amber-100">
@@ -684,7 +426,20 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   <Loader2 className="size-3 animate-spin" />
                   Loading live prices…
                 </p>
-              ) : null}
+              ) : (
+                <ScanMatchFeedback
+                  key={card.id}
+                  scanMode="single"
+                  cardId={card.id}
+                  cardName={card.cardName}
+                  setName={card.setName}
+                  cardNumber={card.cardNumber}
+                  matchMethod={matchMeta?.matchMethod}
+                  matchScore={matchMeta?.matchScore}
+                  onWrong={showWrongCardPicker}
+                  className="mb-3"
+                />
+              )}
               <div className="flex items-start gap-3">
                 <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-zinc-900">
                   {card.imageUrl ? (
@@ -786,67 +541,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
           </div>
         ) : null}
       </div>
-
-      {phase === "camera" ? (
-        <div className="relative z-40 shrink-0 border-t border-white/10 bg-zinc-950 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-4">
-          {cameraError ? (
-            <p className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-center text-xs text-amber-100">
-              {cameraError}
-            </p>
-          ) : null}
-
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground"
-            >
-              <Camera className="size-4" />
-              Take photo
-            </button>
-            <button
-              type="button"
-              onClick={() => galleryInputRef.current?.click()}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 text-sm font-semibold text-white"
-            >
-              <ImagePlus className="size-4" />
-              Upload
-            </button>
-          </div>
-
-          <div className="mt-3 flex items-center gap-2">
-            {!cameraReady ? (
-              <button
-                type="button"
-                disabled={cameraStarting}
-                onClick={() => void startCamera()}
-                className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/15 text-sm font-semibold text-primary disabled:opacity-60"
-              >
-                {cameraStarting ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-                {cameraStarting ? "Starting…" : "Start live camera"}
-              </button>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  onClick={captureFrame}
-                  className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-white bg-white text-sm font-bold text-black"
-                >
-                  <Camera className="size-4" />
-                  Capture live
-                </button>
-                <button
-                  type="button"
-                  onClick={stopCamera}
-                  className="inline-flex h-11 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm text-white"
-                >
-                  Stop
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      ) : null}
 
       {phase === "manual" ? (
         <div className="relative z-40 flex max-h-[50vh] shrink-0 flex-col border-t border-white/10 bg-zinc-950">
