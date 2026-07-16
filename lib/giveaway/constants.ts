@@ -5,14 +5,11 @@ export const DAILY_APP_ENTRY_CAP = 1
 export const MAIL_IN_ENTRIES_PER_POSTCARD = 7
 export const MAX_MAIL_IN_POSTCARDS_PER_MONTH = 4
 
-/** Prize ARV per active paid subscription at the monthly snapshot (USD). */
-export const GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD = 0.5
+/** Prize ARV per registered account at the monthly snapshot (USD). */
+export const GIVEAWAY_PRIZE_PER_ACCOUNT_USD = 0.1
 
-/** Paid plans that count toward the subscription snapshot (Premium, Pro, Supreme). */
-export const GIVEAWAY_PAID_PLANS = ["premium", "pro", "supreme"] as const
-
-export function giveawayPrizeArvUsd(paidSubscriptionCount: number): number {
-  return paidSubscriptionCount * GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD
+export function giveawayPrizeArvUsd(accountCount: number): number {
+  return accountCount * GIVEAWAY_PRIZE_PER_ACCOUNT_USD
 }
 
 /** Physical AMOE address — override with NEXT_PUBLIC_GIVEAWAY_MAILING_ADDRESS in Vercel. */

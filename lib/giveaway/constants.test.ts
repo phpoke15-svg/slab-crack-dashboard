@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   activeMinutesRequired,
   giveawayPrizeArvUsd,
-  GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD,
+  GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
   isPremiumPlan,
   monthPeriod,
   MONTHLY_ENTRY_CAP,
@@ -10,10 +10,10 @@ import {
 } from "@/lib/giveaway/constants"
 
 describe("giveaway constants", () => {
-  it("prize scales at $0.50 per active paid subscription snapshot", () => {
-    expect(GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD).toBe(0.5)
-    expect(giveawayPrizeArvUsd(200)).toBe(100)
-    expect(giveawayPrizeArvUsd(10_000)).toBe(5000)
+  it("prize scales at $0.10 per registered account snapshot", () => {
+    expect(GIVEAWAY_PRIZE_PER_ACCOUNT_USD).toBe(0.1)
+    expect(giveawayPrizeArvUsd(10_000)).toBe(1000)
+    expect(giveawayPrizeArvUsd(25_000)).toBe(2500)
   })
   it("detects premium plans", () => {
     expect(isPremiumPlan("premium")).toBe(true)

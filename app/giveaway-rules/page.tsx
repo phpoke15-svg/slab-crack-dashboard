@@ -5,7 +5,7 @@ import {
   FREE_ACTIVE_MINUTES_REQUIRED,
   GIVEAWAY_CONTACT_EMAIL,
   GIVEAWAY_MAILING_ADDRESS,
-  GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD,
+  GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
   giveawayPrizeArvUsd,
   MAIL_IN_ENTRIES_PER_POSTCARD,
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
@@ -32,8 +32,8 @@ function formatUsd(amount: number): string {
 }
 
 export default function GiveawayRulesPage() {
-  const examplePaidSubscriptions = 200
-  const examplePrize = giveawayPrizeArvUsd(examplePaidSubscriptions)
+  const exampleAccounts = 10_000
+  const examplePrize = giveawayPrizeArvUsd(exampleAccounts)
 
   return (
     <LegalPageShell
@@ -119,7 +119,7 @@ export default function GiveawayRulesPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="5. Prize — variable value based on paid subscriptions">
+      <LegalSection title="5. Prize — variable value based on total accounts">
         <p>
           <strong className="text-foreground">One (1) prize per Promotion period.</strong> The winner will receive
           one (1) Pokémon Trading Card Game card (&quot;Prize Card&quot;) selected by Sponsor.
@@ -130,13 +130,10 @@ export default function GiveawayRulesPage() {
         <ul>
           <li>
             At 12:00:00 a.m. UTC on the first day of the Promotion period, Sponsor records the total number of
-            active paid subscriptions on {LEGAL_SITE_NAME} (the &quot;Subscription Snapshot&quot;). An active paid
-            subscription means a user account on a Premium, Pro, or Supreme plan with subscription status in good
-            standing as recorded by Sponsor at that moment.
+            registered user accounts on {LEGAL_SITE_NAME} (the &quot;Account Snapshot&quot;).
           </li>
           <li>
-            Prize ARV = Subscription Snapshot × {formatUsd(GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD)} per active paid
-            subscription.
+            Prize ARV = Account Snapshot × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)} per account.
           </li>
           <li>
             Sponsor will select a Prize Card with a fair-market value reasonably close to that ARV, based on
@@ -145,11 +142,11 @@ export default function GiveawayRulesPage() {
           </li>
         </ul>
         <p>
-          <strong className="text-foreground">Example:</strong> If the Subscription Snapshot is{" "}
-          {examplePaidSubscriptions.toLocaleString("en-US")} active paid subscriptions, the Prize ARV is{" "}
-          {formatUsd(examplePrize)} ({examplePaidSubscriptions.toLocaleString("en-US")} ×{" "}
-          {formatUsd(GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD)}). The actual card, set, grade, and condition are
-          chosen by Sponsor in its sole discretion, provided the market value aligns with the calculated ARV.
+          <strong className="text-foreground">Example:</strong> If the Account Snapshot is{" "}
+          {exampleAccounts.toLocaleString("en-US")} accounts, the Prize ARV is {formatUsd(examplePrize)} (
+          {exampleAccounts.toLocaleString("en-US")} × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)}). The actual card,
+          set, grade, and condition are chosen by Sponsor in its sole discretion, provided the market value aligns
+          with the calculated ARV.
         </p>
         <p>
           Prize is non-transferable except at Sponsor&apos;s discretion. No cash equivalent or substitution except
