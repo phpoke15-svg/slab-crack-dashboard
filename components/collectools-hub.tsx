@@ -251,13 +251,15 @@ export function CollecToolsHub() {
             The Ultimate Tool Kit for Pokemon Card Collectors!
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <Link
-              href="/giveaway"
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-            >
-              <Gift className="size-3.5" aria-hidden />
-              Monthly Giveaway
-            </Link>
+            {entitlements?.supreme ? (
+              <Link
+                href="/giveaway"
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
+              >
+                <Gift className="size-3.5" aria-hidden />
+                Monthly Giveaway
+              </Link>
+            ) : null}
             <Link
               href="/pricing"
               className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-card/60 px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary/40"

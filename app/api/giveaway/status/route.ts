@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
+import { requireGiveawayAccess } from "@/lib/giveaway/access"
 import { getGiveawayStatus } from "@/lib/giveaway/service"
+import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
 
@@ -8,6 +9,11 @@ export async function GET() {
   const auth = await requireUser()
   if (!auth.ok) {
     return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status })
+  }
+
+  const access = await requireGiveawayAccess(auth.user.id)
+  if (!access.ok) {
+    return NextResponse.json({ ok: false, error: access.error }, { status: access.status })
   }
 
   try {
