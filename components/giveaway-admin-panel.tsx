@@ -7,9 +7,11 @@ import { GIVEAWAY_PRIZE_PER_ACCOUNT_USD } from "@/lib/giveaway/constants"
 type PrizePayload = {
   monthPeriod: string
   snapshotAt: string
+  snapshotDate?: string
   accountSnapshot: number
   prizePerAccountUsd: number
   prizeArvUsd: number
+  isMonthEndFinal?: boolean
 }
 
 type DrawRow = {
@@ -97,7 +99,17 @@ export function GiveawayAdminPanel() {
         ) : prize ? (
           <div className="space-y-2 text-sm">
             <p className="text-muted-foreground">
-              <strong className="text-foreground">{prize.monthPeriod}</strong> — snapshot at month start
+              <strong className="text-foreground">{prize.monthPeriod}</strong>
+              {prize.snapshotDate ? (
+                <>
+                  {" "}
+                  — running total as of{" "}
+                  <strong className="text-foreground">{prize.snapshotDate}</strong>
+                  {prize.isMonthEndFinal ? " (official month-end total)" : ""}
+                </>
+              ) : (
+                " — awaiting first daily snapshot"
+              )}
             </p>
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg border border-border bg-background p-2">
@@ -111,7 +123,7 @@ export function GiveawayAdminPanel() {
             </div>
             <p className="text-xs text-muted-foreground">
               {prize.accountSnapshot.toLocaleString("en-US")} × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)} per
-              account · live total registered accounts
+              account · updated daily; last day of month is the official prize value
             </p>
           </div>
         ) : (

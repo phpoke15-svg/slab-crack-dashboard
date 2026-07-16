@@ -3,7 +3,9 @@ import {
   activeMinutesRequired,
   giveawayPrizeArvUsd,
   GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
+  isLastDayOfMonth,
   isPremiumPlan,
+  lastDayOfMonthIso,
   monthPeriod,
   MONTHLY_ENTRY_CAP,
   utcTodayIso,
@@ -30,6 +32,13 @@ describe("giveaway constants", () => {
   it("formats month period", () => {
     expect(monthPeriod(new Date("2026-07-15T12:00:00Z"))).toBe("2026-07")
     expect(utcTodayIso(new Date("2026-07-15T12:00:00Z"))).toBe("2026-07-15")
+  })
+
+  it("resolves last calendar day of month in UTC", () => {
+    expect(lastDayOfMonthIso("2026-07")).toBe("2026-07-31")
+    expect(lastDayOfMonthIso("2026-02")).toBe("2026-02-28")
+    expect(isLastDayOfMonth(new Date("2026-07-31T12:00:00Z"))).toBe(true)
+    expect(isLastDayOfMonth(new Date("2026-07-30T12:00:00Z"))).toBe(false)
   })
 
   it("monthly cap is 28", () => {

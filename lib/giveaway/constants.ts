@@ -30,6 +30,17 @@ export function monthPeriod(d = new Date()): string {
   return d.toISOString().slice(0, 7)
 }
 
+/** Last calendar day of a promotion month (YYYY-MM-DD, UTC). */
+export function lastDayOfMonthIso(month: string): string {
+  const [year, monthNum] = month.split("-").map(Number)
+  if (!year || !monthNum) throw new Error(`Invalid month period: ${month}`)
+  return new Date(Date.UTC(year, monthNum, 0)).toISOString().slice(0, 10)
+}
+
+export function isLastDayOfMonth(d = new Date()): boolean {
+  return utcTodayIso(d) === lastDayOfMonthIso(monthPeriod(d))
+}
+
 export function isPremiumPlan(plan: string | null | undefined): boolean {
   return plan === "premium" || plan === "pro" || plan === "supreme"
 }
