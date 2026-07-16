@@ -4,6 +4,7 @@ import { SiteFooter } from "@/components/legal/site-footer"
 type ToolSeoIntroProps = {
   title: string
   description: string
+  disclaimer?: string
   bullets?: string[]
   related?: Array<{ href: string; label: string }>
 }
@@ -12,12 +13,17 @@ type ToolSeoIntroProps = {
  * Server-rendered intro so crawlers see an h1 and product copy even when
  * the interactive tool hydrates client-side.
  */
-export function ToolSeoIntro({ title, description, bullets, related }: ToolSeoIntroProps) {
+export function ToolSeoIntro({ title, description, disclaimer, bullets, related }: ToolSeoIntroProps) {
   return (
     <section className="border-b border-border bg-card/40 px-4 py-6 sm:px-6">
       <div className="mx-auto max-w-5xl">
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{title}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{description}</p>
+        {disclaimer ? (
+          <p className="mt-3 max-w-3xl rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-muted-foreground">
+            <strong className="text-foreground">{disclaimer}</strong>
+          </p>
+        ) : null}
         {bullets && bullets.length > 0 ? (
           <ul className="mt-3 max-w-3xl list-disc space-y-1 pl-5 text-sm text-muted-foreground">
             {bullets.map((item) => (
