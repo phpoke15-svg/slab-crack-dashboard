@@ -54,3 +54,9 @@ export function activeMinutesRequired(plan: string | null | undefined): number {
   if (plan === "premium") return PREMIUM_ACTIVE_MINUTES_REQUIRED
   return FREE_ACTIVE_MINUTES_REQUIRED
 }
+
+/** One-line giveaway benefit for plan feature lists (pricing, FAQ). */
+export function giveawayTierFeatureLine(plan: string | null | undefined): string {
+  const minutes = activeMinutesRequired(plan)
+  return `Monthly giveaway — earn 1 entry/day after ${minutes} active minutes (cash prize via PayPal)`
+}

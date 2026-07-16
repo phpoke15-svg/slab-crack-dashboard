@@ -2,17 +2,17 @@ export const PRICING_FAQ = [
   {
     question: "What is included in CollecTools Free?",
     answer:
-      "Free accounts can browse SlabCrack with a limited feed, use PokeMatch trading basics, and explore CardLounge. Premium unlocks the full SlabCrack arbitrage feed and removes in-app ads.",
+      "Free accounts can browse SlabCrack with a limited feed, use PokeMatch trading basics, explore CardLounge, and earn monthly giveaway entries after 30 active minutes per day. The cash prize is paid via PayPal. Premium unlocks the full SlabCrack arbitrage feed, ad-free browsing, and a faster 10-minute daily giveaway threshold.",
   },
   {
     question: "What does CollecTools Premium include?",
     answer:
-      "Premium ($4.99/month or $39.99/year) unlocks the full SlabCrack graded arbitrage feed, ad-free browsing, and SlabLab PSA 10 spread tools.",
+      "Premium ($4.99/month or $39.99/year) unlocks the full SlabCrack graded arbitrage feed, ad-free browsing, SlabLab PSA 10 spread tools, and monthly giveaway entries after 10 active minutes per day (cash prize via PayPal).",
   },
   {
     question: "What does CollecTools Pro include?",
     answer:
-      "Pro ($9.99/month or $99.99/year) includes everything in Premium plus PokeWatch — instant browser and phone alerts when the Pokemon Center virtual queue goes live.",
+      "Pro ($9.99/month or $99.99/year) includes everything in Premium plus PokeWatch — instant browser and phone alerts when the Pokemon Center virtual queue goes live — and the fastest daily giveaway threshold at 5 active minutes (cash prize via PayPal).",
   },
   {
     question: "Is there a free trial?",

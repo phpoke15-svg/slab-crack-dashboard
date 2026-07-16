@@ -12,7 +12,7 @@ import {
 } from "@/lib/seo"
 
 const description =
-  "CollecTools pricing: Premium from $4.99/mo for full SlabCrack and ad-free browsing, Pro from $9.99/mo for Pokemon Center PokeWatch alerts. 7-day free trial."
+  "CollecTools pricing: Premium from $4.99/mo for full SlabCrack and ad-free browsing, Pro from $9.99/mo for Pokemon Center PokeWatch alerts. All tiers earn monthly giveaway entries (cash via PayPal). 7-day free trial."
 
 export const metadata: Metadata = pageMetadata({
   title: "Pricing",
