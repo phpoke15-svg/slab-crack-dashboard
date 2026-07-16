@@ -30,7 +30,7 @@ export async function GET(request: Request) {
   const grade = gradeParam as PsaGradeNumber
 
   try {
-    const { points, salesDays, snapshotDays } = await getDailyPriceHistory(id, grade, days)
+    const { points, salesDays, snapshotDays, live } = await getDailyPriceHistory(id, grade, days)
     const history = points.map((p) => p.deficit)
     const trend = getDeficitTrendFromHistory(history)
     const analysis = analyzeDeficitHistory(history)
@@ -47,6 +47,7 @@ export async function GET(request: Request) {
       salesDays,
       snapshotDays,
       hasSalesHistory: salesDays > 0,
+      live,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load price history"

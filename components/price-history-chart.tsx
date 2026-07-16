@@ -20,6 +20,7 @@ type HistoryResponse = {
   days?: number
   salesDays?: number
   hasSalesHistory?: boolean
+  live?: boolean
   error?: string
 }
 
@@ -192,6 +193,7 @@ export function PriceHistoryChart({
   const [points, setPoints] = useState<HistoryPoint[]>([])
   const [salesDays, setSalesDays] = useState(0)
   const [hasSalesHistory, setHasSalesHistory] = useState(false)
+  const [liveHistory, setLiveHistory] = useState(false)
   const [loading, setLoading] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -231,6 +233,7 @@ export function PriceHistoryChart({
         )
         setSalesDays(typeof data?.salesDays === "number" ? data.salesDays : 0)
         setHasSalesHistory(Boolean(data?.hasSalesHistory))
+        setLiveHistory(Boolean(data?.live))
         setLoaded(true)
       })
       .catch(() => {
@@ -251,6 +254,7 @@ export function PriceHistoryChart({
     setLoaded(false)
     setPoints([])
     setHoverIndex(null)
+    setLiveHistory(false)
   }, [cardId, grade, days])
 
   const series = useMemo(() => {
@@ -283,11 +287,13 @@ export function PriceHistoryChart({
   const slabDelta = latestSlab - firstSlab
   const hoverPoint = hoverIndex != null ? series[hoverIndex] : null
 
-  const subtitle = hasSalesHistory
-    ? `${salesDays} day${salesDays === 1 ? "" : "s"} of eBay sold comps`
-    : series.length >= 2
-      ? "Daily sync medians"
-      : "Building daily history"
+  const subtitle = liveHistory
+    ? `${salesDays} day${salesDays === 1 ? "" : "s"} of live eBay sold comps`
+    : hasSalesHistory
+      ? `${salesDays} day${salesDays === 1 ? "" : "s"} of eBay sold comps`
+      : series.length >= 2
+        ? "Daily sync medians"
+        : "Building daily history"
 
   return (
     <div
@@ -350,7 +356,7 @@ export function PriceHistoryChart({
           {loading
             ? "Loading price history…"
             : series.length === 1
-              ? "Building history — daily syncs store sold comps for this chart."
+              ? "One day of comps — chart needs sales on multiple days."
               : "No price history yet for this card."}
         </div>
       )}
