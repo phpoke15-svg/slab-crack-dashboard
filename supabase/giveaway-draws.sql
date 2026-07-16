@@ -5,6 +5,9 @@ create table if not exists public.giveaway_draws (
   winner_user_id uuid references public.profiles (id) on delete set null,
   total_entries integer not null default 0,
   unique_entrants integer not null default 0,
+  account_snapshot integer,
+  prize_arv_usd numeric(12, 2),
+  prize_per_account_usd numeric(6, 4) not null default 0.10,
   drawn_at timestamptz not null default now()
 );
 
