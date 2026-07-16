@@ -19,6 +19,7 @@
     "enrich-images": "npx tsx scripts/enrich-images.ts",
     "seed-catalog": "node scripts/seed-catalog.mjs",
     "seed-top-200": "node scripts/seed-top-200.mjs",
+    "compute-catalog-phash": "node scripts/compute-catalog-phash.mjs",
     "live-binder-hud": "npm --prefix live-binder-hud run dev"
   },
   "dependencies": {
@@ -45,6 +46,7 @@
     "@types/react-dom": "^19",
     "@types/web-push": "^3.6.4",
     "postcss": "^8.5",
+    "sharp": "^0.34.3",
     "tailwindcss": "^4.2.0",
     "typescript": "5.7.3",
     "vitest": "^3.2.4"
