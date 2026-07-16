@@ -9,18 +9,15 @@ export type PrizeSnapshot = {
   prizeArvUsd: number
 }
 
-/** 12:00:00 a.m. UTC on the first day of the promotion month (YYYY-MM). */
-export function monthSnapshotInstantIso(monthPeriod: string): string {
-  const match = /^(\d{4})-(\d{2})$/.exec(monthPeriod)
-  if (!match) throw new Error("Invalid month (use YYYY-MM)")
-  return `${match[1]}-${match[2]}-01T00:00:00.000Z`
-}
-
-export function buildPrizeSnapshot(monthPeriod: string, accountSnapshot: number): PrizeSnapshot {
+export function buildPrizeSnapshot(
+  monthPeriod: string,
+  accountSnapshot: number,
+  snapshotAt = new Date().toISOString(),
+): PrizeSnapshot {
   const accounts = Math.max(0, Math.floor(accountSnapshot))
   return {
     monthPeriod,
-    snapshotAt: monthSnapshotInstantIso(monthPeriod),
+    snapshotAt,
     accountSnapshot: accounts,
     prizePerAccountUsd: GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
     prizeArvUsd: roundUsd(giveawayPrizeArvUsd(accounts)),
@@ -31,38 +28,26 @@ function roundUsd(amount: number): number {
   return Math.round(amount * 100) / 100
 }
 
-/** Registered accounts that existed strictly before the snapshot instant. */
-export async function countRegisteredAccountsBeforeSnapshot(
-  admin: SupabaseClient,
-  snapshotAtIso: string,
-): Promise<number> {
-  const beforeMs = new Date(snapshotAtIso).getTime()
-  if (Number.isNaN(beforeMs)) throw new Error("Invalid snapshot timestamp")
-
+/** Total registered auth accounts (matches Site Insights account total). */
+export async function countAllRegisteredAccounts(admin: SupabaseClient): Promise<number> {
   let total = 0
   let page = 1
   while (page <= 50) {
     const listed = await admin.auth.admin.listUsers({ page, perPage: 1000 })
     if (listed.error) throw listed.error
 
-    const users = listed.data.users
-    for (const user of users) {
-      const createdMs = user.created_at ? new Date(user.created_at).getTime() : 0
-      if (createdMs > 0 && createdMs < beforeMs) total += 1
-    }
-
-    if (users.length < 1000) break
+    total += listed.data.users.length
+    if (listed.data.users.length < 1000) break
     page += 1
   }
 
   return total
 }
 
-export async function computePrizeSnapshotForMonth(
+export async function computeLivePrizeSnapshot(
   admin: SupabaseClient,
   monthPeriod: string,
 ): Promise<PrizeSnapshot> {
-  const snapshotAt = monthSnapshotInstantIso(monthPeriod)
-  const accountSnapshot = await countRegisteredAccountsBeforeSnapshot(admin, snapshotAt)
+  const accountSnapshot = await countAllRegisteredAccounts(admin)
   return buildPrizeSnapshot(monthPeriod, accountSnapshot)
 }

@@ -3,6 +3,7 @@ import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import {
   activeMinutesRequired,
   DAILY_APP_ENTRY_CAP,
+  GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
   isPremiumPlan,
   MAIL_IN_ENTRIES_PER_POSTCARD,
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
@@ -12,7 +13,7 @@ import {
   utcTodayIso,
 } from "@/lib/giveaway/constants"
 import {
-  computePrizeSnapshotForMonth,
+  computeLivePrizeSnapshot,
   type PrizeSnapshot,
 } from "@/lib/giveaway/prize-snapshot"
 
@@ -337,28 +338,32 @@ async function persistPrizeSnapshot(admin: ReturnType<typeof createAdminClient>,
   }
 }
 
-/** Prize ARV for a promotion month (cached in giveaway_prize_snapshots when possible). */
+/** Prize ARV for a promotion month (live count for current month; locked after draw). */
 export async function getPrizeSnapshotForMonth(month: string): Promise<PrizeSnapshot> {
   if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
 
   const admin = createAdminClient()
-  const { data: cached, error: cacheErr } = await admin
-    .from("giveaway_prize_snapshots")
-    .select("month_period, snapshot_at, account_snapshot, prize_arv_usd, prize_per_account_usd")
-    .eq("month_period", month)
-    .maybeSingle()
+  const currentMonth = monthPeriod()
 
-  if (!cacheErr && cached) {
-    return {
-      monthPeriod: cached.month_period as string,
-      snapshotAt: cached.snapshot_at as string,
-      accountSnapshot: cached.account_snapshot as number,
-      prizePerAccountUsd: Number(cached.prize_per_account_usd),
-      prizeArvUsd: Number(cached.prize_arv_usd),
+  if (month !== currentMonth) {
+    const { data: drawRow } = await admin
+      .from("giveaway_draws")
+      .select("account_snapshot, prize_arv_usd, prize_per_account_usd, drawn_at")
+      .eq("month_period", month)
+      .maybeSingle()
+
+    if (drawRow?.account_snapshot != null && drawRow.prize_arv_usd != null) {
+      return {
+        monthPeriod: month,
+        snapshotAt: (drawRow.drawn_at as string) ?? new Date().toISOString(),
+        accountSnapshot: Number(drawRow.account_snapshot),
+        prizePerAccountUsd: Number(drawRow.prize_per_account_usd ?? GIVEAWAY_PRIZE_PER_ACCOUNT_USD),
+        prizeArvUsd: Number(drawRow.prize_arv_usd),
+      }
     }
   }
 
-  const snap = await computePrizeSnapshotForMonth(admin, month)
+  const snap = await computeLivePrizeSnapshot(admin, month)
   await persistPrizeSnapshot(admin, snap)
   return snap
 }
