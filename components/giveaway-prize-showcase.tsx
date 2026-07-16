@@ -82,9 +82,9 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand }: Props) {
       </div>
 
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
-        <h3 className="text-sm font-semibold">Top {cards.length || 10} cards near {formatUsd(prize.prizeArvUsd)}</h3>
+        <h3 className="text-sm font-semibold">Top {cards.length || 10} cards within 5% of {formatUsd(prize.prizeArvUsd)}</h3>
         <p className="mt-1 text-xs text-muted-foreground">
-          Examples from the priced catalog
+          Only cards priced within ±5% of today&apos;s giveaway value are shown
           {priceBand ? ` (${formatUsd(priceBand.min)}–${formatUsd(priceBand.max)})` : ""}
         </p>
 
@@ -169,7 +169,8 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand }: Props) {
           </div>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">
-            No priced catalog matches yet — prize value is still shown above. Card examples appear after price sync.
+            No priced catalog cards within ±5% of today&apos;s prize value yet — the prize total above still
+            updates daily. Examples appear when catalog prices align with the running giveaway ARV.
           </p>
         )}
       </div>

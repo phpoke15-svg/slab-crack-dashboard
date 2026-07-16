@@ -1,30 +1,39 @@
 import { describe, expect, it } from "vitest"
-import { prizeCardPriceBand, pricedCatalogToGiveawayCards } from "@/lib/giveaway/prize-cards"
+import {
+  isWithinPrizeCardBand,
+  prizeCardPriceBand,
+  pricedCatalogToGiveawayCards,
+} from "@/lib/giveaway/prize-cards"
 import type { PricedCatalogCard } from "@/lib/trade-binder/priced-catalog"
 
 describe("giveaway prize cards", () => {
-  it("builds a symmetric band around the target ARV", () => {
+  it("builds a strict ±5% band around the target ARV", () => {
     const band = prizeCardPriceBand(10)
     expect(band.target).toBe(10)
-    expect(band.min).toBe(8.5)
-    expect(band.max).toBe(11.5)
+    expect(band.min).toBe(9.5)
+    expect(band.max).toBe(10.5)
   })
 
-  it("uses a minimum spread for micro prizes", () => {
-    const band = prizeCardPriceBand(1)
-    expect(band.min).toBe(0.5)
-    expect(band.max).toBe(1.5)
+  it("scales the band proportionally for smaller prizes", () => {
+    const band = prizeCardPriceBand(7.1)
+    expect(band.min).toBeCloseTo(6.745, 2)
+    expect(band.max).toBeCloseTo(7.455, 2)
   })
 
-  it("picks catalog cards closest to the target", () => {
+  it("rejects cards outside the ±5% band", () => {
+    expect(isWithinPrizeCardBand(10.2, 10)).toBe(true)
+    expect(isWithinPrizeCardBand(10.6, 10)).toBe(false)
+  })
+
+  it("picks catalog cards closest to the target within the band", () => {
     const catalog: PricedCatalogCard[] = [
       {
         id: "a",
-        name: "Far card",
+        name: "Edge card",
         set: "Scarlet & Violet",
         rarity: "Rare",
         image: "/a.png",
-        rawPrice: 11,
+        rawPrice: 10.5,
       },
       {
         id: "b",

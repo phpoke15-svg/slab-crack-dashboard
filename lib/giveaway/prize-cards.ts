@@ -31,7 +31,7 @@ function roundUsd(amount: number): number {
   return Math.round(amount * 100) / 100
 }
 
-/** Symmetric price band around a target ARV (widens for very small prizes). */
+/** Symmetric ±5% band around a target ARV (strict — no minimum padding). */
 export function prizeCardPriceBand(
   targetUsd: number,
   bandPercent = GIVEAWAY_PRIZE_CARD_BAND_PERCENT,
@@ -39,12 +39,21 @@ export function prizeCardPriceBand(
   const target = roundUsd(Math.max(0, targetUsd))
   if (target <= 0) return { min: 0, max: 0, target: 0 }
 
-  const padding = Math.max(target * bandPercent, 0.5)
+  const padding = target * bandPercent
   return {
     target,
     min: roundUsd(Math.max(0.01, target - padding)),
     max: roundUsd(target + padding),
   }
+}
+
+export function isWithinPrizeCardBand(
+  rawPrice: number,
+  targetUsd: number,
+  bandPercent = GIVEAWAY_PRIZE_CARD_BAND_PERCENT,
+): boolean {
+  const band = prizeCardPriceBand(targetUsd, bandPercent)
+  return rawPrice >= band.min && rawPrice <= band.max
 }
 
 function formatCardName(name: string): string {
@@ -85,23 +94,6 @@ function mockCardsInBand(min: number, max: number, target: number): GiveawayPriz
   }
 
   return sortPrizeCards(cards, target)
-}
-
-function mockCardsClosest(target: number, limit: number): GiveawayPrizeCard[] {
-  const cards: GiveawayPrizeCard[] = []
-  for (const entry of mockData as MockCardEntry[]) {
-    if (entry.rawPrice <= 0 || entry.hasPricing === false) continue
-    if (!isEnglishOrJapanesePricedCard({ setName: entry.setName, productName: entry.cardName })) continue
-    cards.push({
-      id: entry.id,
-      name: formatCardName(entry.cardName),
-      set: entry.setName,
-      cardNumber: entry.cardNumber,
-      image: upgradeCardImageUrlSync(entry.imageUrl),
-      rawPrice: entry.rawPrice,
-    })
-  }
-  return sortPrizeCards(cards, target).slice(0, limit)
 }
 
 type SlabCardRow = {
@@ -159,17 +151,15 @@ function slabToPrizeCard(slab: SlabCardRow, rawPrice: number): GiveawayPrizeCard
 }
 
 async function pricedCatalogMatches(
-  min: number,
-  max: number,
-  target: number,
+  band: PrizeCardPriceBand,
   fetchLimit: number,
 ): Promise<GiveawayPrizeCard[]> {
   const priceByCardId = await getRawPriceByCardId()
   const ranked = [...priceByCardId.entries()]
     .map(([cardId, rawPrice]) => ({ cardId, rawPrice: Number(rawPrice) }))
     .filter((row) => row.rawPrice > 0)
-    .filter((row) => row.rawPrice >= min && row.rawPrice <= max)
-    .sort((a, b) => Math.abs(a.rawPrice - target) - Math.abs(b.rawPrice - target))
+    .filter((row) => row.rawPrice >= band.min && row.rawPrice <= band.max)
+    .sort((a, b) => Math.abs(a.rawPrice - band.target) - Math.abs(b.rawPrice - band.target))
     .slice(0, fetchLimit)
 
   if (!ranked.length) return []
@@ -181,95 +171,42 @@ async function pricedCatalogMatches(
     const slab = slabById.get(row.cardId)
     if (!slab) continue
     const card = slabToPrizeCard(slab, row.rawPrice)
-    if (card) cards.push(card)
+    if (card && isWithinPrizeCardBand(card.rawPrice, band.target)) {
+      cards.push(card)
+    }
   }
 
-  return sortPrizeCards(cards, target)
+  return sortPrizeCards(cards, band.target)
 }
 
-async function closestPricedCatalogCards(target: number, limit: number): Promise<GiveawayPrizeCard[]> {
-  const priceByCardId = await getRawPriceByCardId()
-  const ranked = [...priceByCardId.entries()]
-    .map(([cardId, rawPrice]) => ({ cardId, rawPrice: Number(rawPrice) }))
-    .filter((row) => row.rawPrice > 0)
-    .sort((a, b) => Math.abs(a.rawPrice - target) - Math.abs(b.rawPrice - target))
-    .slice(0, limit * 4)
-
-  if (!ranked.length) return []
-
-  const slabById = await fetchSlabCardsById(ranked.map((row) => row.cardId))
-  const cards: GiveawayPrizeCard[] = []
-
-  for (const row of ranked) {
-    const slab = slabById.get(row.cardId)
-    if (!slab) continue
-    const card = slabToPrizeCard(slab, row.rawPrice)
-    if (card) cards.push(card)
-    if (cards.length >= limit) break
+async function queryCatalogInBand(band: PrizeCardPriceBand): Promise<GiveawayPrizeCard[]> {
+  if (!isSupabaseConfigured()) {
+    return mockCardsInBand(band.min, band.max, band.target)
   }
-
-  return sortPrizeCards(cards, target)
-}
-
-async function queryCatalogInBand(
-  min: number,
-  max: number,
-  target: number,
-): Promise<GiveawayPrizeCard[]> {
-  if (!isSupabaseConfigured()) return mockCardsInBand(min, max, target)
 
   try {
-    const cards = await pricedCatalogMatches(min, max, target, GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT * 6)
+    const cards = await pricedCatalogMatches(band, GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT * 6)
     if (cards.length) return cards
   } catch (error) {
     console.warn("[giveaway-prize-cards] priced catalog query failed:", error)
   }
 
-  return mockCardsInBand(min, max, target)
+  return mockCardsInBand(band.min, band.max, band.target)
 }
 
-const WIDEN_BAND_STEPS = [
-  GIVEAWAY_PRIZE_CARD_BAND_PERCENT,
-  0.25,
-  0.4,
-  0.65,
-  1,
-] as const
-
-/** Cards from the priced catalog closest to today's prize ARV. */
+/** Cards from the priced catalog within ±5% of today's prize ARV. */
 export async function getGiveawayPrizeCards(
   targetUsd: number,
   limit = GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT,
 ): Promise<{ band: PrizeCardPriceBand; cards: GiveawayPrizeCard[] }> {
-  const target = roundUsd(Math.max(0, targetUsd))
-  if (target <= 0) {
+  const band = prizeCardPriceBand(targetUsd)
+  if (band.target <= 0) {
     return { band: { min: 0, max: 0, target: 0 }, cards: [] }
   }
 
-  let band = prizeCardPriceBand(target)
-  let cards: GiveawayPrizeCard[] = []
-
-  for (const step of WIDEN_BAND_STEPS) {
-    band = prizeCardPriceBand(target, step)
-    cards = await queryCatalogInBand(band.min, band.max, target)
-    if (cards.length >= limit) break
-  }
-
-  if (cards.length < limit && isSupabaseConfigured()) {
-    try {
-      const closest = await closestPricedCatalogCards(target, limit)
-      if (closest.length > cards.length) {
-        cards = closest
-        band = prizeCardPriceBand(target, 1)
-      }
-    } catch (error) {
-      console.warn("[giveaway-prize-cards] closest catalog fallback failed:", error)
-    }
-  }
-
-  if (cards.length < limit && !isSupabaseConfigured()) {
-    cards = mockCardsClosest(target, limit)
-  }
+  const cards = (await queryCatalogInBand(band)).filter((card) =>
+    isWithinPrizeCardBand(card.rawPrice, band.target),
+  )
 
   const seen = new Set<string>()
   const unique: GiveawayPrizeCard[] = []
@@ -292,7 +229,7 @@ export function pricedCatalogToGiveawayCards(
   const band = prizeCardPriceBand(targetUsd)
   const cards = sortPrizeCards(
     catalog
-      .filter((card) => card.rawPrice >= band.min && card.rawPrice <= band.max)
+      .filter((card) => isWithinPrizeCardBand(card.rawPrice, band.target))
       .map((card) => ({
         id: card.id,
         name: card.name,
