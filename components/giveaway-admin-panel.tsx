@@ -111,7 +111,7 @@ export function GiveawayAdminPanel() {
             </div>
             <p className="text-xs text-muted-foreground">
               {prize.accountSnapshot.toLocaleString("en-US")} × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)} per
-              account
+              account · live total registered accounts
             </p>
           </div>
         ) : (
