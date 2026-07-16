@@ -86,21 +86,10 @@ export function GiveawayClient() {
             <li>
               <strong className="text-foreground">Mail-in (AMOE):</strong> up to{" "}
               {MAX_MAIL_IN_POSTCARDS_PER_MONTH} postcards/month, {MAIL_IN_ENTRIES_PER_POSTCARD} entries each —
-              {GIVEAWAY_MAILING_ADDRESS ? (
-                <> mail to {GIVEAWAY_MAILING_ADDRESS}</>
-              ) : (
-                <>
-                  {" "}
-                  email{" "}
-                  <a
-                    href={`mailto:${GIVEAWAY_CONTACT_EMAIL}?subject=Giveaway%20mail-in%20address`}
-                    className="font-medium text-primary hover:underline"
-                  >
-                    {GIVEAWAY_CONTACT_EMAIL}
-                  </a>{" "}
-                  for the mailing address
-                </>
-              )}
+              mail to {GIVEAWAY_MAILING_ADDRESS}.{" "}
+              <Link href="/giveaway-rules#mail-in" className="font-medium text-primary hover:underline">
+                See official rules
+              </Link>
             </li>
           </ul>
           <p className="text-xs text-muted-foreground">

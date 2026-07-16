@@ -5,7 +5,8 @@ import {
   FREE_ACTIVE_MINUTES_REQUIRED,
   GIVEAWAY_CONTACT_EMAIL,
   GIVEAWAY_MAILING_ADDRESS,
-  GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
+  GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD,
+  giveawayPrizeArvUsd,
   MAIL_IN_ENTRIES_PER_POSTCARD,
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
   MONTHLY_ENTRY_CAP,
@@ -31,8 +32,8 @@ function formatUsd(amount: number): string {
 }
 
 export default function GiveawayRulesPage() {
-  const exampleAccounts = 10_000
-  const examplePrize = exampleAccounts * GIVEAWAY_PRIZE_PER_ACCOUNT_USD
+  const examplePaidSubscriptions = 200
+  const examplePrize = giveawayPrizeArvUsd(examplePaidSubscriptions)
 
   return (
     <LegalPageShell
@@ -118,7 +119,7 @@ export default function GiveawayRulesPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="5. Prize — variable value based on community size">
+      <LegalSection title="5. Prize — variable value based on paid subscriptions">
         <p>
           <strong className="text-foreground">One (1) prize per Promotion period.</strong> The winner will receive
           one (1) Pokémon Trading Card Game card (&quot;Prize Card&quot;) selected by Sponsor.
@@ -129,10 +130,13 @@ export default function GiveawayRulesPage() {
         <ul>
           <li>
             At 12:00:00 a.m. UTC on the first day of the Promotion period, Sponsor records the total number of
-            registered user accounts on {LEGAL_SITE_NAME} (the &quot;Account Snapshot&quot;).
+            active paid subscriptions on {LEGAL_SITE_NAME} (the &quot;Subscription Snapshot&quot;). An active paid
+            subscription means a user account on a Premium, Pro, or Supreme plan with subscription status in good
+            standing as recorded by Sponsor at that moment.
           </li>
           <li>
-            Prize ARV = Account Snapshot × {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)} per account.
+            Prize ARV = Subscription Snapshot × {formatUsd(GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD)} per active paid
+            subscription.
           </li>
           <li>
             Sponsor will select a Prize Card with a fair-market value reasonably close to that ARV, based on
@@ -141,11 +145,11 @@ export default function GiveawayRulesPage() {
           </li>
         </ul>
         <p>
-          <strong className="text-foreground">Example:</strong> If the Account Snapshot is{" "}
-          {exampleAccounts.toLocaleString("en-US")} accounts, the Prize ARV is{" "}
-          {formatUsd(examplePrize)} ({exampleAccounts.toLocaleString("en-US")} ×{" "}
-          {formatUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)}). The actual card, set, grade, and condition are chosen by
-          Sponsor in its sole discretion, provided the market value aligns with the calculated ARV.
+          <strong className="text-foreground">Example:</strong> If the Subscription Snapshot is{" "}
+          {examplePaidSubscriptions.toLocaleString("en-US")} active paid subscriptions, the Prize ARV is{" "}
+          {formatUsd(examplePrize)} ({examplePaidSubscriptions.toLocaleString("en-US")} ×{" "}
+          {formatUsd(GIVEAWAY_PRIZE_PER_PAID_SUBSCRIPTION_USD)}). The actual card, set, grade, and condition are
+          chosen by Sponsor in its sole discretion, provided the market value aligns with the calculated ARV.
         </p>
         <p>
           Prize is non-transferable except at Sponsor&apos;s discretion. No cash equivalent or substitution except
@@ -197,27 +201,17 @@ export default function GiveawayRulesPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="10. Mail-in address (AMOE)">
-        {GIVEAWAY_MAILING_ADDRESS ? (
-          <p>
-            Mail alternate entries to:
-            <br />
-            <strong className="text-foreground">{GIVEAWAY_MAILING_ADDRESS}</strong>
-          </p>
-        ) : (
-          <p>
-            Mail-in entries must be sent to the physical mailing address published by Sponsor for the Promotion.
-            Until a permanent address is posted here, request the current AMOE mailing address by emailing{" "}
-            <a href={`mailto:${GIVEAWAY_CONTACT_EMAIL}?subject=Giveaway%20AMOE%20mailing%20address`}>
-              {GIVEAWAY_CONTACT_EMAIL}
-            </a>
-            . Mail-in requests must be postmarked during the relevant Promotion period to count for that period.
-          </p>
-        )}
+      <LegalSection id="mail-in" title="10. Mail-in address (AMOE)">
+        <p>
+          Mail alternate entries to:
+          <br />
+          <strong className="text-foreground">{GIVEAWAY_MAILING_ADDRESS}</strong>
+        </p>
         <p>
           Each mail-in must be postmarked by the last day of the Promotion period and received within a reasonable
           processing window as determined by Sponsor. Limit {MAX_MAIL_IN_POSTCARDS_PER_MONTH} mail-ins per person
-          per period.
+          per period. Questions about mail-in eligibility:{" "}
+          <a href={`mailto:${GIVEAWAY_CONTACT_EMAIL}`}>{GIVEAWAY_CONTACT_EMAIL}</a>.
         </p>
       </LegalSection>
 
