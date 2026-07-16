@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Gift, Loader2 } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { GiveawayPrizeCards } from "@/components/giveaway-prize-cards"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -101,6 +102,8 @@ export function GiveawayClient() {
             .
           </p>
         </section>
+
+        <GiveawayPrizeCards />
 
         {!user ? (
           <p className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">

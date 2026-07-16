@@ -8,6 +8,12 @@ export const MAX_MAIL_IN_POSTCARDS_PER_MONTH = 4
 /** Prize ARV per registered account at the monthly snapshot (USD). */
 export const GIVEAWAY_PRIZE_PER_ACCOUNT_USD = 0.1
 
+/** Cards shown on the giveaway page near today's prize ARV. */
+export const GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT = 12
+
+/** Default ± band around prize ARV when matching catalog cards (e.g. 0.15 = ±15%). */
+export const GIVEAWAY_PRIZE_CARD_BAND_PERCENT = 0.15
+
 export function giveawayPrizeArvUsd(accountCount: number): number {
   return accountCount * GIVEAWAY_PRIZE_PER_ACCOUNT_USD
 }
