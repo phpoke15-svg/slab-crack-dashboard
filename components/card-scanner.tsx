@@ -46,19 +46,25 @@ function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 4000): Promise<v
 export type CardScannerProps = {
   autoScan?: boolean
   scanning?: boolean
+  /** Shown on the processing overlay while `scanning` is true. */
+  processingMessage?: string
   onScanStart?: () => void
   onScanComplete: (result: ScanPipelineResult, snapshot: string) => void
   onScanFail: (error: string, snapshot: string | null) => void
   className?: string
+  /** Fill the parent frame edge-to-edge (scan page layout). */
+  immersive?: boolean
 }
 
 export function CardScanner({
   autoScan = true,
   scanning = false,
+  processingMessage,
   onScanStart,
   onScanComplete,
   onScanFail,
   className,
+  immersive = false,
 }: CardScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const gateRef = useRef(new StabilityGate())
@@ -245,7 +251,10 @@ export function CardScanner({
     <div className={cn("relative overflow-hidden rounded-2xl border border-border bg-black", className)}>
       <video
         ref={videoRef}
-        className="aspect-[3/4] w-full object-cover sm:aspect-video"
+        className={cn(
+          "w-full object-cover",
+          immersive ? "h-full min-h-full" : "aspect-[3/4] sm:aspect-video",
+        )}
         playsInline
         muted
       />
@@ -283,8 +292,11 @@ export function CardScanner({
       )}
 
       {(cameraStarting || scanning) && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/45 px-6 text-center backdrop-blur-[2px]">
           <Loader2 className="size-10 animate-spin text-primary" aria-hidden="true" />
+          {scanning && processingMessage ? (
+            <p className="max-w-[16rem] text-sm font-semibold text-white">{processingMessage}</p>
+          ) : null}
         </div>
       )}
 

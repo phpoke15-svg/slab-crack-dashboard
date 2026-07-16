@@ -167,29 +167,25 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       }
 
       if (json.card) {
-        const localCard = normalizeCardEntry(json.card)
-        presentMatch(localCard)
-
         if (json.needsLiveRefresh && json.hit) {
           const hit = json.hit
-          const refreshGen = ++priceRefreshGenRef.current
+          setIdentifyStatus("Loading live prices…")
           setLookupLoading(true)
-          void fetchPricedCard(hit)
-            .then((priced) => {
-              if (priceRefreshGenRef.current !== refreshGen) return
-              presentMatch(priced, { openDrawer: true })
-              setLookupError(
-                priced.hasPricing === false
-                  ? "Matched the card, but live PriceCharting comps didn’t load."
-                  : null,
-              )
-            })
-            .finally(() => {
-              if (priceRefreshGenRef.current === refreshGen) setLookupLoading(false)
-            })
+          try {
+            const priced = await fetchPricedCard(hit)
+            presentMatch(priced, { openDrawer: true })
+            setLookupError(
+              priced.hasPricing === false
+                ? "Matched the card, but live PriceCharting comps didn’t load."
+                : null,
+            )
+          } finally {
+            setLookupLoading(false)
+          }
           return
         }
 
+        presentMatch(normalizeCardEntry(json.card))
         if (json.card.hasPricing === false) {
           setLookupError("Matched the card, but live PriceCharting comps didn’t load.")
         }
@@ -198,19 +194,16 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
       if (json.candidates?.length) {
         const top = json.candidates[0]!
-        const placeholder = searchHitToPlaceholder(top)
-        presentMatch(placeholder)
+        setIdentifyStatus("Loading prices…")
         setLookupLoading(true)
         try {
           const priced = await fetchPricedCard(top)
-          if (presentedCardIdRef.current !== placeholder.id) return
-          setCard(priced)
+          presentMatch(priced)
         } catch {
-          if (presentedCardIdRef.current !== placeholder.id) return
-          setCard(normalizeCardEntry(placeholder))
+          presentMatch(normalizeCardEntry(searchHitToPlaceholder(top)))
           setLookupError("Price lookup failed.")
         } finally {
-          if (presentedCardIdRef.current === placeholder.id) setLookupLoading(false)
+          setLookupLoading(false)
         }
         return
       }
@@ -301,10 +294,11 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       </header>
 
       <div className="relative z-0 min-h-0 flex-1 overflow-hidden bg-zinc-950">
-        {phase === "camera" ? (
+        {phase === "camera" || isScanning ? (
           <CardScanner
             autoScan
             scanning={isScanning}
+            processingMessage={identifyStatus}
             onScanStart={() => {
               setIsScanning(true)
               setIdentifyStatus("Scanning card…")
@@ -325,29 +319,17 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
               enterManualHandoff({ query: "", error })
             }}
             className="absolute inset-0 size-full rounded-none border-0"
+            immersive
           />
         ) : snapshot ? (
           <div className="relative size-full">
             <Image src={snapshot} alt="Captured card" fill className="object-cover" unoptimized priority />
-            {isScanning ? (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/65 px-6 text-center backdrop-blur-sm">
-                <Loader2 className="size-8 animate-spin text-primary" />
-                <p className="text-sm font-semibold text-white">{identifyStatus}</p>
-                {detectedLabel ? (
-                  <p className="rounded-full border border-primary/40 bg-primary/15 px-3 py-1 text-xs font-medium text-primary">
-                    {detectedLabel}
-                  </p>
-                ) : (
-                  <p className="text-xs text-white/60">Visual match first, then AI</p>
-                )}
-              </div>
-            ) : null}
           </div>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-white/60">No snapshot</div>
         )}
 
-        {phase === "hud" && card ? (
+        {phase === "hud" && card && !isScanning ? (
           <div className="absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black via-black/95 to-transparent px-4 pb-5 pt-14">
             <div className="rounded-2xl border border-white/15 bg-black/70 p-3 backdrop-blur-md">
               {detectedLabel ? (
