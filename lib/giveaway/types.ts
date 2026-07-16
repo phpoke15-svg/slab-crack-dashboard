@@ -15,3 +15,9 @@ export type GiveawayPagePrizeData = {
   usedLivePriceCharting?: boolean
   error: string | null
 }
+
+export type GiveawayEntryPoolData = {
+  monthPeriod: string
+  totalEntries: number
+  error: string | null
+}

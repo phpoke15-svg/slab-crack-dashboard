@@ -2,8 +2,8 @@ import { redirect } from "next/navigation"
 import { GiveawayClient } from "@/components/giveaway-client"
 import { monthPeriod, utcTodayIso } from "@/lib/giveaway/constants"
 import { getGiveawayPrizeCards } from "@/lib/giveaway/prize-cards"
-import { getPrizeSnapshotForMonth } from "@/lib/giveaway/service"
-import type { GiveawayPagePrizeData } from "@/lib/giveaway/types"
+import { getPrizeSnapshotForMonth, getPromotionEntryStats } from "@/lib/giveaway/service"
+import type { GiveawayEntryPoolData, GiveawayPagePrizeData } from "@/lib/giveaway/types"
 import { pageMetadata } from "@/lib/seo"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
@@ -47,11 +47,30 @@ async function loadGiveawayPrizeData(): Promise<GiveawayPagePrizeData> {
   }
 }
 
+async function loadGiveawayEntryPool(): Promise<GiveawayEntryPoolData> {
+  const period = monthPeriod()
+  try {
+    const stats = await getPromotionEntryStats(period)
+    return {
+      monthPeriod: stats.monthPeriod,
+      totalEntries: stats.totalEntries,
+      error: null,
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not load entry count"
+    return {
+      monthPeriod: period,
+      totalEntries: 0,
+      error: message,
+    }
+  }
+}
+
 export default async function GiveawayPage() {
   const auth = await requireUser()
   if (!auth.ok) redirect(`/sign-in?next=${encodeURIComponent("/giveaway")}`)
 
-  const prizeData = await loadGiveawayPrizeData()
+  const [prizeData, entryPool] = await Promise.all([loadGiveawayPrizeData(), loadGiveawayEntryPool()])
 
-  return <GiveawayClient prizeData={prizeData} />
+  return <GiveawayClient prizeData={prizeData} entryPool={entryPool} />
 }

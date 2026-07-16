@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Gift, Loader2 } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
+import { GiveawayEntryPool } from "@/components/giveaway-entry-pool"
 import { GiveawayPrizeShowcase } from "@/components/giveaway-prize-showcase"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
@@ -17,7 +18,7 @@ import {
   PREMIUM_ACTIVE_MINUTES_REQUIRED,
   PRO_ACTIVE_MINUTES_REQUIRED,
 } from "@/lib/giveaway/constants"
-import type { GiveawayPagePrizeData } from "@/lib/giveaway/types"
+import type { GiveawayEntryPoolData, GiveawayPagePrizeData } from "@/lib/giveaway/types"
 import { GiveawayReminderOptIn } from "@/components/giveaway-reminder-opt-in"
 
 type Status = {
@@ -32,6 +33,7 @@ type Status = {
   plan: string
   mailInPostcardsUsed: number
   mailInPostcardsMax: number
+  promotionTotalEntries: number
 }
 
 const EMPTY_PRIZE_DATA: GiveawayPagePrizeData = {
@@ -41,22 +43,35 @@ const EMPTY_PRIZE_DATA: GiveawayPagePrizeData = {
   error: null,
 }
 
+const EMPTY_ENTRY_POOL: GiveawayEntryPoolData = {
+  monthPeriod: "",
+  totalEntries: 0,
+  error: null,
+}
+
 export function GiveawayClient({
   prizeData: initialPrizeData = EMPTY_PRIZE_DATA,
+  entryPool: initialEntryPool = EMPTY_ENTRY_POOL,
 }: {
   prizeData?: GiveawayPagePrizeData
+  entryPool?: GiveawayEntryPoolData
 }) {
   const { user } = useAuth()
   const [status, setStatus] = useState<Status | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [prizeData, setPrizeData] = useState(initialPrizeData)
+  const [entryPool, setEntryPool] = useState(initialEntryPool)
   const [prizeLoading, setPrizeLoading] = useState(!initialPrizeData.prize && !initialPrizeData.error)
 
   useEffect(() => {
     setPrizeData(initialPrizeData)
     setPrizeLoading(!initialPrizeData.prize && !initialPrizeData.error)
   }, [initialPrizeData])
+
+  useEffect(() => {
+    setEntryPool(initialEntryPool)
+  }, [initialEntryPool])
 
   useEffect(() => {
     if (prizeData.prize || prizeData.error) return
@@ -139,6 +154,11 @@ export function GiveawayClient({
             usedLivePriceCharting={prizeData.usedLivePriceCharting}
           />
         ) : null}
+
+        <GiveawayEntryPool
+          pool={entryPool}
+          liveTotal={status?.promotionTotalEntries}
+        />
 
         <div className="mb-6 flex items-center gap-3">
           <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/15">
