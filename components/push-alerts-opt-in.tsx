@@ -82,7 +82,12 @@ export function PushAlertsOptIn({
       return
     }
 
-    const result = await enableWebPush({ queueLive, walmartWednesday })
+    const result = await enableWebPush({
+      queueLive,
+      walmartWednesday,
+      socialAlerts: Boolean(user),
+      priceAlerts: Boolean(user),
+    })
     setBusy(false)
     if (!result.ok) {
       setError(result.error)

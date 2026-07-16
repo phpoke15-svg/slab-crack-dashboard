@@ -82,7 +82,7 @@ export async function sendFriendRequest(
   supabase: SupabaseClient,
   requesterId: string,
   addresseeId: string,
-): Promise<{ error: string | null }> {
+): Promise<{ error: string | null; friendshipId?: string }> {
   if (await usersAreBlockedEitherWay(supabase, requesterId, addresseeId)) {
     return { error: "You cannot connect with this trader" }
   }
@@ -99,12 +99,16 @@ export async function sendFriendRequest(
     }
   }
 
-  const { error } = await supabase.from("friendships").insert({
-    requester_id: requesterId,
-    addressee_id: addresseeId,
-    status: "pending",
-  })
-  return { error: error?.message ?? null }
+  const { data, error } = await supabase
+    .from("friendships")
+    .insert({
+      requester_id: requesterId,
+      addressee_id: addresseeId,
+      status: "pending",
+    })
+    .select("id")
+    .single()
+  return { error: error?.message ?? null, friendshipId: data?.id as string | undefined }
 }
 
 export async function acceptFriendRequest(

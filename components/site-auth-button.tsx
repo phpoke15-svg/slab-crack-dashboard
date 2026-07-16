@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
+import { NotificationsBell } from "@/components/notifications-bell"
 import { useOptionalSocial } from "@/components/trade-binder/social/social-provider"
 
 type SiteAuthButtonProps = {
@@ -149,6 +150,8 @@ export function SiteAuthButton({ className }: SiteAuthButtonProps) {
           />
         </nav>
       )}
+
+      <NotificationsBell />
 
       <button
         type="button"

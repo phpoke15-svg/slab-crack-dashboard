@@ -47,6 +47,8 @@ import {
   toggleSlabLabWatchlistCard,
   type SlabLabWatchlistStore,
 } from "@/lib/slablab-watchlist-storage"
+import { useAuth } from "@/components/trade-binder/auth/auth-provider"
+import { syncWatchlistToServer } from "@/lib/watchlist-server-sync"
 
 const DEFAULT_GRADING_COST = DEFAULT_PSA_GRADING_FEE
 
@@ -118,6 +120,7 @@ function cardEbayUrl(row: Pick<ScannerCard, "id" | "name" | "cardNumber">): stri
 }
 
 export function Psa10SpreadScanner() {
+  const { user } = useAuth()
   const [cards, setCards] = useState<ScannerCard[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -179,6 +182,18 @@ export function Psa10SpreadScanner() {
     for (const card of cards) map.set(card.watchlistId || card.id, card)
     return map
   }, [cards])
+
+  useEffect(() => {
+    if (!user) return
+    const items = watchlistStore.ids.map((id) => {
+      const card = watchlistStore.cards[id] ?? liveById.get(id)
+      return {
+        watchlistId: id,
+        cardName: card?.name ?? "Card",
+      }
+    })
+    void syncWatchlistToServer("slablab", items)
+  }, [user, watchlistStore, liveById])
 
   const savedCards = useMemo(
     () => resolveSavedSlabLabCards(saveStore, liveById),

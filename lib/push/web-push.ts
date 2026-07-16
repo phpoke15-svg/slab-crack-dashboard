@@ -4,6 +4,8 @@ import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 
 export type PushTopic = "queue_live" | "walmart_wednesday"
 
+export type PushUserTopic = "social" | "price"
+
 export type PushSubscriptionRecord = {
   endpoint: string
   p256dh: string
@@ -11,6 +13,8 @@ export type PushSubscriptionRecord = {
   userId?: string | null
   queueLive: boolean
   walmartWednesday: boolean
+  socialAlerts: boolean
+  priceAlerts: boolean
 }
 
 export type PushPayload = {
@@ -53,6 +57,8 @@ export async function upsertPushSubscription(input: {
   userId?: string | null
   queueLive?: boolean
   walmartWednesday?: boolean
+  socialAlerts?: boolean
+  priceAlerts?: boolean
   userAgent?: string | null
 }): Promise<void> {
   const record: PushSubscriptionRecord = {
@@ -62,6 +68,8 @@ export async function upsertPushSubscription(input: {
     userId: input.userId ?? null,
     queueLive: input.queueLive ?? true,
     walmartWednesday: input.walmartWednesday ?? true,
+    socialAlerts: input.socialAlerts ?? true,
+    priceAlerts: input.priceAlerts ?? true,
   }
   memorySubs.set(record.endpoint, record)
 
@@ -77,6 +85,8 @@ export async function upsertPushSubscription(input: {
         user_id: record.userId,
         queue_live: record.queueLive,
         walmart_wednesday: record.walmartWednesday,
+        social_alerts: record.socialAlerts,
+        price_alerts: record.priceAlerts,
         user_agent: input.userAgent ?? null,
         updated_at: new Date().toISOString(),
       },
@@ -105,7 +115,9 @@ async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionReco
       const column = topicColumn(topic)
       const { data, error } = await supabase
         .from("push_subscriptions")
-        .select("endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday")
+        .select(
+          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts",
+        )
         .eq(column, true)
 
       if (!error && data) {
@@ -116,6 +128,8 @@ async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionReco
           userId: (row.user_id as string | null) ?? null,
           queueLive: Boolean(row.queue_live),
           walmartWednesday: Boolean(row.walmart_wednesday),
+          socialAlerts: row.social_alerts !== false,
+          priceAlerts: row.price_alerts !== false,
         }))
       }
     } catch {
@@ -126,6 +140,66 @@ async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionReco
   return [...memorySubs.values()].filter((s) =>
     topic === "queue_live" ? s.queueLive : s.walmartWednesday,
   )
+}
+
+function userTopicColumn(topic: PushUserTopic): "social_alerts" | "price_alerts" {
+  return topic === "social" ? "social_alerts" : "price_alerts"
+}
+
+/** Send a push to one signed-in user (social or price alerts). */
+export async function sendWebPushToUser(
+  userId: string,
+  topic: PushUserTopic,
+  payload: PushPayload,
+): Promise<{ sent: number; failed: number }> {
+  if (!isWebPushConfigured() || !userId) {
+    return { sent: 0, failed: 0 }
+  }
+
+  configureWebPush()
+  const column = userTopicColumn(topic)
+  let subs: PushSubscriptionRecord[] = []
+
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = createAdminClient()
+      const { data, error } = await supabase
+        .from("push_subscriptions")
+        .select(
+          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts",
+        )
+        .eq("user_id", userId)
+        .eq(column, true)
+
+      if (!error && data) {
+        subs = data.map((row) => ({
+          endpoint: row.endpoint as string,
+          p256dh: row.p256dh as string,
+          auth: row.auth as string,
+          userId: (row.user_id as string | null) ?? null,
+          queueLive: Boolean(row.queue_live),
+          walmartWednesday: Boolean(row.walmart_wednesday),
+          socialAlerts: row.social_alerts !== false,
+          priceAlerts: row.price_alerts !== false,
+        }))
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  if (subs.length === 0) {
+    subs = [...memorySubs.values()].filter(
+      (s) =>
+        s.userId === userId &&
+        (topic === "social" ? s.socialAlerts : s.priceAlerts),
+    )
+  }
+
+  if (subs.length === 0) return { sent: 0, failed: 0 }
+
+  const result = await deliverWebPush(subs, payload)
+  return { sent: result.sent, failed: result.failed }
 }
 
 /** Queue-live alerts go to Pro + Supreme members who opted in; Supreme always receives every topic. */
@@ -300,7 +374,9 @@ async function listAllSubscriptions(): Promise<PushSubscriptionRecord[]> {
       const supabase = createAdminClient()
       const { data, error } = await supabase
         .from("push_subscriptions")
-        .select("endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday")
+        .select(
+          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts",
+        )
 
       if (!error && data) {
         return data.map((row) => ({
@@ -310,6 +386,8 @@ async function listAllSubscriptions(): Promise<PushSubscriptionRecord[]> {
           userId: (row.user_id as string | null) ?? null,
           queueLive: Boolean(row.queue_live),
           walmartWednesday: Boolean(row.walmart_wednesday),
+          socialAlerts: row.social_alerts !== false,
+          priceAlerts: row.price_alerts !== false,
         }))
       }
     } catch {

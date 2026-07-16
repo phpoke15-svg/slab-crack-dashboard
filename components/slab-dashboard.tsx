@@ -31,6 +31,7 @@ import { FeedAdSlot } from "@/components/feed-ad-slot"
 import { AdSlot } from "@/components/ad-slot"
 import { interleaveFeedAds } from "@/lib/feed-ads"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
+import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
 import { FREE_SLABCRACK_LIMIT, pickMidDeficitCards } from "@/lib/slab-free-tier"
@@ -52,6 +53,7 @@ import {
   toggleSavedForLater,
   type SaveForLaterStore,
 } from "@/lib/save-for-later-storage"
+import { syncWatchlistToServer } from "@/lib/watchlist-server-sync"
 
 const FALLBACK_FEED: MockCardEntry[] = []
 
@@ -75,6 +77,7 @@ const SLABCRACK_USES = [
 
 export function SlabDashboard() {
   const entitlements = useOptionalEntitlements()
+  const { user } = useAuth()
   const [arbitrageFeed, setArbitrageFeed] = useState<MockCardEntry[]>(FALLBACK_FEED)
   const [feedLoading, setFeedLoading] = useState(true)
   const [query, setQuery] = useState("")
@@ -152,6 +155,15 @@ export function SlabDashboard() {
     for (const card of arbitrageFeed) map.set(card.id, card)
     return map
   }, [arbitrageFeed])
+
+  useEffect(() => {
+    if (!user) return
+    const items = watchlistStore.ids.map((id) => ({
+      watchlistId: id,
+      cardName: watchlistStore.cards[id]?.cardName ?? feedById.get(id)?.cardName ?? "Card",
+    }))
+    void syncWatchlistToServer("slabcrack", items)
+  }, [user, watchlistStore, feedById])
 
   const watchedCards = useMemo(
     () => resolveWatchedCards(watchlistStore, feedById).map(normalizeCardEntry),

@@ -10,6 +10,8 @@ type Body = {
   keys?: { p256dh?: string; auth?: string }
   queueLive?: boolean
   walmartWednesday?: boolean
+  socialAlerts?: boolean
+  priceAlerts?: boolean
 }
 
 export async function POST(request: Request) {
@@ -33,8 +35,10 @@ export async function POST(request: Request) {
 
   let queueLive = body.queueLive === true
   let walmartWednesday = body.walmartWednesday !== false
+  let socialAlerts = body.socialAlerts !== false
+  let priceAlerts = body.priceAlerts !== false
 
-  if (!queueLive && !walmartWednesday) {
+  if (!queueLive && !walmartWednesday && !socialAlerts && !priceAlerts) {
     return NextResponse.json({ error: "Select at least one alert type" }, { status: 400 })
   }
 
@@ -49,6 +53,8 @@ export async function POST(request: Request) {
   if (userId && (await isSupremeUser(userId))) {
     queueLive = true
     walmartWednesday = true
+    socialAlerts = true
+    priceAlerts = true
   }
 
   if (queueLive) {
@@ -77,10 +83,18 @@ export async function POST(request: Request) {
     userId,
     queueLive,
     walmartWednesday,
+    socialAlerts,
+    priceAlerts,
     userAgent: request.headers.get("user-agent"),
   })
 
-  return NextResponse.json({ ok: true, queueLive, walmartWednesday })
+  return NextResponse.json({
+    ok: true,
+    queueLive,
+    walmartWednesday,
+    socialAlerts,
+    priceAlerts,
+  })
 }
 
 export async function DELETE(request: Request) {

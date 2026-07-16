@@ -24,6 +24,8 @@ export function isWebPushSupported(): boolean {
 export type PushOptInPrefs = {
   queueLive: boolean
   walmartWednesday: boolean
+  socialAlerts?: boolean
+  priceAlerts?: boolean
 }
 
 async function getRegistration() {
@@ -80,6 +82,8 @@ export async function enableWebPush(prefs: PushOptInPrefs): Promise<{ ok: true }
       keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
       queueLive: prefs.queueLive,
       walmartWednesday: prefs.walmartWednesday,
+      socialAlerts: prefs.socialAlerts !== false,
+      priceAlerts: prefs.priceAlerts !== false,
     }),
   })
 

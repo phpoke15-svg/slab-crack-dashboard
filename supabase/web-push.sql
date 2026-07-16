@@ -1,4 +1,4 @@
--- Web Push subscriptions for phone alerts (PokeWatch live + Walmart Wednesday).
+-- Web Push subscriptions for phone alerts (PokeWatch, Walmart, social, price).
 -- Run in Supabase SQL editor. Service role only (no public RLS policies).
 
 create table if not exists push_subscriptions (
@@ -9,6 +9,8 @@ create table if not exists push_subscriptions (
   user_id uuid,
   queue_live boolean not null default true,
   walmart_wednesday boolean not null default true,
+  social_alerts boolean not null default true,
+  price_alerts boolean not null default true,
   user_agent text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

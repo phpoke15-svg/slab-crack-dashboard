@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { notifyFriendRequest } from "@/lib/notifications/triggers"
 import {
   acceptFriendRequest,
   declineFriendRequest,
@@ -61,8 +62,16 @@ export async function POST(request: NextRequest) {
   if (!otherId) return NextResponse.json({ error: "userId required" }, { status: 400 })
   if (otherId === auth.user.id) return NextResponse.json({ error: "Invalid user" }, { status: 400 })
 
-  const { error } = await sendFriendRequest(auth.supabase, auth.user.id, otherId)
+  const { error, friendshipId } = await sendFriendRequest(auth.supabase, auth.user.id, otherId)
   if (error) return NextResponse.json({ error }, { status: 400 })
+
+  if (friendshipId) {
+    void notifyFriendRequest({
+      addresseeId: otherId,
+      requesterId: auth.user.id,
+      friendshipId,
+    })
+  }
 
   const status = await getFriendshipStatus(auth.supabase, auth.user.id, otherId)
   const state = await friendStateForUser(auth.supabase, auth.user.id)
