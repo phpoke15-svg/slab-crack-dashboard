@@ -15,6 +15,7 @@ export type PushSubscriptionRecord = {
   walmartWednesday: boolean
   socialAlerts: boolean
   priceAlerts: boolean
+  giveawayReminders: boolean
 }
 
 export type PushPayload = {
@@ -59,6 +60,7 @@ export async function upsertPushSubscription(input: {
   walmartWednesday?: boolean
   socialAlerts?: boolean
   priceAlerts?: boolean
+  giveawayReminders?: boolean
   userAgent?: string | null
 }): Promise<void> {
   const record: PushSubscriptionRecord = {
@@ -70,6 +72,7 @@ export async function upsertPushSubscription(input: {
     walmartWednesday: input.walmartWednesday ?? true,
     socialAlerts: input.socialAlerts ?? true,
     priceAlerts: input.priceAlerts ?? true,
+    giveawayReminders: input.giveawayReminders ?? false,
   }
   memorySubs.set(record.endpoint, record)
 
@@ -87,6 +90,7 @@ export async function upsertPushSubscription(input: {
         walmart_wednesday: record.walmartWednesday,
         social_alerts: record.socialAlerts,
         price_alerts: record.priceAlerts,
+        giveaway_reminders: record.giveawayReminders,
         user_agent: input.userAgent ?? null,
         updated_at: new Date().toISOString(),
       },
@@ -116,7 +120,7 @@ async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionReco
       const { data, error } = await supabase
         .from("push_subscriptions")
         .select(
-          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts",
+          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders",
         )
         .eq(column, true)
 
@@ -130,6 +134,7 @@ async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionReco
           walmartWednesday: Boolean(row.walmart_wednesday),
           socialAlerts: row.social_alerts !== false,
           priceAlerts: row.price_alerts !== false,
+          giveawayReminders: Boolean(row.giveaway_reminders),
         }))
       }
     } catch {
@@ -166,7 +171,7 @@ export async function sendWebPushToUser(
       const { data, error } = await supabase
         .from("push_subscriptions")
         .select(
-          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts",
+          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders",
         )
         .eq("user_id", userId)
         .eq(column, true)
@@ -181,6 +186,7 @@ export async function sendWebPushToUser(
           walmartWednesday: Boolean(row.walmart_wednesday),
           socialAlerts: row.social_alerts !== false,
           priceAlerts: row.price_alerts !== false,
+          giveawayReminders: Boolean(row.giveaway_reminders),
         }))
       }
     } catch {
@@ -194,6 +200,57 @@ export async function sendWebPushToUser(
         s.userId === userId &&
         (topic === "social" ? s.socialAlerts : s.priceAlerts),
     )
+  }
+
+  if (subs.length === 0) return { sent: 0, failed: 0 }
+
+  const result = await deliverWebPush(subs, payload)
+  return { sent: result.sent, failed: result.failed }
+}
+
+/** Send a giveaway entry reminder to one signed-in user. */
+export async function sendWebPushGiveawayReminder(
+  userId: string,
+  payload: PushPayload,
+): Promise<{ sent: number; failed: number }> {
+  if (!isWebPushConfigured() || !userId) {
+    return { sent: 0, failed: 0 }
+  }
+
+  configureWebPush()
+  let subs: PushSubscriptionRecord[] = []
+
+  if (isSupabaseConfigured()) {
+    try {
+      const supabase = createAdminClient()
+      const { data, error } = await supabase
+        .from("push_subscriptions")
+        .select(
+          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders",
+        )
+        .eq("user_id", userId)
+        .eq("giveaway_reminders", true)
+
+      if (!error && data) {
+        subs = data.map((row) => ({
+          endpoint: row.endpoint as string,
+          p256dh: row.p256dh as string,
+          auth: row.auth as string,
+          userId: (row.user_id as string | null) ?? null,
+          queueLive: Boolean(row.queue_live),
+          walmartWednesday: Boolean(row.walmart_wednesday),
+          socialAlerts: row.social_alerts !== false,
+          priceAlerts: row.price_alerts !== false,
+          giveawayReminders: Boolean(row.giveaway_reminders),
+        }))
+      }
+    } catch {
+      // fall through
+    }
+  }
+
+  if (subs.length === 0) {
+    subs = [...memorySubs.values()].filter((s) => s.userId === userId && s.giveawayReminders)
   }
 
   if (subs.length === 0) return { sent: 0, failed: 0 }
@@ -375,7 +432,7 @@ async function listAllSubscriptions(): Promise<PushSubscriptionRecord[]> {
       const { data, error } = await supabase
         .from("push_subscriptions")
         .select(
-          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts",
+          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders",
         )
 
       if (!error && data) {
@@ -388,6 +445,7 @@ async function listAllSubscriptions(): Promise<PushSubscriptionRecord[]> {
           walmartWednesday: Boolean(row.walmart_wednesday),
           socialAlerts: row.social_alerts !== false,
           priceAlerts: row.price_alerts !== false,
+          giveawayReminders: Boolean(row.giveaway_reminders),
         }))
       }
     } catch {

@@ -12,6 +12,7 @@ type Body = {
   walmartWednesday?: boolean
   socialAlerts?: boolean
   priceAlerts?: boolean
+  giveawayReminders?: boolean
 }
 
 export async function POST(request: Request) {
@@ -38,7 +39,9 @@ export async function POST(request: Request) {
   let socialAlerts = body.socialAlerts !== false
   let priceAlerts = body.priceAlerts !== false
 
-  if (!queueLive && !walmartWednesday && !socialAlerts && !priceAlerts) {
+  let giveawayReminders = body.giveawayReminders === true
+
+  if (!queueLive && !walmartWednesday && !socialAlerts && !priceAlerts && !giveawayReminders) {
     return NextResponse.json({ error: "Select at least one alert type" }, { status: 400 })
   }
 
@@ -55,6 +58,7 @@ export async function POST(request: Request) {
     walmartWednesday = true
     socialAlerts = true
     priceAlerts = true
+    giveawayReminders = true
   }
 
   if (queueLive) {
@@ -85,6 +89,7 @@ export async function POST(request: Request) {
     walmartWednesday,
     socialAlerts,
     priceAlerts,
+    giveawayReminders,
     userAgent: request.headers.get("user-agent"),
   })
 
@@ -94,6 +99,7 @@ export async function POST(request: Request) {
     walmartWednesday,
     socialAlerts,
     priceAlerts,
+    giveawayReminders,
   })
 }
 

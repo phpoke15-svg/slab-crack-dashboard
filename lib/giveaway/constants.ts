@@ -1,5 +1,6 @@
 export const FREE_ACTIVE_MINUTES_REQUIRED = 30
-export const PREMIUM_ACTIVE_MINUTES_REQUIRED = 15
+export const PREMIUM_ACTIVE_MINUTES_REQUIRED = 10
+export const PRO_ACTIVE_MINUTES_REQUIRED = 5
 export const MONTHLY_ENTRY_CAP = 28
 export const DAILY_APP_ENTRY_CAP = 1
 export const MAIL_IN_ENTRIES_PER_POSTCARD = 7
@@ -44,6 +45,12 @@ export function isPremiumPlan(plan: string | null | undefined): boolean {
   return plan === "premium" || plan === "pro" || plan === "supreme"
 }
 
-export function activeMinutesRequired(isPremium: boolean): number {
-  return isPremium ? PREMIUM_ACTIVE_MINUTES_REQUIRED : FREE_ACTIVE_MINUTES_REQUIRED
+export function isProOrAbove(plan: string | null | undefined): boolean {
+  return plan === "pro" || plan === "supreme"
+}
+
+export function activeMinutesRequired(plan: string | null | undefined): number {
+  if (isProOrAbove(plan)) return PRO_ACTIVE_MINUTES_REQUIRED
+  if (plan === "premium") return PREMIUM_ACTIVE_MINUTES_REQUIRED
+  return FREE_ACTIVE_MINUTES_REQUIRED
 }

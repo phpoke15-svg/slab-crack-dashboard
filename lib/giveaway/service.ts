@@ -90,6 +90,7 @@ export type GiveawayStatus = {
   todayEntryAwarded: boolean
   thresholdMinutes: number
   isPremium: boolean
+  plan: string
   mailInPostcardsUsed: number
   mailInPostcardsMax: number
 }
@@ -100,8 +101,7 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
   const today = utcTodayIso()
   const period = monthPeriod()
   const plan = await getUserPlan(userId)
-  const premium = isPremiumPlan(plan)
-  const threshold = activeMinutesRequired(premium)
+  const threshold = activeMinutesRequired(plan)
 
   const admin = createAdminClient()
   const [monthEntries, postcards, activity] = await Promise.all([
@@ -129,7 +129,8 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
     todayActiveMinutes: activity.data?.active_minutes ?? 0,
     todayEntryAwarded: Boolean(activity.data?.entry_awarded),
     thresholdMinutes: threshold,
-    isPremium: premium,
+    isPremium: isPremiumPlan(plan),
+    plan,
     mailInPostcardsUsed: postcards,
     mailInPostcardsMax: MAX_MAIL_IN_POSTCARDS_PER_MONTH,
   }
@@ -156,7 +157,7 @@ export async function recordActiveTime(
   const today = utcTodayIso()
   const period = monthPeriod()
   const plan = await getUserPlan(userId)
-  const threshold = activeMinutesRequired(isPremiumPlan(plan))
+  const threshold = activeMinutesRequired(plan)
 
   const monthEntries = await countMonthEntries(userId, period)
   if (monthEntries >= MONTHLY_ENTRY_CAP) {

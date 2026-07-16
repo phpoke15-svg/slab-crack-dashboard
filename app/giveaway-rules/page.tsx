@@ -9,6 +9,7 @@ import {
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
   MONTHLY_ENTRY_CAP,
   PREMIUM_ACTIVE_MINUTES_REQUIRED,
+  PRO_ACTIVE_MINUTES_REQUIRED,
 } from "@/lib/giveaway/constants"
 import {
   giveawayPrizeCalculationLine,
@@ -96,9 +97,10 @@ export default function GiveawayRulesPage() {
           <li>
             <strong className="text-foreground">App usage (free method):</strong> Sign in to a {LEGAL_SITE_NAME}{" "}
             account and use the Service while signed in with the application tab active. Free accounts earn one (1)
-            entry per calendar day after accumulating at least {FREE_ACTIVE_MINUTES_REQUIRED} active minutes that
-            day. Premium, Pro, and Supreme accounts earn one (1) entry per calendar day after at least{" "}
-            {PREMIUM_ACTIVE_MINUTES_REQUIRED} active minutes that day. Maximum one (1) app-usage entry per day.
+            entry per calendar day after accumulating at least {FREE_ACTIVE_MINUTES_REQUIRED} active minutes that day.
+            Premium accounts earn one (1) entry per calendar day after at least {PREMIUM_ACTIVE_MINUTES_REQUIRED}{" "}
+            active minutes that day. Pro and Supreme accounts earn one (1) entry per calendar day after at least{" "}
+            {PRO_ACTIVE_MINUTES_REQUIRED} active minutes that day. Maximum one (1) app-usage entry per day.
           </li>
           <li>
             <strong className="text-foreground">Mail-in alternate method of entry (AMOE):</strong> Hand-print your

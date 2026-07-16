@@ -15,8 +15,10 @@ import {
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
   MONTHLY_ENTRY_CAP,
   PREMIUM_ACTIVE_MINUTES_REQUIRED,
+  PRO_ACTIVE_MINUTES_REQUIRED,
 } from "@/lib/giveaway/constants"
 import type { GiveawayPagePrizeData } from "@/lib/giveaway/types"
+import { GiveawayReminderOptIn } from "@/components/giveaway-reminder-opt-in"
 
 type Status = {
   monthPeriod: string
@@ -27,6 +29,7 @@ type Status = {
   todayEntryAwarded: boolean
   thresholdMinutes: number
   isPremium: boolean
+  plan: string
   mailInPostcardsUsed: number
   mailInPostcardsMax: number
 }
@@ -155,8 +158,12 @@ export function GiveawayClient({
               entry
             </li>
             <li>
-              <strong className="text-foreground">Premium / Pro / Supreme:</strong>{" "}
-              {PREMIUM_ACTIVE_MINUTES_REQUIRED} active minutes/day → 1 entry (double-time)
+              <strong className="text-foreground">Premium:</strong> {PREMIUM_ACTIVE_MINUTES_REQUIRED} active minutes/day
+              → 1 entry
+            </li>
+            <li>
+              <strong className="text-foreground">Pro / Supreme:</strong> {PRO_ACTIVE_MINUTES_REQUIRED} active
+              minutes/day → 1 entry
             </li>
             <li>Max <strong className="text-foreground">1 entry per day</strong> from app use</li>
             <li>
@@ -181,6 +188,8 @@ export function GiveawayClient({
             .
           </p>
         </section>
+
+        <GiveawayReminderOptIn />
 
         {!user ? (
           <p className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
@@ -220,9 +229,11 @@ export function GiveawayClient({
             <p className="mt-3 text-xs text-muted-foreground">
               {status.todayEntryAwarded
                 ? "Today’s app entry is already earned."
-                : status.isPremium
-                  ? "Premium double-time is active."
-                  : "Upgrade to Premium for 15-minute daily threshold."}
+                : status.plan === "pro" || status.plan === "supreme"
+                  ? "Pro / Supreme threshold is active."
+                  : status.plan === "premium"
+                    ? "Premium threshold is active."
+                    : "Upgrade to Premium for a 10-minute daily threshold, or Pro for 5 minutes."}
               {status.mailInPostcardsUsed > 0
                 ? ` Mail-in postcards this month: ${status.mailInPostcardsUsed}/${status.mailInPostcardsMax}.`
                 : ""}
