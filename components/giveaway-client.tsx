@@ -105,7 +105,11 @@ export function GiveawayClient() {
           </ul>
           <p className="text-xs text-muted-foreground">
             Active time counts while you&apos;re signed in and the app tab is open. A drawing runs at the start of each
-            month for the prior month&apos;s entries.
+            month for the prior month&apos;s entries.{" "}
+            <Link href="/giveaway-rules" className="font-medium text-primary hover:underline">
+              Read the official rules
+            </Link>
+            .
           </p>
         </section>
 

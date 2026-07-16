@@ -16,6 +16,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/pricing`, lastModified, changeFrequency: "monthly", priority: 0.75 },
     { url: `${base}/privacy`, lastModified, changeFrequency: "yearly", priority: 0.2 },
     { url: `${base}/terms`, lastModified, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${base}/giveaway-rules`, lastModified, changeFrequency: "monthly", priority: 0.3 },
   ]
 
   if (RESTOCKS_ENABLED) {
