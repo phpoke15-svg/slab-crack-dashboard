@@ -93,6 +93,29 @@ export type GiveawayStatus = {
   plan: string
   mailInPostcardsUsed: number
   mailInPostcardsMax: number
+  promotionTotalEntries: number
+}
+
+export type PromotionEntryStats = {
+  monthPeriod: string
+  totalEntries: number
+}
+
+export async function getPromotionEntryStats(period = monthPeriod()): Promise<PromotionEntryStats> {
+  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
+
+  const admin = createAdminClient()
+  const { count, error } = await admin
+    .from("giveaway_entries")
+    .select("id", { count: "exact", head: true })
+    .eq("month_period", period)
+
+  if (error) throw new Error(missingTableMessage(error) ?? error.message)
+
+  return {
+    monthPeriod: period,
+    totalEntries: count ?? 0,
+  }
 }
 
 export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus> {
@@ -104,7 +127,7 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
   const threshold = activeMinutesRequired(plan)
 
   const admin = createAdminClient()
-  const [monthEntries, postcards, activity] = await Promise.all([
+  const [monthEntries, postcards, activity, promotion] = await Promise.all([
     countMonthEntries(userId, period),
     countMailInPostcards(userId, period),
     admin
@@ -113,6 +136,7 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
       .eq("user_id", userId)
       .eq("activity_date", today)
       .maybeSingle(),
+    getPromotionEntryStats(period),
   ])
 
   if (activity.error) {
@@ -133,6 +157,7 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
     plan,
     mailInPostcardsUsed: postcards,
     mailInPostcardsMax: MAX_MAIL_IN_POSTCARDS_PER_MONTH,
+    promotionTotalEntries: promotion.totalEntries,
   }
 }
 
