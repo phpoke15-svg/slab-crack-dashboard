@@ -21,20 +21,21 @@ export const metadata = pageMetadata({
 async function loadGiveawayPrizeData(): Promise<GiveawayPagePrizeData> {
   try {
     const snap = await getPrizeSnapshotForMonth(monthPeriod())
-    const { band, cards } = await getGiveawayPrizeCards(snap.prizeArvUsd)
+    const prize = {
+      monthPeriod: snap.monthPeriod,
+      snapshotAt: snap.snapshotAt,
+      snapshotDate: utcTodayIso(),
+      accountSnapshot: snap.accountSnapshot,
+      prizePerAccountUsd: snap.prizePerAccountUsd,
+      prizeArvUsd: snap.prizeArvUsd,
+    }
 
-    return {
-      prize: {
-        monthPeriod: snap.monthPeriod,
-        snapshotAt: snap.snapshotAt,
-        snapshotDate: utcTodayIso(),
-        accountSnapshot: snap.accountSnapshot,
-        prizePerAccountUsd: snap.prizePerAccountUsd,
-        prizeArvUsd: snap.prizeArvUsd,
-      },
-      cards,
-      priceBand: band,
-      error: null,
+    try {
+      const { band, cards } = await getGiveawayPrizeCards(snap.prizeArvUsd)
+      return { prize, cards, priceBand: band, error: null }
+    } catch (cardError) {
+      console.warn("[giveaway-page] prize cards failed:", cardError)
+      return { prize, cards: [], priceBand: null, error: null }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load giveaway prize"
