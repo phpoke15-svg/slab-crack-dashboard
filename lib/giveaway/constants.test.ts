@@ -4,6 +4,7 @@ import {
   FREE_ACTIVE_MINUTES_REQUIRED,
   giveawayPrizeArvUsd,
   giveawayTierFeatureLine,
+  GIVEAWAY_PRIZE_ARV_CAP_USD,
   GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
   isPremiumPlan,
   monthPeriod,
@@ -18,6 +19,12 @@ describe("giveaway constants", () => {
     expect(GIVEAWAY_PRIZE_PER_ACCOUNT_USD).toBe(0.1)
     expect(giveawayPrizeArvUsd(10_000)).toBe(1000)
     expect(giveawayPrizeArvUsd(25_000)).toBe(2500)
+  })
+
+  it("caps prize ARV at $4,999", () => {
+    expect(GIVEAWAY_PRIZE_ARV_CAP_USD).toBe(4999)
+    expect(giveawayPrizeArvUsd(50_000)).toBe(4999)
+    expect(giveawayPrizeArvUsd(500_000)).toBe(4999)
   })
 
   it("detects premium plans", () => {

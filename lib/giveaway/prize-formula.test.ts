@@ -15,7 +15,13 @@ describe("giveaway prize formula copy", () => {
 
   it("matches rules formula text", () => {
     expect(giveawayPrizeRulesFormulaText()).toBe(
-      "Prize ARV = (total registered user accounts on CollecTools) × $0.10 per account.",
+      "Prize ARV = (total registered user accounts on CollecTools) × $0.10 per account, up to a maximum cap of $4,999.00 USD per Promotion period.",
+    )
+  })
+
+  it("shows cap on calculation line when account count exceeds the limit", () => {
+    expect(giveawayPrizeCalculationLine(50_000)).toBe(
+      "50,000 registered accounts × $0.10 per account = $5,000.00, capped at $4,999.00",
     )
   })
 

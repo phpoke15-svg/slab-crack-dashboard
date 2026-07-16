@@ -9,6 +9,14 @@ export const MAX_MAIL_IN_POSTCARDS_PER_MONTH = 4
 /** Prize ARV per registered account at the monthly snapshot (USD). */
 export const GIVEAWAY_PRIZE_PER_ACCOUNT_USD = 0.1
 
+/** Hard cap on monthly prize ARV (keeps pool under common $5,000 state registration thresholds). */
+export const GIVEAWAY_PRIZE_ARV_CAP_USD = 4999
+
+export function giveawayPrizeArvUsd(accountCount: number): number {
+  const raw = Math.max(0, Math.floor(accountCount)) * GIVEAWAY_PRIZE_PER_ACCOUNT_USD
+  return Math.min(raw, GIVEAWAY_PRIZE_ARV_CAP_USD)
+}
+
 /** Cards shown on the giveaway page near today's prize ARV. */
 export const GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT = 10
 
@@ -18,10 +26,6 @@ export const GIVEAWAY_PRIZE_CARD_BAND_PERCENT = 0.05
 /** Live PriceCharting lookups when the cached catalog has too few ±5% matches. */
 export const GIVEAWAY_PRIZE_CARD_PC_LOOKUP_LIMIT = 18
 export const GIVEAWAY_PRIZE_CARD_PC_CANDIDATE_POOL = 60
-
-export function giveawayPrizeArvUsd(accountCount: number): number {
-  return accountCount * GIVEAWAY_PRIZE_PER_ACCOUNT_USD
-}
 
 /** Physical AMOE address — override with NEXT_PUBLIC_GIVEAWAY_MAILING_ADDRESS in Vercel. */
 export const GIVEAWAY_MAILING_ADDRESS =
