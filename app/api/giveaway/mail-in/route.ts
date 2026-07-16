@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { requireGiveawayAccess } from "@/lib/giveaway/access"
+import { requireGiveawayAdminAccess } from "@/lib/giveaway/access"
 import { addMailInEntries, resolveGiveawayUserId } from "@/lib/giveaway/service"
 import { MAIL_IN_ENTRIES_PER_POSTCARD } from "@/lib/giveaway/constants"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status })
   }
 
-  const access = await requireGiveawayAccess(auth.user.id)
+  const access = await requireGiveawayAdminAccess(auth.user.id)
   if (!access.ok) {
     return NextResponse.json({ ok: false, error: access.error }, { status: access.status })
   }

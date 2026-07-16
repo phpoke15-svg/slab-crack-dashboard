@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Gift } from "lucide-react"
-import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { cn } from "@/lib/utils"
 
@@ -21,7 +20,6 @@ type Status = {
 
 export function GiveawayTracker() {
   const { user } = useAuth()
-  const entitlements = useOptionalEntitlements()
   const [status, setStatus] = useState<Status | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const visibleRef = useRef(true)
@@ -71,7 +69,7 @@ export function GiveawayTracker() {
     }
   }, [user, ping, refreshStatus])
 
-  if (!user || !entitlements?.supreme || !status) return null
+  if (!user || !status) return null
 
   return (
     <>

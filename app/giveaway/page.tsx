@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation"
 import { GiveawayClient } from "@/components/giveaway-client"
-import { requireGiveawayAccess } from "@/lib/giveaway/access"
 import { monthPeriod, utcTodayIso } from "@/lib/giveaway/constants"
 import { getGiveawayPrizeCards } from "@/lib/giveaway/prize-cards"
 import { getPrizeSnapshotForMonth } from "@/lib/giveaway/service"
@@ -14,9 +13,8 @@ export const maxDuration = 60
 export const metadata = pageMetadata({
   title: "Monthly Giveaway",
   description:
-    "Earn free monthly giveaway entries by using Collectools. Free and premium tiers, mail-in AMOE available.",
+    "Earn free monthly giveaway entries by using CollecTools. All account tiers eligible — cash prize paid via PayPal.",
   path: "/giveaway",
-  noIndex: true,
 })
 
 async function loadGiveawayPrizeData(): Promise<GiveawayPagePrizeData> {
@@ -49,13 +47,9 @@ async function loadGiveawayPrizeData(): Promise<GiveawayPagePrizeData> {
   }
 }
 
-/** Supreme-only preview until the giveaway is ready for public launch. */
 export default async function GiveawayPage() {
   const auth = await requireUser()
   if (!auth.ok) redirect(`/sign-in?next=${encodeURIComponent("/giveaway")}`)
-
-  const access = await requireGiveawayAccess(auth.user.id)
-  if (!access.ok) redirect("/")
 
   const prizeData = await loadGiveawayPrizeData()
 

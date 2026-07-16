@@ -8,7 +8,7 @@ import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-/** Supreme preview: cards near today's running giveaway prize ARV. */
+/** Cards near today's running giveaway prize ARV. */
 export async function GET(request: Request) {
   const auth = await requireUser()
   if (!auth.ok) {
