@@ -20,3 +20,12 @@ export function giveawayPrizePageFootnote(): string {
 export function giveawayPrizeRulesFormulaText(): string {
   return `Prize ARV = (total registered user accounts on CollecTools) × ${formatGiveawayUsd(GIVEAWAY_PRIZE_PER_ACCOUNT_USD)} per account.`
 }
+
+/** Cash payout method — keep in sync across giveaway page and Official Rules §5. */
+export function giveawayPrizePayoutSummary(): string {
+  return "The prize is paid in cash (USD) via PayPal only."
+}
+
+export function giveawayPrizePayoutDetail(): string {
+  return "Winners receive a one-time cash payment equal to the calculated Prize ARV. Payment is made via PayPal only — no physical prizes, gift cards, checks, or other payment methods."
+}

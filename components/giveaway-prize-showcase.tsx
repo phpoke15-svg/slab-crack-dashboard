@@ -8,6 +8,8 @@ import {
   formatGiveawayUsd,
   giveawayPrizeCalculationLine,
   giveawayPrizePageFootnote,
+  giveawayPrizePayoutDetail,
+  giveawayPrizePayoutSummary,
 } from "@/lib/giveaway/prize-formula"
 import type { GiveawayPrizeCard, PrizeCardPriceBand } from "@/lib/giveaway/prize-cards"
 import type { GiveawayPrizePayload } from "@/lib/giveaway/types"
@@ -63,6 +65,12 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand, usedLivePriceCh
         <p className="mt-3 text-5xl font-bold tracking-tight text-primary sm:text-6xl">
           {formatGiveawayUsd(prize.prizeArvUsd)}
         </p>
+        <p className="mx-auto mt-3 max-w-md rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-foreground">
+          {giveawayPrizePayoutSummary()}
+        </p>
+        <p className="mx-auto mt-3 max-w-lg text-[11px] leading-relaxed text-muted-foreground">
+          {giveawayPrizePayoutDetail()}
+        </p>
         <p className="mx-auto mt-4 max-w-md text-xs leading-relaxed text-muted-foreground">
           {giveawayPrizeCalculationLine(prize.accountSnapshot)}
         </p>
@@ -73,13 +81,13 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand, usedLivePriceCh
 
       <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
         <h2 className="text-sm font-semibold">
-          Top {cards.length || GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT} cards within 5% of{" "}
-          {formatGiveawayUsd(prize.prizeArvUsd)}
+          Example cards at {formatGiveawayUsd(prize.prizeArvUsd)} (illustration only)
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Only cards priced within ±5% of today&apos;s giveaway value are shown
-          {priceBand ? ` (${formatGiveawayUsd(priceBand.min)}–${formatGiveawayUsd(priceBand.max)})` : ""}
-          {usedLivePriceCharting ? ". Some prices refreshed live from PriceCharting." : ""}
+          The prize is cash via PayPal — not a physical card. These catalog examples show what the cash value could
+          buy (±5%
+          {priceBand ? `, ${formatGiveawayUsd(priceBand.min)}–${formatGiveawayUsd(priceBand.max)}` : ""})
+          {usedLivePriceCharting ? ". Some prices refreshed live from PriceCharting." : "."}
         </p>
 
         {cards.length && activeCard ? (

@@ -146,7 +146,9 @@ export function GiveawayClient({
           </div>
           <div>
             <h1 className="text-xl font-semibold">Monthly Giveaway</h1>
-            <p className="text-sm text-muted-foreground">Earn entries by using the app — no purchase necessary.</p>
+            <p className="text-sm text-muted-foreground">
+              Earn entries by using the app — no purchase necessary. Prize is cash (USD) paid via PayPal only.
+            </p>
           </div>
         </div>
 
