@@ -32,11 +32,26 @@ export type PlanTier = {
   fullSlabCrack: boolean
 }
 
+export const FREE_PLAN_FEATURES = [
+  "SlabCrack preview: 10 mid-deficit cards",
+  giveawayTierFeatureLine("free"),
+  "CardLounge collector social feed",
+  "PokeMatch with ads",
+  "Upgrade anytime for the full feed",
+] as const
+
+export const STARTER_PLAN = {
+  id: "free" as const,
+  name: "Starter",
+  tagline: "Free collector toolkit + daily giveaway entry (30 min)",
+  features: FREE_PLAN_FEATURES,
+}
+
 export const PLAN_TIERS: PlanTier[] = [
   {
     id: "premium",
     name: "Premium",
-    tagline: "Full SlabCrack, ad-free",
+    tagline: "Full SlabCrack, ad-free + daily giveaway entry (10 min)",
     monthlyPrice: 4.99,
     yearlyPrice: 39.99,
     adFree: true,
@@ -44,16 +59,16 @@ export const PLAN_TIERS: PlanTier[] = [
     includesQueueWatch: false,
     features: [
       "7-day free trial",
+      giveawayTierFeatureLine("premium"),
       "Full SlabCrack deficit feed (all graded opportunities)",
       "Ad-free SlabCrack and PokeMatch",
-      giveawayTierFeatureLine("premium"),
       "Cancel anytime",
     ],
   },
   {
     id: "pro",
     name: "Pro",
-    tagline: "Everything CollecTools offers",
+    tagline: "PokeWatch + full toolkit + fastest giveaway entry (5 min)",
     monthlyPrice: 9.99,
     yearlyPrice: 99.99,
     adFree: true,
@@ -61,22 +76,19 @@ export const PLAN_TIERS: PlanTier[] = [
     includesQueueWatch: true,
     features: [
       "7-day free trial",
+      giveawayTierFeatureLine("pro"),
       "Everything in Premium",
       "Custom hub layout — reorder your tool tiles",
       "Pokemon Center PokeWatch (web + phone alerts)",
-      giveawayTierFeatureLine("pro"),
       "Cancel anytime",
     ],
   },
 ]
 
-export const FREE_PLAN_FEATURES = [
-  "SlabCrack preview: 10 mid-deficit cards",
-  "CardLounge collector social feed",
-  "PokeMatch with ads",
-  giveawayTierFeatureLine("free"),
-  "Upgrade anytime for the full feed",
-] as const
+/** Plan feature bullets shown on pricing cards (trial CTA is shown separately). */
+export function displayPlanFeatures(features: readonly string[]): string[] {
+  return features.filter((feature) => !feature.toLowerCase().includes("free trial"))
+}
 
 export type PriceKey = "premium_month" | "premium_year" | "pro_month" | "pro_year"
 

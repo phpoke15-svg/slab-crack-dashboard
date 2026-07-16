@@ -17,7 +17,7 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
-import { PLAN_TIERS, FREE_PLAN_FEATURES, type PriceKey } from "@/lib/billing/plans"
+import { PLAN_TIERS, FREE_PLAN_FEATURES, STARTER_PLAN, displayPlanFeatures, type PriceKey } from "@/lib/billing/plans"
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal/config"
 import { cn } from "@/lib/utils"
 
@@ -235,8 +235,8 @@ export function PricingClient() {
           <PlanSpotlight
             badge="PRO"
             name="CollecTools Pro"
-            tagline="Unlock PokeWatch and exclusive tools."
-            features={pro.features.filter((f) => !f.toLowerCase().includes("free trial"))}
+            tagline={pro.tagline}
+            features={displayPlanFeatures(pro.features)}
             monthly={pro.monthlyPrice}
             yearly={pro.yearlyPrice}
             featured
@@ -252,8 +252,8 @@ export function PricingClient() {
           <PlanSpotlight
             badge="PREMIUM"
             name="CollecTools Premium"
-            tagline="Full SlabCrack feed, ad-free."
-            features={premium.features.filter((f) => !f.toLowerCase().includes("free trial"))}
+            tagline={premium.tagline}
+            features={displayPlanFeatures(premium.features)}
             monthly={premium.monthlyPrice}
             yearly={premium.yearlyPrice}
             featured={false}
@@ -270,9 +270,10 @@ export function PricingClient() {
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Starter
+                  {STARTER_PLAN.name}
                 </p>
                 <h2 className="mt-1 text-xl font-bold text-foreground">Start with a preview</h2>
+                <p className="mt-1 text-sm text-muted-foreground">{STARTER_PLAN.tagline}</p>
                 <ul className="mt-3 space-y-1.5 text-sm text-muted-foreground">
                   {FREE_PLAN_FEATURES.map((feature) => (
                     <li key={feature} className="flex gap-2">

@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Suspense } from "react"
 import { PricingClient } from "@/components/pricing-client"
+import { PricingTierOverview } from "@/components/pricing-tier-overview"
 import { AppStoreBadges } from "@/components/seo/app-store-badges"
 import { JsonLd } from "@/components/seo/json-ld"
 import { PRICING_FAQ } from "@/lib/seo-faq"
@@ -48,6 +49,7 @@ export default function PricingPage() {
           </div>
         </div>
       </section>
+      <PricingTierOverview />
       <PricingClient />
     </Suspense>
   )
