@@ -5,6 +5,13 @@ export const DAILY_APP_ENTRY_CAP = 1
 export const MAIL_IN_ENTRIES_PER_POSTCARD = 7
 export const MAX_MAIL_IN_POSTCARDS_PER_MONTH = 4
 
+/** Optional physical AMOE address — set NEXT_PUBLIC_GIVEAWAY_MAILING_ADDRESS in Vercel. */
+export const GIVEAWAY_MAILING_ADDRESS =
+  process.env.NEXT_PUBLIC_GIVEAWAY_MAILING_ADDRESS?.trim() || ""
+
+export const GIVEAWAY_CONTACT_EMAIL =
+  process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "support@collectools.app"
+
 export type EntrySource = "app_usage" | "mail_in"
 
 export function utcTodayIso(d = new Date()): string {
