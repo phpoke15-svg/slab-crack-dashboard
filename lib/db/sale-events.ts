@@ -17,6 +17,18 @@ function median(values: number[]): number {
     : sorted[mid]!
 }
 
+export function aggregateRecentSalesByDay(sales: RecentSale[]): DailySalesPoint[] {
+  const rows: Array<{ sold_date: string; total_price: number }> = []
+  for (const sale of sales) {
+    const soldDate = parseSoldDate(sale.soldDate)
+    if (!soldDate) continue
+    const total = sale.total > 0 ? sale.total : sale.price + sale.shipping
+    if (total <= 0) continue
+    rows.push({ sold_date: soldDate, total_price: total })
+  }
+  return aggregateByDay(rows)
+}
+
 function aggregateByDay(
   rows: Array<{ sold_date: string; total_price: number }>,
 ): DailySalesPoint[] {
