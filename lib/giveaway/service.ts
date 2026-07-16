@@ -11,6 +11,10 @@ import {
   type EntrySource,
   utcTodayIso,
 } from "@/lib/giveaway/constants"
+import {
+  computePrizeSnapshotForMonth,
+  type PrizeSnapshot,
+} from "@/lib/giveaway/prize-snapshot"
 
 function missingTableMessage(error: { message?: string } | null): string | null {
   const message = error?.message ?? ""
@@ -301,12 +305,110 @@ export type DrawResult = {
   totalEntries: number
   uniqueEntrants: number
   winnerEntryCount: number
+  accountSnapshot: number
+  prizeArvUsd: number
+  prizePerAccountUsd: number
+}
+
+export type GiveawayDrawLog = {
+  monthPeriod: string
+  winnerUserId: string | null
+  winnerHandle: string | null
+  totalEntries: number
+  uniqueEntrants: number
+  accountSnapshot: number | null
+  prizeArvUsd: number | null
+  drawnAt: string
+}
+
+async function persistPrizeSnapshot(admin: ReturnType<typeof createAdminClient>, snap: PrizeSnapshot) {
+  const { error } = await admin.from("giveaway_prize_snapshots").upsert(
+    {
+      month_period: snap.monthPeriod,
+      snapshot_at: snap.snapshotAt,
+      account_snapshot: snap.accountSnapshot,
+      prize_arv_usd: snap.prizeArvUsd,
+      prize_per_account_usd: snap.prizePerAccountUsd,
+    },
+    { onConflict: "month_period" },
+  )
+  if (error && !/does not exist|could not find/i.test(error.message)) {
+    console.warn("[giveaway-prize-snapshot]", error.message)
+  }
+}
+
+/** Prize ARV for a promotion month (cached in giveaway_prize_snapshots when possible). */
+export async function getPrizeSnapshotForMonth(month: string): Promise<PrizeSnapshot> {
+  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
+
+  const admin = createAdminClient()
+  const { data: cached, error: cacheErr } = await admin
+    .from("giveaway_prize_snapshots")
+    .select("month_period, snapshot_at, account_snapshot, prize_arv_usd, prize_per_account_usd")
+    .eq("month_period", month)
+    .maybeSingle()
+
+  if (!cacheErr && cached) {
+    return {
+      monthPeriod: cached.month_period as string,
+      snapshotAt: cached.snapshot_at as string,
+      accountSnapshot: cached.account_snapshot as number,
+      prizePerAccountUsd: Number(cached.prize_per_account_usd),
+      prizeArvUsd: Number(cached.prize_arv_usd),
+    }
+  }
+
+  const snap = await computePrizeSnapshotForMonth(admin, month)
+  await persistPrizeSnapshot(admin, snap)
+  return snap
+}
+
+export async function listRecentGiveawayDraws(limit = 6): Promise<GiveawayDrawLog[]> {
+  if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
+
+  const admin = createAdminClient()
+  const { data, error } = await admin
+    .from("giveaway_draws")
+    .select(
+      "month_period, winner_user_id, total_entries, unique_entrants, account_snapshot, prize_arv_usd, drawn_at",
+    )
+    .order("month_period", { ascending: false })
+    .limit(limit)
+
+  if (error) {
+    if (/does not exist|could not find/i.test(error.message)) return []
+    throw new Error(error.message)
+  }
+
+  const rows = data ?? []
+  const winnerIds = [...new Set(rows.map((r) => r.winner_user_id).filter(Boolean))] as string[]
+  const handles = new Map<string, string>()
+
+  if (winnerIds.length) {
+    const { data: profiles } = await admin.from("profiles").select("id, handle").in("id", winnerIds)
+    for (const profile of profiles ?? []) {
+      handles.set(profile.id as string, profile.handle as string)
+    }
+  }
+
+  return rows.map((row) => ({
+    monthPeriod: row.month_period as string,
+    winnerUserId: (row.winner_user_id as string | null) ?? null,
+    winnerHandle: row.winner_user_id ? (handles.get(row.winner_user_id as string) ?? null) : null,
+    totalEntries: row.total_entries as number,
+    uniqueEntrants: row.unique_entrants as number,
+    accountSnapshot: row.account_snapshot != null ? Number(row.account_snapshot) : null,
+    prizeArvUsd: row.prize_arv_usd != null ? Number(row.prize_arv_usd) : null,
+    drawnAt: row.drawn_at as string,
+  }))
 }
 
 export async function drawMonthlyWinner(month: string): Promise<DrawResult> {
   if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
 
   const admin = createAdminClient()
+  const prize = await getPrizeSnapshotForMonth(month)
+
   const { data, error } = await admin
     .from("giveaway_entries")
     .select("user_id")
@@ -315,13 +417,35 @@ export async function drawMonthlyWinner(month: string): Promise<DrawResult> {
   if (error) throw new Error(missingTableMessage(error) ?? error.message)
 
   const tickets = (data ?? []).map((r) => r.user_id as string)
+  const drawnAt = new Date().toISOString()
+
   if (!tickets.length) {
+    const { error: drawLogErr } = await admin.from("giveaway_draws").upsert(
+      {
+        month_period: month,
+        winner_user_id: null,
+        total_entries: 0,
+        unique_entrants: 0,
+        account_snapshot: prize.accountSnapshot,
+        prize_arv_usd: prize.prizeArvUsd,
+        prize_per_account_usd: prize.prizePerAccountUsd,
+        drawn_at: drawnAt,
+      },
+      { onConflict: "month_period" },
+    )
+    if (drawLogErr && !/does not exist|could not find/i.test(drawLogErr.message)) {
+      console.warn("[giveaway-draw]", drawLogErr.message)
+    }
+
     return {
       winnerUserId: null,
       monthPeriod: month,
       totalEntries: 0,
       uniqueEntrants: 0,
       winnerEntryCount: 0,
+      accountSnapshot: prize.accountSnapshot,
+      prizeArvUsd: prize.prizeArvUsd,
+      prizePerAccountUsd: prize.prizePerAccountUsd,
     }
   }
 
@@ -334,7 +458,10 @@ export async function drawMonthlyWinner(month: string): Promise<DrawResult> {
       winner_user_id: winner,
       total_entries: tickets.length,
       unique_entrants: unique,
-      drawn_at: new Date().toISOString(),
+      account_snapshot: prize.accountSnapshot,
+      prize_arv_usd: prize.prizeArvUsd,
+      prize_per_account_usd: prize.prizePerAccountUsd,
+      drawn_at: drawnAt,
     },
     { onConflict: "month_period" },
   )
@@ -348,6 +475,9 @@ export async function drawMonthlyWinner(month: string): Promise<DrawResult> {
     totalEntries: tickets.length,
     uniqueEntrants: unique,
     winnerEntryCount: tickets.filter((id) => id === winner).length,
+    accountSnapshot: prize.accountSnapshot,
+    prizeArvUsd: prize.prizeArvUsd,
+    prizePerAccountUsd: prize.prizePerAccountUsd,
   }
 }
 
