@@ -15,6 +15,7 @@ import {
   extractGeminiAnswerText,
   minAutoMatchScore,
   parseDetectedJson,
+  pickBestCatalogHit,
   scoreHit,
   simplifyCardName,
   thinkingConfigForModel,
@@ -490,9 +491,7 @@ export async function matchDetectedCard(
   const ranked = [...candidates].sort(
     (a, b) => scoreHit(b, detected) - scoreHit(a, detected),
   )
-  const top = ranked[0] ?? null
-  const matchScore = top ? scoreHit(top, detected) : 0
-  const hit = top
+  const { hit, matchScore } = pickBestCatalogHit(ranked, detected)
   const lowConfidence = Boolean(hit && matchScore < minAutoMatchScore(detected))
 
   let card: MockCardEntry | null = null

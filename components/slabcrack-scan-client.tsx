@@ -14,6 +14,7 @@ import { CardScanner } from "@/components/card-scanner"
 import { ScanMatchFeedback } from "@/components/scan-match-feedback"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
+import { cleanNumber } from "@/lib/slabcrack/identify-parse"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import {
   getBestGradeQuote,
@@ -170,44 +171,103 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         matchScore: json.matchScore,
       })
 
+      const detNum = cleanNumber(json.detected?.cardNumber ?? "")
+      const cardMatchesDetect = (entry: MockCardEntry) =>
+        !detNum || cleanNumber(entry.cardNumber.split("/")[0] ?? "") === detNum
+
+      const resolvePresentedCard = (): {
+        card: MockCardEntry | null
+        hit: CardSearchHit | null
+      } => {
+        if (json.card && cardMatchesDetect(normalizeCardEntry(json.card))) {
+          return { card: normalizeCardEntry(json.card), hit: json.hit }
+        }
+        if (detNum && json.candidates?.length) {
+          const byNumber = json.candidates.find(
+            (c) => cleanNumber(c.cardNumber.split("/")[0] ?? "") === detNum,
+          )
+          if (byNumber) {
+            return {
+              card: normalizeCardEntry(searchHitToPlaceholder(byNumber)),
+              hit: byNumber,
+            }
+          }
+        }
+        if (json.card && !detNum) {
+          return { card: normalizeCardEntry(json.card), hit: json.hit }
+        }
+        return { card: null, hit: null }
+      }
+
       if (json.matchMethod === "visual_phash") {
         setIdentifyStatus("Visual match — loading prices…")
       } else {
         setIdentifyStatus("Identifying — loading prices…")
       }
 
-      if (json.card) {
-        if (json.needsLiveRefresh && json.hit) {
-          const hit = json.hit
+      const resolved = resolvePresentedCard()
+      if (resolved.card && detNum && !cardMatchesDetect(resolved.card)) {
+        enterManualHandoff({
+          query: json.query || label,
+          candidates: json.candidates,
+          error: "Detected number doesn’t match the catalog pick — choose the right card.",
+          label: label || null,
+        })
+        return
+      }
+
+      if (resolved.card) {
+        const localCard = resolved.card
+        const matchHit = resolved.hit
+        presentMatch(localCard)
+
+        if (json.needsLiveRefresh && matchHit) {
+          const hit = matchHit
           setIdentifyStatus("Loading live prices…")
           setLookupLoading(true)
           try {
             const priced = await fetchPricedCard(hit)
-            presentMatch(priced, { openDrawer: true })
-            setLookupError(
-              priced.hasPricing === false
-                ? "Matched the card, but live PriceCharting comps didn’t load."
-                : null,
-            )
+            if (cardMatchesDetect(priced)) {
+              presentMatch(priced, { openDrawer: true })
+            } else {
+              setCard(priced)
+              setLookupError("Live prices loaded, but the catalog id may not match your card number.")
+            }
+            if (priced.hasPricing === false) {
+              setLookupError(
+                "Matched the card, but live PriceCharting comps didn’t load.",
+              )
+            }
           } finally {
             setLookupLoading(false)
           }
           return
         }
 
-        presentMatch(normalizeCardEntry(json.card))
-        if (json.card.hasPricing === false) {
+        if (localCard.hasPricing === false) {
           setLookupError("Matched the card, but live PriceCharting comps didn’t load.")
         }
         return
       }
 
       if (json.candidates?.length) {
-        const top = json.candidates[0]!
+        const top =
+          json.candidates.find(
+            (c) => cleanNumber(c.cardNumber.split("/")[0] ?? "") === detNum,
+          ) ?? json.candidates[0]!
         setIdentifyStatus("Loading prices…")
         setLookupLoading(true)
         try {
           const priced = await fetchPricedCard(top)
+          if (!cardMatchesDetect(priced) && detNum) {
+            enterManualHandoff({
+              query: json.query || label,
+              candidates: json.candidates,
+              error: "Could not auto-match this number — pick the right card.",
+              label: label || null,
+            })
+            return
+          }
           presentMatch(priced)
         } catch {
           presentMatch(normalizeCardEntry(searchHitToPlaceholder(top)))
