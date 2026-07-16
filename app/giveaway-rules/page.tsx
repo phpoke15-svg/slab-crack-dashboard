@@ -12,7 +12,9 @@ import {
   PRO_ACTIVE_MINUTES_REQUIRED,
 } from "@/lib/giveaway/constants"
 import {
+  formatGiveawayUsd,
   giveawayPrizeCalculationLine,
+  giveawayPrizePayoutSummary,
   giveawayPrizeRulesFormulaText,
 } from "@/lib/giveaway/prize-formula"
 import {
@@ -118,13 +120,21 @@ export default function GiveawayRulesPage() {
         </p>
       </LegalSection>
 
-      <LegalSection title="5. Prize — variable value based on total accounts">
+      <LegalSection title="5. Prize — variable cash value (PayPal only)">
         <p>
-          <strong className="text-foreground">One (1) prize per Promotion period.</strong> The winner will receive
-          one (1) Pokémon Trading Card Game card (&quot;Prize Card&quot;) selected by Sponsor.
+          <strong className="text-foreground">One (1) prize per Promotion period.</strong> The winner receives a
+          one-time <strong className="text-foreground">cash payment in U.S. dollars</strong> equal to the Prize ARV
+          described below.
         </p>
         <p>
-          The approximate retail value (&quot;ARV&quot;) of the Prize Card is calculated as follows:
+          <strong className="text-foreground">{giveawayPrizePayoutSummary()}</strong> Sponsor does not ship physical
+          prizes, trading cards, gift cards, checks, wire transfers, cryptocurrency, or payments through any method
+          other than PayPal. The potential winner must have a valid PayPal account in good standing capable of
+          receiving the payment.
+        </p>
+        <p>
+          The approximate retail value (&quot;ARV&quot;) used to determine the cash prize amount is calculated as
+          follows:
         </p>
         <ul>
           <li>
@@ -143,19 +153,19 @@ export default function GiveawayRulesPage() {
             the drawing is conducted for that period.
           </li>
           <li>
-            Sponsor will select a Prize Card with a fair-market value reasonably close to that ARV, based on
-            reputable third-party market sources (e.g., PriceCharting, recent sold listings, or established price
-            guides) at or near the time of fulfillment.
+            The cash prize paid to the winner equals that calculated ARV (rounded to the nearest cent). Any card
+            examples shown on the giveaway page are for illustration only and are not the prize.
           </li>
         </ul>
         <p>
           <strong className="text-foreground">Example:</strong> {giveawayPrizeCalculationLine(exampleAccounts)}. The
-          actual card, set, grade, and condition are chosen by Sponsor in its sole discretion, provided the market
-          value aligns with the calculated ARV.
+          winner would receive {formatGiveawayUsd(exampleAccounts * 0.1)} cash via PayPal, subject to verification
+          and these Official Rules.
         </p>
         <p>
-          Prize is non-transferable except at Sponsor&apos;s discretion. No cash equivalent or substitution except
-          Sponsor may substitute a prize of equal or greater ARV if the advertised prize becomes unavailable.
+          Prize is non-transferable except at Sponsor&apos;s discretion. Sponsor may withhold or delay payment if
+          PayPal is unavailable for the winner, the winner cannot provide a valid PayPal account, or applicable law
+          requires additional verification.
         </p>
       </LegalSection>
 
@@ -167,9 +177,14 @@ export default function GiveawayRulesPage() {
         </p>
         <p>
           Sponsor will attempt to notify the potential winner using the email address associated with the winning
-          account within approximately fourteen (14) days after the drawing. The potential winner may be required
-          to sign an affidavit of eligibility, liability release, and (where lawful) a publicity release within
-          seven (7) days of notification or the prize may be forfeited and an alternate winner selected.
+          account within approximately fourteen (14) days after the drawing. The potential winner must provide a
+          valid <strong className="text-foreground">PayPal account</strong> to receive the cash prize. Sponsor will
+          send payment via PayPal only after eligibility is confirmed.
+        </p>
+        <p>
+          The potential winner may be required to sign an affidavit of eligibility, liability release, and (where
+          lawful) a publicity release within seven (7) days of notification or the prize may be forfeited and an
+          alternate winner selected.
         </p>
         <p>
           Sponsor is not responsible for undeliverable notifications, spam filters, or outdated contact information.
@@ -178,8 +193,8 @@ export default function GiveawayRulesPage() {
 
       <LegalSection title="7. Taxes">
         <p>
-          Winner is responsible for all federal, state, and local taxes arising from acceptance of the prize.
-          Sponsor may issue tax forms as required by law for prizes above applicable reporting thresholds.
+          Winner is responsible for all federal, state, and local taxes arising from acceptance of the cash prize.
+          Sponsor may issue tax forms as required by law for cash prizes above applicable reporting thresholds.
         </p>
       </LegalSection>
 

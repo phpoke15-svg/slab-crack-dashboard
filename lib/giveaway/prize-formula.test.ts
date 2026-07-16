@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   giveawayPrizeCalculationLine,
+  giveawayPrizePayoutDetail,
+  giveawayPrizePayoutSummary,
   giveawayPrizeRulesFormulaText,
 } from "@/lib/giveaway/prize-formula"
 
@@ -15,5 +17,11 @@ describe("giveaway prize formula copy", () => {
     expect(giveawayPrizeRulesFormulaText()).toBe(
       "Prize ARV = (total registered user accounts on CollecTools) × $0.10 per account.",
     )
+  })
+
+  it("states PayPal-only cash payout", () => {
+    expect(giveawayPrizePayoutSummary()).toBe("The prize is paid in cash (USD) via PayPal only.")
+    expect(giveawayPrizePayoutDetail()).toContain("PayPal only")
+    expect(giveawayPrizePayoutDetail()).toContain("no physical prizes")
   })
 })

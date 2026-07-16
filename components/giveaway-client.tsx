@@ -124,7 +124,7 @@ export function GiveawayClient({
           <section className="mb-8 rounded-3xl border border-border bg-card p-8 text-center">
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="size-5 animate-spin" />
-              Loading today&apos;s prize value…
+              Loading this month&apos;s giveaway value as of today…
             </div>
           </section>
         ) : prizeData.error ? (
@@ -146,7 +146,9 @@ export function GiveawayClient({
           </div>
           <div>
             <h1 className="text-xl font-semibold">Monthly Giveaway</h1>
-            <p className="text-sm text-muted-foreground">Earn entries by using the app — no purchase necessary.</p>
+            <p className="text-sm text-muted-foreground">
+              Earn entries by using the app — no purchase necessary. Prize is cash (USD) paid via PayPal only.
+            </p>
           </div>
         </div>
 
