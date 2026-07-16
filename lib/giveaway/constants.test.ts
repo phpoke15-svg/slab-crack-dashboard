@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   activeMinutesRequired,
+  GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
   isPremiumPlan,
   monthPeriod,
   MONTHLY_ENTRY_CAP,
@@ -8,6 +9,10 @@ import {
 } from "@/lib/giveaway/constants"
 
 describe("giveaway constants", () => {
+  it("prize scales at $0.25 per account snapshot", () => {
+    expect(GIVEAWAY_PRIZE_PER_ACCOUNT_USD).toBe(0.25)
+    expect(10_000 * GIVEAWAY_PRIZE_PER_ACCOUNT_USD).toBe(2500)
+  })
   it("detects premium plans", () => {
     expect(isPremiumPlan("premium")).toBe(true)
     expect(isPremiumPlan("pro")).toBe(true)

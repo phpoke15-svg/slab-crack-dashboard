@@ -5,6 +5,9 @@ export const DAILY_APP_ENTRY_CAP = 1
 export const MAIL_IN_ENTRIES_PER_POSTCARD = 7
 export const MAX_MAIL_IN_POSTCARDS_PER_MONTH = 4
 
+/** Prize ARV per registered account at the monthly snapshot (USD). */
+export const GIVEAWAY_PRIZE_PER_ACCOUNT_USD = 0.25
+
 /** Optional physical AMOE address — set NEXT_PUBLIC_GIVEAWAY_MAILING_ADDRESS in Vercel. */
 export const GIVEAWAY_MAILING_ADDRESS =
   process.env.NEXT_PUBLIC_GIVEAWAY_MAILING_ADDRESS?.trim() || ""
