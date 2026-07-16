@@ -20,6 +20,7 @@ import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { SupremeBroadcastPanel } from "@/components/supreme-broadcast-panel"
+import { GiveawayAdminPanel } from "@/components/giveaway-admin-panel"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
 import { SUPREME_TOOLS } from "@/lib/collectools-tools"
@@ -263,6 +264,10 @@ export function SupremeConsoleClient() {
                 pushOptIns={data?.ops.pushSubscriptions ?? data?.overview.pushSubscriptions ?? null}
                 webPushConfigured={data?.checks.webPushConfigured ?? null}
               />
+            </div>
+
+            <div className="mb-8">
+              <GiveawayAdminPanel />
             </div>
 
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
