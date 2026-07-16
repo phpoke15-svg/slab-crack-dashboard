@@ -555,7 +555,7 @@ export function Psa10SpreadScanner() {
                   currentRaw={row.rawPrice}
                   currentSlab={row.psa10Price}
                   compact
-                  title="30-day prices · PSA 10"
+                  title="30-day sales · PSA 10"
                 />
               </div>
             )
@@ -695,7 +695,7 @@ function SlabLabDetailDrawer({
               grade={10}
               currentRaw={row.rawPrice}
               currentSlab={row.psa10Price}
-              title="30-day prices · PSA 10"
+              title="30-day sales · PSA 10"
             />
           </div>
 

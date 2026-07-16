@@ -16,6 +16,7 @@ import {
 } from "@/lib/slab-data"
 import { upsertAnomaliesToDb, getAnomaliesFromDb, isSupabaseConfigured } from "@/lib/db/anomalies"
 import { appendPriceSnapshots } from "@/lib/db/price-snapshots"
+import { appendSaleEventsFromEntries } from "@/lib/db/sale-events"
 import { getWatchlistFromDb, updatePriceChartingId } from "@/lib/db/watchlist"
 import {
   defaultEbayQueries,
@@ -86,6 +87,11 @@ export async function writeAnomaliesCache(anomalies: MockCardEntry[]): Promise<v
       await appendPriceSnapshots(anomalies)
     } catch (error) {
       console.error("[sync] Price snapshot upsert failed:", error)
+    }
+    try {
+      await appendSaleEventsFromEntries(anomalies)
+    } catch (error) {
+      console.error("[sync] Sale event upsert failed:", error)
     }
   }
 }
