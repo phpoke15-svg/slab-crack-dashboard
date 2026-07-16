@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   Bell,
+  Gift,
   Layers,
   MessageSquare,
   MessageSquarePlus,
@@ -83,6 +84,22 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     description:
       "PokeWatch sends instant browser and phone alerts when the Pokemon Center virtual queue goes live so you can jump in faster. Included with CollecTools Pro.",
     icon: Bell,
+  },
+  {
+    id: "giveaway",
+    href: "/giveaway",
+    name: "Monthly Giveaway",
+    tagline: "Free entries · cash via PayPal",
+    blurb: "Earn entries by using CollecTools — win monthly cash prizes.",
+    description:
+      "The CollecTools Monthly Giveaway awards a cash prize (USD) via PayPal each month. Earn one free entry per day by staying active in the app — thresholds vary by plan (30 min Starter, 10 min Premium, 5 min Pro). Mail-in alternate entry available. No purchase necessary.",
+    highlights: [
+      "Prize value grows with every registered CollecTools account",
+      "One app entry per day while signed in and active",
+      "Lower daily minute thresholds on Premium and Pro",
+      "Cash paid via PayPal only — see official rules",
+    ],
+    icon: Gift,
   },
   {
     id: "feedback",

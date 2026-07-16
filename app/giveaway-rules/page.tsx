@@ -43,7 +43,7 @@ export default function GiveawayRulesPage() {
       <p className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
         <strong className="text-foreground">Important:</strong> These rules are provided for transparency and
         should be reviewed by qualified counsel before a public launch. {LEGAL_SITE_NAME} does not offer legal
-        advice. Participation may be limited while the giveaway is in preview.
+        advice.
       </p>
 
       <p className="mb-6 text-xs text-muted-foreground">Rules last updated: {RULES_LAST_UPDATED}</p>
@@ -239,8 +239,8 @@ export default function GiveawayRulesPage() {
           final.
         </p>
         <p>
-          For entry tracking and status while the Promotion is available in the app, visit{" "}
-          <Link href="/giveaway">/giveaway</Link> when signed in (availability may be limited during preview).
+          For entry tracking and status, visit{" "}
+          <Link href="/giveaway">/giveaway</Link> when signed in to your {LEGAL_SITE_NAME} account.
         </p>
         <p>
           These Official Rules, together with the <Link href="/terms">Terms of Service</Link>, govern the

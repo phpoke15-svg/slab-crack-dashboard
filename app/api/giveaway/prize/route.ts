@@ -1,19 +1,19 @@
 import { NextResponse } from "next/server"
-import { requireGiveawayAccess } from "@/lib/giveaway/access"
+import { requireGiveawayAdminAccess } from "@/lib/giveaway/access"
 import { monthPeriod } from "@/lib/giveaway/constants"
 import { getPrizeSnapshotForMonth, listRecentGiveawayDraws } from "@/lib/giveaway/service"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
 
-/** Supreme preview: current month prize ARV + recent draw log. */
+/** Supreme ops: current month prize ARV + recent draw log. */
 export async function GET(request: Request) {
   const auth = await requireUser()
   if (!auth.ok) {
     return NextResponse.json({ ok: false, error: auth.error }, { status: auth.status })
   }
 
-  const access = await requireGiveawayAccess(auth.user.id)
+  const access = await requireGiveawayAdminAccess(auth.user.id)
   if (!access.ok) {
     return NextResponse.json({ ok: false, error: access.error }, { status: access.status })
   }

@@ -14,6 +14,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${base}/pokewatch`, lastModified, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/feedback`, lastModified, changeFrequency: "weekly", priority: 0.5 },
     { url: `${base}/pricing`, lastModified, changeFrequency: "monthly", priority: 0.75 },
+    { url: `${base}/giveaway`, lastModified, changeFrequency: "weekly", priority: 0.7 },
     { url: `${base}/privacy`, lastModified, changeFrequency: "yearly", priority: 0.2 },
     { url: `${base}/terms`, lastModified, changeFrequency: "yearly", priority: 0.2 },
     { url: `${base}/giveaway-rules`, lastModified, changeFrequency: "monthly", priority: 0.3 },
