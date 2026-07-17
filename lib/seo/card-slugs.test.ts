@@ -17,6 +17,12 @@ describe("buildCardSlug", () => {
   it("combines name and number", () => {
     expect(buildCardSlug("Charizard", "4/102")).toBe("charizard-4")
   })
+
+  it("keeps Unown symbol numbers unique", () => {
+    expect(buildCardSlug("Unown", "A")).toBe("unown-a")
+    expect(buildCardSlug("Unown", "!")).toBe("unown-exclamation")
+    expect(buildCardSlug("Unown", "?")).toBe("unown-question")
+  })
 })
 
 describe("formatCardNumberForSeo", () => {

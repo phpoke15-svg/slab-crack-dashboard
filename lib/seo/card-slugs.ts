@@ -16,12 +16,29 @@ export function buildSetSlug(setId: string, setName: string): string {
   return slugifySegment(shortName) || slugifySegment(setId) || "unknown-set"
 }
 
+function slugifyCardNumber(numberToken: string): string {
+  const trimmed = numberToken.trim()
+  if (!trimmed) return ""
+
+  const direct = slugifySegment(trimmed)
+  if (direct) return direct
+
+  // Symbol-only numbers (e.g. Unown ! and ? in Unseen Forces).
+  const symbolic = trimmed
+    .toLowerCase()
+    .replace(/!/g, "exclamation")
+    .replace(/\?/g, "question")
+
+  return slugifySegment(symbolic)
+}
+
 /** Card slug within a set (e.g. "Charizard" + "4/102" → "charizard-4"). */
 export function buildCardSlug(cardName: string, cardNumber: string): string {
   const numberToken = cardNumber.split("/")[0]?.replace(/^#/, "").trim() ?? ""
   const nameSlug = slugifySegment(cardName.replace(/\s+\([^)]+\)$/, "").trim())
-  if (nameSlug && numberToken) return `${nameSlug}-${slugifySegment(numberToken)}`
-  return nameSlug || slugifySegment(numberToken) || "card"
+  const numberSlug = slugifyCardNumber(numberToken)
+  if (nameSlug && numberSlug) return `${nameSlug}-${numberSlug}`
+  return nameSlug || numberSlug || "card"
 }
 
 export function formatCardNumberForSeo(cardNumber: string): string {
