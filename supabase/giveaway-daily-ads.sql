@@ -1,4 +1,5 @@
--- Giveaway ad rewards: free users can watch up to 3 rewarded ads/day for +10 synthetic minutes each.
+-- Giveaway ad rewards: tiered rewarded ads reduce daily active-time requirements.
+-- Free: 3 ads × 10 min. Premium: 2 ads × 5 min. Pro/Supreme: 1 ad × 5 min.
 -- Run in Supabase SQL Editor after supabase/giveaway.sql. Safe to re-run.
 
 -- ---------------------------------------------------------------------------
@@ -41,6 +42,6 @@ grant all on public.user_daily_ads to service_role;
 grant all on public.ad_reward_transactions to service_role;
 
 comment on table public.user_daily_ads is
-  'Rewarded ads watched per user per UTC day (max 3). Each ad counts as 10 synthetic active minutes toward free-tier giveaway entry.';
+  'Rewarded ads watched per user per UTC day (max 3). Synthetic minutes per ad depend on plan tier.';
 comment on table public.ad_reward_transactions is
   'Dedupes Google AdMob / Ad Manager server-side verification (SSV) rewarded-ad callbacks.';

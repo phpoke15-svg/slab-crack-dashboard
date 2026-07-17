@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   activeMinutesRequired,
-  AD_SYNTHETIC_MINUTES_PER_WATCH,
-  DAILY_AD_WATCH_LIMIT,
+  adSyntheticMinutesPerWatch,
+  dailyAdWatchLimit,
   FREE_ACTIVE_MINUTES_REQUIRED,
   giveawayPrizeArvUsd,
   giveawayTierFeatureLine,
@@ -60,10 +60,16 @@ describe("giveaway constants", () => {
     expect(MONTHLY_ENTRY_CAP).toBe(28)
   })
 
-  it("adds synthetic ad minutes for free users only", () => {
-    expect(qualifyingActiveMinutes(10, 2, "free")).toBe(10 + 2 * AD_SYNTHETIC_MINUTES_PER_WATCH)
-    expect(qualifyingActiveMinutes(10, 3, "free")).toBe(40)
-    expect(qualifyingActiveMinutes(10, 3, "premium")).toBe(10)
-    expect(DAILY_AD_WATCH_LIMIT).toBe(3)
+  it("adds tiered synthetic ad minutes toward daily entry", () => {
+    expect(qualifyingActiveMinutes(0, 3, "free")).toBe(30)
+    expect(qualifyingActiveMinutes(5, 2, "premium")).toBe(15)
+    expect(qualifyingActiveMinutes(0, 1, "pro")).toBe(5)
+    expect(qualifyingActiveMinutes(0, 1, "supreme")).toBe(5)
+    expect(dailyAdWatchLimit("free")).toBe(3)
+    expect(dailyAdWatchLimit("premium")).toBe(2)
+    expect(dailyAdWatchLimit("pro")).toBe(1)
+    expect(adSyntheticMinutesPerWatch("free")).toBe(10)
+    expect(adSyntheticMinutesPerWatch("premium")).toBe(5)
+    expect(adSyntheticMinutesPerWatch("pro")).toBe(5)
   })
 })

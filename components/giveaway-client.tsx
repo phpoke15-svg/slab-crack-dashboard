@@ -198,12 +198,12 @@ export function GiveawayClient({
               → 1 entry (or watch up to 3 rewarded ads for −10 min each)
             </li>
             <li>
-              <strong className="text-foreground">Premium:</strong> {PREMIUM_ACTIVE_MINUTES_REQUIRED} active minutes/day
-              → 1 entry
+              <strong className="text-foreground">Premium:</strong> {PREMIUM_ACTIVE_MINUTES_REQUIRED} active
+              minutes/day → 1 entry (or watch 2 rewarded ads for −5 min each)
             </li>
             <li>
               <strong className="text-foreground">Pro / Supreme:</strong> {PRO_ACTIVE_MINUTES_REQUIRED} active
-              minutes/day → 1 entry
+              minutes/day → 1 entry (or watch 1 rewarded ad for −5 min)
             </li>
             <li>Max <strong className="text-foreground">1 entry per day</strong> from app use</li>
             <li>
@@ -278,10 +278,10 @@ export function GiveawayClient({
               {status.todayEntryAwarded
                 ? "Today’s app entry is already earned."
                 : status.plan === "pro" || status.plan === "supreme"
-                  ? "Pro / Supreme threshold is active."
+                  ? "Pro / Supreme: use the app or watch 1 rewarded ad to reach 5 qualifying minutes."
                   : status.plan === "premium"
-                    ? "Premium threshold is active."
-                    : "Free plan: use the app or watch rewarded ads to reach 30 qualifying minutes."}
+                    ? "Premium: use the app or watch up to 2 rewarded ads to reach 10 qualifying minutes."
+                    : "Free plan: use the app or watch up to 3 rewarded ads to reach 30 qualifying minutes."}
               {status.mailInPostcardsUsed > 0
                 ? ` Mail-in postcards this month: ${status.mailInPostcardsUsed}/${status.mailInPostcardsMax}.`
                 : ""}

@@ -2,9 +2,9 @@ import "server-only"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import {
   activeMinutesRequired,
-  AD_SYNTHETIC_MINUTES_PER_WATCH,
+  adSyntheticMinutesPerWatch,
   canEarnAdMinuteBonus,
-  DAILY_AD_WATCH_LIMIT,
+  dailyAdWatchLimit,
   DAILY_APP_ENTRY_CAP,
   GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
   isPremiumPlan,
@@ -160,6 +160,7 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
   const todayActiveMinutes = activity.data?.active_minutes ?? 0
   const todayEntryAwarded = Boolean(activity.data?.entry_awarded)
   const qualifyingMinutes = qualifyingActiveMinutes(todayActiveMinutes, adsWatched, plan)
+  const adsDailyLimit = dailyAdWatchLimit(plan)
 
   return {
     monthPeriod: period,
@@ -168,8 +169,8 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
     monthlyCap: MONTHLY_ENTRY_CAP,
     todayActiveMinutes,
     todayAdsWatched: adsWatched,
-    adsDailyLimit: DAILY_AD_WATCH_LIMIT,
-    adMinutesPerWatch: AD_SYNTHETIC_MINUTES_PER_WATCH,
+    adsDailyLimit,
+    adMinutesPerWatch: adSyntheticMinutesPerWatch(plan),
     qualifyingMinutes,
     todayEntryAwarded,
     thresholdMinutes: threshold,
@@ -178,7 +179,7 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
     canWatchAds:
       canEarnAdMinuteBonus(plan) &&
       !todayEntryAwarded &&
-      adsWatched < DAILY_AD_WATCH_LIMIT &&
+      adsWatched < adsDailyLimit &&
       monthEntries < MONTHLY_ENTRY_CAP,
     mailInPostcardsUsed: postcards,
     mailInPostcardsMax: MAX_MAIL_IN_POSTCARDS_PER_MONTH,

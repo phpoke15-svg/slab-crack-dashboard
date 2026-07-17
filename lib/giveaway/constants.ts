@@ -6,10 +6,15 @@ export const DAILY_APP_ENTRY_CAP = 1
 export const MAIL_IN_ENTRIES_PER_POSTCARD = 7
 export const MAX_MAIL_IN_POSTCARDS_PER_MONTH = 4
 
-/** Free-tier rewarded ads: each completed ad counts as this many synthetic active minutes. */
+/** Free: 3 ads × 10 min. Premium: 2 ads × 5 min. Pro/Supreme: 1 ad × 5 min. */
+export const FREE_DAILY_AD_LIMIT = 3
+export const PREMIUM_DAILY_AD_LIMIT = 2
+export const PRO_DAILY_AD_LIMIT = 1
+
+/** @deprecated Use adSyntheticMinutesPerWatch(plan) — kept for free-tier default. */
 export const AD_SYNTHETIC_MINUTES_PER_WATCH = 10
-/** Max rewarded ads a free user can complete per UTC day. */
-export const DAILY_AD_WATCH_LIMIT = 3
+/** @deprecated Use dailyAdWatchLimit(plan) */
+export const DAILY_AD_WATCH_LIMIT = FREE_DAILY_AD_LIMIT
 
 /** Prize ARV per registered account at the monthly snapshot (USD). */
 export const GIVEAWAY_PRIZE_PER_ACCOUNT_USD = 0.1
@@ -64,20 +69,37 @@ export function activeMinutesRequired(plan: string | null | undefined): number {
   return FREE_ACTIVE_MINUTES_REQUIRED
 }
 
-/** Qualifying minutes toward today's entry (free users get +10 per rewarded ad watched). */
+/** Max rewarded ads per UTC day for the user's plan (0 = ads not available). */
+export function dailyAdWatchLimit(plan: string | null | undefined): number {
+  if (isProOrAbove(plan)) return PRO_DAILY_AD_LIMIT
+  if (plan === "premium") return PREMIUM_DAILY_AD_LIMIT
+  if (!plan || plan === "free") return FREE_DAILY_AD_LIMIT
+  return 0
+}
+
+/** Synthetic minutes credited per completed ad — spreads daily threshold across the plan's ad allowance. */
+export function adSyntheticMinutesPerWatch(plan: string | null | undefined): number {
+  const limit = dailyAdWatchLimit(plan)
+  if (limit <= 0) return 0
+  return activeMinutesRequired(plan) / limit
+}
+
+/** Qualifying minutes toward today's entry (active time + synthetic ad bonus). */
 export function qualifyingActiveMinutes(
   activeMinutes: number,
   adsWatched: number,
   plan: string | null | undefined,
 ): number {
   const base = Math.max(0, Math.floor(activeMinutes))
-  if (plan && plan !== "free") return base
-  const bonus = Math.max(0, Math.floor(adsWatched)) * AD_SYNTHETIC_MINUTES_PER_WATCH
-  return base + bonus
+  const limit = dailyAdWatchLimit(plan)
+  const perWatch = adSyntheticMinutesPerWatch(plan)
+  if (limit <= 0 || perWatch <= 0) return base
+  const effectiveAds = Math.min(Math.max(0, Math.floor(adsWatched)), limit)
+  return base + effectiveAds * perWatch
 }
 
 export function canEarnAdMinuteBonus(plan: string | null | undefined): boolean {
-  return !plan || plan === "free"
+  return dailyAdWatchLimit(plan) > 0
 }
 
 /** One-line giveaway benefit for plan feature lists (pricing, FAQ). */

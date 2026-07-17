@@ -1,8 +1,9 @@
 import "server-only"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import {
+  adSyntheticMinutesPerWatch,
   canEarnAdMinuteBonus,
-  DAILY_AD_WATCH_LIMIT,
+  dailyAdWatchLimit,
   utcTodayIso,
 } from "@/lib/giveaway/constants"
 import { tryAwardDailyGiveawayEntry } from "@/lib/giveaway/award-entry"
@@ -86,6 +87,7 @@ export async function recordCompletedAd(
 ): Promise<RecordCompletedAdResult> {
   if (!isSupabaseConfigured()) throw new Error("Supabase is not configured")
 
+  const adLimit = dailyAdWatchLimit(opts.plan)
   if (!canEarnAdMinuteBonus(opts.plan)) {
     return { ok: false, reason: "ads_not_available_for_plan" }
   }
@@ -110,12 +112,12 @@ export async function recordCompletedAd(
   if (adsReadErr) throw new Error(missingTableMessage(adsReadErr) ?? adsReadErr.message)
 
   const currentAds = adsRow?.ads_watched ?? 0
-  if (currentAds >= DAILY_AD_WATCH_LIMIT) {
+  if (currentAds >= adLimit) {
     return {
       ok: false,
       reason: "daily_ad_limit_reached",
       adsWatched: currentAds,
-      adsDailyLimit: DAILY_AD_WATCH_LIMIT,
+      adsDailyLimit: adLimit,
     }
   }
 
@@ -141,7 +143,8 @@ export async function recordCompletedAd(
   return {
     ok: true,
     adsWatched: newAdsWatched,
-    adsDailyLimit: DAILY_AD_WATCH_LIMIT,
+    adsDailyLimit: adLimit,
+    adMinutesPerWatch: adSyntheticMinutesPerWatch(opts.plan),
     activeMinutes: award.activeMinutes,
     qualifyingMinutes: award.qualifyingMinutes,
     thresholdMinutes: award.thresholdMinutes,

@@ -7,6 +7,7 @@ import { isRewardedAdConfigured } from "@/lib/ads/rewarded-ad-config"
 
 type RewardedAdButtonProps = {
   userId: string
+  minutesPerWatch: number
   disabled?: boolean
   disabledReason?: string
   onRewardRecorded?: () => void
@@ -61,6 +62,7 @@ function loadGptScript(): Promise<void> {
 
 export function GiveawayRewardedAdButton({
   userId,
+  minutesPerWatch,
   disabled = false,
   disabledReason,
   onRewardRecorded,
@@ -194,7 +196,7 @@ export function GiveawayRewardedAdButton({
         ) : (
           <>
             <PlayCircle className="size-4" aria-hidden="true" />
-            Watch Ad (-10 Mins)
+            Watch Ad (-{minutesPerWatch} Mins)
           </>
         )}
       </button>

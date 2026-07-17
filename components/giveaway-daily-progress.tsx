@@ -34,6 +34,7 @@ export function GiveawayDailyProgress({ userId, status, onRefresh, className }: 
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
   const dashOffset = circumference * (1 - progress)
+  const showAds = status.adsDailyLimit > 0
 
   const adButtonDisabled = !status.canWatchAds
   let adDisabledReason: string | undefined
@@ -43,8 +44,6 @@ export function GiveawayDailyProgress({ userId, status, onRefresh, className }: 
     adDisabledReason = `Daily ad limit reached (${status.adsDailyLimit}/${status.adsDailyLimit})`
   } else if (status.monthEntries >= status.monthlyCap) {
     adDisabledReason = "Monthly entry cap reached"
-  } else if (status.plan !== "free") {
-    adDisabledReason = "Rewarded ads are available on the free plan"
   }
 
   return (
@@ -96,7 +95,7 @@ export function GiveawayDailyProgress({ userId, status, onRefresh, className }: 
             <li>
               Active time: <span className="text-foreground">{status.todayActiveMinutes} min</span>
             </li>
-            {status.plan === "free" ? (
+            {showAds ? (
               <li>
                 Ad bonus:{" "}
                 <span className="text-foreground">
@@ -117,9 +116,10 @@ export function GiveawayDailyProgress({ userId, status, onRefresh, className }: 
         </div>
       </div>
 
-      {status.plan === "free" ? (
+      {showAds ? (
         <GiveawayRewardedAdButton
           userId={userId}
+          minutesPerWatch={status.adMinutesPerWatch}
           disabled={adButtonDisabled}
           disabledReason={adDisabledReason}
           onRewardRecorded={onRefresh}
