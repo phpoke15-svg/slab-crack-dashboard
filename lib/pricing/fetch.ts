@@ -2,6 +2,7 @@ import {
   extractCardPrices,
   resolvePriceChartingForCard,
 } from "@/lib/pricecharting"
+import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
 import { parseBinderCardNumber } from "@/lib/trade-binder/binder-prices"
 import type { CardPriceTarget, FetchedCardPrices } from "@/lib/pricing/types"
 

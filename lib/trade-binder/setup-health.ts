@@ -2,12 +2,19 @@ import type { SupabaseClient } from "@supabase/supabase-js"
 
 export const POKEMATCH_SETUP_SQL = "supabase/pokematch-setup.sql"
 export const POKEMATCH_MISSING_PIECES_SQL = "supabase/pokematch-missing-pieces.sql"
+export const CARDS_CATALOG_SQL = "supabase/cards-catalog.sql"
+
+export const CATALOG_NOT_SEEDED_MESSAGE =
+  "Card catalog not seeded. Run supabase/cards-catalog.sql, then npm run import-pokemon-catalog."
 
 /** Tables covered by the smaller gap-fill migration. */
 const MISSING_PIECES_TABLES = new Set(["trade_chat_reads", "binder_card_prices", "card_prices"])
 
 /** Billing schema — probed for ops, but product `ready` ignores these. */
 const BILLING_PROBE_IDS = new Set(["profiles_plan", "subscriptions"])
+
+/** Optional enhancements — reported in health checks but not required for binder ready. */
+const OPTIONAL_PROBE_IDS = new Set<string>()
 
 export type SetupCheck = {
   id: string
@@ -27,6 +34,7 @@ type Probe = {
   label: string
   table: string
   columns?: string
+  setupSql?: string
 }
 
 const PROBES: Probe[] = [
@@ -102,6 +110,13 @@ const PROBES: Probe[] = [
     columns: "card_id,snapshot_date,grade,price",
   },
   {
+    id: "cards_catalog",
+    label: "Local card catalog",
+    table: "cards",
+    columns: "id,name,set_name,number",
+    setupSql: CARDS_CATALOG_SQL,
+  },
+  {
     id: "profiles_plan",
     label: "Billing plans",
     table: "profiles",
@@ -131,9 +146,9 @@ async function probe(supabase: SupabaseClient, item: Probe): Promise<SetupCheck>
   }
 
   const message = error.message ?? "Unknown error"
-  const sqlHint = MISSING_PIECES_TABLES.has(item.table)
-    ? POKEMATCH_MISSING_PIECES_SQL
-    : POKEMATCH_SETUP_SQL
+  const sqlHint =
+    item.setupSql ??
+    (MISSING_PIECES_TABLES.has(item.table) ? POKEMATCH_MISSING_PIECES_SQL : POKEMATCH_SETUP_SQL)
   return {
     id: item.id,
     label: item.label,
@@ -161,7 +176,7 @@ export async function checkPokeMatchSetup(supabase: SupabaseClient): Promise<Set
   }
 
   const failed = checks.filter((c) => !c.ok)
-  const productFailed = failed.filter((c) => !BILLING_PROBE_IDS.has(c.id))
+  const productFailed = failed.filter((c) => !BILLING_PROBE_IDS.has(c.id) && !OPTIONAL_PROBE_IDS.has(c.id))
   const onlyMissingPieces =
     productFailed.length > 0 &&
     productFailed.every((c) => {

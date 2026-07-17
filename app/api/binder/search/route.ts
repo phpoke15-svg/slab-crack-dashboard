@@ -1,41 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getCatalogCardCount } from "@/lib/db/cards-catalog"
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
-import { mergePricesIntoCards } from "@/lib/trade-binder/binder-prices"
-import {
-  binderPriceInputsFromCards,
-  resolveSearchCardPrices,
-} from "@/lib/pricing/persist-search-prices"
-import {
-  fetchPokemonCatalogPage,
-  pokemonApiToBinderCard,
-  searchPokemonCatalog,
-} from "@/lib/trade-binder/pokemon-catalog"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
+import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 
-export const maxDuration = 60
-
-function mapApiCardsToBinder(
-  apiCards: Awaited<ReturnType<typeof searchPokemonCatalog>>["cards"],
-  rawPriceByCardId: Map<string, number>,
-): BinderSearchResultCard[] {
-  return apiCards
-    .map((card) => {
-      const binderCard = pokemonApiToBinderCard(card, rawPriceByCardId.get(card.id) ?? 0)
-      if (!binderCard) return null
-      return {
-        id: binderCard.id,
-        name: binderCard.name,
-        set: binderCard.set,
-        rarity: binderCard.rarity,
-        image: binderCard.image,
-        cardNumber: binderCard.cardNumber,
-        rawPrice: binderCard.rawPrice > 0 ? binderCard.rawPrice : undefined,
-      }
-    })
-    .filter((card): card is BinderSearchResultCard => card !== null)
-}
+export const maxDuration = 30
 
 function mapCatalogCardsToBinder(
   catalogCards: Awaited<ReturnType<typeof searchBinderCatalog>>,
@@ -51,12 +22,16 @@ function mapCatalogCardsToBinder(
   }))
 }
 
-async function attachLivePricesForSearch(cards: BinderSearchResultCard[]): Promise<BinderSearchResultCard[]> {
-  const needsPrice = binderPriceInputsFromCards(cards, 16)
-  if (needsPrice.length === 0) return cards
-
-  const fetched = await resolveSearchCardPrices(needsPrice, { limit: 16, concurrency: 2 })
-  return mergePricesIntoCards(cards, fetched)
+function catalogUnavailableResponse() {
+  return NextResponse.json(
+    {
+      error: CATALOG_NOT_SEEDED_MESSAGE,
+      catalogReady: false,
+      cards: [],
+      totalCount: 0,
+    },
+    { status: 503 },
+  )
 }
 
 export async function GET(request: NextRequest) {
@@ -65,37 +40,27 @@ export async function GET(request: NextRequest) {
   const pageSize = Math.min(Number(request.nextUrl.searchParams.get("pageSize") ?? 40), 80)
 
   try {
+    const catalogReady = (await getCatalogCardCount()) > 0
+    if (!catalogReady) {
+      return catalogUnavailableResponse()
+    }
+
+    const rawPriceByCardId = await getRawPriceByCardId()
+
     if (q.length >= 2) {
-      const rawPriceByCardId = await getRawPriceByCardId()
-
-      const [apiResult, catalogCards] = await Promise.all([
-        searchPokemonCatalog(q, pageSize).catch((error) => {
-          console.warn("[binder/search] Pokemon API failed:", error)
-          return { cards: [], totalCount: 0 }
-        }),
-        searchBinderCatalog(q, { limit: pageSize, rawPriceByCardId, budgetMs: 12_000 }).catch((error) => {
-          console.warn("[binder/search] Catalog search failed:", error)
-          return []
-        }),
-      ])
-
-      let cards = mergeBinderSearchResults(
-        [...mapApiCardsToBinder(apiResult.cards, rawPriceByCardId), ...mapCatalogCardsToBinder(catalogCards)],
-        q,
-      ).slice(0, pageSize)
-
-      cards = await attachLivePricesForSearch(cards)
+      const catalogCards = await searchBinderCatalog(q, { limit: pageSize, rawPriceByCardId })
+      const cards = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
 
       return NextResponse.json({
         cards,
         totalCount: cards.length,
         page: 1,
         hasMore: false,
-        languageFilter: "english-japanese",
+        languageFilter: "english",
+        catalogSource: "local",
+        catalogReady: true,
       })
     }
-
-    const rawPriceByCardId = await getRawPriceByCardId()
 
     if (page === 1) {
       const cards = await fetchPopularBinderCards(Math.min(pageSize, 30))
@@ -105,27 +70,24 @@ export async function GET(request: NextRequest) {
         page: 1,
         hasMore: false,
         featured: true,
-        languageFilter: "english-japanese",
+        languageFilter: "english",
+        catalogSource: "local",
+        catalogReady: true,
       })
     }
 
-    const { cards: apiCards, totalCount, pageSize: apiPageSize } = await fetchPokemonCatalogPage(
-      page,
-      pageSize,
-    )
-    let cards = mapApiCardsToBinder(apiCards, rawPriceByCardId)
-    cards = await attachLivePricesForSearch(cards)
-
     return NextResponse.json({
-      cards,
-      totalCount,
+      cards: [],
+      totalCount: 0,
       page,
-      hasMore: page * apiPageSize < totalCount,
-      languageFilter: "english-japanese",
+      hasMore: false,
+      languageFilter: "english",
+      catalogSource: "local",
+      catalogReady: true,
     })
   } catch (error) {
     console.error("[binder/search] failed:", error)
     const message = error instanceof Error ? error.message : "Search unavailable"
-    return NextResponse.json({ error: message }, { status: 503 })
+    return NextResponse.json({ error: message, catalogReady: false }, { status: 503 })
   }
 }

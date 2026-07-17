@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
-import {
-  binderPriceInputsFromCards,
-  resolveSearchCardPrices,
-} from "@/lib/pricing/persist-search-prices"
-import { attachBinderCardPrices } from "@/lib/trade-binder/binder-prices"
+import { resolveSearchCardPrices } from "@/lib/pricing/persist-search-prices"
 
-export const maxDuration = 30
+export const maxDuration = 15
 
 type PriceInput = {
   id: string
@@ -15,10 +11,7 @@ type PriceInput = {
   cardNumber?: string
 }
 
-/**
- * Cache-first card pricing for search/binder flows.
- * Live PriceCharting fallback fills gaps (English + Japanese via PC search).
- */
+/** Cache-only batch pricing. Use /api/cards/[id]/price for on-demand lookups. */
 export async function POST(request: NextRequest) {
   let cards: PriceInput[] = []
 
@@ -30,36 +23,22 @@ export async function POST(request: NextRequest) {
   }
 
   if (cards.length === 0) {
-    return NextResponse.json({ prices: {} })
-  }
-
-  if (!process.env.PRICECHARTING_API_KEY) {
-    const cachedPrices = await getRawPriceByCardId()
-    const pricesObj: Record<string, number> = {}
-    for (const card of cards) {
-      const price = cachedPrices.get(card.id)
-      if (price && price > 0) pricesObj[card.id] = price
-    }
-    return NextResponse.json(
-      { prices: pricesObj, error: "PRICECHARTING_API_KEY is not configured" },
-      { status: 503 },
-    )
+    return NextResponse.json({ prices: {}, cacheOnly: true })
   }
 
   try {
-    const prices = await resolveSearchCardPrices(cards, { limit: 20, concurrency: 2 })
-
+    const prices = await resolveSearchCardPrices(cards, { limit: 40 })
     const pricesObj: Record<string, number> = {}
     for (const [id, price] of prices) {
       pricesObj[id] = price
     }
 
     return NextResponse.json(
-      { prices: pricesObj },
-      { headers: { "Cache-Control": "private, max-age=900" } },
+      { prices: pricesObj, cacheOnly: true },
+      { headers: { "Cache-Control": "private, max-age=300" } },
     )
   } catch (error) {
     console.error("[binder/prices] failed:", error)
-    return NextResponse.json({ prices: {}, error: "Price lookup failed" }, { status: 503 })
+    return NextResponse.json({ prices: {}, cacheOnly: true, error: "Price lookup failed" }, { status: 503 })
   }
 }
