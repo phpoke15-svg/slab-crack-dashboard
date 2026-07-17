@@ -8,6 +8,12 @@ type Body = {
   image?: string
   phash?: string
   forceVision?: boolean
+  detected?: {
+    cardName?: string
+    setName?: string
+    cardNumber?: string
+    confidence?: number
+  }
 }
 
 export async function POST(request: Request) {
@@ -19,14 +25,20 @@ export async function POST(request: Request) {
   }
 
   const image = body.image?.trim()
-  if (!image) {
-    return NextResponse.json({ ok: false, error: "image (data URL) is required" }, { status: 400 })
+  const hasDetected = Boolean(body.detected?.cardName?.trim() || body.detected?.cardNumber?.trim())
+
+  if (!image && !hasDetected) {
+    return NextResponse.json(
+      { ok: false, error: "image (data URL) or detected card fields are required" },
+      { status: 400 },
+    )
   }
 
   try {
     const result = await scanCardPipeline({
-      image,
+      image: image ?? "",
       phash: body.phash,
+      detected: body.detected,
       forceVision: body.forceVision === true,
     })
     return NextResponse.json(result)

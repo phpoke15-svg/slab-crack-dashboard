@@ -11,6 +11,7 @@ import { DeficitBadge } from "@/components/deficit-badge"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { CardScanner } from "@/components/card-scanner"
+import { CardFoundSheet } from "@/components/card-found-sheet"
 import { ScanMatchFeedback } from "@/components/scan-match-feedback"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
@@ -65,9 +66,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const [card, setCard] = useState<MockCardEntry | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [matchMeta, setMatchMeta] = useState<{
-    matchMethod?: "visual_phash" | "vision"
+    matchMethod?: "visual_phash" | "vision" | "ocr"
     matchScore?: number
   } | null>(null)
+  const [foundPreview, setFoundPreview] = useState<MockCardEntry | null>(null)
 
   const enterManualHandoff = useCallback(
     (opts: {
@@ -188,6 +190,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
       if (json.matchMethod === "visual_phash") {
         setIdentifyStatus("Visual match — loading prices…")
+      } else if (json.matchMethod === "ocr") {
+        setIdentifyStatus("Catalog match — loading prices…")
       } else {
         setIdentifyStatus("Identifying — loading prices…")
       }
@@ -206,7 +210,15 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       if (resolved.card) {
         const localCard = resolved.card
         const matchHit = resolved.hit
-        presentMatch(localCard)
+        const showFoundSheet = json.matchMethod === "ocr" || json.matchMethod === "visual_phash"
+
+        if (showFoundSheet) {
+          setFoundPreview(localCard)
+          setPhase("camera")
+          setIsScanning(false)
+        } else {
+          presentMatch(localCard)
+        }
 
         if (json.needsLiveRefresh && matchHit) {
           const hit = matchHit
@@ -215,7 +227,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
           try {
             const priced = await fetchPricedCard(hit)
             if (cardMatchesDetect(priced)) {
-              presentMatch(priced, { openDrawer: true })
+              if (showFoundSheet) setFoundPreview(priced)
+              else presentMatch(priced, { openDrawer: true })
             } else {
               setCard(priced)
               setLookupError("Live prices loaded, but the catalog id may not match your card number.")
@@ -311,6 +324,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     setDetectedLabel(null)
     setDrawerOpen(false)
     setMatchMeta(null)
+    setFoundPreview(null)
     setPhase("camera")
   }
 
@@ -396,6 +410,20 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-white/60">No snapshot</div>
         )}
+
+        {foundPreview && phase === "camera" && !isScanning ? (
+          <CardFoundSheet
+            card={foundPreview}
+            onOpen={() => {
+              presentMatch(foundPreview, { openDrawer: true })
+              setFoundPreview(null)
+            }}
+            onDismiss={() => {
+              setFoundPreview(null)
+              resetScan()
+            }}
+          />
+        ) : null}
 
         {phase === "hud" && card && !isScanning ? (
           <div className="absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black via-black/95 to-transparent px-4 pb-5 pt-14">

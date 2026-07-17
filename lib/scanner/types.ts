@@ -29,10 +29,11 @@ export type ScanPipelineResult = {
   matchScore: number
   pricingSource: "local" | "live"
   needsLiveRefresh: boolean
-  matchMethod: "visual_phash" | "vision"
+  matchMethod: "visual_phash" | "vision" | "ocr"
   timings?: {
     visualMs?: number
     visionMs?: number
+    ocrMs?: number
     matchMs?: number
     totalMs: number
   }

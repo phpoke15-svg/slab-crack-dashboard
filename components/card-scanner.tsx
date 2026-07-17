@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Camera, ImagePlus, Loader2, ScanLine } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { captureCardFromVideo, defaultGuideBounds } from "@/lib/scanner/capture"
+import { preloadOcrWorker, recognizeCardText, releaseOcrWorker } from "@/lib/scanner/ocr-client"
 import { dHashFromImageSource } from "@/lib/scanner/phash"
 import { StabilityGate } from "@/lib/scanner/stability"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
@@ -77,6 +78,14 @@ export function CardScanner({
   const [cameraStarting, setCameraStarting] = useState(false)
   const [stability, setStability] = useState({ blur: 0, motion: 999, stable: false })
   const [guide, setGuide] = useState(defaultGuideBounds())
+  const [ocrStatus, setOcrStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    void preloadOcrWorker()
+    return () => {
+      void releaseOcrWorker()
+    }
+  }, [])
 
   const stopCamera = useCallback(() => {
     const video = videoRef.current
@@ -148,6 +157,35 @@ export function CardScanner({
     }
   }, [startCamera, stopCamera])
 
+  const scanImage = useCallback(
+    async (crop: string, phash: string) => {
+      setOcrStatus("Reading card text…")
+      const detected = await recognizeCardText(crop).catch(() => null)
+      setOcrStatus(null)
+
+      const payload: Record<string, unknown> = { image: crop, phash }
+      if (detected?.cardName || detected?.cardNumber) {
+        payload.detected = detected
+      }
+
+      const res = await fetch("/api/scanner/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const json = (await res.json().catch(() => null)) as
+        | (ScanPipelineResult & { error?: string })
+        | null
+
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error || "Could not identify this card.")
+      }
+
+      return { json: json as ScanPipelineResult, crop }
+    },
+    [],
+  )
+
   const runScan = useCallback(
     async (fromVideo: HTMLVideoElement) => {
       if (scanLockRef.current || scanning) return
@@ -159,29 +197,16 @@ export function CardScanner({
       try {
         const crop = await captureCardFromVideo(fromVideo, guide, 512, 0.62)
         const phash = await phashFromDataUrl(crop)
-
-        const res = await fetch("/api/scanner/scan", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image: crop, phash }),
-        })
-        const json = (await res.json().catch(() => null)) as
-          | (ScanPipelineResult & { error?: string })
-          | null
-
-        if (!res.ok || !json?.ok) {
-          onScanFail(json?.error || "Could not identify this card.", crop)
-          return
-        }
-
-        onScanComplete(json as ScanPipelineResult, crop)
+        const { json } = await scanImage(crop, phash)
+        onScanComplete(json, crop)
       } catch (err) {
         onScanFail(err instanceof Error ? err.message : "Scan failed", null)
       } finally {
         scanLockRef.current = false
+        setOcrStatus(null)
       }
     },
-    [guide, onScanComplete, onScanFail, onScanStart, scanning],
+    [guide, onScanComplete, onScanFail, onScanStart, scanImage, scanning],
   )
 
   const manualCapture = useCallback(() => {
@@ -220,29 +245,19 @@ export function CardScanner({
           onScanStart?.()
           try {
             const phash = await phashFromDataUrl(dataUrl)
-            const res = await fetch("/api/scanner/scan", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ image: dataUrl, phash }),
-            })
-            const json = (await res.json().catch(() => null)) as
-              | (ScanPipelineResult & { error?: string })
-              | null
-            if (!res.ok || !json?.ok) {
-              onScanFail(json?.error || "Could not identify this card.", dataUrl)
-              return
-            }
-            onScanComplete(json as ScanPipelineResult, dataUrl)
+            const { json } = await scanImage(dataUrl, phash)
+            onScanComplete(json, dataUrl)
           } catch (err) {
             onScanFail(err instanceof Error ? err.message : "Scan failed", dataUrl)
           } finally {
             scanLockRef.current = false
+            setOcrStatus(null)
           }
         })()
       }
       reader.readAsDataURL(file)
     },
-    [onScanComplete, onScanFail, onScanStart],
+    [onScanComplete, onScanFail, onScanStart, scanImage],
   )
 
   const g = guide
@@ -269,7 +284,12 @@ export function CardScanner({
               width: `${g.width * 100}%`,
               height: `${g.height * 100}%`,
             }}
-          />
+          >
+            <span className="absolute left-0 top-0 size-5 border-l-2 border-t-2 border-white/90" />
+            <span className="absolute right-0 top-0 size-5 border-r-2 border-t-2 border-white/90" />
+            <span className="absolute bottom-0 left-0 size-5 border-b-2 border-l-2 border-white/90" />
+            <span className="absolute bottom-0 right-0 size-5 border-b-2 border-r-2 border-white/90" />
+          </div>
           <div className="absolute inset-x-0 bottom-3 flex justify-center">
             <span
               className={cn(
@@ -280,12 +300,14 @@ export function CardScanner({
               )}
             >
               {scanning
-                ? "Identifying…"
+                ? processingMessage || ocrStatus || "Identifying…"
+                : ocrStatus
+                  ? ocrStatus
                 : stability.stable
                   ? autoScan
-                    ? "Hold steady — scanning…"
+                    ? "Hold steady — reading text…"
                     : "Steady — tap Scan"
-                  : "Align card in frame"}
+                  : "Align name & number in frame"}
             </span>
           </div>
         </div>
