@@ -1,4 +1,9 @@
 import { searchCatalogCards, type CardSearchHit } from "@/lib/card-lookup"
+import {
+  catalogHitToBinderCard,
+  getCatalogCardCount,
+  searchCatalogCardsLocal,
+} from "@/lib/db/cards-catalog"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { mapPokemonRarity } from "@/lib/trade-binder/pokemon-tcg"
 import { isEnglishOrJapanesePricedCard } from "@/lib/trade-binder/priced-catalog"
@@ -38,6 +43,27 @@ export async function searchBinderCatalog(
   const budgetMs = options?.budgetMs ?? 12_000
 
   if (query.trim().length < 2) return []
+
+  const catalogCount = await getCatalogCardCount()
+  if (catalogCount > 0) {
+    const localHits = await searchCatalogCardsLocal(query, limit)
+    const cards: BinderCatalogCard[] = []
+
+    for (const hit of localHits) {
+      if (!isEnglishOrJapanesePricedCard({ setName: hit.setName, productName: hit.name })) {
+        continue
+      }
+
+      const card = catalogHitToBinderCard(hit)
+      if (!card.rawPrice) {
+        const cached = rawPriceByCardId.get(hit.id) ?? rawPriceByCardId.get(hit.id.replace(/^poke-/, ""))
+        if (cached && cached > 0) card.rawPrice = cached
+      }
+      cards.push(card)
+    }
+
+    return cards
+  }
 
   const hits = await searchCatalogCards(query, limit, budgetMs)
   const cards: BinderCatalogCard[] = []

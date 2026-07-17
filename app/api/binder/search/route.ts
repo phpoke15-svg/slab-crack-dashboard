@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getCatalogCardCount } from "@/lib/db/cards-catalog"
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
@@ -67,6 +68,21 @@ export async function GET(request: NextRequest) {
   try {
     if (q.length >= 2) {
       const rawPriceByCardId = await getRawPriceByCardId()
+      const localCatalogReady = (await getCatalogCardCount()) > 0
+
+      if (localCatalogReady) {
+        const catalogCards = await searchBinderCatalog(q, { limit: pageSize, rawPriceByCardId })
+        const cards = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
+
+        return NextResponse.json({
+          cards,
+          totalCount: cards.length,
+          page: 1,
+          hasMore: false,
+          languageFilter: "english",
+          catalogSource: "local",
+        })
+      }
 
       const [apiResult, catalogCards] = await Promise.all([
         searchPokemonCatalog(q, pageSize).catch((error) => {

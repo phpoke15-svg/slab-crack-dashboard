@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server"
 import { searchCatalogCards, type CardSearchHit } from "@/lib/card-lookup"
+import {
+  catalogHitToCardSearchHit,
+  getCatalogCardCount,
+  searchCatalogCardsLocal,
+} from "@/lib/db/cards-catalog"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
@@ -26,7 +31,16 @@ export async function GET(request: Request) {
   }
 
   try {
-    const results = await searchCatalogCards(q, SEARCH_LIMIT, 12_000)
+    const catalogReady = (await getCatalogCardCount()) > 0
+    let results: CardSearchHit[]
+
+    if (catalogReady) {
+      const hits = await searchCatalogCardsLocal(q, SEARCH_LIMIT)
+      results = hits.map(catalogHitToCardSearchHit)
+    } else {
+      results = await searchCatalogCards(q, SEARCH_LIMIT, 12_000)
+    }
+
     searchCache.set(cacheKey, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS })
     return NextResponse.json(
       { results },

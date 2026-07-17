@@ -18,6 +18,7 @@
     "sync-binder-prices": "npx tsx scripts/sync-binder-prices.ts",
     "enrich-images": "npx tsx scripts/enrich-images.ts",
     "seed-catalog": "node scripts/seed-catalog.mjs",
+    "import-pokemon-catalog": "npx tsx scripts/import-pokemon-catalog.ts",
     "seed-top-200": "node scripts/seed-top-200.mjs",
     "compute-catalog-phash": "node scripts/compute-catalog-phash.mjs",
     "live-binder-hud": "npm --prefix live-binder-hud run dev"
