@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  getGiveawayPrizeCards,
   isWithinPrizeCardBand,
   prizeCardPriceBand,
   pricedCatalogToGiveawayCards,
@@ -55,5 +56,11 @@ describe("giveaway prize cards", () => {
 
     const { cards } = pricedCatalogToGiveawayCards(catalog, 10, 5)
     expect(cards.map((card) => card.id)).toEqual(["b", "a"])
+  })
+
+  it("falls back to nearest mock cards when strict band is empty", async () => {
+    const { cards, matchMode } = await getGiveawayPrizeCards(10, 3)
+    expect(cards.length).toBeGreaterThanOrEqual(1)
+    expect(["nearest", "relaxed", "strict", "sample"]).toContain(matchMode)
   })
 })

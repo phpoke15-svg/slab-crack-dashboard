@@ -11,7 +11,7 @@ import {
   giveawayPrizePayoutDetail,
   giveawayPrizePayoutSummary,
 } from "@/lib/giveaway/prize-formula"
-import type { GiveawayPrizeCard, PrizeCardPriceBand } from "@/lib/giveaway/prize-cards"
+import type { GiveawayPrizeCard, GiveawayPrizeCardMatchMode, PrizeCardPriceBand } from "@/lib/giveaway/prize-cards"
 import type { GiveawayPrizePayload } from "@/lib/giveaway/types"
 import { cn } from "@/lib/utils"
 
@@ -20,6 +20,7 @@ type Props = {
   cards: GiveawayPrizeCard[]
   priceBand: PrizeCardPriceBand | null
   usedLivePriceCharting?: boolean
+  matchMode?: GiveawayPrizeCardMatchMode
 }
 
 function priceDeltaLabel(cardPrice: number, target: number): string {
@@ -29,7 +30,13 @@ function priceDeltaLabel(cardPrice: number, target: number): string {
   return `${prefix}${formatGiveawayUsd(Math.abs(diff))} vs prize`
 }
 
-export function GiveawayPrizeShowcase({ prize, cards, priceBand, usedLivePriceCharting }: Props) {
+export function GiveawayPrizeShowcase({
+  prize,
+  cards,
+  priceBand,
+  usedLivePriceCharting,
+  matchMode = "strict",
+}: Props) {
   const [activeIndex, setActiveIndex] = useState(0)
 
   const goTo = useCallback(
@@ -55,6 +62,15 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand, usedLivePriceCh
   }, [activeIndex, cards.length, goTo])
 
   const activeCard = cards[activeIndex]
+
+  const matchNote =
+    matchMode === "strict"
+      ? `±5%${priceBand ? `, ${formatGiveawayUsd(priceBand.min)}–${formatGiveawayUsd(priceBand.max)}` : ""}`
+      : matchMode === "relaxed"
+        ? "near today's prize value (wider price match)"
+        : matchMode === "nearest"
+          ? "nearest catalog examples to today's prize value"
+          : "sample catalog illustrations"
 
   return (
     <section className="mb-8 space-y-5">
@@ -85,8 +101,7 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand, usedLivePriceCh
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
           The prize is cash via PayPal — not a physical card. These catalog examples show what the cash value could
-          buy (±5%
-          {priceBand ? `, ${formatGiveawayUsd(priceBand.min)}–${formatGiveawayUsd(priceBand.max)}` : ""})
+          buy ({matchNote})
           {usedLivePriceCharting ? ". Some prices refreshed live from PriceCharting." : "."}
         </p>
 
@@ -170,10 +185,7 @@ export function GiveawayPrizeShowcase({ prize, cards, priceBand, usedLivePriceCh
             </div>
           </div>
         ) : (
-          <p className="mt-3 text-xs text-muted-foreground">
-            No catalog cards within ±5% of today&apos;s prize value right now. The prize total above still reflects
-            the live account count.
-          </p>
+          <p className="mt-3 text-xs text-muted-foreground">Loading example cards…</p>
         )}
       </div>
     </section>

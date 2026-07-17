@@ -30,8 +30,10 @@ async function loadGiveawayPrizeData(): Promise<GiveawayPagePrizeData> {
     }
 
     try {
-      const { band, cards, usedLivePriceCharting } = await getGiveawayPrizeCards(snap.prizeArvUsd)
-      return { prize, cards, priceBand: band, usedLivePriceCharting, error: null }
+      const { band, cards, usedLivePriceCharting, matchMode } = await getGiveawayPrizeCards(
+        snap.prizeArvUsd,
+      )
+      return { prize, cards, priceBand: band, usedLivePriceCharting, matchMode, error: null }
     } catch (cardError) {
       console.warn("[giveaway-page] prize cards failed:", cardError)
       return { prize, cards: [], priceBand: null, error: null }

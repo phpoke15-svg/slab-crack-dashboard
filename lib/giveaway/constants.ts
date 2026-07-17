@@ -23,6 +23,12 @@ export const GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT = 10
 /** Strict ± band around today's prize ARV when matching catalog cards (0.05 = ±5%). */
 export const GIVEAWAY_PRIZE_CARD_BAND_PERCENT = 0.05
 
+/** Progressive widening when the strict band has no catalog matches. */
+export const GIVEAWAY_PRIZE_CARD_RELAXED_BAND_PERCENTS = [0.15, 0.35, 0.75, 1.5] as const
+
+/** Minimum carousel cards — page must never show an empty showcase. */
+export const GIVEAWAY_PRIZE_CARD_MIN_SHOWCASE = 3
+
 /** Live PriceCharting lookups when the cached catalog has too few ±5% matches. */
 export const GIVEAWAY_PRIZE_CARD_PC_LOOKUP_LIMIT = 18
 export const GIVEAWAY_PRIZE_CARD_PC_CANDIDATE_POOL = 60

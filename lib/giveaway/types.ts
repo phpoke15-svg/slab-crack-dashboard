@@ -1,5 +1,9 @@
 import type { PrizeSnapshot } from "@/lib/giveaway/prize-snapshot"
-import type { GiveawayPrizeCard, PrizeCardPriceBand } from "@/lib/giveaway/prize-cards"
+import type {
+  GiveawayPrizeCard,
+  GiveawayPrizeCardMatchMode,
+  PrizeCardPriceBand,
+} from "@/lib/giveaway/prize-cards"
 
 export type GiveawayPrizePayload = Pick<
   PrizeSnapshot,
@@ -13,6 +17,7 @@ export type GiveawayPagePrizeData = {
   cards: GiveawayPrizeCard[]
   priceBand: PrizeCardPriceBand | null
   usedLivePriceCharting?: boolean
+  matchMode?: GiveawayPrizeCardMatchMode
   error: string | null
 }
 
