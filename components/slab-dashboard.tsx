@@ -287,8 +287,13 @@ export function SlabDashboard() {
   }, [arbitrageFeed, feed, fullSlabCrack, query, sortMode, savedCards, watchedCards])
 
   const showFreePreviewBanner = !fullSlabCrack && !entitlements?.isLoading && feed === "top"
+  const catalogSearchActive = query.trim().length >= 2 && feed === "top"
   const freeSearchBlocked =
-    !fullSlabCrack && query.trim().length >= 2 && feed === "top" && results.length === 0
+    !fullSlabCrack &&
+    catalogSearchActive &&
+    results.length === 0 &&
+    searchHits.length === 0 &&
+    !searchLoading
 
   const pricedCount = useMemo(
     () => arbitrageFeed.filter((card) => card.hasPricing !== false).length,
@@ -304,8 +309,7 @@ export function SlabDashboard() {
     () => interleaveFeedAds(results, entitlements?.adFree ? 0 : undefined),
     [results, entitlements?.adFree],
   )
-  const showCatalogSearch =
-    query.trim().length >= 2 && feed === "top" && fullSlabCrack
+  const showCatalogSearch = catalogSearchActive
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -333,7 +337,7 @@ export function SlabDashboard() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search card, set, or set + card…"
+              placeholder="Search all cards — name, set, or number…"
               className={cn(
                 "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
                 "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
@@ -501,8 +505,8 @@ export function SlabDashboard() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">Free SlabCrack preview</p>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities). Search
-                  and the full feed need Premium.
+                  Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities). Search any
+                  card above; the full deficit feed needs Premium.
                 </p>
                 <Link
                   href="/pricing"
@@ -526,10 +530,10 @@ export function SlabDashboard() {
             </span>
             {freeSearchBlocked ? (
               <>
-                <p className="mt-4 font-medium text-foreground">Search is a Premium feature</p>
+                <p className="mt-4 font-medium text-foreground">No preview matches</p>
                 <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  Free shows a fixed 10-card mid-deficit preview. Upgrade to search any card and unlock
-                  the full deficit feed.
+                  No matches in the free preview feed. Try a catalog result above, or upgrade for the
+                  full live deficit board.
                 </p>
                 <Link
                   href="/pricing"

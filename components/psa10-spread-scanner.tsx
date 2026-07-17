@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   AlertTriangle,
@@ -25,9 +25,13 @@ import {
   PSA_AVAILABLE_GRADING_TIERS,
   PSA_GRADING_TIERS,
 } from "@/lib/psa-grading-tiers"
-import type { SlabLabCard } from "@/lib/slablab"
+import type { SlabLabCard } from "@/lib/slablab-card"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
+import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
+import { searchHitToPlaceholder } from "@/lib/card-lookup"
+import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
+import { toSlabLabCard } from "@/lib/slablab-card"
 import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
 import { WatchlistButton } from "@/components/save-for-later/watchlist-button"
 import {
@@ -127,8 +131,11 @@ export function Psa10SpreadScanner() {
   const [gradingCost, setGradingCost] = useState(DEFAULT_GRADING_COST)
   const [sortMode, setSortMode] = useState<SortMode>("roi")
   const [view, setView] = useState<SlabLabView>("board")
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedRow, setSelectedRow] = useState<ComputedRow | null>(null)
   const [query, setQuery] = useState("")
+  const [searchHits, setSearchHits] = useState<CardSearchHit[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
   const [saveStore, setSaveStore] = useState<SaveForLaterStore>({ folders: [], items: [] })
   const [watchlistStore, setWatchlistStore] = useState<SlabLabWatchlistStore>({
     ids: [],
@@ -147,6 +154,26 @@ export function Psa10SpreadScanner() {
   useEffect(() => {
     saveSlabLabWatchlistStore(watchlistStore)
   }, [watchlistStore])
+
+  useEffect(() => {
+    const q = query.trim()
+    if (q.length < 2) {
+      setSearchHits([])
+      setSearchLoading(false)
+      return
+    }
+
+    setSearchLoading(true)
+    const timer = window.setTimeout(() => {
+      fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
+        .then((res) => (res.ok ? res.json() : { results: [] }))
+        .then((data: { results?: CardSearchHit[] }) => setSearchHits(data.results ?? []))
+        .catch(() => setSearchHits([]))
+        .finally(() => setSearchLoading(false))
+    }, 350)
+
+    return () => window.clearTimeout(timer)
+  }, [query])
 
   useEffect(() => {
     let cancelled = false
@@ -239,11 +266,71 @@ export function Psa10SpreadScanner() {
 
   const isRowWatched = (row: ScannerCard) => isSlabLabWatched(watchlistStore, row)
 
-  const selected = rows.find((r) => r.id === selectedId) ?? null
+  const lookupSlabLabRow = useCallback(
+    async (hit: CardSearchHit): Promise<ComputedRow | null> => {
+      const params = new URLSearchParams({ id: hit.id })
+      if (hit.imageUrl) params.set("imageUrl", hit.imageUrl)
 
-  useEffect(() => {
-    if (selectedId && !rows.some((r) => r.id === selectedId)) setSelectedId(null)
-  }, [rows, selectedId])
+      const res = await fetch(`/api/cards/lookup?${params.toString()}`)
+      if (!res.ok) {
+        const placeholder = searchHitToPlaceholder(hit)
+        const slabCard = toSlabLabCard(normalizeCardEntry(placeholder))
+        return slabCard ? computeRow(slabCard, gradingCost) : null
+      }
+
+      const entry = normalizeCardEntry((await res.json()) as MockCardEntry)
+      const slabCard =
+        toSlabLabCard(entry) ??
+        toSlabLabCard(
+          normalizeCardEntry({
+            ...searchHitToPlaceholder(hit),
+            rawPrice: entry.rawPrice,
+            psa10Price: entry.psa10Price,
+            psa9Price: entry.psa9Price,
+            imageUrl: entry.imageUrl || hit.imageUrl,
+          }),
+        )
+
+      return slabCard ? computeRow(slabCard, gradingCost) : null
+    },
+    [gradingCost],
+  )
+
+  const handleCatalogSelect = useCallback(
+    async (hit: CardSearchHit) => {
+      setDetailLoadingId(hit.id)
+      try {
+        const row = await lookupSlabLabRow(hit)
+        if (row) setSelectedRow(row)
+      } finally {
+        setDetailLoadingId(null)
+      }
+    },
+    [lookupSlabLabRow],
+  )
+
+  const handleCatalogWatch = useCallback(
+    async (hit: CardSearchHit) => {
+      setDetailLoadingId(hit.id)
+      try {
+        const row = await lookupSlabLabRow(hit)
+        if (row) toggleWatch(row)
+      } finally {
+        setDetailLoadingId(null)
+      }
+    },
+    [lookupSlabLabRow, toggleWatch],
+  )
+
+  const checkHitWatched = useCallback(
+    (hit: CardSearchHit) =>
+      watchlistStore.ids.includes(hit.id) ||
+      watchlistStore.ids.includes(hit.pokemonTcgId) ||
+      Boolean(watchlistStore.cards[hit.id] ?? watchlistStore.cards[hit.pokemonTcgId]),
+    [watchlistStore],
+  )
+
+  const catalogSearchActive = view === "board" && query.trim().length >= 2
 
   const activePreset = findPsaTierByFee(gradingCost)?.id ?? null
 
@@ -256,7 +343,7 @@ export function Psa10SpreadScanner() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Filter board by card, set, or number…"
+            placeholder="Search all cards — name, set, or number…"
             className={cn(
               "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
               "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
@@ -417,6 +504,19 @@ export function Psa10SpreadScanner() {
         ) : null}
       </section>
 
+      {catalogSearchActive ? (
+        <CardSearchResults
+          hits={searchHits}
+          loading={searchLoading}
+          query={query}
+          watchedIds={watchlistStore.ids}
+          isHitWatched={checkHitWatched}
+          onSelect={handleCatalogSelect}
+          onToggleWatch={handleCatalogWatch}
+          detailLoadingId={detailLoadingId}
+        />
+      ) : null}
+
       <p className="px-0.5 text-[11px] text-muted-foreground">
         {view === "saved"
           ? rows.length === 0
@@ -465,11 +565,11 @@ export function Psa10SpreadScanner() {
                 key={row.watchlistId || row.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => setSelectedId(row.id)}
+                onClick={() => setSelectedRow(row)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault()
-                    setSelectedId(row.id)
+                    setSelectedRow(row)
                   }
                 }}
                 className={cn(
@@ -578,14 +678,14 @@ export function Psa10SpreadScanner() {
         )}
       </div>
 
-      {selected && (
+      {selectedRow && (
         <SlabLabDetailDrawer
-          row={selected}
-          watched={isRowWatched(selected)}
-          saved={isRowSaved(selected)}
-          onToggleWatch={() => toggleWatch(selected)}
-          onToggleSave={() => toggleSave(selected)}
-          onClose={() => setSelectedId(null)}
+          row={selectedRow}
+          watched={isRowWatched(selectedRow)}
+          saved={isRowSaved(selectedRow)}
+          onToggleWatch={() => toggleWatch(selectedRow)}
+          onToggleSave={() => toggleSave(selectedRow)}
+          onClose={() => setSelectedRow(null)}
         />
       )}
     </div>
