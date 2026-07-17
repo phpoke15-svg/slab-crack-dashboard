@@ -47,6 +47,9 @@ export type SyncCardPricesResult = {
   refreshed: number
   skipped: number
   failed: number
+  processed: number
+  remaining: number
+  stoppedEarly: boolean
   errors: string[]
   source: "pricecharting" | "skipped"
 }

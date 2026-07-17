@@ -47,7 +47,7 @@ export async function fetchCardPricesFromPriceCharting(
 export async function fetchCardPricesBatch(
   apiKey: string,
   targets: CardPriceTarget[],
-  options?: { rateLimitMs?: number },
+  options?: { rateLimitMs?: number; timeBudgetMs?: number },
 ): Promise<
   Array<{
     target: CardPriceTarget
@@ -56,6 +56,8 @@ export async function fetchCardPricesBatch(
   }>
 > {
   const rateLimitMs = options?.rateLimitMs ?? PC_RATE_LIMIT_MS
+  const timeBudgetMs = options?.timeBudgetMs
+  const startedAt = Date.now()
   const results: Array<{
     target: CardPriceTarget
     fetched: FetchedCardPrices | null
@@ -63,6 +65,10 @@ export async function fetchCardPricesBatch(
   }> = []
 
   for (let i = 0; i < targets.length; i++) {
+    if (timeBudgetMs != null && Date.now() - startedAt >= timeBudgetMs) {
+      break
+    }
+
     const target = targets[i]!
     try {
       const fetched = await fetchCardPricesFromPriceCharting(apiKey, target)
@@ -73,6 +79,9 @@ export async function fetchCardPricesBatch(
     }
 
     if (i < targets.length - 1) {
+      if (timeBudgetMs != null && Date.now() - startedAt + rateLimitMs >= timeBudgetMs) {
+        break
+      }
       await sleep(rateLimitMs)
     }
   }

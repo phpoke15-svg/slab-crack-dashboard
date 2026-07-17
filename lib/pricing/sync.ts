@@ -10,8 +10,16 @@ import {
 } from "@/lib/pricing/db"
 import type { CardPriceTarget, PriceHistoryPoint, SyncCardPricesResult } from "@/lib/pricing/types"
 
-const DEFAULT_MAX_CARDS = 400
+/** Vercel maxDuration is 300s — stay under with margin for DB writes. */
+const DEFAULT_TIME_BUDGET_MS = 260_000
+const DEFAULT_MAX_CARDS = 220
 const STALE_HOURS = 24
+
+function parsePositiveInt(value: string | undefined, fallback: number): number {
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback
+  return Math.round(parsed)
+}
 
 function mergeTargets(...groups: CardPriceTarget[][]): CardPriceTarget[] {
   const byId = new Map<string, CardPriceTarget>()
@@ -97,11 +105,17 @@ function historyPointsFromFetch(
 export async function syncUnifiedCardPrices(options?: {
   maxCards?: number
   force?: boolean
+  timeBudgetMs?: number
 }): Promise<SyncCardPricesResult> {
   const apiKey = process.env.PRICECHARTING_API_KEY
   const syncedAt = new Date().toISOString()
   const snapshotDate = syncedAt.slice(0, 10)
-  const maxCards = options?.maxCards ?? DEFAULT_MAX_CARDS
+  const maxCards =
+    options?.maxCards ??
+    parsePositiveInt(process.env.PRICE_SYNC_MAX_CARDS, DEFAULT_MAX_CARDS)
+  const timeBudgetMs =
+    options?.timeBudgetMs ??
+    parsePositiveInt(process.env.PRICE_SYNC_TIME_BUDGET_MS, DEFAULT_TIME_BUDGET_MS)
 
   if (!apiKey) {
     return {
@@ -110,6 +124,9 @@ export async function syncUnifiedCardPrices(options?: {
       refreshed: 0,
       skipped: 0,
       failed: 0,
+      processed: 0,
+      remaining: 0,
+      stoppedEarly: false,
       errors: ["PRICECHARTING_API_KEY is not configured"],
       source: "skipped",
     }
@@ -124,7 +141,8 @@ export async function syncUnifiedCardPrices(options?: {
         staleBefore,
       )
 
-  const toSync = targets.filter((t) => staleIds.has(t.cardId)).slice(0, maxCards)
+  const staleTargets = targets.filter((t) => staleIds.has(t.cardId))
+  const toSync = staleTargets.slice(0, maxCards)
 
   if (toSync.length === 0) {
     return {
@@ -133,12 +151,18 @@ export async function syncUnifiedCardPrices(options?: {
       refreshed: 0,
       skipped: targets.length,
       failed: 0,
+      processed: 0,
+      remaining: 0,
+      stoppedEarly: false,
       errors: [],
       source: "pricecharting",
     }
   }
 
-  const batchResults = await fetchCardPricesBatch(apiKey, toSync)
+  const batchResults = await fetchCardPricesBatch(apiKey, toSync, { timeBudgetMs })
+  const processed = batchResults.length
+  const stoppedEarly = processed < toSync.length
+  const remaining = Math.max(0, staleTargets.length - processed)
   const refreshed = await upsertCardPricesSafe(batchResults)
 
   const historyPoints: PriceHistoryPoint[] = []
@@ -188,8 +212,11 @@ export async function syncUnifiedCardPrices(options?: {
     syncedAt,
     candidates: targets.length,
     refreshed,
-    skipped: Math.max(0, targets.length - toSync.length),
+    skipped: Math.max(0, targets.length - staleTargets.length),
     failed,
+    processed,
+    remaining,
+    stoppedEarly,
     errors,
     source: "pricecharting",
   }

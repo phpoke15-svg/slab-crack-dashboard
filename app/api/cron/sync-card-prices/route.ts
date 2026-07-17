@@ -10,8 +10,14 @@ export async function GET(request: Request) {
   const denied = requireCronAuth(request)
   if (denied) return denied
 
+  const { searchParams } = new URL(request.url)
+  const maxCardsParam = searchParams.get("maxCards")
+  const maxCards = maxCardsParam ? Number(maxCardsParam) : undefined
+
   try {
-    const result = await syncUnifiedCardPrices()
+    const result = await syncUnifiedCardPrices({
+      maxCards: Number.isFinite(maxCards) && maxCards! > 0 ? maxCards : undefined,
+    })
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unified card price sync failed"
