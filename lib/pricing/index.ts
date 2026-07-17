@@ -27,6 +27,8 @@ export {
 
 export { syncUnifiedCardPrices } from "@/lib/pricing/sync"
 
+export { resolveSearchCardPrices, binderPriceInputsFromCards } from "@/lib/pricing/persist-search-prices"
+
 export {
   cardPriceRowToMockEntry,
   mergeCachedRawPrices,

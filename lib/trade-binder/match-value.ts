@@ -1,5 +1,4 @@
-import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
-import { attachBinderCardPrices } from "@/lib/trade-binder/binder-prices"
+import { resolveSearchCardPrices } from "@/lib/pricing/persist-search-prices"
 import {
   cardIdVariants,
   cardIdentityKey,
@@ -60,10 +59,7 @@ async function fetchMatchCardPrices(cards: MatchCard[]): Promise<Map<string, num
   }))
 
   if (typeof window === "undefined") {
-    const cachedPrices = await getRawPriceByCardId()
-    const prices = await attachBinderCardPrices(inputs, {
-      cachedPrices,
-      cacheOnly: true,
+    const prices = await resolveSearchCardPrices(inputs, {
       limit: Math.min(inputs.length, 80),
       concurrency: 4,
     })
