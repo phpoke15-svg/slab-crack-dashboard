@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
   activeMinutesRequired,
+  AD_SYNTHETIC_MINUTES_PER_WATCH,
+  DAILY_AD_WATCH_LIMIT,
   FREE_ACTIVE_MINUTES_REQUIRED,
   giveawayPrizeArvUsd,
   giveawayTierFeatureLine,
@@ -11,6 +13,7 @@ import {
   MONTHLY_ENTRY_CAP,
   PREMIUM_ACTIVE_MINUTES_REQUIRED,
   PRO_ACTIVE_MINUTES_REQUIRED,
+  qualifyingActiveMinutes,
   utcTodayIso,
 } from "@/lib/giveaway/constants"
 
@@ -55,5 +58,12 @@ describe("giveaway constants", () => {
 
   it("monthly cap is 28", () => {
     expect(MONTHLY_ENTRY_CAP).toBe(28)
+  })
+
+  it("adds synthetic ad minutes for free users only", () => {
+    expect(qualifyingActiveMinutes(10, 2, "free")).toBe(10 + 2 * AD_SYNTHETIC_MINUTES_PER_WATCH)
+    expect(qualifyingActiveMinutes(10, 3, "free")).toBe(40)
+    expect(qualifyingActiveMinutes(10, 3, "premium")).toBe(10)
+    expect(DAILY_AD_WATCH_LIMIT).toBe(3)
   })
 })

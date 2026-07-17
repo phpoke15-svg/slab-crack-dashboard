@@ -6,6 +6,11 @@ export const DAILY_APP_ENTRY_CAP = 1
 export const MAIL_IN_ENTRIES_PER_POSTCARD = 7
 export const MAX_MAIL_IN_POSTCARDS_PER_MONTH = 4
 
+/** Free-tier rewarded ads: each completed ad counts as this many synthetic active minutes. */
+export const AD_SYNTHETIC_MINUTES_PER_WATCH = 10
+/** Max rewarded ads a free user can complete per UTC day. */
+export const DAILY_AD_WATCH_LIMIT = 3
+
 /** Prize ARV per registered account at the monthly snapshot (USD). */
 export const GIVEAWAY_PRIZE_PER_ACCOUNT_USD = 0.1
 
@@ -57,6 +62,22 @@ export function activeMinutesRequired(plan: string | null | undefined): number {
   if (isProOrAbove(plan)) return PRO_ACTIVE_MINUTES_REQUIRED
   if (plan === "premium") return PREMIUM_ACTIVE_MINUTES_REQUIRED
   return FREE_ACTIVE_MINUTES_REQUIRED
+}
+
+/** Qualifying minutes toward today's entry (free users get +10 per rewarded ad watched). */
+export function qualifyingActiveMinutes(
+  activeMinutes: number,
+  adsWatched: number,
+  plan: string | null | undefined,
+): number {
+  const base = Math.max(0, Math.floor(activeMinutes))
+  if (plan && plan !== "free") return base
+  const bonus = Math.max(0, Math.floor(adsWatched)) * AD_SYNTHETIC_MINUTES_PER_WATCH
+  return base + bonus
+}
+
+export function canEarnAdMinuteBonus(plan: string | null | undefined): boolean {
+  return !plan || plan === "free"
 }
 
 /** One-line giveaway benefit for plan feature lists (pricing, FAQ). */

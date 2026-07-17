@@ -20,6 +20,7 @@ import {
 } from "@/lib/giveaway/constants"
 import type { GiveawayEntryPoolData, GiveawayPagePrizeData } from "@/lib/giveaway/types"
 import { GiveawayReminderOptIn } from "@/components/giveaway-reminder-opt-in"
+import { GiveawayDailyProgress } from "@/components/giveaway-daily-progress"
 
 type Status = {
   monthPeriod: string
@@ -27,10 +28,15 @@ type Status = {
   monthEntriesRemaining: number
   monthlyCap: number
   todayActiveMinutes: number
+  todayAdsWatched: number
+  adsDailyLimit: number
+  adMinutesPerWatch: number
+  qualifyingMinutes: number
   todayEntryAwarded: boolean
   thresholdMinutes: number
   isPremium: boolean
   plan: string
+  canWatchAds: boolean
   mailInPostcardsUsed: number
   mailInPostcardsMax: number
   promotionTotalEntries: number
@@ -63,6 +69,18 @@ export function GiveawayClient({
   const [prizeData, setPrizeData] = useState(initialPrizeData)
   const [entryPool, setEntryPool] = useState(initialEntryPool)
   const [prizeLoading, setPrizeLoading] = useState(!initialPrizeData.prize && !initialPrizeData.error)
+
+  const refreshStatus = () => {
+    if (!user) return
+    fetch("/api/giveaway/status", { credentials: "same-origin" })
+      .then((r) => r.json())
+      .then((json: { ok?: boolean; status?: Status; error?: string }) => {
+        if (json.ok && json.status) setStatus(json.status)
+      })
+      .catch(() => {
+        // Keep existing status on refresh failure
+      })
+  }
 
   useEffect(() => {
     setPrizeData(initialPrizeData)
@@ -176,8 +194,8 @@ export function GiveawayClient({
           <h2 className="font-semibold">How to earn entries</h2>
           <ul className="list-disc space-y-2 pl-5 text-muted-foreground">
             <li>
-              <strong className="text-foreground">Free:</strong> {FREE_ACTIVE_MINUTES_REQUIRED} active minutes/day → 1
-              entry
+              <strong className="text-foreground">Free:</strong> {FREE_ACTIVE_MINUTES_REQUIRED} active minutes/day
+              → 1 entry (or watch up to 3 rewarded ads for −10 min each)
             </li>
             <li>
               <strong className="text-foreground">Premium:</strong> {PREMIUM_ACTIVE_MINUTES_REQUIRED} active minutes/day
@@ -232,6 +250,14 @@ export function GiveawayClient({
         ) : status ? (
           <section className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
             <h2 className="mb-3 text-sm font-semibold">Your progress — {status.monthPeriod}</h2>
+
+            <GiveawayDailyProgress
+              userId={user!.id}
+              status={status}
+              onRefresh={refreshStatus}
+              className="mb-4"
+            />
+
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-xl border border-border bg-background p-3">
                 <p className="text-xs text-muted-foreground">Month entries</p>
@@ -241,9 +267,9 @@ export function GiveawayClient({
                 </p>
               </div>
               <div className="rounded-xl border border-border bg-background p-3">
-                <p className="text-xs text-muted-foreground">Today&apos;s active time</p>
+                <p className="text-xs text-muted-foreground">Qualifying time today</p>
                 <p className="text-2xl font-bold">
-                  {status.todayActiveMinutes}
+                  {status.qualifyingMinutes}
                   <span className="text-base font-normal text-muted-foreground"> / {status.thresholdMinutes} min</span>
                 </p>
               </div>
@@ -255,7 +281,7 @@ export function GiveawayClient({
                   ? "Pro / Supreme threshold is active."
                   : status.plan === "premium"
                     ? "Premium threshold is active."
-                    : "Upgrade to Premium for a 10-minute daily threshold, or Pro for 5 minutes."}
+                    : "Free plan: use the app or watch rewarded ads to reach 30 qualifying minutes."}
               {status.mailInPostcardsUsed > 0
                 ? ` Mail-in postcards this month: ${status.mailInPostcardsUsed}/${status.mailInPostcardsMax}.`
                 : ""}

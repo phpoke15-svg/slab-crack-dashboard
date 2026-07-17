@@ -2,6 +2,9 @@ import "server-only"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import {
   activeMinutesRequired,
+  AD_SYNTHETIC_MINUTES_PER_WATCH,
+  canEarnAdMinuteBonus,
+  DAILY_AD_WATCH_LIMIT,
   DAILY_APP_ENTRY_CAP,
   GIVEAWAY_PRIZE_PER_ACCOUNT_USD,
   isPremiumPlan,
@@ -9,6 +12,7 @@ import {
   MAX_MAIL_IN_POSTCARDS_PER_MONTH,
   MONTHLY_ENTRY_CAP,
   monthPeriod,
+  qualifyingActiveMinutes,
   type EntrySource,
   utcTodayIso,
 } from "@/lib/giveaway/constants"
@@ -16,6 +20,8 @@ import {
   computeLivePrizeSnapshot,
   type PrizeSnapshot,
 } from "@/lib/giveaway/prize-snapshot"
+import { getAdsWatchedToday } from "@/lib/giveaway/ad-rewards"
+import { tryAwardDailyGiveawayEntry } from "@/lib/giveaway/award-entry"
 
 function missingTableMessage(error: { message?: string } | null): string | null {
   const message = error?.message ?? ""
@@ -87,10 +93,15 @@ export type GiveawayStatus = {
   monthEntriesRemaining: number
   monthlyCap: number
   todayActiveMinutes: number
+  todayAdsWatched: number
+  adsDailyLimit: number
+  adMinutesPerWatch: number
+  qualifyingMinutes: number
   todayEntryAwarded: boolean
   thresholdMinutes: number
   isPremium: boolean
   plan: string
+  canWatchAds: boolean
   mailInPostcardsUsed: number
   mailInPostcardsMax: number
   promotionTotalEntries: number
@@ -127,7 +138,7 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
   const threshold = activeMinutesRequired(plan)
 
   const admin = createAdminClient()
-  const [monthEntries, postcards, activity, promotion] = await Promise.all([
+  const [monthEntries, postcards, activity, adsWatched, promotion] = await Promise.all([
     countMonthEntries(userId, period),
     countMailInPostcards(userId, period),
     admin
@@ -136,6 +147,7 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
       .eq("user_id", userId)
       .eq("activity_date", today)
       .maybeSingle(),
+    getAdsWatchedToday(userId, today),
     getPromotionEntryStats(period),
   ])
 
@@ -145,16 +157,29 @@ export async function getGiveawayStatus(userId: string): Promise<GiveawayStatus>
     throw new Error(activity.error.message)
   }
 
+  const todayActiveMinutes = activity.data?.active_minutes ?? 0
+  const todayEntryAwarded = Boolean(activity.data?.entry_awarded)
+  const qualifyingMinutes = qualifyingActiveMinutes(todayActiveMinutes, adsWatched, plan)
+
   return {
     monthPeriod: period,
     monthEntries,
     monthEntriesRemaining: Math.max(0, MONTHLY_ENTRY_CAP - monthEntries),
     monthlyCap: MONTHLY_ENTRY_CAP,
-    todayActiveMinutes: activity.data?.active_minutes ?? 0,
-    todayEntryAwarded: Boolean(activity.data?.entry_awarded),
+    todayActiveMinutes,
+    todayAdsWatched: adsWatched,
+    adsDailyLimit: DAILY_AD_WATCH_LIMIT,
+    adMinutesPerWatch: AD_SYNTHETIC_MINUTES_PER_WATCH,
+    qualifyingMinutes,
+    todayEntryAwarded,
     thresholdMinutes: threshold,
     isPremium: isPremiumPlan(plan),
     plan,
+    canWatchAds:
+      canEarnAdMinuteBonus(plan) &&
+      !todayEntryAwarded &&
+      adsWatched < DAILY_AD_WATCH_LIMIT &&
+      monthEntries < MONTHLY_ENTRY_CAP,
     mailInPostcardsUsed: postcards,
     mailInPostcardsMax: MAX_MAIL_IN_POSTCARDS_PER_MONTH,
     promotionTotalEntries: promotion.totalEntries,
@@ -223,42 +248,24 @@ export async function recordActiveTime(
 
   if (upsertErr) throw new Error(missingTableMessage(upsertErr) ?? upsertErr.message)
 
-  if (newMinutes < threshold) {
+  const award = await tryAwardDailyGiveawayEntry(userId)
+  if (!award.awarded) {
     return {
       awarded: false,
-      reason: "below_threshold",
-      activeMinutes: newMinutes,
-      thresholdMinutes: threshold,
-      minutesRemaining: threshold - newMinutes,
+      reason: award.reason,
+      activeMinutes: award.activeMinutes,
+      thresholdMinutes: award.thresholdMinutes,
+      minutesRemaining: award.minutesRemaining,
     }
   }
 
-  const inserted = await insertEntries(userId, period, today, "app_usage", DAILY_APP_ENTRY_CAP)
-  if (inserted === 0) {
-    return {
-      awarded: false,
-      reason: "monthly_cap_reached",
-      activeMinutes: newMinutes,
-      thresholdMinutes: threshold,
-    }
-  }
-
-  const { error: markErr } = await admin
-    .from("giveaway_daily_app_activity")
-    .update({ entry_awarded: true, updated_at: new Date().toISOString() })
-    .eq("user_id", userId)
-    .eq("activity_date", today)
-
-  if (markErr) throw new Error(missingTableMessage(markErr) ?? markErr.message)
-
-  const total = await countMonthEntries(userId, period)
   return {
     awarded: true,
-    entriesAdded: inserted,
-    activeMinutes: newMinutes,
-    thresholdMinutes: threshold,
-    monthEntries: total,
-    monthEntriesRemaining: Math.max(0, MONTHLY_ENTRY_CAP - total),
+    entriesAdded: award.entriesAdded,
+    activeMinutes: award.activeMinutes,
+    thresholdMinutes: award.thresholdMinutes,
+    monthEntries: award.monthEntries,
+    monthEntriesRemaining: award.monthEntriesRemaining,
   }
 }
 

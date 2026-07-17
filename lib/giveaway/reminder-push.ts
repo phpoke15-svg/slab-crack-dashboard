@@ -58,10 +58,10 @@ export async function sendGiveawayEntryReminders(): Promise<GiveawayReminderRunR
         continue
       }
 
-      const remaining = Math.max(0, status.thresholdMinutes - status.todayActiveMinutes)
+      const remaining = Math.max(0, status.thresholdMinutes - status.qualifyingMinutes)
       const body =
         remaining > 0
-          ? `You need ${remaining} more active minute${remaining === 1 ? "" : "s"} today to earn your free giveaway entry.`
+          ? `You need ${remaining} more qualifying minute${remaining === 1 ? "" : "s"} today to earn your free giveaway entry (active time + rewarded ads).`
           : "You are eligible for today's free giveaway entry — open CollecTools to claim it."
 
       const result = await sendWebPushGiveawayReminder(userId, {
