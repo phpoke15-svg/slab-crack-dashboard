@@ -1,5 +1,7 @@
 import mockData from "@/lib/mockData.json"
 import { getBinderCardPriceById } from "@/lib/db/binder-card-prices"
+import { getRawPriceMapFromCardPrices } from "@/lib/pricing/db"
+import { mergeCachedRawPrices } from "@/lib/pricing/views"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import {
   type PricedCatalogCard,
@@ -88,12 +90,12 @@ async function fetchAllSlabCards(): Promise<SlabCardRow[]> {
 }
 
 export async function getRawPriceByCardId(): Promise<Map<string, number>> {
-  const priceByCardId = new Map<string, number>()
+  const [unifiedPrices, binderPrices] = await Promise.all([
+    getRawPriceMapFromCardPrices(),
+    getBinderCardPriceById(),
+  ])
 
-  const binderPrices = await getBinderCardPriceById()
-  for (const [cardId, rawPrice] of binderPrices) {
-    priceByCardId.set(cardId, rawPrice)
-  }
+  const priceByCardId = mergeCachedRawPrices(unifiedPrices, binderPrices)
 
   if (!isSupabaseConfigured()) return priceByCardId
 

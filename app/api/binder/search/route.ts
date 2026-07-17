@@ -114,11 +114,10 @@ export async function GET(request: NextRequest) {
         cardNumber: card.cardNumber,
       }))
 
-    if (needsPrice.length > 0 && process.env.PRICECHARTING_API_KEY) {
+    if (needsPrice.length > 0) {
       const fetched = await attachBinderCardPrices(needsPrice, {
         cachedPrices: rawPriceByCardId,
-        limit: 12,
-        concurrency: 2,
+        cacheOnly: true,
       })
       cards = mergePricesIntoCards(cards, fetched)
     }

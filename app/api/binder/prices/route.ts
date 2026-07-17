@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
-import { attachBinderCardPrices } from "@/lib/trade-binder/binder-prices"
 
 export const maxDuration = 10
 
@@ -11,6 +10,7 @@ type PriceInput = {
   cardNumber?: string
 }
 
+/** Serve cached prices only — refreshed by /api/cron/sync-card-prices. */
 export async function POST(request: NextRequest) {
   let cards: PriceInput[] = []
 
@@ -25,45 +25,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ prices: {} })
   }
 
-  if (!process.env.PRICECHARTING_API_KEY) {
-    return NextResponse.json(
-      { prices: {}, error: "PRICECHARTING_API_KEY is not configured" },
-      { status: 503 },
-    )
-  }
-
   try {
     const cachedPrices = await getRawPriceByCardId()
-    const prices = await attachBinderCardPrices(cards, {
-      cachedPrices,
-      limit: 20,
-      concurrency: 2,
-    })
-
     const pricesObj: Record<string, number> = {}
-    for (const [id, price] of prices) {
-      pricesObj[id] = price
-    }
 
-    if (prices.size > 0) {
-      const { upsertBinderCardPrices } = await import("@/lib/db/binder-card-prices")
-      await upsertBinderCardPrices(
-        cards
-          .map((card) => {
-            const rawPrice = prices.get(card.id) ?? 0
-            if (rawPrice <= 0) return null
-            return {
-              cardId: card.id,
-              rawPrice,
-              cardName: card.name,
-              cardSet: card.set,
-              cardNumber: card.cardNumber,
-            }
-          })
-          .filter((row): row is NonNullable<typeof row> => row !== null),
-      ).catch((error) => {
-        console.warn("[binder/prices] cache upsert failed:", error)
-      })
+    for (const card of cards) {
+      const price = cachedPrices.get(card.id)
+      if (price && price > 0) {
+        pricesObj[card.id] = price
+      }
     }
 
     return NextResponse.json(

@@ -6,6 +6,8 @@ import {
   type PriceChartingCardContext,
   type PriceChartingSearchHit,
 } from "@/lib/pricecharting"
+import { getCardPriceById } from "@/lib/pricing/db"
+import { cardPriceRowToMockEntry } from "@/lib/pricing/views"
 import {
   fetchPokemonCardById,
   fetchPokemonCardsByQuery,
@@ -32,6 +34,38 @@ export type CardSearchHit = {
 const LOOKUP_CACHE_TTL_MS = 15 * 60 * 1000
 const lookupCache = new Map<string, { entry: MockCardEntry; expiresAt: number }>()
 const SEARCH_BUDGET_MS = 7500
+
+function isPricingCacheOnly(): boolean {
+  return process.env.PRICING_CACHE_ONLY === "true"
+}
+
+async function lookupFromUnifiedCache(
+  cardId: string,
+  metadata?: {
+    cardName?: string
+    setName?: string
+    cardNumber?: string
+    imageUrl?: string
+  },
+): Promise<MockCardEntry | null> {
+  const row = await getCardPriceById(cardId)
+  if (!row) return null
+  const hasPrice =
+    (row.raw_price ?? 0) > 0 ||
+    (row.psa7_price ?? 0) > 0 ||
+    (row.psa8_price ?? 0) > 0 ||
+    (row.psa9_price ?? 0) > 0 ||
+    (row.psa10_price ?? 0) > 0
+  if (!hasPrice) return null
+
+  return cardPriceRowToMockEntry(row, {
+    id: cardId,
+    cardName: metadata?.cardName,
+    setName: metadata?.setName,
+    cardNumber: metadata?.cardNumber,
+    imageUrl: metadata?.imageUrl,
+  })
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   return Promise.race([
@@ -978,6 +1012,18 @@ export async function lookupCardByPokemonId(
 
   if (!catalog) return null
 
+  const pokeId = `poke-${catalog.id}`
+  const cachedPrice = await lookupFromUnifiedCache(pokeId, {
+    cardName: formatCardName(catalog.name, catalog.rarity),
+    setName: catalog.setName,
+    cardNumber: catalog.cardNumber,
+    imageUrl: catalog.imageLarge ?? catalog.imageSmall ?? "",
+  })
+  if (cachedPrice) {
+    setCachedLookup(cacheKey, cachedPrice)
+    return cachedPrice
+  }
+
   const ctx: PriceChartingCardContext = {
     cardName: catalog.name,
     setName: catalog.setName,
@@ -985,9 +1031,9 @@ export async function lookupCardByPokemonId(
   }
 
   const apiKey = process.env.PRICECHARTING_API_KEY
-  if (!apiKey) {
+  if (!apiKey || isPricingCacheOnly()) {
     return normalizeCardEntry({
-      id: `poke-${catalog.id}`,
+      id: pokeId,
       cardName: formatCardName(catalog.name, catalog.rarity),
       setName: catalog.setName,
       cardNumber: catalog.cardNumber,
@@ -997,7 +1043,9 @@ export async function lookupCardByPokemonId(
       slabPrice: 0,
       deficit: 0,
       percentageSavings: 0,
-      marketInsight: "Pricing unavailable — set PRICECHARTING_API_KEY on the server.",
+      marketInsight: isPricingCacheOnly()
+        ? "Price pending — refreshed daily by background sync."
+        : "Pricing unavailable — set PRICECHARTING_API_KEY on the server.",
       gradeQuotes: buildGradeQuotes(0, {}),
       hasPricing: false,
     })
@@ -1032,6 +1080,27 @@ export async function lookupCardById(cardId: string): Promise<MockCardEntry | nu
   }
 
   if (cardId.startsWith("pc-")) {
+    const cachedPrice = await lookupFromUnifiedCache(cardId)
+    if (cachedPrice) return cachedPrice
+
+    if (isPricingCacheOnly()) {
+      return normalizeCardEntry({
+        id: cardId,
+        cardName: "Unknown card",
+        setName: "Unknown set",
+        cardNumber: "",
+        imageUrl: "",
+        rawPrice: 0,
+        slabGrade: 8,
+        slabPrice: 0,
+        deficit: 0,
+        percentageSavings: 0,
+        marketInsight: "Price pending — refreshed daily by background sync.",
+        gradeQuotes: buildGradeQuotes(0, {}),
+        hasPricing: false,
+      })
+    }
+
     const apiKey = process.env.PRICECHARTING_API_KEY
     if (!apiKey) return null
 
