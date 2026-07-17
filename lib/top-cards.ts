@@ -1,3 +1,5 @@
+import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
+
 /** Rarities treated as modern chase / slab-relevant for the top-200 seed. */
 export const CHASE_RARITIES = [
   "Special Illustration Rare",
@@ -25,9 +27,7 @@ export function buildChaseRarityQuery(): string {
 }
 
 export function buildEbayQueries(name: string, setName: string, cardNumber: string) {
-  const num = cardNumber.split("/")[0]?.trim() ?? cardNumber
-  const setShort = setName.replace(/^(Scarlet & Violet|Sword & Shield):\s*/i, "").trim()
-  const base = `${name} ${num} ${setShort} pokemon`.replace(/\s+/g, " ").trim()
+  const base = buildCatalogPriceSearchQuery(name, setName, cardNumber)
   return {
     raw: `${base} NM`,
     psa7: `${base} PSA 7`,
@@ -38,7 +38,5 @@ export function buildEbayQueries(name: string, setName: string, cardNumber: stri
 }
 
 export function buildSearchQuery(name: string, setName: string, cardNumber: string): string {
-  const num = cardNumber.split("/")[0]?.trim() ?? cardNumber
-  const setShort = setName.replace(/^(Scarlet & Violet|Sword & Shield):\s*/i, "").trim()
-  return `${name} ${num} ${setShort}`.toLowerCase()
+  return buildCatalogPriceSearchQuery(name, setName, cardNumber)
 }

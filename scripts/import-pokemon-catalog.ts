@@ -14,6 +14,7 @@ import { readFile } from "node:fs/promises"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { upsertCatalogCards, type CatalogCardUpsert } from "../lib/db/cards-catalog"
+import { formatCatalogCardNumberWithTotal } from "../lib/pricing/catalog-search-query"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const DATA_REPO = "PokemonTCG/pokemon-tcg-data"
@@ -24,6 +25,7 @@ type SetInfo = {
   id: string
   name: string
   series?: string
+  printedTotal?: number
 }
 
 type PokemonTcgDataCard = {
@@ -92,6 +94,7 @@ async function listCardSetFiles(onlySet?: string): Promise<string[]> {
 function cardFileToRows(
   setId: string,
   setName: string,
+  printedTotal: number | undefined,
   cards: PokemonTcgDataCard[],
 ): CatalogCardUpsert[] {
   return cards.map((card) => ({
@@ -99,7 +102,7 @@ function cardFileToRows(
     name: card.name,
     set_name: setName,
     set_id: setId,
-    number: card.number ?? "",
+    number: formatCatalogCardNumberWithTotal(card.number ?? "", printedTotal),
     rarity: card.rarity ?? null,
     image_url: card.images?.large ?? card.images?.small ?? null,
     language: "en" as const,
@@ -130,10 +133,11 @@ async function main() {
     const setId = file.replace(/\.json$/, "")
     const setInfo = setById.get(setId)
     const setName = setInfo ? formatSetName(setInfo) : setId
+    const printedTotal = setInfo?.printedTotal
     const url = `https://raw.githubusercontent.com/${DATA_REPO}/master/cards/en/${file}`
 
     const cards = await fetchJson<PokemonTcgDataCard[]>(url)
-    const rows = cardFileToRows(setId, setName, cards)
+    const rows = cardFileToRows(setId, setName, printedTotal, cards)
 
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize)

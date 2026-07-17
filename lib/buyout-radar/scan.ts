@@ -261,8 +261,8 @@ async function scrapeCardSales(apiKey: string, card: BuyoutCard): Promise<Buyout
   const numberGuess = card.id.includes("-") ? card.id.split("-").pop() || "" : ""
   const queries = defaultEbayQueries({
     cardName: card.name.replace(/\s+\([^)]+\)\s*$/, "").trim() || card.name,
+    setName: card.setName,
     cardNumber: numberGuess,
-    searchQuery: `${card.name} ${card.setName} pokemon`,
   })
   const data = await fetchEbaySoldComps(apiKey, queries.raw, {
     daysToScrape: SOLD_LOOKBACK_DAYS,

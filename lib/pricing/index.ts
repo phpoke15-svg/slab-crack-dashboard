@@ -30,6 +30,12 @@ export { syncUnifiedCardPrices } from "@/lib/pricing/sync"
 export { resolveSearchCardPrices, binderPriceInputsFromCards } from "@/lib/pricing/persist-search-prices"
 
 export {
+  buildCatalogPriceSearchQuery,
+  formatCatalogCardNumber,
+  formatCatalogCardNumberWithTotal,
+} from "@/lib/pricing/catalog-search-query"
+
+export {
   cardPriceRowToMockEntry,
   mergeCachedRawPrices,
   toBinderRawPrice,

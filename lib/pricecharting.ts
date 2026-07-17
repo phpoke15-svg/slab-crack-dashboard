@@ -1,5 +1,7 @@
 /** PriceCharting API helpers — prices are returned in pennies (integer). */
 
+import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
+
 const PRODUCT_URL = "https://www.pricecharting.com/api/product"
 const PRODUCTS_URL = "https://www.pricecharting.com/api/products"
 
@@ -102,19 +104,8 @@ export function buildPriceChartingSearchQueries(
   setName: string,
   cardNumber: string,
 ): string[] {
-  const name = stripRarityFromName(cardName).toLowerCase()
-  const num = cardNumberPrefix(cardNumber)
-  const setShort = shortSetName(setName).toLowerCase()
-
-  const queries = [
-    `${name} #${num} ${setShort}`,
-    `${name} #${num} pokemon ${setShort}`,
-    `${name} ${setShort} pokemon`,
-    `${name} #${num}`,
-    `${name} ${setShort}`,
-  ]
-
-  return [...new Set(queries.map((q) => q.replace(/\s+/g, " ").trim()).filter(Boolean))]
+  const primary = buildCatalogPriceSearchQuery(cardName, setName, cardNumber)
+  return primary ? [primary] : []
 }
 
 export function scorePriceChartingMatch(
@@ -192,11 +183,25 @@ export async function resolvePriceChartingForCard(
     return { product, resolvedId: card.priceChartingId }
   }
 
-  const queries = [
-    ...(card.searchQuery ? [card.searchQuery] : []),
-    ...buildPriceChartingSearchQueries(card.cardName, card.setName, card.cardNumber),
-  ]
-  const uniqueQueries = [...new Set(queries)].slice(0, card.fast ? 2 : 4)
+  const searchQuery =
+    card.searchQuery?.trim() ||
+    buildCatalogPriceSearchQuery(card.cardName, card.setName, card.cardNumber)
+
+  if (searchQuery) {
+    try {
+      const product = await fetchPriceChartingProduct(apiKey, { query: searchQuery })
+      return { product, resolvedId: product.id }
+    } catch {
+      // Fall back to products search below.
+    }
+  }
+
+  const queries = searchQuery ? [searchQuery] : buildPriceChartingSearchQueries(
+    card.cardName,
+    card.setName,
+    card.cardNumber,
+  )
+  const uniqueQueries = [...new Set(queries)].slice(0, card.fast ? 1 : 2)
 
   let bestId: string | undefined
   let bestScore = 0
@@ -216,17 +221,11 @@ export async function resolvePriceChartingForCard(
     return { id: localBestId, score: localBestScore }
   }
 
-  const batches = card.fast
-    ? [uniqueQueries].filter((b) => b.length > 0)
-    : [uniqueQueries.slice(0, 2), uniqueQueries.slice(2, 4)].filter((b) => b.length > 0)
-
-  for (const batch of batches) {
-    const results = await Promise.all(batch.map((query) => scoreQuery(query)))
-    for (const result of results) {
-      if (result.score > bestScore) {
-        bestScore = result.score
-        bestId = result.id
-      }
+  for (const query of uniqueQueries) {
+    const result = await scoreQuery(query)
+    if (result.score > bestScore) {
+      bestScore = result.score
+      bestId = result.id
     }
     if (bestScore >= (card.fast ? 12 : 18) && bestId) break
   }

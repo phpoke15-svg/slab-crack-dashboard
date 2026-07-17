@@ -11,6 +11,7 @@
  */
 
 import { findBestArbitrage, formatArbitrageAlert, type ArbitrageResult } from "@/lib/pricecharting"
+import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
 import type { RecentSale } from "@/lib/slab-data"
 
 export type { RecentSale }
@@ -225,11 +226,14 @@ function delay(ms: number) {
 export function defaultEbayQueries(card: {
   searchQuery?: string
   cardName: string
+  setName?: string
   cardNumber: string
 }): EbayGradeQueries {
   const base =
     card.searchQuery ??
-    `${card.cardName.replace(/\s+\([^)]+\)/, "")} ${card.cardNumber} pokemon`
+    (card.setName
+      ? buildCatalogPriceSearchQuery(card.cardName, card.setName, card.cardNumber)
+      : `${card.cardName.replace(/\s+\([^)]+\)/, "")} ${card.cardNumber} pokemon`)
   return {
     raw: `${base} NM`,
     psa7: `${base} PSA 7`,

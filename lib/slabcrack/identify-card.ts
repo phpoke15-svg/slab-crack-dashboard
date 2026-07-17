@@ -6,6 +6,7 @@ import {
   searchHitToPlaceholder,
   type CardSearchHit,
 } from "@/lib/card-lookup"
+import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
 import {
   geminiVisionModelCandidates,
   isGeminiModelUnavailable,
@@ -359,7 +360,7 @@ async function priceHit(hit: CardSearchHit): Promise<MockCardEntry> {
       imageUrl: hit.imageUrl || undefined,
       rarity: hit.rarity,
       fast: true,
-      searchQuery: [name, number ? `#${number}` : "", hit.setName].filter(Boolean).join(" "),
+      searchQuery: buildCatalogPriceSearchQuery(hit.cardName, hit.setName, hit.cardNumber),
     })
     return priced ?? searchHitToPlaceholder(hit)
   } catch (error) {
