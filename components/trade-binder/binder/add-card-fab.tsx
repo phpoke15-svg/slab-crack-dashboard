@@ -116,7 +116,7 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
                   ref={searchRef}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search any EN/JP card…"
+                  placeholder="Search the card catalog…"
                   aria-label="Search cards"
                   className="h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-10 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary/50 focus:bg-secondary"
                 />

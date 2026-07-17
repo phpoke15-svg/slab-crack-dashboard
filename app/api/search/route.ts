@@ -4,6 +4,7 @@ import {
   getCatalogCardCount,
   searchCatalogCardsLocal,
 } from "@/lib/db/cards-catalog"
+import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 
 export const dynamic = "force-dynamic"
 
@@ -18,7 +19,7 @@ export async function GET(request: NextRequest) {
   const catalogReady = (await getCatalogCardCount()) > 0
   if (!catalogReady) {
     return NextResponse.json(
-      { results: [], catalogReady: false, error: "Local catalog not seeded" },
+      { results: [], catalogReady: false, error: CATALOG_NOT_SEEDED_MESSAGE },
       { status: 503 },
     )
   }

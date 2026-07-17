@@ -130,21 +130,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   }, [])
 
   const fetchPricedCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry> => {
-    const params = hit.id.startsWith("pc-")
-      ? new URLSearchParams({ id: hit.id })
-      : new URLSearchParams({
-          pokemonTcgId: hit.pokemonTcgId || hit.id.replace(/^poke-/, ""),
-          cardName: hit.cardName,
-          setName: hit.setName,
-          cardNumber: hit.cardNumber,
-        })
-    if (!hit.id.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl)
-    if (hit.id.startsWith("pc-")) {
-      params.set("cardName", hit.cardName)
-      params.set("setName", hit.setName)
-      params.set("cardNumber", hit.cardNumber)
-      if (hit.pokemonTcgId) params.set("pokemonTcgId", hit.pokemonTcgId)
-    }
+    const params = new URLSearchParams({ id: hit.id })
+    if (hit.imageUrl) params.set("imageUrl", hit.imageUrl)
 
     const res = await fetch(`/api/cards/lookup?${params.toString()}`)
     if (!res.ok) {

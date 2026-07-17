@@ -61,7 +61,6 @@ async function fetchMatchCardPrices(cards: MatchCard[]): Promise<Map<string, num
   if (typeof window === "undefined") {
     const prices = await resolveSearchCardPrices(inputs, {
       limit: Math.min(inputs.length, 80),
-      concurrency: 4,
     })
     for (const [id, price] of prices) registerPrice(priceById, id, price)
     return priceById

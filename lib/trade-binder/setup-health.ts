@@ -4,6 +4,9 @@ export const POKEMATCH_SETUP_SQL = "supabase/pokematch-setup.sql"
 export const POKEMATCH_MISSING_PIECES_SQL = "supabase/pokematch-missing-pieces.sql"
 export const CARDS_CATALOG_SQL = "supabase/cards-catalog.sql"
 
+export const CATALOG_NOT_SEEDED_MESSAGE =
+  "Card catalog not seeded. Run supabase/cards-catalog.sql, then npm run import-pokemon-catalog."
+
 /** Tables covered by the smaller gap-fill migration. */
 const MISSING_PIECES_TABLES = new Set(["trade_chat_reads", "binder_card_prices", "card_prices"])
 
@@ -11,7 +14,7 @@ const MISSING_PIECES_TABLES = new Set(["trade_chat_reads", "binder_card_prices",
 const BILLING_PROBE_IDS = new Set(["profiles_plan", "subscriptions"])
 
 /** Optional enhancements — reported in health checks but not required for binder ready. */
-const OPTIONAL_PROBE_IDS = new Set(["cards_catalog"])
+const OPTIONAL_PROBE_IDS = new Set<string>()
 
 export type SetupCheck = {
   id: string

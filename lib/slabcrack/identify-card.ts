@@ -2,10 +2,10 @@ import "server-only"
 import {
   lookupCardById,
   lookupCardByPokemonId,
-  searchCatalogCards,
   searchHitToPlaceholder,
   type CardSearchHit,
 } from "@/lib/card-lookup"
+import { catalogHitToCardSearchHit, searchCatalogCardsLocal } from "@/lib/db/cards-catalog"
 import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
 import {
   geminiVisionModelCandidates,
@@ -372,23 +372,24 @@ async function priceHit(hit: CardSearchHit): Promise<MockCardEntry> {
   }
 }
 
+async function searchLocalCatalog(query: string, limit: number): Promise<CardSearchHit[]> {
+  const hits = await searchCatalogCardsLocal(query, limit)
+  return hits.map(catalogHitToCardSearchHit)
+}
+
 async function searchWithFallbacks(
   detected: DetectedCard,
   primaryQuery: string,
 ): Promise<CardSearchHit[]> {
   const queries = [primaryQuery, ...buildAlternateQueries(detected, primaryQuery)].slice(0, 3)
 
-  // Primary first (Pokémon + PriceCharting in parallel inside searchCatalogCards).
-  const primaryHits = await searchCatalogCards(queries[0]!, 6, IDENTIFY_SEARCH_MS, { fast: true })
+  const primaryHits = await searchLocalCatalog(queries[0]!, 6)
   if (primaryHits.length) return primaryHits
 
-  // Remaining alternates in parallel — don't chain slow sequential passes.
   const altQueries = queries.slice(1)
   if (!altQueries.length) return []
 
-  const altResults = await Promise.all(
-    altQueries.map((query) => searchCatalogCards(query, 6, IDENTIFY_SEARCH_MS, { fast: true })),
-  )
+  const altResults = await Promise.all(altQueries.map((query) => searchLocalCatalog(query, 6)))
   for (let i = 0; i < altResults.length; i += 1) {
     const hits = altResults[i]!
     if (hits.length) {

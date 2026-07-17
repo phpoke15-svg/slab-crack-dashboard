@@ -35,6 +35,9 @@ export {
   formatCatalogCardNumberWithTotal,
 } from "@/lib/pricing/catalog-search-query"
 
+export { lookupCatalogCardEntry } from "@/lib/pricing/catalog-card-lookup"
+export { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
+
 export {
   cardPriceRowToMockEntry,
   mergeCachedRawPrices,

@@ -212,3 +212,72 @@ export async function upsertCatalogCards(rows: CatalogCardUpsert[]): Promise<num
   if (error) throw error
   return payload.length
 }
+
+const FEATURED_NAME_QUERIES = ["charizard", "pikachu", "mew", "umbreon", "lugia", "rayquaza"]
+
+export async function getFeaturedCatalogCards(limit = 30): Promise<CatalogSearchHit[]> {
+  if (!isSupabaseConfigured()) return []
+
+  try {
+    const supabase = createReadClient()
+    const { data: pricedRows, error: priceError } = await supabase
+      .from("card_prices")
+      .select("card_id, raw_price, synced_at, sync_error")
+      .gt("raw_price", 0)
+      .like("card_id", "poke-%")
+      .order("raw_price", { ascending: false })
+      .limit(Math.min(limit * 2, 80))
+
+    if (!priceError && pricedRows?.length) {
+      const cardIds = pricedRows.map((row) => String(row.card_id))
+      const { data: cards, error: cardsError } = await supabase
+        .from("cards")
+        .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")
+        .in("id", cardIds)
+
+      if (!cardsError && cards?.length) {
+        const priceById = new Map(
+          pricedRows.map((row) => [
+            String(row.card_id),
+            {
+              raw_price: row.raw_price,
+              synced_at: row.synced_at,
+              sync_error: row.sync_error,
+            },
+          ]),
+        )
+
+        const hits = (cards as CatalogCardRow[])
+          .map((row) => {
+            const cached = priceById.get(row.id)
+            return rowToHit({
+              ...row,
+              raw_price: cached?.raw_price as number | null | undefined,
+              synced_at: cached?.synced_at as string | null | undefined,
+              sync_error: cached?.sync_error as string | null | undefined,
+            })
+          })
+          .sort((a, b) => (b.rawPrice ?? 0) - (a.rawPrice ?? 0))
+
+        if (hits.length > 0) return hits.slice(0, limit)
+      }
+    }
+
+    const merged: CatalogSearchHit[] = []
+    const seen = new Set<string>()
+    for (const query of FEATURED_NAME_QUERIES) {
+      const hits = await searchCatalogCardsLocal(query, 8)
+      for (const hit of hits) {
+        if (seen.has(hit.id)) continue
+        seen.add(hit.id)
+        merged.push(hit)
+      }
+      if (merged.length >= limit) break
+    }
+
+    return merged.slice(0, limit)
+  } catch (error) {
+    console.error("[cards-catalog] featured failed:", error)
+    return []
+  }
+}

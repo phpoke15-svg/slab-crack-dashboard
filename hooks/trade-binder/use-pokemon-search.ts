@@ -9,6 +9,8 @@ type SearchResponse = {
   cards?: BinderSearchResult[]
   totalCount?: number
   featured?: boolean
+  catalogReady?: boolean
+  error?: string
 }
 
 function dedupeSearchResults<T extends { id: string }>(cards: T[]): T[] {
@@ -20,40 +22,6 @@ function dedupeSearchResults<T extends { id: string }>(cards: T[]): T[] {
     unique.push(card)
   }
   return unique
-}
-
-async function fetchMissingPrices(cards: BinderSearchResult[]): Promise<BinderSearchResult[]> {
-  const unpriced = cards
-    .filter((card) => !card.rawPrice || card.rawPrice <= 0)
-    .slice(0, 12)
-    .map((card) => ({
-      id: card.id,
-      name: card.name,
-      set: card.set,
-      cardNumber: card.cardNumber,
-    }))
-
-  if (unpriced.length === 0) return cards
-
-  try {
-    const res = await fetch("/api/binder/prices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cards: unpriced }),
-    })
-    if (!res.ok) return cards
-
-    const data = (await res.json()) as { prices?: Record<string, number> }
-    const prices = data.prices ?? {}
-    if (Object.keys(prices).length === 0) return cards
-
-    return cards.map((card) => {
-      const price = prices[card.id]
-      return price && price > 0 ? { ...card, rawPrice: price } : card
-    })
-  } catch {
-    return cards
-  }
 }
 
 export function usePokemonSearch(query: string, enabled = true) {
@@ -86,7 +54,7 @@ export function usePokemonSearch(query: string, enabled = true) {
         const res = await fetch(`/api/binder/search?${params.toString()}`, {
           signal: controller.signal,
         })
-        const data = (await res.json()) as SearchResponse & { error?: string }
+        const data = (await res.json()) as SearchResponse
         if (!res.ok) throw new Error(data.error ?? "Search failed")
 
         const cards = dedupeSearchResults(data.cards ?? [])
@@ -95,10 +63,6 @@ export function usePokemonSearch(query: string, enabled = true) {
         setResults(cards)
         setTotal(data.totalCount ?? cards.length)
         setFeatured(Boolean(data.featured))
-
-        void fetchMissingPrices(cards).then((priced) => {
-          if (!controller.signal.aborted) setResults(dedupeSearchResults(priced))
-        })
       } catch (e) {
         if ((e as Error).name !== "AbortError") {
           const message = e instanceof Error ? e.message : "Could not load cards. Try again."
@@ -119,4 +83,15 @@ export function usePokemonSearch(query: string, enabled = true) {
   }, [query, enabled])
 
   return { results, isLoading, error, total, featured }
+}
+
+export async function fetchLazyCardPrice(cardId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`/api/cards/${encodeURIComponent(cardId)}/price`)
+    if (!res.ok) return null
+    const data = (await res.json()) as { rawPrice?: number | null }
+    return data.rawPrice && data.rawPrice > 0 ? data.rawPrice : null
+  } catch {
+    return null
+  }
 }
