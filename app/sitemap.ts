@@ -43,8 +43,14 @@ export async function generateSitemaps() {
   return maps
 }
 
-export default async function sitemap(props: { id: number | Promise<number> }): Promise<MetadataRoute.Sitemap> {
-  const id = typeof props.id === "number" ? props.id : await props.id
+function resolveSitemapId(id: number | string): number {
+  const parsed = typeof id === "number" ? id : Number(id)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export default async function sitemap(props: { id: number | string | Promise<number | string> }): Promise<MetadataRoute.Sitemap> {
+  const rawId = typeof props.id === "object" && props.id != null && "then" in props.id ? await props.id : props.id
+  const id = resolveSitemapId(rawId)
   const base = LEGAL_SITE_URL.replace(/\/$/, "")
 
   if (id === 0) {
