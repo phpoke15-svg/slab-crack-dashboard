@@ -63,6 +63,7 @@ async function fetchMatchCardPrices(cards: MatchCard[]): Promise<Map<string, num
     const cachedPrices = await getRawPriceByCardId()
     const prices = await attachBinderCardPrices(inputs, {
       cachedPrices,
+      cacheOnly: true,
       limit: Math.min(inputs.length, 80),
       concurrency: 4,
     })

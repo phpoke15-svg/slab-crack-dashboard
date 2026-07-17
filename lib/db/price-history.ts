@@ -1,5 +1,6 @@
 import { getDeficitHistoryForCard } from "@/lib/db/price-snapshots"
 import { getDailySalesForGrade } from "@/lib/db/sale-events"
+import { getPriceHistoryForCard } from "@/lib/pricing/db"
 import type { PsaGradeNumber } from "@/lib/slab-data"
 
 export type DailyPriceHistoryPoint = {
@@ -23,26 +24,51 @@ export type DailyPriceHistoryResult = {
 /**
  * Merge daily eBay sold-comp medians with daily sync snapshots.
  * Sales data is preferred per day; snapshots fill gaps.
+ * Also merges unified price_history when available (card_id keyed).
  */
 export async function getDailyPriceHistory(
   cardOrWatchlistId: string,
   grade: PsaGradeNumber,
   days = 30,
 ): Promise<DailyPriceHistoryResult> {
-  const [rawDaily, slabDaily, snapshots] = await Promise.all([
+  const [rawDaily, slabDaily, snapshots, unifiedRaw, unifiedSlab] = await Promise.all([
     getDailySalesForGrade(cardOrWatchlistId, 0, days),
     getDailySalesForGrade(cardOrWatchlistId, grade, days),
     getDeficitHistoryForCard(cardOrWatchlistId, grade, days),
+    getPriceHistoryForCard(cardOrWatchlistId, 0, days),
+    getPriceHistoryForCard(cardOrWatchlistId, grade, days),
   ])
 
   const rawByDate = new Map(rawDaily.map((d) => [d.soldDate, d]))
   const slabByDate = new Map(slabDaily.map((d) => [d.soldDate, d]))
   const snapByDate = new Map(snapshots.map((s) => [s.snapshotDate, s]))
 
+  for (const point of unifiedRaw) {
+    if (!rawByDate.has(point.snapshotDate)) {
+      rawByDate.set(point.snapshotDate, {
+        soldDate: point.snapshotDate,
+        medianPrice: point.price,
+        saleCount: point.saleCount ?? 0,
+      })
+    }
+  }
+
+  for (const point of unifiedSlab) {
+    if (!slabByDate.has(point.snapshotDate)) {
+      slabByDate.set(point.snapshotDate, {
+        soldDate: point.snapshotDate,
+        medianPrice: point.price,
+        saleCount: point.saleCount ?? 0,
+      })
+    }
+  }
+
   const allDates = new Set<string>([
     ...rawDaily.map((d) => d.soldDate),
     ...slabDaily.map((d) => d.soldDate),
     ...snapshots.map((s) => s.snapshotDate),
+    ...unifiedRaw.map((p) => p.snapshotDate),
+    ...unifiedSlab.map((p) => p.snapshotDate),
   ])
 
   let salesDays = 0

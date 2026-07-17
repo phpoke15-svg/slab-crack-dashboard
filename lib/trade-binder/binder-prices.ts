@@ -48,11 +48,14 @@ export async function attachBinderCardPrices(
     cachedPrices?: Map<string, number>
     limit?: number
     concurrency?: number
+    /** When true, never call PriceCharting during a user request. */
+    cacheOnly?: boolean
   },
 ): Promise<Map<string, number>> {
   const apiKey = process.env.PRICECHARTING_API_KEY
   const result = new Map<string, number>()
-  if (!apiKey) return result
+  const cacheOnly = options?.cacheOnly ?? false
+  if (!apiKey && !cacheOnly) return result
 
   const cached = options?.cachedPrices ?? new Map<string, number>()
   const concurrency = options?.concurrency ?? 2
@@ -64,6 +67,10 @@ export async function attachBinderCardPrices(
       result.set(card.id, cachedPrice)
     }
   }
+
+  if (cacheOnly) return result
+
+  if (!apiKey) return result
 
   const toFetch = cards.filter((card) => !result.has(card.id)).slice(0, limit)
 

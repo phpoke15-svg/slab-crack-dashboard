@@ -4,7 +4,7 @@ export const POKEMATCH_SETUP_SQL = "supabase/pokematch-setup.sql"
 export const POKEMATCH_MISSING_PIECES_SQL = "supabase/pokematch-missing-pieces.sql"
 
 /** Tables covered by the smaller gap-fill migration. */
-const MISSING_PIECES_TABLES = new Set(["trade_chat_reads", "binder_card_prices"])
+const MISSING_PIECES_TABLES = new Set(["trade_chat_reads", "binder_card_prices", "card_prices"])
 
 /** Billing schema — probed for ops, but product `ready` ignores these. */
 const BILLING_PROBE_IDS = new Set(["profiles_plan", "subscriptions"])
@@ -88,6 +88,18 @@ const PROBES: Probe[] = [
     table: "binder_card_prices",
     // Primary key is card_id — no id column.
     columns: "card_id,raw_price,synced_at",
+  },
+  {
+    id: "card_prices",
+    label: "Unified price cache",
+    table: "card_prices",
+    columns: "card_id,raw_price,psa10_price,synced_at",
+  },
+  {
+    id: "price_history",
+    label: "Unified price history",
+    table: "price_history",
+    columns: "card_id,snapshot_date,grade,price",
   },
   {
     id: "profiles_plan",
