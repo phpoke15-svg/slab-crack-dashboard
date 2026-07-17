@@ -2,8 +2,10 @@ import { NextResponse } from "next/server"
 import { searchCatalogCards, type CardSearchHit } from "@/lib/card-lookup"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 30
 
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000
+const SEARCH_LIMIT = 24
 const searchCache = new Map<string, { results: CardSearchHit[]; expiresAt: number }>()
 
 export async function GET(request: Request) {
@@ -24,7 +26,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const results = await searchCatalogCards(q, 12)
+    const results = await searchCatalogCards(q, SEARCH_LIMIT, 12_000)
     searchCache.set(cacheKey, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS })
     return NextResponse.json(
       { results },

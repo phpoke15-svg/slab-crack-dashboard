@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
+import { mergePricesIntoCards } from "@/lib/trade-binder/binder-prices"
 import {
-  attachBinderCardPrices,
-  mergePricesIntoCards,
-} from "@/lib/trade-binder/binder-prices"
+  binderPriceInputsFromCards,
+  resolveSearchCardPrices,
+} from "@/lib/pricing/persist-search-prices"
 import {
   fetchPokemonCatalogPage,
   pokemonApiToBinderCard,
@@ -13,7 +14,7 @@ import {
 } from "@/lib/trade-binder/pokemon-catalog"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
 
-export const maxDuration = 30
+export const maxDuration = 60
 
 function mapApiCardsToBinder(
   apiCards: Awaited<ReturnType<typeof searchPokemonCatalog>>["cards"],
@@ -50,6 +51,14 @@ function mapCatalogCardsToBinder(
   }))
 }
 
+async function attachLivePricesForSearch(cards: BinderSearchResultCard[]): Promise<BinderSearchResultCard[]> {
+  const needsPrice = binderPriceInputsFromCards(cards, 16)
+  if (needsPrice.length === 0) return cards
+
+  const fetched = await resolveSearchCardPrices(needsPrice, { limit: 16, concurrency: 2 })
+  return mergePricesIntoCards(cards, fetched)
+}
+
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? ""
   const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1)
@@ -70,10 +79,12 @@ export async function GET(request: NextRequest) {
         }),
       ])
 
-      const cards = mergeBinderSearchResults(
+      let cards = mergeBinderSearchResults(
         [...mapApiCardsToBinder(apiResult.cards, rawPriceByCardId), ...mapCatalogCardsToBinder(catalogCards)],
         q,
       ).slice(0, pageSize)
+
+      cards = await attachLivePricesForSearch(cards)
 
       return NextResponse.json({
         cards,
@@ -103,24 +114,7 @@ export async function GET(request: NextRequest) {
       pageSize,
     )
     let cards = mapApiCardsToBinder(apiCards, rawPriceByCardId)
-
-    const needsPrice = cards
-      .filter((card) => !card.rawPrice || card.rawPrice <= 0)
-      .slice(0, 12)
-      .map((card) => ({
-        id: card.id,
-        name: card.name,
-        set: card.set,
-        cardNumber: card.cardNumber,
-      }))
-
-    if (needsPrice.length > 0) {
-      const fetched = await attachBinderCardPrices(needsPrice, {
-        cachedPrices: rawPriceByCardId,
-        cacheOnly: true,
-      })
-      cards = mergePricesIntoCards(cards, fetched)
-    }
+    cards = await attachLivePricesForSearch(cards)
 
     return NextResponse.json({
       cards,
