@@ -1,13 +1,14 @@
 import { listDistinctBinderCards } from "@/lib/db/binder-card-prices"
 import { upsertBinderCardPrices } from "@/lib/db/binder-card-prices"
+import { getPricedCatalogCards } from "@/lib/db/priced-catalog"
 import { getWatchlistFromDb } from "@/lib/db/watchlist"
-import { fetchPopularBinderCardsUncached } from "@/lib/trade-binder/popular-binder-cards"
 import { fetchCardPricesBatch } from "@/lib/pricing/fetch"
 import {
   appendPriceHistory,
   listStaleCardPriceIds,
   upsertCardPricesSafe,
 } from "@/lib/pricing/db"
+import { sortPricedCatalog } from "@/lib/trade-binder/priced-catalog"
 import type { CardPriceTarget, PriceHistoryPoint, SyncCardPricesResult } from "@/lib/pricing/types"
 
 /** Vercel maxDuration is 300s — stay under with margin for DB writes. */
@@ -43,11 +44,30 @@ function mergeTargets(...groups: CardPriceTarget[][]): CardPriceTarget[] {
   return [...byId.values()]
 }
 
+async function popularTargetsFromCatalog(limit: number): Promise<CardPriceTarget[]> {
+  try {
+    const catalog = sortPricedCatalog(await getPricedCatalogCards())
+    return catalog
+      .filter((card) => card.rawPrice > 0)
+      .slice(0, limit)
+      .map((card) => ({
+        cardId: card.id,
+        cardName: card.name,
+        setName: card.set,
+        cardNumber: card.cardNumber,
+        priceChartingId: card.id.startsWith("pc-") ? card.id.replace(/^pc-/, "") : undefined,
+      }))
+  } catch (error) {
+    console.warn("[pricing/sync] popular catalog targets failed:", error)
+    return []
+  }
+}
+
 async function collectSyncTargets(): Promise<CardPriceTarget[]> {
   const [binderCards, watchlist, popularCards] = await Promise.all([
     listDistinctBinderCards().catch(() => [] as CardPriceTarget[]),
     getWatchlistFromDb().catch(() => []),
-    fetchPopularBinderCardsUncached(40).catch(() => []),
+    popularTargetsFromCatalog(40),
   ])
 
   const watchlistTargets: CardPriceTarget[] = watchlist.map((card) => ({
@@ -62,15 +82,7 @@ async function collectSyncTargets(): Promise<CardPriceTarget[]> {
     priceChartingId: card.priceChartingId,
   }))
 
-  const popularTargets: CardPriceTarget[] = popularCards.map((card) => ({
-    cardId: card.id,
-    cardName: card.name,
-    setName: card.set,
-    cardNumber: card.cardNumber,
-    priceChartingId: card.id.startsWith("pc-") ? card.id.replace(/^pc-/, "") : undefined,
-  }))
-
-  return mergeTargets(binderCards, watchlistTargets, popularTargets)
+  return mergeTargets(binderCards, watchlistTargets, popularCards)
 }
 
 function historyPointsFromFetch(
@@ -100,6 +112,29 @@ function historyPointsFromFetch(
   }
 
   return points
+}
+
+export async function probeUnifiedPriceSync(): Promise<{
+  ok: boolean
+  checks: Record<string, string | boolean>
+}> {
+  const checks: Record<string, string | boolean> = {
+    supabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
+    serviceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+    priceChartingKey: Boolean(process.env.PRICECHARTING_API_KEY),
+    cronSecret: Boolean(process.env.CRON_SECRET),
+  }
+
+  try {
+    const targets = await collectSyncTargets()
+    checks.targetCount = targets.length
+    checks.ok = Boolean(checks.supabaseUrl && checks.serviceRoleKey && checks.priceChartingKey)
+  } catch (error) {
+    checks.ok = false
+    checks.collectError = error instanceof Error ? error.message : "collect failed"
+  }
+
+  return { ok: Boolean(checks.ok), checks }
 }
 
 export async function syncUnifiedCardPrices(options?: {
@@ -132,14 +167,47 @@ export async function syncUnifiedCardPrices(options?: {
     }
   }
 
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    return {
+      syncedAt,
+      candidates: 0,
+      refreshed: 0,
+      skipped: 0,
+      failed: 0,
+      processed: 0,
+      remaining: 0,
+      stoppedEarly: false,
+      errors: ["Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY"],
+      source: "skipped",
+    }
+  }
+
   const targets = await collectSyncTargets()
   const staleBefore = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000).toISOString()
-  const staleIds = options?.force
-    ? new Set(targets.map((t) => t.cardId))
-    : await listStaleCardPriceIds(
-        targets.map((t) => t.cardId),
-        staleBefore,
-      )
+
+  let staleIds: Set<string>
+  try {
+    staleIds = options?.force
+      ? new Set(targets.map((t) => t.cardId))
+      : await listStaleCardPriceIds(
+          targets.map((t) => t.cardId),
+          staleBefore,
+        )
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Stale lookup failed"
+    return {
+      syncedAt,
+      candidates: targets.length,
+      refreshed: 0,
+      skipped: 0,
+      failed: 0,
+      processed: 0,
+      remaining: 0,
+      stoppedEarly: false,
+      errors: [message],
+      source: "skipped",
+    }
+  }
 
   const staleTargets = targets.filter((t) => staleIds.has(t.cardId))
   const toSync = staleTargets.slice(0, maxCards)
@@ -163,7 +231,10 @@ export async function syncUnifiedCardPrices(options?: {
   const processed = batchResults.length
   const stoppedEarly = processed < toSync.length
   const remaining = Math.max(0, staleTargets.length - processed)
-  const refreshed = await upsertCardPricesSafe(batchResults)
+
+  const upsertResult = await upsertCardPricesSafe(batchResults)
+  const refreshed = upsertResult.count
+  const errors: string[] = upsertResult.error ? [upsertResult.error] : []
 
   const historyPoints: PriceHistoryPoint[] = []
   const binderRows: Array<{
@@ -175,7 +246,6 @@ export async function syncUnifiedCardPrices(options?: {
   }> = []
 
   let failed = 0
-  const errors: string[] = []
 
   for (const result of batchResults) {
     if (result.syncError) {

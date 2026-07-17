@@ -10,6 +10,7 @@ export type {
 export {
   appendPriceHistory,
   getCardPriceById,
+  getCardPricesForIds,
   getCardPricesMap,
   getPriceHistoryForCard,
   getRawPriceMapFromCardPrices,

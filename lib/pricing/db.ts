@@ -24,6 +24,35 @@ export function isCardPricesTableAvailable(): boolean {
   return isSupabaseConfigured()
 }
 
+export async function getCardPricesForIds(cardIds: string[]): Promise<Map<string, CardPriceRow>> {
+  const prices = new Map<string, CardPriceRow>()
+  if (!isSupabaseConfigured() || cardIds.length === 0) return prices
+
+  const supabase = createAdminClient()
+  const chunkSize = 200
+
+  try {
+    for (let i = 0; i < cardIds.length; i += chunkSize) {
+      const chunk = cardIds.slice(i, i + chunkSize)
+      const { data, error } = await supabase.from("card_prices").select("*").in("card_id", chunk)
+
+      if (error) {
+        if (error.code === "42P01") return prices
+        throw error
+      }
+
+      for (const row of data ?? []) {
+        const parsed = rowToCardPrice(row as Record<string, unknown>)
+        prices.set(parsed.card_id, parsed)
+      }
+    }
+  } catch (error) {
+    console.error("[card-prices] read by ids failed:", error)
+  }
+
+  return prices
+}
+
 export async function getCardPricesMap(): Promise<Map<string, CardPriceRow>> {
   const prices = new Map<string, CardPriceRow>()
   if (!isSupabaseConfigured()) return prices
@@ -195,12 +224,22 @@ export async function upsertCardPricesSafe(
     fetched: FetchedCardPrices | null
     syncError?: string | null
   }>,
-): Promise<number> {
-  if (!isSupabaseConfigured() || updates.length === 0) return 0
+): Promise<{ count: number; error: string | null }> {
+  if (!isSupabaseConfigured() || updates.length === 0) {
+    return { count: 0, error: null }
+  }
 
-  const supabase = createAdminClient()
+  let supabase
+  try {
+    supabase = createAdminClient()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Supabase admin client unavailable"
+    return { count: 0, error: message }
+  }
+
   const syncedAt = new Date().toISOString()
-  const existingMap = await getCardPricesMap()
+  const cardIds = [...new Set(updates.map((update) => update.target.cardId))]
+  const existingMap = await getCardPricesForIds(cardIds)
   const payload: Record<string, unknown>[] = []
 
   for (const update of updates) {
@@ -215,15 +254,27 @@ export async function upsertCardPricesSafe(
     if (row) payload.push(row)
   }
 
-  if (payload.length === 0) return 0
+  if (payload.length === 0) return { count: 0, error: null }
 
-  const { error } = await supabase.from("card_prices").upsert(payload, { onConflict: "card_id" })
-  if (error) {
-    if (error.code === "42P01") return 0
-    throw error
+  const chunkSize = 100
+  let written = 0
+  let lastError: string | null = null
+
+  for (let i = 0; i < payload.length; i += chunkSize) {
+    const chunk = payload.slice(i, i + chunkSize)
+    const { error } = await supabase.from("card_prices").upsert(chunk, { onConflict: "card_id" })
+    if (error) {
+      if (error.code === "42P01") {
+        return { count: written, error: "card_prices table not found — run supabase/unified-card-prices.sql" }
+      }
+      lastError = error.message
+      console.error("[card-prices] upsert chunk failed:", error)
+      continue
+    }
+    written += chunk.length
   }
 
-  return payload.length
+  return { count: written, error: lastError }
 }
 
 export async function appendPriceHistory(points: PriceHistoryPoint[]): Promise<void> {
