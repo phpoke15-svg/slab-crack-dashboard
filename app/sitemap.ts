@@ -1,8 +1,10 @@
 import type { MetadataRoute } from "next"
+import { listCardSitemapRows, getCardSitemapChunkCount } from "@/lib/db/cards-pseo"
 import { RESTOCKS_ENABLED } from "@/lib/collectools-tools"
 import { LEGAL_SITE_URL } from "@/lib/legal/config"
+import { cardPagePath } from "@/lib/seo/card-slugs"
 
-export default function sitemap(): MetadataRoute.Sitemap {
+function staticSitemapEntries(): MetadataRoute.Sitemap {
   const base = LEGAL_SITE_URL.replace(/\/$/, "")
   const lastModified = new Date()
 
@@ -30,4 +32,32 @@ export default function sitemap(): MetadataRoute.Sitemap {
   }
 
   return entries
+}
+
+export async function generateSitemaps() {
+  const cardChunks = await getCardSitemapChunkCount()
+  const maps = [{ id: 0 }]
+  for (let i = 0; i < cardChunks; i += 1) {
+    maps.push({ id: i + 1 })
+  }
+  return maps
+}
+
+export default async function sitemap(props: { id: number | Promise<number> }): Promise<MetadataRoute.Sitemap> {
+  const id = typeof props.id === "number" ? props.id : await props.id
+  const base = LEGAL_SITE_URL.replace(/\/$/, "")
+
+  if (id === 0) {
+    return staticSitemapEntries()
+  }
+
+  const cardChunkIndex = id - 1
+  const rows = await listCardSitemapRows(cardChunkIndex)
+
+  return rows.map((row) => ({
+    url: `${base}${cardPagePath(row.setSlug, row.cardSlug)}`,
+    lastModified: new Date(row.lastModified),
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }))
 }

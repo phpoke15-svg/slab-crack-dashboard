@@ -15,6 +15,7 @@ import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { upsertCatalogCards, type CatalogCardUpsert } from "../lib/db/cards-catalog"
 import { formatCatalogCardNumberWithTotal } from "../lib/pricing/catalog-search-query"
+import { buildCardSlug, buildSetSlug } from "../lib/seo/card-slugs"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const DATA_REPO = "PokemonTCG/pokemon-tcg-data"
@@ -106,6 +107,8 @@ function cardFileToRows(
     rarity: card.rarity ?? null,
     image_url: card.images?.large ?? card.images?.small ?? null,
     language: "en" as const,
+    set_slug: buildSetSlug(setId, setName),
+    card_slug: buildCardSlug(card.name, formatCatalogCardNumberWithTotal(card.number ?? "", printedTotal)),
   }))
 }
 

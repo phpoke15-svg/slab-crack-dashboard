@@ -1,5 +1,6 @@
 import type { CardSearchHit } from "@/lib/card-lookup"
 import { getCardPricesForIds } from "@/lib/pricing/db"
+import { buildCardSlug, buildSetSlug } from "@/lib/seo/card-slugs"
 import { createAdminClient, createReadClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
@@ -188,6 +189,8 @@ export type CatalogCardUpsert = {
   rarity?: string | null
   image_url?: string | null
   language?: string
+  set_slug?: string
+  card_slug?: string
 }
 
 export async function upsertCatalogCards(rows: CatalogCardUpsert[]): Promise<number> {
@@ -205,6 +208,8 @@ export async function upsertCatalogCards(rows: CatalogCardUpsert[]): Promise<num
     rarity: row.rarity ?? null,
     image_url: row.image_url ?? null,
     language: row.language ?? "en",
+    set_slug: row.set_slug ?? buildSetSlug(row.set_id, row.set_name),
+    card_slug: row.card_slug ?? buildCardSlug(row.name, row.number ?? ""),
     updated_at: now,
   }))
 
