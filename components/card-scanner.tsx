@@ -1,31 +1,23 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Camera, ImagePlus, Loader2, ScanLine } from "lucide-react"
+import { ImagePlus, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { captureCardFromVideo, defaultGuideBounds } from "@/lib/scanner/capture"
 import {
-  captureCardFromVideo,
-  defaultGuideBounds,
-  downscaleDataUrl,
-} from "@/lib/scanner/capture"
-import {
-  SCAN_VISION_JPEG_QUALITY,
-  SCAN_VISION_MAX_EDGE,
+  POINT_SCAN_FRAME_MS,
+  POINT_SCAN_SAME_CARD_COOLDOWN_MS,
+  SCAN_CAPTURE_MAX_EDGE,
 } from "@/lib/scanner/capture-settings"
-import { dHashFromImageSource } from "@/lib/scanner/phash"
+import {
+  preloadOcrWorker,
+  recognizeCardText,
+  releaseOcrWorker,
+} from "@/lib/scanner/ocr-client"
+import { hasOcrMatchFields } from "@/lib/scanner/ocr-parse"
+import { scanHapticMatch } from "@/lib/scanner/point-scan"
 import { StabilityGate } from "@/lib/scanner/stability"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
-
-async function phashFromDataUrl(dataUrl: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new window.Image()
-    img.onload = () => {
-      void dHashFromImageSource(img, 128, 180).then(resolve).catch(reject)
-    }
-    img.onerror = () => reject(new Error("Could not read image for fingerprint"))
-    img.src = dataUrl
-  })
-}
 
 function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 4000): Promise<void> {
   if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve()
@@ -52,24 +44,17 @@ function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 4000): Promise<v
 }
 
 export type CardScannerProps = {
-  autoScan?: boolean
-  scanning?: boolean
-  /** Shown on the processing overlay while `scanning` is true. */
-  processingMessage?: string
-  onScanStart?: () => void
-  onScanComplete: (result: ScanPipelineResult, snapshot: string) => void
-  onScanFail: (error: string, snapshot: string | null) => void
+  /** Pause the live OCR loop (e.g. while the match sheet is open). */
+  paused?: boolean
+  onMatch: (result: ScanPipelineResult, snapshot: string) => void
+  onScanFail?: (error: string, snapshot: string | null) => void
   className?: string
-  /** Fill the parent frame edge-to-edge (scan page layout). */
   immersive?: boolean
 }
 
 export function CardScanner({
-  autoScan = true,
-  scanning = false,
-  processingMessage,
-  onScanStart,
-  onScanComplete,
+  paused = false,
+  onMatch,
   onScanFail,
   className,
   immersive = false,
@@ -77,14 +62,24 @@ export function CardScanner({
   const videoRef = useRef<HTMLVideoElement>(null)
   const gateRef = useRef(new StabilityGate())
   const rafRef = useRef<number>(0)
-  const scanLockRef = useRef(false)
-  const lastScanAtRef = useRef(0)
+  const frameTimerRef = useRef<number>(0)
+  const ocrBusyRef = useRef(false)
+  const lastMatchIdRef = useRef<string | null>(null)
+  const lastMatchAtRef = useRef(0)
 
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraStarting, setCameraStarting] = useState(false)
   const [stability, setStability] = useState({ blur: 0, motion: 999, stable: false })
   const [guide, setGuide] = useState(defaultGuideBounds())
+  const [scanning, setScanning] = useState(false)
+
+  useEffect(() => {
+    void preloadOcrWorker()
+    return () => {
+      void releaseOcrWorker()
+    }
+  }, [])
 
   const stopCamera = useCallback(() => {
     const video = videoRef.current
@@ -152,78 +147,89 @@ export function CardScanner({
     void startCamera()
     return () => {
       cancelAnimationFrame(rafRef.current)
+      window.clearInterval(frameTimerRef.current)
       stopCamera()
     }
   }, [startCamera, stopCamera])
 
-  const scanImage = useCallback(async (snapshot: string, visionCrop: string, phash: string) => {
-    const res = await fetch("/api/scanner/scan", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ image: visionCrop, phash }),
-    })
-    const json = (await res.json().catch(() => null)) as
-      | (ScanPipelineResult & { error?: string })
-      | null
-
-    if (!res.ok || !json?.ok) {
-      throw new Error(json?.error || "Could not identify this card.")
-    }
-
-    return { json: json as ScanPipelineResult, crop: snapshot }
-  }, [])
-
-  const runScan = useCallback(
-    async (fromVideo: HTMLVideoElement) => {
-      if (scanLockRef.current || scanning) return
-      scanLockRef.current = true
-      lastScanAtRef.current = Date.now()
-      gateRef.current.reset()
+  const tryMatchFrame = useCallback(
+    async (video: HTMLVideoElement) => {
+      if (ocrBusyRef.current || paused) return
+      ocrBusyRef.current = true
+      setScanning(true)
 
       try {
-        const snapshot = await captureCardFromVideo(fromVideo, guide)
-        onScanStart?.()
+        const snapshot = await captureCardFromVideo(
+          video,
+          guide,
+          SCAN_CAPTURE_MAX_EDGE,
+        )
+        const detected = await recognizeCardText(snapshot).catch(() => null)
+        if (!hasOcrMatchFields(detected)) return
 
-        const [visionCrop, phash] = await Promise.all([
-          downscaleDataUrl(snapshot, SCAN_VISION_MAX_EDGE, SCAN_VISION_JPEG_QUALITY),
-          phashFromDataUrl(snapshot),
-        ])
-        const { json } = await scanImage(snapshot, visionCrop, phash)
-        onScanComplete(json, snapshot)
+        const res = await fetch("/api/scanner/match", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ detected }),
+        })
+        const json = (await res.json().catch(() => null)) as
+          | (ScanPipelineResult & { error?: string })
+          | null
+
+        if (!res.ok || !json?.ok) return
+
+        const cardId = json.hit?.id ?? json.card?.id ?? null
+        if (
+          cardId &&
+          cardId === lastMatchIdRef.current &&
+          Date.now() - lastMatchAtRef.current < POINT_SCAN_SAME_CARD_COOLDOWN_MS
+        ) {
+          return
+        }
+
+        lastMatchIdRef.current = cardId
+        lastMatchAtRef.current = Date.now()
+        scanHapticMatch()
+        onMatch(json as ScanPipelineResult, snapshot)
       } catch (err) {
-        onScanFail(err instanceof Error ? err.message : "Scan failed", null)
+        onScanFail?.(err instanceof Error ? err.message : "Scan failed", null)
       } finally {
-        scanLockRef.current = false
+        ocrBusyRef.current = false
+        setScanning(false)
       }
     },
-    [guide, onScanComplete, onScanFail, onScanStart, scanImage, scanning],
+    [guide, onMatch, onScanFail, paused],
   )
 
-  const manualCapture = useCallback(() => {
-    const video = videoRef.current
-    if (!video || !cameraReady) return
-    void runScan(video)
-  }, [cameraReady, runScan])
-
   useEffect(() => {
-    if (!autoScan || !cameraReady || scanning) {
+    if (!cameraReady || paused) {
+      window.clearInterval(frameTimerRef.current)
       cancelAnimationFrame(rafRef.current)
       return
     }
 
     const loop = () => {
       const video = videoRef.current
-      if (video && video.videoWidth > 0 && !scanLockRef.current) {
-        const fired = gateRef.current.tick(video, guide)
+      if (video && video.videoWidth > 0) {
+        gateRef.current.tick(video, guide)
         setStability(gateRef.current.sample)
-        const cooldownOk = Date.now() - lastScanAtRef.current > 2500
-        if (fired && cooldownOk) void runScan(video)
       }
       rafRef.current = requestAnimationFrame(loop)
     }
     rafRef.current = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [autoScan, cameraReady, runScan, scanning])
+
+    frameTimerRef.current = window.setInterval(() => {
+      const video = videoRef.current
+      if (!video || video.videoWidth <= 0 || ocrBusyRef.current || paused) return
+      if (!gateRef.current.sample.stable) return
+      void tryMatchFrame(video)
+    }, POINT_SCAN_FRAME_MS)
+
+    return () => {
+      cancelAnimationFrame(rafRef.current)
+      window.clearInterval(frameTimerRef.current)
+    }
+  }, [cameraReady, guide, paused, tryMatchFrame])
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -231,28 +237,43 @@ export function CardScanner({
       reader.onload = () => {
         const dataUrl = reader.result as string
         void (async () => {
-          scanLockRef.current = true
+          ocrBusyRef.current = true
+          setScanning(true)
           try {
-            const [visionCrop, phash] = await Promise.all([
-              downscaleDataUrl(dataUrl, SCAN_VISION_MAX_EDGE, SCAN_VISION_JPEG_QUALITY),
-              phashFromDataUrl(dataUrl),
-            ])
-            onScanStart?.()
-            const { json } = await scanImage(dataUrl, visionCrop, phash)
-            onScanComplete(json, dataUrl)
+            const detected = await recognizeCardText(dataUrl).catch(() => null)
+            if (!hasOcrMatchFields(detected)) {
+              onScanFail?.("Could not read card name and number from image.", dataUrl)
+              return
+            }
+            const res = await fetch("/api/scanner/match", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ detected }),
+            })
+            const json = (await res.json().catch(() => null)) as
+              | (ScanPipelineResult & { error?: string })
+              | null
+            if (!res.ok || !json?.ok) {
+              onScanFail?.(json?.error || "No catalog match for this card.", dataUrl)
+              return
+            }
+            scanHapticMatch()
+            onMatch(json as ScanPipelineResult, dataUrl)
           } catch (err) {
-            onScanFail(err instanceof Error ? err.message : "Scan failed", dataUrl)
+            onScanFail?.(err instanceof Error ? err.message : "Scan failed", dataUrl)
           } finally {
-            scanLockRef.current = false
+            ocrBusyRef.current = false
+            setScanning(false)
           }
         })()
       }
       reader.readAsDataURL(file)
     },
-    [onScanComplete, onScanFail, onScanStart, scanImage],
+    [onMatch, onScanFail],
   )
 
   const g = guide
+  const pulsing = cameraReady && !paused && stability.stable
 
   return (
     <div className={cn("relative overflow-hidden rounded-2xl border border-border bg-black", className)}>
@@ -269,7 +290,10 @@ export function CardScanner({
       {cameraReady && (
         <div className="pointer-events-none absolute inset-0">
           <div
-            className="absolute rounded-xl border-2 border-primary shadow-[0_0_0_9999px_rgba(0,0,0,0.45)]"
+            className={cn(
+              "absolute rounded-xl border-2 shadow-[0_0_0_9999px_rgba(0,0,0,0.45)] transition-colors duration-300",
+              pulsing ? "animate-pulse border-primary" : "border-white/70",
+            )}
             style={{
               left: `${g.x * 100}%`,
               top: `${g.y * 100}%`,
@@ -286,18 +310,20 @@ export function CardScanner({
             <span
               className={cn(
                 "rounded-full px-3 py-1 text-[11px] font-medium backdrop-blur-sm",
-                stability.stable
-                  ? "bg-primary/90 text-primary-foreground"
-                  : "bg-black/60 text-white/90",
+                paused
+                  ? "bg-black/60 text-white/90"
+                  : stability.stable
+                    ? "bg-primary/90 text-primary-foreground"
+                    : "bg-black/60 text-white/90",
               )}
             >
-              {scanning
-                ? processingMessage || "Identifying…"
-                : stability.stable
-                  ? autoScan
-                    ? "Hold steady — scanning…"
-                    : "Steady — tap Scan"
-                  : "Align card in frame"}
+              {paused
+                ? "Match found — add or scan next"
+                : scanning
+                  ? "Reading card…"
+                  : stability.stable
+                    ? "Point at card — auto matching"
+                    : "Align name & number in frame"}
             </span>
           </div>
         </div>
@@ -309,22 +335,13 @@ export function CardScanner({
         </div>
       )}
 
-      {scanning && (
-        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
-          <span className="inline-flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-medium text-white">
-            <Loader2 className="size-3.5 animate-spin text-primary" aria-hidden="true" />
-            {processingMessage || "Identifying…"}
-          </span>
-        </div>
-      )}
-
       {cameraError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-card/95 p-4 text-center">
           <p className="text-sm text-muted-foreground">{cameraError}</p>
         </div>
       )}
 
-      <div className="absolute bottom-4 right-4 flex gap-2">
+      <div className="absolute bottom-4 right-4">
         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 py-2 text-xs font-semibold text-foreground backdrop-blur-sm">
           <ImagePlus className="size-4" aria-hidden="true" />
           Upload
@@ -339,15 +356,6 @@ export function CardScanner({
             }}
           />
         </label>
-        <button
-          type="button"
-          onClick={manualCapture}
-          disabled={!cameraReady || scanning}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-primary/50 bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-        >
-          {autoScan ? <ScanLine className="size-4" /> : <Camera className="size-4" />}
-          Scan now
-        </button>
       </div>
     </div>
   )

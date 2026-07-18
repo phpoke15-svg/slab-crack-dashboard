@@ -146,3 +146,11 @@ export function shouldTrustOcrDetected(detected: DetectedCard | null | undefined
   if (name || number) return detected.confidence >= 0.85
   return false
 }
+
+/** Minimum OCR fields before hitting the local catalog match API. */
+export function hasOcrMatchFields(detected: DetectedCard | null | undefined): boolean {
+  if (!detected) return false
+  const name = simplifyCardName(detected.cardName).trim()
+  const number = cleanNumber(detected.cardNumber)
+  return name.length >= 3 && number.length >= 1
+}

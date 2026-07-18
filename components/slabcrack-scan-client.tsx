@@ -11,16 +11,12 @@ import { DeficitBadge } from "@/components/deficit-badge"
 import { GradePriceGrid } from "@/components/grade-price-grid"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { CardScanner } from "@/components/card-scanner"
-import { CardFoundSheet } from "@/components/card-found-sheet"
+import { CardFoundSheet, type CardVariant } from "@/components/card-found-sheet"
 import { ScanMatchFeedback } from "@/components/scan-match-feedback"
+import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
-import {
-  cleanNumber,
-  hasNameAgreement,
-  minAutoMatchScore,
-  pickBestCatalogHit,
-} from "@/lib/slabcrack/identify-parse"
+import { addCardToBinder } from "@/lib/trade-binder/binder"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import {
   getBestGradeQuote,
@@ -57,9 +53,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const priceRefreshGenRef = useRef(0)
 
   const [phase, setPhase] = useState<Phase>("camera")
-  const [isScanning, setIsScanning] = useState(false)
   const [snapshot, setSnapshot] = useState<string | null>(null)
-  const [identifyStatus, setIdentifyStatus] = useState("Reading card…")
 
   const [query, setQuery] = useState("")
   const [hits, setHits] = useState<CardSearchHit[]>([])
@@ -75,6 +69,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     matchScore?: number
   } | null>(null)
   const [foundPreview, setFoundPreview] = useState<MockCardEntry | null>(null)
+  const [portfolioAdding, setPortfolioAdding] = useState(false)
+  const [portfolioMessage, setPortfolioMessage] = useState<string | null>(null)
+
+  const { user, runWithAuth, getSupabase } = useAuth()
 
   const enterManualHandoff = useCallback(
     (opts: {
@@ -148,7 +146,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     return normalizeCardEntry(data)
   }, [])
 
-  const processScanResult = useCallback(
+  const processPointScanMatch = useCallback(
     async (json: ScanPipelineResult, snapshotUrl: string) => {
       setSnapshot(snapshotUrl)
       const label = [
@@ -164,141 +162,75 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         matchMethod: json.matchMethod,
         matchScore: json.matchScore,
       })
+      setLookupError(null)
+      setPortfolioMessage(null)
 
-      const detNum = cleanNumber(json.detected?.cardNumber ?? "")
-      const cardMatchesDetect = (entry: MockCardEntry) =>
-        !detNum || cleanNumber(entry.cardNumber.split("/")[0] ?? "") === detNum
-
-      const resolvePresentedCard = (): {
-        card: MockCardEntry | null
-        hit: CardSearchHit | null
-      } => {
-        if (json.card && json.hit && json.detected) {
-          const card = normalizeCardEntry(json.card)
-          if (hasNameAgreement(json.hit, json.detected) && cardMatchesDetect(card)) {
-            return { card, hit: json.hit }
-          }
-        }
-
-        if (json.candidates?.length && json.detected) {
-          const picked = pickBestCatalogHit(json.candidates, json.detected)
-          if (
-            picked.hit &&
-            picked.matchScore >= minAutoMatchScore(json.detected) &&
-            hasNameAgreement(picked.hit, json.detected)
-          ) {
-            return {
-              card: normalizeCardEntry(searchHitToPlaceholder(picked.hit)),
-              hit: picked.hit,
-            }
-          }
-        }
-
-        if (json.card && !detNum) {
-          return { card: normalizeCardEntry(json.card), hit: json.hit }
-        }
-
-        return { card: null, hit: null }
-      }
-
-      if (json.matchMethod === "visual_phash") {
-        setIdentifyStatus("Visual match — loading prices…")
-      } else if (json.matchMethod === "ocr") {
-        setIdentifyStatus("Catalog match — loading prices…")
-      } else {
-        setIdentifyStatus("Identifying — loading prices…")
-      }
-
-      const resolved = resolvePresentedCard()
-      if (resolved.card && detNum && !cardMatchesDetect(resolved.card)) {
+      if (!json.card) {
         enterManualHandoff({
           query: json.query || label,
           candidates: json.candidates,
-          error: "Detected number doesn’t match the catalog pick — choose the right card.",
+          error: "Could not match this card. Search manually below.",
           label: label || null,
         })
         return
       }
 
-      if (resolved.card) {
-        const localCard = resolved.card
-        const matchHit = resolved.hit
-        const showFoundSheet = json.matchMethod === "ocr" || json.matchMethod === "visual_phash"
+      const localCard = normalizeCardEntry(json.card)
+      setFoundPreview(localCard)
+      setPhase("camera")
 
-        if (showFoundSheet) {
-          setFoundPreview(localCard)
-          setPhase("camera")
-          setIsScanning(false)
-        } else {
-          presentMatch(localCard)
-        }
-
-        if (json.needsLiveRefresh && matchHit) {
-          const hit = matchHit
-          setIdentifyStatus("Loading live prices…")
-          setLookupLoading(true)
-          try {
-            const priced = await fetchPricedCard(hit)
-            if (cardMatchesDetect(priced)) {
-              if (showFoundSheet) setFoundPreview(priced)
-              else presentMatch(priced, { openDrawer: true })
-            } else {
-              setCard(priced)
-              setLookupError("Live prices loaded, but the catalog id may not match your card number.")
-            }
-            if (priced.hasPricing === false) {
-              setLookupError(
-                "Matched the card, but live PriceCharting comps didn’t load.",
-              )
-            }
-          } finally {
-            setLookupLoading(false)
-          }
-          return
-        }
-
-        if (localCard.hasPricing === false) {
-          setLookupError("Matched the card, but live PriceCharting comps didn’t load.")
-        }
-        return
-      }
-
-      if (json.candidates?.length) {
-        const top =
-          json.candidates.find(
-            (c) => cleanNumber(c.cardNumber.split("/")[0] ?? "") === detNum,
-          ) ?? json.candidates[0]!
-        setIdentifyStatus("Loading prices…")
+      if (json.needsLiveRefresh && json.hit) {
         setLookupLoading(true)
         try {
-          const priced = await fetchPricedCard(top)
-          if (!cardMatchesDetect(priced) && detNum) {
-            enterManualHandoff({
-              query: json.query || label,
-              candidates: json.candidates,
-              error: "Could not auto-match this number — pick the right card.",
-              label: label || null,
-            })
-            return
-          }
-          presentMatch(priced)
+          const priced = await fetchPricedCard(json.hit)
+          setFoundPreview(priced)
         } catch {
-          presentMatch(normalizeCardEntry(searchHitToPlaceholder(top)))
-          setLookupError("Price lookup failed.")
+          setLookupError("Matched the card, but live prices didn’t load.")
         } finally {
           setLookupLoading(false)
         }
-        return
       }
-
-      enterManualHandoff({
-        query: json.query || label,
-        candidates: json.candidates,
-        error: "Could not match this card. Search manually below.",
-        label: label || null,
-      })
     },
-    [enterManualHandoff, fetchPricedCard, presentMatch],
+    [enterManualHandoff, fetchPricedCard],
+  )
+
+  const dismissFoundSheet = useCallback(() => {
+    setFoundPreview(null)
+    setPortfolioMessage(null)
+    setLookupError(null)
+  }, [])
+
+  const handleAddToPortfolio = useCallback(
+    async (_opts: { quantity: number; variant: CardVariant }) => {
+      if (!foundPreview) return
+      setPortfolioAdding(true)
+      setPortfolioMessage(null)
+      try {
+        await runWithAuth(async () => {
+          if (!user) throw new Error("Sign in to save cards to your portfolio.")
+          await addCardToBinder(
+            getSupabase(),
+            user.id,
+            {
+              id: foundPreview.id,
+              name: foundPreview.cardName,
+              set: foundPreview.setName,
+              rarity: "Rare",
+              image: foundPreview.imageUrl,
+              cardNumber: foundPreview.cardNumber,
+            },
+            "trade",
+          )
+        })
+        setPortfolioMessage("Added to portfolio")
+        dismissFoundSheet()
+      } catch (err) {
+        setPortfolioMessage(err instanceof Error ? err.message : "Could not add to portfolio")
+      } finally {
+        setPortfolioAdding(false)
+      }
+    },
+    [dismissFoundSheet, foundPreview, getSupabase, runWithAuth, user],
   )
 
   const lookupHit = async (hit: CardSearchHit) => {
@@ -328,7 +260,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     seededHitsRef.current = []
     seedQueryRef.current = ""
     aiCandidatesRef.current = []
-    setIsScanning(false)
     setSnapshot(null)
     setCard(null)
     setHits([])
@@ -338,6 +269,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     setDrawerOpen(false)
     setMatchMeta(null)
     setFoundPreview(null)
+    setPortfolioMessage(null)
     setPhase("camera")
   }
 
@@ -389,29 +321,17 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       </div>
 
       <div className="relative z-0 min-h-0 flex-1 overflow-hidden bg-zinc-950">
-        {phase === "camera" || isScanning ? (
+        {phase === "camera" ? (
           <CardScanner
-            autoScan
-            scanning={isScanning}
-            processingMessage={identifyStatus}
-            onScanStart={() => {
-              setIsScanning(true)
-              setIdentifyStatus("Scanning card…")
-              setLookupError(null)
-              setDetectedLabel(null)
-              setCard(null)
-              presentedCardIdRef.current = null
-              seededHitsRef.current = []
-              seedQueryRef.current = ""
-              aiCandidatesRef.current = []
-            }}
-            onScanComplete={(result, snap) => {
-              void processScanResult(result, snap).finally(() => setIsScanning(false))
+            paused={!!foundPreview}
+            onMatch={(result, snap) => {
+              void processPointScanMatch(result, snap)
             }}
             onScanFail={(error, snap) => {
               if (snap) setSnapshot(snap)
-              setIsScanning(false)
-              enterManualHandoff({ query: "", error })
+              if (error && !error.includes("No catalog match")) {
+                setLookupError(error)
+              }
             }}
             className="absolute inset-0 size-full rounded-none border-0"
             immersive
@@ -424,21 +344,24 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
           <div className="flex h-full items-center justify-center text-sm text-white/60">No snapshot</div>
         )}
 
-        {foundPreview && phase === "camera" && !isScanning ? (
+        {foundPreview && phase === "camera" ? (
           <CardFoundSheet
             card={foundPreview}
-            onOpen={() => {
-              presentMatch(foundPreview, { openDrawer: true })
-              setFoundPreview(null)
-            }}
-            onDismiss={() => {
-              setFoundPreview(null)
-              resetScan()
-            }}
+            adding={portfolioAdding}
+            onAddToPortfolio={handleAddToPortfolio}
+            onDismiss={dismissFoundSheet}
           />
         ) : null}
 
-        {phase === "hud" && card && !isScanning ? (
+        {portfolioMessage && phase === "camera" && !foundPreview ? (
+          <div className="absolute inset-x-0 bottom-24 z-20 flex justify-center px-4">
+            <p className="rounded-full bg-black/80 px-3 py-1.5 text-[11px] font-medium text-white">
+              {portfolioMessage}
+            </p>
+          </div>
+        ) : null}
+
+        {phase === "hud" && card ? (
           <div className="absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black via-black/95 to-transparent px-4 pb-5 pt-14">
             <div className="rounded-2xl border border-white/15 bg-black/70 p-3 backdrop-blur-md">
               {detectedLabel ? (

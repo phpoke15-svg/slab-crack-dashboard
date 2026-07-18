@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   extractCollectorNumberFromText,
+  hasOcrMatchFields,
   mergeOcrReads,
   parseOcrText,
   shouldTrustOcrDetected,
@@ -66,6 +67,17 @@ describe("mergeOcrReads", () => {
 
   it("returns null when no fields are found", () => {
     expect(mergeOcrReads(null, null, null)).toBeNull()
+  })
+  it("requires minimum OCR fields before catalog match", () => {
+    expect(
+      hasOcrMatchFields({
+        cardName: "Pikachu",
+        setName: "",
+        cardNumber: "25",
+        confidence: 0.82,
+        notes: "ocr",
+      }),
+    ).toBe(true)
   })
 })
 
