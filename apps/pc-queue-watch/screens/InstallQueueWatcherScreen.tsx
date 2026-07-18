@@ -120,6 +120,10 @@ export default function InstallQueueWatcherScreen() {
     navigation.navigate("CollecTools")
   }, [navigation])
 
+  const openPointScan = useCallback(() => {
+    navigation.navigate("PointScan", { tool: "slabcrack" })
+  }, [navigation])
+
   const openPokeWatchWeb = useCallback(() => {
     void Linking.openURL(`${COLLECTOOLS_BASE_URL}/pokewatch`)
   }, [])
@@ -151,6 +155,10 @@ export default function InstallQueueWatcherScreen() {
           This app never loads Pokemon Center directly. Install the watcher in your mobile browser,
           then get push alerts when the queue goes live.
         </Text>
+
+        <Pressable style={styles.secondaryButton} onPress={openPointScan}>
+          <Text style={styles.secondaryButtonText}>Point & Scan cards (native OCR)</Text>
+        </Pressable>
 
         <View style={[styles.card, status?.live ? styles.cardLive : null]}>
           <Text style={styles.cardLabel}>Live log</Text>
