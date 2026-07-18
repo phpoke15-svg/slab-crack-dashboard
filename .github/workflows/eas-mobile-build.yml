@@ -56,7 +56,7 @@ jobs:
         working-directory: apps/pc-queue-watch
         run: >
           npx eas-cli build -p android --profile production --non-interactive
-          ${{ (github.event_name == 'push' || inputs.auto_submit) && '--auto-submit' || '' }}
+          ${{ github.event_name == 'workflow_dispatch' && inputs.auto_submit && '--auto-submit' || '' }}
 
   build-ios:
     if: >
