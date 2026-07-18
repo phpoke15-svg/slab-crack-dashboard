@@ -84,6 +84,7 @@ export function GiveawayClient({
           cards?: GiveawayPagePrizeData["cards"]
           priceBand?: GiveawayPagePrizeData["priceBand"]
           usedLivePriceCharting?: boolean
+          matchMode?: GiveawayPagePrizeData["matchMode"]
           error?: string
         }
         if (!json.ok || !json.prize) {
@@ -100,6 +101,7 @@ export function GiveawayClient({
           cards: json.cards ?? [],
           priceBand: json.priceBand ?? null,
           usedLivePriceCharting: json.usedLivePriceCharting,
+          matchMode: json.matchMode,
           error: null,
         })
       })
@@ -152,6 +154,7 @@ export function GiveawayClient({
             cards={prizeData.cards}
             priceBand={prizeData.priceBand}
             usedLivePriceCharting={prizeData.usedLivePriceCharting}
+            matchMode={prizeData.matchMode}
           />
         ) : null}
 

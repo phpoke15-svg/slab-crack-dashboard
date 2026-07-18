@@ -29,7 +29,9 @@ export async function GET(request: Request) {
 
   try {
     const prize = await getPrizeSnapshotForMonth(month)
-    const { band, cards, usedLivePriceCharting } = await getGiveawayPrizeCards(prize.prizeArvUsd)
+    const { band, cards, usedLivePriceCharting, matchMode } = await getGiveawayPrizeCards(
+      prize.prizeArvUsd,
+    )
 
     return NextResponse.json({
       ok: true,
@@ -37,6 +39,7 @@ export async function GET(request: Request) {
       priceBand: band,
       cards,
       usedLivePriceCharting,
+      matchMode,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load prize cards"
