@@ -348,3 +348,124 @@ export async function getFeaturedCatalogCards(limit = 30): Promise<CatalogSearch
     return []
   }
 }
+
+type PricedCatalogRow = {
+  cardId: string
+  rawPrice: number
+  syncedAt: string | null
+  syncError: string | null
+}
+
+function sortPricedRowsByTarget(rows: PricedCatalogRow[], target: number): PricedCatalogRow[] {
+  return [...rows].sort(
+    (a, b) => Math.abs(a.rawPrice - target) - Math.abs(b.rawPrice - target),
+  )
+}
+
+async function catalogHitsForPricedRows(
+  pricedRows: PricedCatalogRow[],
+  target: number,
+  limit: number,
+): Promise<CatalogSearchHit[]> {
+  if (!pricedRows.length) return []
+
+  const supabase = createReadClient()
+  const sorted = sortPricedRowsByTarget(pricedRows, target).slice(0, Math.max(limit * 3, limit))
+  const cardIds = sorted.map((row) => row.cardId)
+
+  const { data: cards, error: cardsError } = await supabase
+    .from("cards")
+    .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")
+    .in("id", cardIds)
+
+  if (cardsError || !cards?.length) return []
+
+  const priceById = new Map(sorted.map((row) => [row.cardId, row]))
+  return (cards as CatalogCardRow[])
+    .map((row) => {
+      const cached = priceById.get(row.id)
+      return rowToHit({
+        ...row,
+        raw_price: cached?.rawPrice,
+        synced_at: cached?.syncedAt,
+        sync_error: cached?.syncError,
+      })
+    })
+    .sort((a, b) => Math.abs((a.rawPrice ?? 0) - target) - Math.abs((b.rawPrice ?? 0) - target))
+    .slice(0, limit)
+}
+
+/** Cards from card_prices within a raw price band, joined to the unified cards catalog. */
+export async function getCatalogCardsInPriceBand(
+  min: number,
+  max: number,
+  target: number,
+  limit: number,
+): Promise<CatalogSearchHit[]> {
+  if (!isSupabaseConfigured() || limit <= 0) return []
+
+  try {
+    const supabase = createReadClient()
+    const poolSize = Math.min(Math.max(limit * 8, 80), 500)
+
+    const { data: pricedRows, error: priceError } = await supabase
+      .from("card_prices")
+      .select("card_id, raw_price, synced_at, sync_error")
+      .gt("raw_price", 0)
+      .gte("raw_price", min)
+      .lte("raw_price", max)
+      .neq("sync_error", "unavailable")
+      .like("card_id", "poke-%")
+      .limit(poolSize)
+
+    if (priceError || !pricedRows?.length) return []
+
+    const rows: PricedCatalogRow[] = pricedRows.map((row) => ({
+      cardId: String(row.card_id),
+      rawPrice: Number(row.raw_price),
+      syncedAt: (row.synced_at as string | null) ?? null,
+      syncError: (row.sync_error as string | null) ?? null,
+    }))
+
+    return catalogHitsForPricedRows(rows, target, limit)
+  } catch (error) {
+    console.error("[cards-catalog] price band query failed:", error)
+    return []
+  }
+}
+
+/** Nearest priced catalog cards to a target raw price (for giveaway fallbacks). */
+export async function getCatalogCardsClosestToPrice(
+  target: number,
+  limit: number,
+): Promise<CatalogSearchHit[]> {
+  if (!isSupabaseConfigured() || limit <= 0 || target <= 0) return []
+
+  try {
+    const supabase = createReadClient()
+    const poolSize = Math.min(Math.max(limit * 12, 120), 600)
+
+    const { data: pricedRows, error: priceError } = await supabase
+      .from("card_prices")
+      .select("card_id, raw_price, synced_at, sync_error")
+      .gt("raw_price", 0)
+      .neq("sync_error", "unavailable")
+      .like("card_id", "poke-%")
+      .order("raw_price", { ascending: false })
+      .limit(poolSize)
+
+    if (priceError || !pricedRows?.length) return []
+
+    const rows: PricedCatalogRow[] = pricedRows.map((row) => ({
+      cardId: String(row.card_id),
+      rawPrice: Number(row.raw_price),
+      syncedAt: (row.synced_at as string | null) ?? null,
+      syncError: (row.sync_error as string | null) ?? null,
+    }))
+
+    return catalogHitsForPricedRows(rows, target, limit)
+  } catch (error) {
+    console.error("[cards-catalog] closest price query failed:", error)
+    return []
+  }
+}
