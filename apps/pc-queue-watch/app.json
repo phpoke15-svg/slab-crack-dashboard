@@ -2,7 +2,7 @@
   "expo": {
     "name": "CollecTools",
     "slug": "pokepax",
-    "version": "1.4.1",
+    "version": "1.4.2",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "collectools",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.collectools.app",
-      "buildNumber": "23",
+      "buildNumber": "24",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -31,7 +31,7 @@
     },
     "android": {
       "package": "com.collectools.app",
-      "versionCode": 23,
+      "versionCode": 25,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0b0e14"

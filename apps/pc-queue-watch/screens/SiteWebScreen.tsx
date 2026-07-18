@@ -45,8 +45,8 @@ function scanToolFromUrl(url: string): "slabcrack" | "slablab" | null {
 
 export default function SiteWebScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
-  const route = useRoute<RouteProp<RootStackParamList, "CollecTools">>()
-  const initialPath = route.params?.initialPath ?? "/pokewatch"
+  const route = useRoute<RouteProp<RootStackParamList, "Home">>()
+  const initialPath = route.params?.initialPath ?? "/"
   const startUrl = `${COLLECTOOLS_BASE_URL}${initialPath.startsWith("/") ? initialPath : `/${initialPath}`}`
 
   const [loading, setLoading] = useState(true)
@@ -100,6 +100,10 @@ export default function SiteWebScreen() {
           type?: string
           sessionId?: string
           token?: string
+        }
+        if (data?.type === "open-native-queue") {
+          navigation.navigate("PokeWatch")
+          return
         }
         if (data?.type === "collectools-qw-creds") {
           void saveQueueWatchCredentials({
