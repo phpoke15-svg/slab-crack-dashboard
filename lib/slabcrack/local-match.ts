@@ -7,8 +7,10 @@ import {
 import {
   cleanNumber,
   pickBestCatalogHit,
+  pickRelaxedCatalogHit,
   scoreHit,
   simplifyCardName,
+  sanitizeDetectedForMatch,
   type DetectedCard,
 } from "@/lib/slabcrack/identify-parse"
 import {
@@ -260,15 +262,21 @@ export type LocalMatchResult = {
 export async function matchDetectedCardLocal(
   detected: DetectedCard,
 ): Promise<LocalMatchResult | null> {
+  const sanitized = sanitizeDetectedForMatch(detected)
   const started = Date.now()
   try {
-    const candidates = await searchSlabCardsLocal(detected)
+    const candidates = await searchSlabCardsLocal(sanitized)
     if (!candidates.length) return null
 
     const ranked = [...candidates].sort(
-      (a, b) => scoreHit(b, detected) - scoreHit(a, detected),
+      (a, b) => scoreHit(b, sanitized) - scoreHit(a, sanitized),
     )
-    const { hit: top, matchScore } = pickBestCatalogHit(ranked, detected)
+    let { hit: top, matchScore } = pickBestCatalogHit(ranked, sanitized)
+    if (!top) {
+      const relaxed = pickRelaxedCatalogHit(ranked, sanitized)
+      top = relaxed.hit
+      matchScore = relaxed.matchScore
+    }
     if (!top) return null
 
     const card = await priceHitLocal(top)

@@ -194,14 +194,32 @@ export async function findCatalogCandidatesForDetected(
 
   const name = simplifyCardName(detected.cardName).trim()
   const number = cleanNumber(detected.cardNumber)
-  if (!name || !number) return []
+  if (!number) return []
 
-  const firstToken = name.split(/\s+/).find((t) => t.length > 2) ?? name
-  const safeToken = firstToken.replace(/[%_]/g, "")
   const safeNumber = number.replace(/[%_]/g, "")
 
   try {
     const supabase = createReadClient()
+
+    if (!name) {
+      const { data, error } = await supabase
+        .from("cards")
+        .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")
+        .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
+        .order("name", { ascending: true })
+        .limit(Math.min(Math.max(limit, 1), 24))
+
+      if (error) {
+        if (error.code === "42P01") return []
+        throw error
+      }
+
+      const hits = await attachCachedPrices((data ?? []) as CatalogCardRow[])
+      return hits.filter((hit) => collectorNumberMatches(hit.number, number))
+    }
+
+    const firstToken = name.split(/\s+/).find((t) => t.length > 2) ?? name
+    const safeToken = firstToken.replace(/[%_]/g, "")
     const { data, error } = await supabase
       .from("cards")
       .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")

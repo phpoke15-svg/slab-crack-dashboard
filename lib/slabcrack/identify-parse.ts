@@ -41,6 +41,33 @@ export function simplifyCardName(name: string): string {
     .trim()
 }
 
+const ATTACK_OR_RULES_NAME_RE =
+  /\b(damage|during your turn|your opponent|coin|tails|heads|bench|switch|attach|discard|draw|knock out|ability|attack)\b/i
+
+/** Vision/OCR sometimes reads attack text instead of the Pokémon name. */
+export function isLikelyAttackOrRulesText(name: string): boolean {
+  const trimmed = name.trim()
+  if (!trimmed) return false
+  if (ATTACK_OR_RULES_NAME_RE.test(trimmed)) return true
+  if (/\d+\s*damage/i.test(trimmed)) return true
+  return false
+}
+
+/** Clean detected fields before catalog matching. */
+export function sanitizeDetectedForMatch(input: Partial<DetectedCard>): DetectedCard {
+  const rawName = simplifyCardName(String(input.cardName ?? ""))
+  const cardName = isLikelyAttackOrRulesText(rawName) ? "" : rawName
+  return {
+    cardName,
+    setName: String(input.setName ?? "").trim(),
+    cardNumber: cleanNumber(String(input.cardNumber ?? "")),
+    confidence: Number.isFinite(input.confidence)
+      ? Math.max(0, Math.min(1, input.confidence!))
+      : 0.5,
+    notes: input.notes,
+  }
+}
+
 /** Strip markdown fences / leading chatter so Gemini JSON still parses. */
 export function extractJsonObject(raw: string): string {
   const trimmed = raw.trim()
@@ -66,7 +93,7 @@ export function parseDetectedJson(raw: string, provider: string): DetectedCard {
     throw new Error(`${provider} returned invalid JSON for card identity.`)
   }
 
-  const cardName = String(parsed.cardName ?? "").trim()
+  const cardName = simplifyCardName(String(parsed.cardName ?? "").trim())
   const setName = String(parsed.setName ?? "").trim()
   const cardNumber = cleanNumber(String(parsed.cardNumber ?? ""))
   const confidenceRaw = Number(parsed.confidence)
@@ -206,13 +233,21 @@ export function pickBestCatalogHit<T extends ScoreableHit>(
     const byNumber = ranked.filter(
       (h) => cleanNumber(h.cardNumber.split("/")[0] ?? "") === number,
     )
+    if (byNumber.length === 1) {
+      const best = byNumber[0]!
+      const matchScore = scoreHit(best, detected)
+      const name = simplifyCardName(detected.cardName)
+      if (!name || hasNameAgreement(best, detected) || matchScore >= 55) {
+        return { hit: best, matchScore }
+      }
+    }
     if (byNumber.length) {
       const best = byNumber[0]!
       const matchScore = scoreHit(best, detected)
-      if (!hasNameAgreement(best, detected)) {
-        return { hit: null, matchScore }
+      if (hasNameAgreement(best, detected) && matchScore >= minAutoMatchScore(detected)) {
+        return { hit: best, matchScore }
       }
-      if (matchScore >= minAutoMatchScore(detected)) {
+      if (matchScore >= 52) {
         return { hit: best, matchScore }
       }
     }
@@ -230,9 +265,43 @@ export function pickBestCatalogHit<T extends ScoreableHit>(
   return { hit: top, matchScore }
 }
 
+/** Looser picker for point & scan when strict matching finds nothing. */
+export function pickRelaxedCatalogHit<T extends ScoreableHit>(
+  candidates: T[],
+  detected: DetectedCard,
+): { hit: T | null; matchScore: number } {
+  const strict = pickBestCatalogHit(candidates, detected)
+  if (strict.hit) return strict
+
+  if (!candidates.length) return { hit: null, matchScore: 0 }
+
+  const number = cleanNumber(detected.cardNumber)
+  const ranked = [...candidates].sort((a, b) => scoreHit(b, detected) - scoreHit(a, detected))
+  const top = ranked[0]!
+  const matchScore = scoreHit(top, detected)
+
+  if (number) {
+    const byNumber = ranked.filter(
+      (h) => cleanNumber(h.cardNumber.split("/")[0] ?? "") === number,
+    )
+    if (byNumber.length === 1) {
+      return { hit: byNumber[0]!, matchScore: scoreHit(byNumber[0]!, detected) }
+    }
+    if (byNumber[0] && scoreHit(byNumber[0], detected) >= 48) {
+      return { hit: byNumber[0], matchScore: scoreHit(byNumber[0], detected) }
+    }
+  }
+
+  if (matchScore >= 48 && hasNameAgreement(top, detected)) {
+    return { hit: top, matchScore }
+  }
+
+  return { hit: null, matchScore }
+}
+
 /** Minimum score before auto-opening HUD (avoids wrong-card "success"). */
 export function minAutoMatchScore(detected: DetectedCard): number {
-  if (cleanNumber(detected.cardNumber)) return 65
-  if (detected.setName.trim()) return 45
-  return 35
+  if (cleanNumber(detected.cardNumber)) return 55
+  if (detected.setName.trim()) return 42
+  return 32
 }

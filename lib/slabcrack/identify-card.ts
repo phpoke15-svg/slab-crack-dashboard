@@ -5,7 +5,7 @@ import {
   searchHitToPlaceholder,
   type CardSearchHit,
 } from "@/lib/card-lookup"
-import { catalogHitToCardSearchHit, searchCatalogCardsLocal } from "@/lib/db/cards-catalog"
+import { catalogHitToCardSearchHit, findCatalogCandidatesForDetected, searchCatalogCardsLocal } from "@/lib/db/cards-catalog"
 import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
 import {
   geminiVisionModelCandidates,
@@ -17,6 +17,8 @@ import {
   minAutoMatchScore,
   parseDetectedJson,
   pickBestCatalogHit,
+  pickRelaxedCatalogHit,
+  sanitizeDetectedForMatch,
   scoreHit,
   simplifyCardName,
   thinkingConfigForModel,
@@ -411,18 +413,21 @@ async function searchWithFallbacks(
 }
 
 function normalizeDetectedInput(input: Partial<DetectedCard> | null | undefined): DetectedCard {
-  const cardName = String(input?.cardName ?? "").trim()
-  const setName = String(input?.setName ?? "").trim()
-  const cardNumber = cleanNumber(String(input?.cardNumber ?? ""))
-  const confidenceRaw = Number(input?.confidence)
-  const confidence = Number.isFinite(confidenceRaw)
-    ? Math.max(0, Math.min(1, confidenceRaw))
-    : 0.5
-  const notes = String(input?.notes ?? "").trim() || undefined
-  if (!cardName && !cardNumber) {
+  const detected = sanitizeDetectedForMatch(input ?? {})
+  if (!detected.cardName && !detected.cardNumber) {
     throw new Error("detected.cardName or detected.cardNumber is required")
   }
-  return { cardName, setName, cardNumber, confidence, notes }
+  return detected
+}
+
+function mergeSearchHits(...groups: CardSearchHit[][]): CardSearchHit[] {
+  const byId = new Map<string, CardSearchHit>()
+  for (const group of groups) {
+    for (const hit of group) {
+      if (!byId.has(hit.id)) byId.set(hit.id, hit)
+    }
+  }
+  return [...byId.values()]
 }
 
 export type VisionIdentifyResult = {
@@ -488,12 +493,20 @@ export async function matchDetectedCard(
     }
   }
 
-  const candidates = await searchWithFallbacks(detected, query)
+  const candidates = mergeSearchHits(
+    await searchWithFallbacks(detected, query),
+    (await findCatalogCandidatesForDetected(detected)).map(catalogHitToCardSearchHit),
+  )
   const afterSearch = Date.now()
   const ranked = [...candidates].sort(
     (a, b) => scoreHit(b, detected) - scoreHit(a, detected),
   )
-  const { hit, matchScore } = pickBestCatalogHit(ranked, detected)
+  let { hit, matchScore } = pickBestCatalogHit(ranked, detected)
+  if (!hit) {
+    const relaxed = pickRelaxedCatalogHit(ranked, detected)
+    hit = relaxed.hit
+    matchScore = relaxed.matchScore
+  }
   const lowConfidence = Boolean(hit && matchScore < minAutoMatchScore(detected))
 
   let card: MockCardEntry | null = null

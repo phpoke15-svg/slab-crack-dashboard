@@ -8,23 +8,12 @@ import { lookupCatalogCardEntry } from "@/lib/pricing/catalog-card-lookup"
 import { identifyResultToScanPipeline } from "@/lib/scanner/scan-result"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import {
-  cleanNumber,
-  hasNameAgreement,
   minAutoMatchScore,
   pickBestCatalogHit,
-  simplifyCardName,
+  pickRelaxedCatalogHit,
+  sanitizeDetectedForMatch,
   type DetectedCard,
 } from "@/lib/slabcrack/identify-parse"
-
-function normalizeDetected(input: Partial<DetectedCard>): DetectedCard {
-  return {
-    cardName: simplifyCardName(String(input.cardName ?? "")),
-    setName: String(input.setName ?? "").trim(),
-    cardNumber: cleanNumber(String(input.cardNumber ?? "")),
-    confidence: Number.isFinite(input.confidence) ? Math.max(0, Math.min(1, input.confidence!)) : 0.75,
-    notes: input.notes ?? "ocr",
-  }
-}
 
 function buildQuery(detected: DetectedCard): string {
   const parts = [detected.cardName, detected.cardNumber].filter(Boolean)
@@ -35,18 +24,21 @@ function buildQuery(detected: DetectedCard): string {
 export async function matchCatalogFromOcr(
   input: Partial<DetectedCard>,
 ): Promise<ScanPipelineResult | null> {
-  const detected = normalizeDetected(input)
-  if (!detected.cardName || !detected.cardNumber) return null
+  const detected = sanitizeDetectedForMatch(input)
+  if (!detected.cardNumber) return null
 
   const started = Date.now()
   const catalogHits = await findCatalogCandidatesForDetected(detected)
   if (!catalogHits.length) return null
 
   const candidates = catalogHits.map(catalogHitToCardSearchHit)
-  const { hit, matchScore } = pickBestCatalogHit(candidates, detected)
-  if (!hit || matchScore < minAutoMatchScore(detected) || !hasNameAgreement(hit, detected)) {
-    return null
+  let { hit, matchScore } = pickBestCatalogHit(candidates, detected)
+  if (!hit) {
+    const relaxed = pickRelaxedCatalogHit(candidates, detected)
+    hit = relaxed.hit
+    matchScore = relaxed.matchScore
   }
+  if (!hit || matchScore < Math.min(minAutoMatchScore(detected), 48)) return null
 
   const card = await lookupCatalogCardEntry(hit.id)
   if (!card) return null
