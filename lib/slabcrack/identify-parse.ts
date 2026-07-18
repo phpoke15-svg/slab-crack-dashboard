@@ -146,6 +146,18 @@ export type ScoreableHit = {
   cardNumber: string
 }
 
+/** True when detected name plausibly matches a catalog row (not number-only). */
+export function hasNameAgreement(hit: ScoreableHit, detected: DetectedCard): boolean {
+  const name = simplifyCardName(detected.cardName).toLowerCase()
+  if (!name) return true
+
+  const hitName = hit.cardName.toLowerCase()
+  if (hitName.includes(name) || name.includes(hitName)) return true
+
+  const first = name.split(/\s+/).find((t) => t.length > 2) ?? ""
+  return Boolean(first && hitName.includes(first))
+}
+
 export function scoreHit(hit: ScoreableHit, detected: DetectedCard): number {
   const name = simplifyCardName(detected.cardName).toLowerCase()
   const setName = detected.setName.toLowerCase()
@@ -156,7 +168,6 @@ export function scoreHit(hit: ScoreableHit, detected: DetectedCard): number {
 
   let score = 0
   if (number && hitNum && number === hitNum) score += 50
-  else if (number && hitNum && (hitNum.includes(number) || number.includes(hitNum))) score += 20
   else if (number && hitNum && number !== hitNum) score -= 45
 
   if (name && hitName) {
@@ -198,6 +209,9 @@ export function pickBestCatalogHit<T extends ScoreableHit>(
     if (byNumber.length) {
       const best = byNumber[0]!
       const matchScore = scoreHit(best, detected)
+      if (!hasNameAgreement(best, detected)) {
+        return { hit: null, matchScore }
+      }
       if (matchScore >= minAutoMatchScore(detected)) {
         return { hit: best, matchScore }
       }
@@ -218,7 +232,7 @@ export function pickBestCatalogHit<T extends ScoreableHit>(
 
 /** Minimum score before auto-opening HUD (avoids wrong-card "success"). */
 export function minAutoMatchScore(detected: DetectedCard): number {
-  if (cleanNumber(detected.cardNumber)) return 50
+  if (cleanNumber(detected.cardNumber)) return 65
   if (detected.setName.trim()) return 45
   return 35
 }

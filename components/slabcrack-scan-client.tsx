@@ -15,7 +15,12 @@ import { CardFoundSheet } from "@/components/card-found-sheet"
 import { ScanMatchFeedback } from "@/components/scan-match-feedback"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
-import { cleanNumber } from "@/lib/slabcrack/identify-parse"
+import {
+  cleanNumber,
+  hasNameAgreement,
+  minAutoMatchScore,
+  pickBestCatalogHit,
+} from "@/lib/slabcrack/identify-parse"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import {
   getBestGradeQuote,
@@ -168,23 +173,31 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         card: MockCardEntry | null
         hit: CardSearchHit | null
       } => {
-        if (json.card && cardMatchesDetect(normalizeCardEntry(json.card))) {
-          return { card: normalizeCardEntry(json.card), hit: json.hit }
+        if (json.card && json.hit && json.detected) {
+          const card = normalizeCardEntry(json.card)
+          if (hasNameAgreement(json.hit, json.detected) && cardMatchesDetect(card)) {
+            return { card, hit: json.hit }
+          }
         }
-        if (detNum && json.candidates?.length) {
-          const byNumber = json.candidates.find(
-            (c) => cleanNumber(c.cardNumber.split("/")[0] ?? "") === detNum,
-          )
-          if (byNumber) {
+
+        if (json.candidates?.length && json.detected) {
+          const picked = pickBestCatalogHit(json.candidates, json.detected)
+          if (
+            picked.hit &&
+            picked.matchScore >= minAutoMatchScore(json.detected) &&
+            hasNameAgreement(picked.hit, json.detected)
+          ) {
             return {
-              card: normalizeCardEntry(searchHitToPlaceholder(byNumber)),
-              hit: byNumber,
+              card: normalizeCardEntry(searchHitToPlaceholder(picked.hit)),
+              hit: picked.hit,
             }
           }
         }
+
         if (json.card && !detNum) {
           return { card: normalizeCardEntry(json.card), hit: json.hit }
         }
+
         return { card: null, hit: null }
       }
 

@@ -28,6 +28,16 @@ HP 120
   it("returns null when no useful text is found", () => {
     expect(parseOcrText("HP 120\nweakness")).toBeNull()
   })
+
+  it("prefers shorter title-like lines over attack text", () => {
+    const detected = parseOcrText(`Charizard
+Resonance Strike
+120 damage
+4/102`)
+
+    expect(detected?.cardName).toBe("Charizard")
+    expect(detected?.cardNumber).toBe("4")
+  })
 })
 
 describe("mergeOcrReads", () => {

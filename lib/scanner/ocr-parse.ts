@@ -3,6 +3,8 @@ import { cleanNumber, simplifyCardName, type DetectedCard } from "@/lib/slabcrac
 const COLLECTOR_NUMBER_RE = /\b([a-z]{0,3}\d{1,4}[a-z]?)\s*\/\s*([a-z]{0,3}\d{1,4})\b/i
 const NOISE_LINE_RE =
   /^(hp\b|weakness|resistance|retreat|pok[eé]mon|trainer|energy|illus|©|basic|stage|ability|attack|rarity|confetti)/i
+const ATTACK_LINE_RE =
+  /\b(damage|during your turn|your opponent|coin|tails|heads|bench|switch|attach|discard|draw|knock out)\b/i
 
 export function extractCollectorNumberFromText(text: string): string {
   const normalized = text.replace(/\s+/g, " ")
@@ -20,6 +22,7 @@ function isLikelyCardNameLine(line: string): boolean {
   if (trimmed.length < 3 || trimmed.length > 48) return false
   if (COLLECTOR_NUMBER_RE.test(trimmed)) return false
   if (NOISE_LINE_RE.test(trimmed)) return false
+  if (ATTACK_LINE_RE.test(trimmed)) return false
   if (/^\d+$/.test(trimmed)) return false
 
   const letters = trimmed.replace(/[^a-z]/gi, "").length
@@ -33,6 +36,11 @@ function isLikelyCardNameLine(line: string): boolean {
 function pickCardName(lines: string[], numberLineIndex: number): string {
   const candidates: string[] = []
 
+  for (let i = 0; i < Math.min(3, lines.length); i += 1) {
+    const line = lines[i]?.trim()
+    if (line && isLikelyCardNameLine(line)) candidates.push(line)
+  }
+
   if (numberLineIndex >= 0) {
     for (let i = Math.max(0, numberLineIndex - 3); i < numberLineIndex; i += 1) {
       const line = lines[i]?.trim()
@@ -45,9 +53,11 @@ function pickCardName(lines: string[], numberLineIndex: number): string {
   }
 
   const ranked = [...new Set(candidates)].sort((a, b) => {
-    const aScore = simplifyCardName(a).length
-    const bScore = simplifyCardName(b).length
-    return bScore - aScore
+    const aSimple = simplifyCardName(a)
+    const bSimple = simplifyCardName(b)
+    const lenDiff = aSimple.length - bSimple.length
+    if (lenDiff !== 0) return lenDiff
+    return aSimple.localeCompare(bSimple)
   })
 
   return ranked[0] ? simplifyCardName(ranked[0]) : ""

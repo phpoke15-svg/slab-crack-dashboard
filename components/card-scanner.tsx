@@ -12,12 +12,6 @@ import {
   SCAN_VISION_JPEG_QUALITY,
   SCAN_VISION_MAX_EDGE,
 } from "@/lib/scanner/capture-settings"
-import {
-  preloadOcrWorker,
-  recognizeCardText,
-  releaseOcrWorker,
-  shouldTrustOcrDetected,
-} from "@/lib/scanner/ocr-client"
 import { dHashFromImageSource } from "@/lib/scanner/phash"
 import { StabilityGate } from "@/lib/scanner/stability"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
@@ -91,14 +85,6 @@ export function CardScanner({
   const [cameraStarting, setCameraStarting] = useState(false)
   const [stability, setStability] = useState({ blur: 0, motion: 999, stable: false })
   const [guide, setGuide] = useState(defaultGuideBounds())
-  const [ocrStatus, setOcrStatus] = useState<string | null>(null)
-
-  useEffect(() => {
-    void preloadOcrWorker()
-    return () => {
-      void releaseOcrWorker()
-    }
-  }, [])
 
   const stopCamera = useCallback(() => {
     const video = videoRef.current
@@ -170,34 +156,22 @@ export function CardScanner({
     }
   }, [startCamera, stopCamera])
 
-  const scanImage = useCallback(
-    async (ocrCrop: string, visionCrop: string, phash: string) => {
-      setOcrStatus("Reading card text…")
-      const detected = await recognizeCardText(ocrCrop).catch(() => null)
-      setOcrStatus(null)
+  const scanImage = useCallback(async (snapshot: string, visionCrop: string, phash: string) => {
+    const res = await fetch("/api/scanner/scan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: visionCrop, phash }),
+    })
+    const json = (await res.json().catch(() => null)) as
+      | (ScanPipelineResult & { error?: string })
+      | null
 
-      const payload: Record<string, unknown> = { image: visionCrop, phash }
-      if (shouldTrustOcrDetected(detected)) {
-        payload.detected = detected
-      }
+    if (!res.ok || !json?.ok) {
+      throw new Error(json?.error || "Could not identify this card.")
+    }
 
-      const res = await fetch("/api/scanner/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-      const json = (await res.json().catch(() => null)) as
-        | (ScanPipelineResult & { error?: string })
-        | null
-
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error || "Could not identify this card.")
-      }
-
-      return { json: json as ScanPipelineResult, crop: ocrCrop }
-    },
-    [],
-  )
+    return { json: json as ScanPipelineResult, crop: snapshot }
+  }, [])
 
   const runScan = useCallback(
     async (fromVideo: HTMLVideoElement) => {
@@ -207,20 +181,19 @@ export function CardScanner({
       gateRef.current.reset()
 
       try {
-        const ocrCrop = await captureCardFromVideo(fromVideo, guide)
+        const snapshot = await captureCardFromVideo(fromVideo, guide)
         onScanStart?.()
 
         const [visionCrop, phash] = await Promise.all([
-          downscaleDataUrl(ocrCrop, SCAN_VISION_MAX_EDGE, SCAN_VISION_JPEG_QUALITY),
-          phashFromDataUrl(ocrCrop),
+          downscaleDataUrl(snapshot, SCAN_VISION_MAX_EDGE, SCAN_VISION_JPEG_QUALITY),
+          phashFromDataUrl(snapshot),
         ])
-        const { json } = await scanImage(ocrCrop, visionCrop, phash)
-        onScanComplete(json, ocrCrop)
+        const { json } = await scanImage(snapshot, visionCrop, phash)
+        onScanComplete(json, snapshot)
       } catch (err) {
         onScanFail(err instanceof Error ? err.message : "Scan failed", null)
       } finally {
         scanLockRef.current = false
-        setOcrStatus(null)
       }
     },
     [guide, onScanComplete, onScanFail, onScanStart, scanImage, scanning],
@@ -271,7 +244,6 @@ export function CardScanner({
             onScanFail(err instanceof Error ? err.message : "Scan failed", dataUrl)
           } finally {
             scanLockRef.current = false
-            setOcrStatus(null)
           }
         })()
       }
@@ -320,14 +292,12 @@ export function CardScanner({
               )}
             >
               {scanning
-                ? processingMessage || ocrStatus || "Identifying…"
-                : ocrStatus
-                  ? ocrStatus
+                ? processingMessage || "Identifying…"
                 : stability.stable
                   ? autoScan
-                    ? "Hold steady — reading text…"
+                    ? "Hold steady — scanning…"
                     : "Steady — tap Scan"
-                  : "Align name & number in frame"}
+                  : "Align card in frame"}
             </span>
           </div>
         </div>
@@ -343,7 +313,7 @@ export function CardScanner({
         <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
           <span className="inline-flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-medium text-white">
             <Loader2 className="size-3.5 animate-spin text-primary" aria-hidden="true" />
-            {processingMessage || ocrStatus || "Identifying…"}
+            {processingMessage || "Identifying…"}
           </span>
         </div>
       )}

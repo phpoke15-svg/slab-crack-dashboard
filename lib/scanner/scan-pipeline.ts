@@ -4,18 +4,15 @@ import {
   matchDetectedCard,
   type DetectedCard,
 } from "@/lib/slabcrack/identify-card"
-import { shouldTrustOcrDetected } from "@/lib/scanner/ocr-parse"
-import { identifyResultToScanPipeline } from "@/lib/scanner/scan-result"
 import { matchCardByPhash, priceVisualMatch } from "@/lib/scanner/visual-match"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
-import { minAutoMatchScore } from "@/lib/slabcrack/identify-parse"
 
 export type ScanCardInput = {
   /** Cropped card JPEG data URL */
   image: string
   /** 16-char hex dHash from client */
   phash?: string
-  /** Client OCR output — skips vision when present */
+  /** @deprecated Client OCR is not used — vision identifies the card */
   detected?: Partial<DetectedCard>
   /** Skip visual index and go straight to vision */
   forceVision?: boolean
@@ -26,24 +23,6 @@ export async function scanCardPipeline(input: ScanCardInput): Promise<ScanPipeli
   let visualMs = 0
   let visionMs = 0
   let matchMs = 0
-  let ocrMs = 0
-
-  if (shouldTrustOcrDetected(input.detected as DetectedCard | undefined)) {
-    const matchStart = Date.now()
-    const matched = await matchDetectedCard(input.detected!, "gemini")
-    matchMs = Date.now() - matchStart
-
-    const ocrTrusted =
-      matched.hit && matched.matchScore >= minAutoMatchScore(matched.detected)
-
-    if (ocrTrusted) {
-      return identifyResultToScanPipeline(matched, "ocr", {
-        ocrMs,
-        matchMs,
-        totalMs: Date.now() - started,
-      })
-    }
-  }
 
   if (!input.forceVision && input.phash?.trim()) {
     const visualStart = Date.now()
