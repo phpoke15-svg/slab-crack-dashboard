@@ -5,7 +5,6 @@ import Link from "next/link"
 import {
   ArrowRight,
   Check,
-  Gift,
   GripVertical,
   LayoutGrid,
   Loader2,
@@ -100,6 +99,46 @@ function HubToolTile({
   )
 }
 
+function HubGiveawayBlock({
+  tool,
+  onOpen,
+}: {
+  tool: CollecTool
+  onOpen: () => void
+}) {
+  const Icon = tool.icon
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group mb-3 flex w-full flex-col items-start gap-3 rounded-xl border border-primary/35 bg-primary/[0.07] p-4 text-left transition-colors hover:border-primary/50 hover:bg-primary/[0.11] sm:p-5"
+    >
+      <span className="flex w-full items-start justify-between gap-3">
+        <span className="flex min-w-0 flex-1 items-center gap-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/35 bg-primary/15 text-primary sm:size-12">
+            <Icon className="size-5 sm:size-6" strokeWidth={2} />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-lg font-bold leading-tight text-foreground sm:text-xl">
+              {tool.name}
+            </span>
+            <span className="mt-0.5 block text-xs font-medium text-primary sm:text-sm">
+              {tool.tagline}
+            </span>
+          </span>
+        </span>
+        <ArrowRight className="mt-2 size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+      </span>
+      <span className="w-full pl-14 sm:pl-[3.75rem]">
+        <span className="block text-sm leading-snug text-muted-foreground sm:text-base">
+          {tool.blurb}
+        </span>
+      </span>
+    </button>
+  )
+}
+
 export function CollecToolsHub() {
   const entitlements = useOptionalEntitlements()
   const showUpgrade =
@@ -134,6 +173,14 @@ export function CollecToolsHub() {
   const tools = useMemo(
     () => orderHubTools(defaultTools, activeOrder),
     [activeOrder, defaultTools],
+  )
+  const giveawayTool = useMemo(
+    () => defaultTools.find((tool) => tool.id === "giveaway") ?? null,
+    [defaultTools],
+  )
+  const gridTools = useMemo(
+    () => tools.filter((tool) => tool.id !== "giveaway"),
+    [tools],
   )
 
   const loadSavedOrder = useCallback(async () => {
@@ -252,13 +299,6 @@ export function CollecToolsHub() {
           </p>
           <div className="flex flex-wrap items-center gap-2">
             <Link
-              href="/giveaway"
-              className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-primary/40 bg-primary/15 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-            >
-              <Gift className="size-3.5" aria-hidden />
-              Monthly Giveaway
-            </Link>
-            <Link
               href="/pricing"
               className="inline-flex h-9 items-center justify-center rounded-lg border border-border bg-card/60 px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary/40"
             >
@@ -337,8 +377,12 @@ export function CollecToolsHub() {
         </p>
       ) : null}
 
+      {giveawayTool && !editMode ? (
+        <HubGiveawayBlock tool={giveawayTool} onOpen={() => setSelected(giveawayTool)} />
+      ) : null}
+
       <div className="grid grid-cols-2 gap-2">
-        {tools.map((tool) => (
+        {gridTools.map((tool) => (
           <HubToolTile
             key={tool.id}
             tool={tool}
