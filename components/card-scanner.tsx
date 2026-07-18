@@ -1,11 +1,13 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ImagePlus, Loader2 } from "lucide-react"
+import { ImagePlus, Loader2, ScanLine } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { captureCardFromVideo, defaultGuideBounds } from "@/lib/scanner/capture"
 import {
   POINT_SCAN_SAME_CARD_COOLDOWN_MS,
+  SCAN_COOLDOWN_MS,
+  SCAN_FORCED_INTERVAL_MS,
   SCAN_STABILITY_HOLD_MS,
 } from "@/lib/scanner/capture-settings"
 import { preloadOcrWorker, releaseOcrWorker } from "@/lib/scanner/ocr-client"
@@ -14,7 +16,14 @@ import { scanHapticMatch } from "@/lib/scanner/point-scan"
 import { StabilityGate } from "@/lib/scanner/stability"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 
-const SCAN_COOLDOWN_MS = 2500
+const SCAN_FAIL_NOTE_MS = 4000
+
+function friendlyScanError(message: string): string {
+  if (/GEMINI_API_KEY|vision API key|not configured/i.test(message)) {
+    return "Card vision is not configured on the server. Try manual search below."
+  }
+  return message
+}
 
 function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 4000): Promise<void> {
   if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve()
@@ -63,6 +72,8 @@ export function CardScanner({
   const lastScanAtRef = useRef(0)
   const lastMatchIdRef = useRef<string | null>(null)
   const lastMatchAtRef = useRef(0)
+  const lastForcedScanAtRef = useRef(0)
+  const failNoteTimerRef = useRef<number>(0)
 
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
@@ -145,6 +156,7 @@ export function CardScanner({
     void startCamera()
     return () => {
       cancelAnimationFrame(rafRef.current)
+      window.clearTimeout(failNoteTimerRef.current)
       stopCamera()
     }
   }, [startCamera, stopCamera])
@@ -169,8 +181,16 @@ export function CardScanner({
     [onMatch],
   )
 
+  const showFailNote = useCallback((message: string) => {
+    setStatusNote(friendlyScanError(message))
+    window.clearTimeout(failNoteTimerRef.current)
+    failNoteTimerRef.current = window.setTimeout(() => {
+      setStatusNote(null)
+    }, SCAN_FAIL_NOTE_MS)
+  }, [])
+
   const tryMatchFrame = useCallback(
-    async (video: HTMLVideoElement) => {
+    async (video: HTMLVideoElement, source: "auto" | "manual" | "upload" = "auto") => {
       if (scanBusyRef.current || paused) return
       scanBusyRef.current = true
       lastScanAtRef.current = Date.now()
@@ -183,25 +203,46 @@ export function CardScanner({
         const outcome = await matchPointScanSnapshot(snapshot)
 
         if (!outcome.ok) {
-          setStatusNote(null)
+          if (source === "upload") {
+            onScanFail?.(friendlyScanError(outcome.error), snapshot)
+          } else {
+            showFailNote(outcome.error)
+          }
           return
         }
 
         if (!outcome.result.card) {
-          onScanFail?.("Could not match this card. Try manual search.", snapshot)
+          const message = "Could not match this card. Try manual search."
+          if (source === "upload") {
+            onScanFail?.(message, snapshot)
+          } else {
+            showFailNote(message)
+          }
           return
         }
 
         deliverMatch(outcome.result, snapshot)
       } catch (err) {
-        onScanFail?.(err instanceof Error ? err.message : "Scan failed", null)
+        const message = err instanceof Error ? err.message : "Scan failed"
+        if (source === "upload") {
+          onScanFail?.(friendlyScanError(message), null)
+        } else {
+          showFailNote(message)
+        }
       } finally {
         scanBusyRef.current = false
         setScanning(false)
       }
     },
-    [deliverMatch, guide, onScanFail, paused],
+    [deliverMatch, guide, onScanFail, paused, showFailNote],
   )
+
+  const scanNow = useCallback(() => {
+    const video = videoRef.current
+    if (!video || !cameraReady || paused || scanBusyRef.current) return
+    if (Date.now() - lastScanAtRef.current < SCAN_COOLDOWN_MS) return
+    void tryMatchFrame(video, "manual")
+  }, [cameraReady, paused, tryMatchFrame])
 
   useEffect(() => {
     if (!cameraReady || paused) {
@@ -212,11 +253,16 @@ export function CardScanner({
     const loop = () => {
       const video = videoRef.current
       if (video && video.videoWidth > 0 && !scanBusyRef.current) {
-        const ready = gateRef.current.tick(video, guide)
+        const stabilityReady = gateRef.current.tick(video, guide)
         setStability(gateRef.current.sample)
-        const cooldownOk = Date.now() - lastScanAtRef.current >= SCAN_COOLDOWN_MS
-        if (ready && cooldownOk) {
-          void tryMatchFrame(video)
+        const now = Date.now()
+        const cooldownOk = now - lastScanAtRef.current >= SCAN_COOLDOWN_MS
+        const forcedOk = now - lastForcedScanAtRef.current >= SCAN_FORCED_INTERVAL_MS
+        if (cooldownOk && (stabilityReady || forcedOk)) {
+          if (forcedOk && !stabilityReady) {
+            lastForcedScanAtRef.current = now
+          }
+          void tryMatchFrame(video, "auto")
         }
       }
       rafRef.current = requestAnimationFrame(loop)
@@ -238,7 +284,7 @@ export function CardScanner({
           try {
             const outcome = await matchPointScanSnapshot(dataUrl)
             if (!outcome.ok) {
-              onScanFail?.(outcome.error, dataUrl)
+              onScanFail?.(friendlyScanError(outcome.error), dataUrl)
               return
             }
             if (!outcome.result.card) {
@@ -248,7 +294,7 @@ export function CardScanner({
             scanHapticMatch()
             onMatch(outcome.result, dataUrl)
           } catch (err) {
-            onScanFail?.(err instanceof Error ? err.message : "Scan failed", dataUrl)
+            onScanFail?.(friendlyScanError(err instanceof Error ? err.message : "Scan failed"), dataUrl)
           } finally {
             scanBusyRef.current = false
             setScanning(false)
@@ -313,7 +359,7 @@ export function CardScanner({
                     ? "Identifying card…"
                     : stability.stable
                       ? "Point at card — auto matching"
-                      : "Hold steady — align name & number")}
+                      : "Hold steady or tap Scan now")}
             </span>
           </div>
         </div>
@@ -330,6 +376,18 @@ export function CardScanner({
           <p className="text-sm text-muted-foreground">{cameraError}</p>
         </div>
       )}
+
+      <div className="absolute bottom-4 left-4 right-[5.5rem]">
+        <button
+          type="button"
+          onClick={scanNow}
+          disabled={!cameraReady || paused || scanning}
+          className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-primary/50 bg-primary/90 px-3 py-2 text-xs font-semibold text-primary-foreground backdrop-blur-sm disabled:opacity-50"
+        >
+          <ScanLine className="size-4" aria-hidden="true" />
+          Scan now
+        </button>
+      </div>
 
       <div className="absolute bottom-4 right-4">
         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-card/90 px-3 py-2 text-xs font-semibold text-foreground backdrop-blur-sm">
