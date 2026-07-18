@@ -1,4 +1,4 @@
-import { cleanNumber, simplifyCardName, type DetectedCard } from "@/lib/slabcrack/identify-parse"
+import { cleanNumber, sanitizeDetectedForMatch, simplifyCardName, type DetectedCard } from "@/lib/slabcrack/identify-parse"
 
 const COLLECTOR_NUMBER_RE = /\b([a-z]{0,3}\d{1,4}[a-z]?)\s*\/\s*([a-z]{0,3}\d{1,4})\b/i
 const NOISE_LINE_RE =
@@ -149,8 +149,7 @@ export function shouldTrustOcrDetected(detected: DetectedCard | null | undefined
 
 /** Minimum OCR fields before hitting the local catalog match API. */
 export function hasOcrMatchFields(detected: DetectedCard | null | undefined): boolean {
-  if (!detected) return false
-  const name = simplifyCardName(detected.cardName).trim()
-  const number = cleanNumber(detected.cardNumber)
-  return name.length >= 3 && number.length >= 1
+  const sanitized = detected ? sanitizeDetectedForMatch(detected) : null
+  if (!sanitized) return false
+  return Boolean(sanitized.cardNumber) && (sanitized.cardName.length >= 3 || !sanitized.cardName)
 }

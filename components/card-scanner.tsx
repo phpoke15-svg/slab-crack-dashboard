@@ -212,6 +212,13 @@ export function CardScanner({
         }
 
         if (!outcome.result.card) {
+          const hasHandoff =
+            (outcome.result.candidates?.length ?? 0) > 0 ||
+            Boolean(outcome.result.detected?.cardName || outcome.result.detected?.cardNumber)
+          if (hasHandoff) {
+            deliverMatch(outcome.result, snapshot)
+            return
+          }
           const message = "Could not match this card. Try manual search."
           if (source === "upload") {
             onScanFail?.(message, snapshot)

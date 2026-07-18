@@ -7,6 +7,8 @@ import {
   minAutoMatchScore,
   parseDetectedJson,
   pickBestCatalogHit,
+  pickRelaxedCatalogHit,
+  sanitizeDetectedForMatch,
   scoreHit,
   simplifyCardName,
   thinkingConfigForModel,
@@ -106,7 +108,7 @@ describe("identify-parse", () => {
     }
     expect(scoreHit(hit, detected)).toBeGreaterThanOrEqual(minAutoMatchScore(detected))
     expect(scoreHit({ ...hit, cardNumber: "025" }, { ...detected, cardNumber: "25" })).toBeGreaterThanOrEqual(
-      65,
+      55,
     )
   })
 
@@ -142,6 +144,17 @@ describe("identify-parse", () => {
     expect(pickBestCatalogHit([hit], detected).hit?.cardName).toBe("Charizard")
   })
 
+  it("strips attack text mistaken for a card name", () => {
+    const detected = sanitizeDetectedForMatch({
+      cardName: "Resonance Strike 30 damage",
+      setName: "",
+      cardNumber: "161",
+      confidence: 0.8,
+    })
+    expect(detected.cardName).toBe("")
+    expect(detected.cardNumber).toBe("161")
+  })
+
   it("requires a stronger score when a collector number is present", () => {
     expect(
       minAutoMatchScore({
@@ -150,7 +163,7 @@ describe("identify-parse", () => {
         cardNumber: "25",
         confidence: 0.8,
       }),
-    ).toBe(65)
+    ).toBe(55)
     expect(
       minAutoMatchScore({
         cardName: "Pikachu",
@@ -158,7 +171,7 @@ describe("identify-parse", () => {
         cardNumber: "",
         confidence: 0.8,
       }),
-    ).toBe(35)
+    ).toBe(32)
   })
 
   it("prefers matching collector number over another card with the same name", () => {
