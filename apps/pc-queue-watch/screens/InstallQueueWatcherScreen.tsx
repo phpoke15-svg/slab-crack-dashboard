@@ -156,7 +156,7 @@ export default function InstallQueueWatcherScreen() {
 
   if (proChecking && hasPro === null) {
     return (
-      <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
+      <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
         <View style={styles.centered}>
           <ActivityIndicator color={colors.primary} size="large" />
           <Text style={styles.muted}>Checking Pro access…</Text>
@@ -166,7 +166,7 @@ export default function InstallQueueWatcherScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.kicker}>Low-risk · Bookmarklet · Push alerts</Text>
         <Text style={styles.title}>Install Queue Watcher</Text>

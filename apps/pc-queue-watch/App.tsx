@@ -49,10 +49,7 @@ export default function App() {
             <Stack.Screen
               name="PokeWatch"
               component={InstallQueueWatcherScreen}
-              options={{
-                title: "PokeWatch",
-                headerBackTitle: "Back",
-              }}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
               name="PointScan"

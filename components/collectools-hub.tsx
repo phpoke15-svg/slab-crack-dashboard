@@ -281,7 +281,7 @@ export function CollecToolsHub() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
+    <div className="hub-shell mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-8">
         <div className="flex items-start justify-between gap-4">
           <CollecToolsBrand

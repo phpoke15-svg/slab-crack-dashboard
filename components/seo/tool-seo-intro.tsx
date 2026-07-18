@@ -15,7 +15,7 @@ type ToolSeoIntroProps = {
  */
 export function ToolSeoIntro({ title, description, disclaimer, bullets, related }: ToolSeoIntroProps) {
   return (
-    <section className="border-b border-border bg-card/40 px-4 py-6 sm:px-6">
+    <section className="seo-crawl-intro border-b border-border bg-card/40 px-4 py-6 sm:px-6">
       <div className="mx-auto max-w-5xl">
         <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">{title}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">{description}</p>

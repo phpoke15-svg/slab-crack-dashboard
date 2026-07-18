@@ -17,6 +17,7 @@ import { COLLECTOOLS_BASE_URL, isCollectoolsHost } from "../lib/config"
 import type { RootStackParamList } from "../lib/navigation"
 import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
+import { NATIVE_APP_SHELL_INJECT } from "../lib/native-webview-shell"
 import { BRIDGE_INJECT, saveQueueWatchCredentials } from "../lib/queue-watch/report-to-server"
 import { useAppExitGuard } from "../lib/use-app-exit-guard"
 
@@ -128,12 +129,13 @@ export default function SiteWebScreen() {
   }, [])
 
   return (
-    <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
+    <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
       <WebView
         key={`${reloadKey}-${startUrl}`}
         ref={webRef}
         source={{ uri: startUrl }}
         style={styles.web}
+        injectedJavaScriptBeforeContentLoaded={NATIVE_APP_SHELL_INJECT}
         mediaCapturePermissionGrantType="grant"
         onLoadStart={() => {
           setLoadError(null)

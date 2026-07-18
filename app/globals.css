@@ -159,3 +159,12 @@
     transparent 1px 3px
   );
 }
+
+/* CollecTools native app shell (WebView injects html.native-app) */
+html.native-app .seo-crawl-intro {
+  display: none !important;
+}
+
+html.native-app .hub-shell {
+  padding-top: 1rem;
+}
