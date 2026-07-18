@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import * as Notifications from "expo-notifications"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ActivityIndicator,
   Linking,
@@ -65,6 +66,7 @@ export default function InstallQueueWatcherScreen() {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [copied, setCopied] = useState(false)
   const [statusError, setStatusError] = useState<string | null>(null)
+  const previousLiveRef = useRef(false)
 
   useEffect(() => {
     void (async () => {
@@ -97,6 +99,19 @@ export default function InstallQueueWatcherScreen() {
       const data = (await res.json()) as StatusResponse
       setStatus(data)
       setStatusError(null)
+
+      if (data.live && !previousLiveRef.current) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: "Pokemon Center queue is LIVE",
+            body: "Open your browser, go to pokemoncenter.com, and tap your PC Queue bookmark.",
+            sound: true,
+            priority: Notifications.AndroidNotificationPriority.MAX,
+          },
+          trigger: null,
+        })
+      }
+      previousLiveRef.current = data.live
     } catch {
       setStatusError("Offline — alerts still work when connected.")
     }

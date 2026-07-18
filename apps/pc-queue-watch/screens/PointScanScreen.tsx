@@ -16,8 +16,8 @@ import { extractTextFromImage, isSupported } from "expo-text-extractor"
 import { ScanMatchSheet } from "../components/ScanMatchSheet"
 import type { RootStackParamList } from "../lib/navigation"
 import { SCAN_FRAME_MS, SCAN_SAME_CARD_COOLDOWN_MS } from "../lib/scan/constants"
-import { matchCatalogFromOcr } from "../lib/scan/match-api"
-import { hasOcrMatchFields, parseOcrLines } from "../lib/scan/ocr-parse"
+import { matchPointScanSnapshot } from "../lib/scan/point-scan-match"
+import { parseOcrLines, hasOcrMatchFields } from "../lib/scan/ocr-parse"
 import type { ScanMatchResult } from "../lib/scan/types"
 import { colors } from "../lib/theme"
 
@@ -49,6 +49,7 @@ export default function PointScanScreen(_props: Props) {
     try {
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.85,
+        base64: true,
         shutterSound: false,
         skipProcessing: true,
       })
@@ -61,13 +62,20 @@ export default function PointScanScreen(_props: Props) {
 
       const lines = await extractTextFromImage(photo.uri)
       const detected = parseOcrLines(lines)
-      if (!hasOcrMatchFields(detected)) {
-        setStatus("Align card in frame — reading text…")
+      const imageDataUrl = photo.base64 ? `data:image/jpeg;base64,${photo.base64}` : null
+
+      if (!imageDataUrl) {
+        setStatus("Could not read camera frame")
         return
       }
 
-      setStatus(`Matching ${detected!.cardName} #${detected!.cardNumber}…`)
-      const result = await matchCatalogFromOcr(detected!)
+      if (hasOcrMatchFields(detected)) {
+        setStatus(`Matching ${detected!.cardName} #${detected!.cardNumber}…`)
+      } else {
+        setStatus("Identifying card with vision…")
+      }
+
+      const result = await matchPointScanSnapshot(imageDataUrl, detected)
       if (!result?.card) {
         setStatus("No catalog match — adjust lighting or angle")
         return
