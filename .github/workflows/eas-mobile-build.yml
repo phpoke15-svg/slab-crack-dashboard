@@ -1,0 +1,78 @@
+name: EAS Mobile Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: android, ios, or all
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+          - ios
+          - all
+      auto_submit:
+        description: Submit to Play / App Store after build
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  build-android:
+    if: inputs.platform == 'android' || inputs.platform == 'all'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/pc-queue-watch/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: apps/pc-queue-watch
+        run: npm ci
+
+      - name: Verify Play Android config
+        working-directory: apps/pc-queue-watch
+        run: npm run verify:play-android
+
+      - name: Build Android production AAB
+        working-directory: apps/pc-queue-watch
+        run: >
+          npx eas-cli build -p android --profile production --non-interactive
+          ${{ inputs.auto_submit && '--auto-submit' || '' }}
+
+  build-ios:
+    if: inputs.platform == 'ios' || inputs.platform == 'all'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/pc-queue-watch/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: apps/pc-queue-watch
+        run: npm ci
+
+      - name: Build iOS production IPA
+        working-directory: apps/pc-queue-watch
+        run: >
+          npx eas-cli build -p ios --profile production --non-interactive
+          ${{ inputs.auto_submit && '--auto-submit' || '' }}
