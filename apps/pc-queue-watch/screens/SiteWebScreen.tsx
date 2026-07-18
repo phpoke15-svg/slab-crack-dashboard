@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
-  Alert,
-  BackHandler,
   Linking,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native"
-import { useFocusEffect, useNavigation, useRoute } from "@react-navigation/native"
+import { useNavigation, useRoute } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import type { RouteProp } from "@react-navigation/native"
 import { SafeAreaView } from "react-native-safe-area-context"
@@ -20,6 +18,7 @@ import type { RootStackParamList } from "../lib/navigation"
 import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { BRIDGE_INJECT, saveQueueWatchCredentials } from "../lib/queue-watch/report-to-server"
+import { useAppExitGuard } from "../lib/use-app-exit-guard"
 
 function isAllowedInApp(url: string) {
   if (!url || url === "about:blank") return true
@@ -53,9 +52,15 @@ export default function SiteWebScreen() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [contentCanGoBack, setContentCanGoBack] = useState(false)
   const webRef = useRef<WebView>(null)
-  const canGoBackRef = useRef(false)
   const { refreshProAccess } = useQueueWatch()
+
+  const webGoBack = useCallback(() => {
+    webRef.current?.goBack()
+  }, [])
+
+  useAppExitGuard({ contentCanGoBack, onContentGoBack: webGoBack })
 
   useEffect(() => {
     if (!loading) return
@@ -114,35 +119,9 @@ export default function SiteWebScreen() {
   const retry = useCallback(() => {
     setLoadError(null)
     setLoading(true)
-    canGoBackRef.current = false
+    setContentCanGoBack(false)
     setReloadKey((k) => k + 1)
   }, [])
-
-  useFocusEffect(
-    useCallback(() => {
-      const onHardwareBack = () => {
-        if (canGoBackRef.current) {
-          webRef.current?.goBack()
-          return true
-        }
-        if (navigation.canGoBack()) {
-          navigation.goBack()
-          return true
-        }
-        Alert.alert("Exit CollecTools?", "Are you sure you want to close the app?", [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Exit",
-            style: "destructive",
-            onPress: () => BackHandler.exitApp(),
-          },
-        ])
-        return true
-      }
-      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack)
-      return () => sub.remove()
-    }, [navigation]),
-  )
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
@@ -161,7 +140,7 @@ export default function SiteWebScreen() {
           if (nativeEvent.progress >= 0.9) setLoading(false)
         }}
         onNavigationStateChange={(nav) => {
-          canGoBackRef.current = Boolean(nav.canGoBack)
+          setContentCanGoBack(Boolean(nav.canGoBack))
           setTimeout(injectHelpers, 400)
         }}
         onError={(event) => {

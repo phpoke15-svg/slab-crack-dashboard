@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
-  Alert,
-  BackHandler,
   Linking,
   Platform,
   Pressable,
@@ -11,7 +9,7 @@ import {
   Text,
   View,
 } from "react-native"
-import { useFocusEffect, useNavigation } from "@react-navigation/native"
+import { useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import { SafeAreaView } from "react-native-safe-area-context"
 import * as Clipboard from "expo-clipboard"
@@ -22,6 +20,7 @@ import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { SESSION_KEY, TOKEN_KEY } from "../lib/queue-watch/pro-access"
 import { buildInstallBookmarklet, createSessionId } from "../lib/queue-watch/build-bookmarklet"
+import { useHomeExitGuard } from "../lib/use-app-exit-guard"
 
 const POLL_MS = 5_000
 
@@ -61,6 +60,7 @@ function formatRelativeTime(iso: string) {
 
 export default function InstallQueueWatcherScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+  useHomeExitGuard()
   const { hasPro, proChecking, refreshProAccess } = useQueueWatch()
   const [sessionId, setSessionId] = useState("")
   const [token, setToken] = useState("")
@@ -129,24 +129,6 @@ export default function InstallQueueWatcherScreen() {
   const openPokeWatchWeb = useCallback(() => {
     void Linking.openURL(`${COLLECTOOLS_BASE_URL}/pokewatch`)
   }, [])
-
-  useFocusEffect(
-    useCallback(() => {
-      const onHardwareBack = () => {
-        Alert.alert("Exit CollecTools?", "Are you sure you want to close the app?", [
-          { text: "Cancel", style: "cancel" },
-          {
-            text: "Exit",
-            style: "destructive",
-            onPress: () => BackHandler.exitApp(),
-          },
-        ])
-        return true
-      }
-      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack)
-      return () => sub.remove()
-    }, []),
-  )
 
   const statusLabel = useMemo(() => {
     if (status?.live) return "Queue is LIVE"
