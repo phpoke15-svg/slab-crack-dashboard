@@ -1,6 +1,6 @@
 # CollecTools Mobile App
 
-Installable **Android / iOS** app (v1.3.7) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
+Installable **Android / iOS** app (v1.4.1) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
 
 **PokeWatch is Pro-only** — sign in on the site, open PokeWatch once to link your token, then start native monitoring.
 
