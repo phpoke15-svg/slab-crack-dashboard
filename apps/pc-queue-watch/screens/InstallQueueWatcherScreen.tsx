@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ActivityIndicator,
+  Alert,
+  BackHandler,
   Linking,
   Platform,
   Pressable,
@@ -9,7 +11,7 @@ import {
   Text,
   View,
 } from "react-native"
-import { useNavigation } from "@react-navigation/native"
+import { useFocusEffect, useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import { SafeAreaView } from "react-native-safe-area-context"
 import * as Clipboard from "expo-clipboard"
@@ -127,6 +129,24 @@ export default function InstallQueueWatcherScreen() {
   const openPokeWatchWeb = useCallback(() => {
     void Linking.openURL(`${COLLECTOOLS_BASE_URL}/pokewatch`)
   }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      const onHardwareBack = () => {
+        Alert.alert("Exit CollecTools?", "Are you sure you want to close the app?", [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Exit",
+            style: "destructive",
+            onPress: () => BackHandler.exitApp(),
+          },
+        ])
+        return true
+      }
+      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack)
+      return () => sub.remove()
+    }, []),
+  )
 
   const statusLabel = useMemo(() => {
     if (status?.live) return "Queue is LIVE"

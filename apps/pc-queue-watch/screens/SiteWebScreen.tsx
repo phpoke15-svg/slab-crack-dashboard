@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
+  Alert,
   BackHandler,
   Linking,
   Pressable,
@@ -124,11 +125,23 @@ export default function SiteWebScreen() {
           webRef.current?.goBack()
           return true
         }
-        return false
+        if (navigation.canGoBack()) {
+          navigation.goBack()
+          return true
+        }
+        Alert.alert("Exit CollecTools?", "Are you sure you want to close the app?", [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Exit",
+            style: "destructive",
+            onPress: () => BackHandler.exitApp(),
+          },
+        ])
+        return true
       }
       const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack)
       return () => sub.remove()
-    }, []),
+    }, [navigation]),
   )
 
   return (
