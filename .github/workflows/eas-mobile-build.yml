@@ -17,10 +17,18 @@ on:
         required: true
         default: true
         type: boolean
+  push:
+    branches: [main]
+    paths:
+      - "apps/pc-queue-watch/**"
+      - ".github/workflows/eas-mobile-build.yml"
 
 jobs:
   build-android:
-    if: inputs.platform == 'android' || inputs.platform == 'all'
+    if: >
+      github.event_name == 'push' ||
+      github.event.inputs.platform == 'android' ||
+      github.event.inputs.platform == 'all'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,10 +56,14 @@ jobs:
         working-directory: apps/pc-queue-watch
         run: >
           npx eas-cli build -p android --profile production --non-interactive
-          ${{ inputs.auto_submit && '--auto-submit' || '' }}
+          ${{ (github.event_name == 'push' || inputs.auto_submit) && '--auto-submit' || '' }}
 
   build-ios:
-    if: inputs.platform == 'ios' || inputs.platform == 'all'
+    if: >
+      github.event_name == 'workflow_dispatch' && (
+        github.event.inputs.platform == 'ios' ||
+        github.event.inputs.platform == 'all'
+      )
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
