@@ -5,19 +5,16 @@ import { ImagePlus, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { captureCardFromVideo, defaultGuideBounds } from "@/lib/scanner/capture"
 import {
-  POINT_SCAN_FRAME_MS,
   POINT_SCAN_SAME_CARD_COOLDOWN_MS,
-  SCAN_CAPTURE_MAX_EDGE,
+  SCAN_STABILITY_HOLD_MS,
 } from "@/lib/scanner/capture-settings"
-import {
-  preloadOcrWorker,
-  recognizeCardText,
-  releaseOcrWorker,
-} from "@/lib/scanner/ocr-client"
-import { hasOcrMatchFields } from "@/lib/scanner/ocr-parse"
+import { preloadOcrWorker, releaseOcrWorker } from "@/lib/scanner/ocr-client"
+import { matchPointScanSnapshot } from "@/lib/scanner/point-scan-match"
 import { scanHapticMatch } from "@/lib/scanner/point-scan"
 import { StabilityGate } from "@/lib/scanner/stability"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
+
+const SCAN_COOLDOWN_MS = 2500
 
 function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 4000): Promise<void> {
   if (video.videoWidth > 0 && video.videoHeight > 0) return Promise.resolve()
@@ -44,7 +41,7 @@ function waitForVideoFrame(video: HTMLVideoElement, timeoutMs = 4000): Promise<v
 }
 
 export type CardScannerProps = {
-  /** Pause the live OCR loop (e.g. while the match sheet is open). */
+  /** Pause the live scan loop (e.g. while the match sheet is open). */
   paused?: boolean
   onMatch: (result: ScanPipelineResult, snapshot: string) => void
   onScanFail?: (error: string, snapshot: string | null) => void
@@ -60,10 +57,10 @@ export function CardScanner({
   immersive = false,
 }: CardScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const gateRef = useRef(new StabilityGate())
+  const gateRef = useRef(new StabilityGate({ holdMs: SCAN_STABILITY_HOLD_MS }))
   const rafRef = useRef<number>(0)
-  const frameTimerRef = useRef<number>(0)
-  const ocrBusyRef = useRef(false)
+  const scanBusyRef = useRef(false)
+  const lastScanAtRef = useRef(0)
   const lastMatchIdRef = useRef<string | null>(null)
   const lastMatchAtRef = useRef(0)
 
@@ -73,13 +70,7 @@ export function CardScanner({
   const [stability, setStability] = useState({ blur: 0, motion: 999, stable: false })
   const [guide, setGuide] = useState(defaultGuideBounds())
   const [scanning, setScanning] = useState(false)
-
-  useEffect(() => {
-    void preloadOcrWorker()
-    return () => {
-      void releaseOcrWorker()
-    }
-  }, [])
+  const [statusNote, setStatusNote] = useState<string | null>(null)
 
   const stopCamera = useCallback(() => {
     const video = videoRef.current
@@ -87,6 +78,13 @@ export function CardScanner({
     stream?.getTracks().forEach((t) => t.stop())
     if (video) video.srcObject = null
     setCameraReady(false)
+  }, [])
+
+  useEffect(() => {
+    void preloadOcrWorker()
+    return () => {
+      void releaseOcrWorker()
+    }
   }, [])
 
   const startCamera = useCallback(async () => {
@@ -147,88 +145,85 @@ export function CardScanner({
     void startCamera()
     return () => {
       cancelAnimationFrame(rafRef.current)
-      window.clearInterval(frameTimerRef.current)
       stopCamera()
     }
   }, [startCamera, stopCamera])
 
+  const deliverMatch = useCallback(
+    (json: ScanPipelineResult, snapshot: string) => {
+      const cardId = json.hit?.id ?? json.card?.id ?? null
+      if (
+        cardId &&
+        cardId === lastMatchIdRef.current &&
+        Date.now() - lastMatchAtRef.current < POINT_SCAN_SAME_CARD_COOLDOWN_MS
+      ) {
+        return
+      }
+
+      lastMatchIdRef.current = cardId
+      lastMatchAtRef.current = Date.now()
+      setStatusNote(null)
+      scanHapticMatch()
+      onMatch(json, snapshot)
+    },
+    [onMatch],
+  )
+
   const tryMatchFrame = useCallback(
     async (video: HTMLVideoElement) => {
-      if (ocrBusyRef.current || paused) return
-      ocrBusyRef.current = true
+      if (scanBusyRef.current || paused) return
+      scanBusyRef.current = true
+      lastScanAtRef.current = Date.now()
       setScanning(true)
+      setStatusNote("Reading card…")
 
       try {
-        const snapshot = await captureCardFromVideo(
-          video,
-          guide,
-          SCAN_CAPTURE_MAX_EDGE,
-        )
-        const detected = await recognizeCardText(snapshot).catch(() => null)
-        if (!hasOcrMatchFields(detected)) return
+        const snapshot = await captureCardFromVideo(video, guide)
+        setStatusNote("Matching card…")
+        const outcome = await matchPointScanSnapshot(snapshot)
 
-        const res = await fetch("/api/scanner/match", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ detected }),
-        })
-        const json = (await res.json().catch(() => null)) as
-          | (ScanPipelineResult & { error?: string })
-          | null
-
-        if (!res.ok || !json?.ok) return
-
-        const cardId = json.hit?.id ?? json.card?.id ?? null
-        if (
-          cardId &&
-          cardId === lastMatchIdRef.current &&
-          Date.now() - lastMatchAtRef.current < POINT_SCAN_SAME_CARD_COOLDOWN_MS
-        ) {
+        if (!outcome.ok) {
+          setStatusNote(null)
           return
         }
 
-        lastMatchIdRef.current = cardId
-        lastMatchAtRef.current = Date.now()
-        scanHapticMatch()
-        onMatch(json as ScanPipelineResult, snapshot)
+        if (!outcome.result.card) {
+          onScanFail?.("Could not match this card. Try manual search.", snapshot)
+          return
+        }
+
+        deliverMatch(outcome.result, snapshot)
       } catch (err) {
         onScanFail?.(err instanceof Error ? err.message : "Scan failed", null)
       } finally {
-        ocrBusyRef.current = false
+        scanBusyRef.current = false
         setScanning(false)
       }
     },
-    [guide, onMatch, onScanFail, paused],
+    [deliverMatch, guide, onScanFail, paused],
   )
 
   useEffect(() => {
     if (!cameraReady || paused) {
-      window.clearInterval(frameTimerRef.current)
       cancelAnimationFrame(rafRef.current)
       return
     }
 
     const loop = () => {
       const video = videoRef.current
-      if (video && video.videoWidth > 0) {
-        gateRef.current.tick(video, guide)
+      if (video && video.videoWidth > 0 && !scanBusyRef.current) {
+        const ready = gateRef.current.tick(video, guide)
         setStability(gateRef.current.sample)
+        const cooldownOk = Date.now() - lastScanAtRef.current >= SCAN_COOLDOWN_MS
+        if (ready && cooldownOk) {
+          void tryMatchFrame(video)
+        }
       }
       rafRef.current = requestAnimationFrame(loop)
     }
     rafRef.current = requestAnimationFrame(loop)
 
-    frameTimerRef.current = window.setInterval(() => {
-      const video = videoRef.current
-      if (!video || video.videoWidth <= 0 || ocrBusyRef.current || paused) return
-      if (!gateRef.current.sample.stable) return
-      void tryMatchFrame(video)
-    }, POINT_SCAN_FRAME_MS)
-
-    return () => {
-      cancelAnimationFrame(rafRef.current)
-      window.clearInterval(frameTimerRef.current)
-    }
+    return () => cancelAnimationFrame(rafRef.current)
   }, [cameraReady, guide, paused, tryMatchFrame])
 
   const handleFile = useCallback(
@@ -237,33 +232,27 @@ export function CardScanner({
       reader.onload = () => {
         const dataUrl = reader.result as string
         void (async () => {
-          ocrBusyRef.current = true
+          scanBusyRef.current = true
           setScanning(true)
+          setStatusNote("Reading card…")
           try {
-            const detected = await recognizeCardText(dataUrl).catch(() => null)
-            if (!hasOcrMatchFields(detected)) {
-              onScanFail?.("Could not read card name and number from image.", dataUrl)
+            const outcome = await matchPointScanSnapshot(dataUrl)
+            if (!outcome.ok) {
+              onScanFail?.(outcome.error, dataUrl)
               return
             }
-            const res = await fetch("/api/scanner/match", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ detected }),
-            })
-            const json = (await res.json().catch(() => null)) as
-              | (ScanPipelineResult & { error?: string })
-              | null
-            if (!res.ok || !json?.ok) {
-              onScanFail?.(json?.error || "No catalog match for this card.", dataUrl)
+            if (!outcome.result.card) {
+              onScanFail?.("Could not match this card. Try manual search.", dataUrl)
               return
             }
             scanHapticMatch()
-            onMatch(json as ScanPipelineResult, dataUrl)
+            onMatch(outcome.result, dataUrl)
           } catch (err) {
             onScanFail?.(err instanceof Error ? err.message : "Scan failed", dataUrl)
           } finally {
-            ocrBusyRef.current = false
+            scanBusyRef.current = false
             setScanning(false)
+            setStatusNote(null)
           }
         })()
       }
@@ -319,11 +308,12 @@ export function CardScanner({
             >
               {paused
                 ? "Match found — add or scan next"
-                : scanning
-                  ? "Reading card…"
-                  : stability.stable
-                    ? "Point at card — auto matching"
-                    : "Align name & number in frame"}
+                : statusNote ??
+                  (scanning
+                    ? "Identifying card…"
+                    : stability.stable
+                      ? "Point at card — auto matching"
+                      : "Hold steady — align name & number")}
             </span>
           </div>
         </div>

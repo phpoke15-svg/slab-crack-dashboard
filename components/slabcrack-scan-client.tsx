@@ -329,9 +329,11 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
             }}
             onScanFail={(error, snap) => {
               if (snap) setSnapshot(snap)
-              if (error && !error.includes("No catalog match")) {
-                setLookupError(error)
-              }
+              enterManualHandoff({
+                query: "",
+                candidates: [],
+                error,
+              })
             }}
             className="absolute inset-0 size-full rounded-none border-0"
             immersive
