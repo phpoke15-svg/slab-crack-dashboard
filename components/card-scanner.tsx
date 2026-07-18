@@ -4,7 +4,12 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Camera, ImagePlus, Loader2, ScanLine } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { captureCardFromVideo, defaultGuideBounds } from "@/lib/scanner/capture"
-import { preloadOcrWorker, recognizeCardText, releaseOcrWorker } from "@/lib/scanner/ocr-client"
+import {
+  preloadOcrWorker,
+  recognizeCardText,
+  releaseOcrWorker,
+  shouldTrustOcrDetected,
+} from "@/lib/scanner/ocr-client"
 import { dHashFromImageSource } from "@/lib/scanner/phash"
 import { StabilityGate } from "@/lib/scanner/stability"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
@@ -118,8 +123,8 @@ export function CardScanner({
         audio: false,
         video: {
           facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
         },
       })
       const video = videoRef.current
@@ -164,7 +169,7 @@ export function CardScanner({
       setOcrStatus(null)
 
       const payload: Record<string, unknown> = { image: crop, phash }
-      if (detected?.cardName || detected?.cardNumber) {
+      if (shouldTrustOcrDetected(detected)) {
         payload.detected = detected
       }
 
@@ -195,7 +200,7 @@ export function CardScanner({
       onScanStart?.()
 
       try {
-        const crop = await captureCardFromVideo(fromVideo, guide, 512, 0.62)
+        const crop = await captureCardFromVideo(fromVideo, guide)
         const phash = await phashFromDataUrl(crop)
         const { json } = await scanImage(crop, phash)
         onScanComplete(json, crop)
@@ -224,7 +229,7 @@ export function CardScanner({
     const loop = () => {
       const video = videoRef.current
       if (video && video.videoWidth > 0 && !scanLockRef.current) {
-        const fired = gateRef.current.tick(video)
+        const fired = gateRef.current.tick(video, guide)
         setStability(gateRef.current.sample)
         const cooldownOk = Date.now() - lastScanAtRef.current > 2500
         if (fired && cooldownOk) void runScan(video)
@@ -313,12 +318,18 @@ export function CardScanner({
         </div>
       )}
 
-      {(cameraStarting || scanning) && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/45 px-6 text-center backdrop-blur-[2px]">
+      {cameraStarting && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/35 px-6 text-center">
           <Loader2 className="size-10 animate-spin text-primary" aria-hidden="true" />
-          {scanning && processingMessage ? (
-            <p className="max-w-[16rem] text-sm font-semibold text-white">{processingMessage}</p>
-          ) : null}
+        </div>
+      )}
+
+      {scanning && (
+        <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center">
+          <span className="inline-flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-[11px] font-medium text-white">
+            <Loader2 className="size-3.5 animate-spin text-primary" aria-hidden="true" />
+            {processingMessage || ocrStatus || "Identifying…"}
+          </span>
         </div>
       )}
 

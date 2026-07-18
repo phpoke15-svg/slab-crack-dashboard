@@ -1,4 +1,8 @@
 import type { CardBounds } from "@/lib/scanner/types"
+import {
+  SCAN_CAPTURE_JPEG_QUALITY,
+  SCAN_CAPTURE_MAX_EDGE,
+} from "@/lib/scanner/capture-settings"
 
 /** Standard Pokémon TCG aspect ratio (width / height). */
 export const CARD_ASPECT = 63 / 88
@@ -33,8 +37,8 @@ export function boundsToPixels(
 export async function captureCardFromVideo(
   video: HTMLVideoElement,
   bounds?: CardBounds,
-  maxEdge = 512,
-  quality = 0.62,
+  maxEdge = SCAN_CAPTURE_MAX_EDGE,
+  quality = SCAN_CAPTURE_JPEG_QUALITY,
 ): Promise<string> {
   const fw = video.videoWidth
   const fh = video.videoHeight
@@ -52,6 +56,8 @@ export async function captureCardFromVideo(
   const ctx = canvas.getContext("2d")
   if (!ctx) throw new Error("Could not process camera frame")
 
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = "high"
   ctx.drawImage(video, x, y, w, h, 0, 0, outW, outH)
   return canvas.toDataURL("image/jpeg", quality)
 }

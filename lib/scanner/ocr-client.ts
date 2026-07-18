@@ -1,7 +1,10 @@
 "use client"
 
-import { parseOcrText } from "@/lib/scanner/ocr-parse"
+import { parseOcrText, shouldTrustOcrDetected } from "@/lib/scanner/ocr-parse"
+import { preprocessOcrImage } from "@/lib/scanner/ocr-preprocess"
 import type { DetectedCard } from "@/lib/slabcrack/identify-parse"
+
+export { shouldTrustOcrDetected }
 
 type OcrWorker = {
   recognize: (image: string) => Promise<{ data: { text: string } }>
@@ -19,7 +22,8 @@ async function getOcrWorker(): Promise<OcrWorker> {
         logger: () => {},
       })
       await worker.setParameters({
-        tessedit_pageseg_mode: "6", // single uniform block
+        tessedit_pageseg_mode: "3", // fully automatic page segmentation
+        preserve_interword_spaces: "1",
       })
       return worker
     })()
@@ -48,6 +52,7 @@ export async function releaseOcrWorker(): Promise<void> {
 /** Run on-device OCR and parse Pokémon card name + collector number. */
 export async function recognizeCardText(imageDataUrl: string): Promise<DetectedCard | null> {
   const worker = await getOcrWorker()
-  const { data } = await worker.recognize(imageDataUrl)
+  const prepared = await preprocessOcrImage(imageDataUrl)
+  const { data } = await worker.recognize(prepared)
   return parseOcrText(data.text ?? "")
 }

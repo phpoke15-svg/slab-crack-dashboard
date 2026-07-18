@@ -91,3 +91,13 @@ export function parseOcrText(raw: string): DetectedCard | null {
     notes: "ocr",
   }
 }
+
+/** Only skip vision when OCR read both fields with reasonable confidence. */
+export function shouldTrustOcrDetected(detected: DetectedCard | null | undefined): boolean {
+  if (!detected) return false
+  const name = detected.cardName.trim()
+  const number = detected.cardNumber.trim()
+  if (name && number) return detected.confidence >= 0.72
+  if (name || number) return detected.confidence >= 0.85
+  return false
+}
