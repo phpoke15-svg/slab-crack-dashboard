@@ -1,4 +1,4 @@
-import { buildQueueWatchBookmarklet } from "../../../../lib/pokemon-center/bookmarklet"
+import { buildQueueWatchBookmarklet } from "./bookmarklet"
 import { COLLECTOOLS_BASE_URL } from "../config"
 
 export function buildInstallBookmarklet(sessionId: string, token: string): string {
