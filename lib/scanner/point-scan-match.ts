@@ -40,14 +40,17 @@ export async function matchPointScanSnapshot(
     const json = (await res.json().catch(() => null)) as
       | (ScanPipelineResult & { error?: string })
       | null
-    if (res.ok && json?.ok) {
+    if (res.ok && json?.ok && json.card) {
       return { ok: true, result: json as ScanPipelineResult }
     }
   }
 
+  const ocrHint = hasOcrMatchFields(detected) ? detected : undefined
+  const forceVision = !shouldTrustOcrDetected(detected)
+
   const [visionCrop, phash] = await Promise.all([
     downscaleDataUrl(snapshot, SCAN_VISION_MAX_EDGE, SCAN_VISION_JPEG_QUALITY),
-    phashFromDataUrl(snapshot),
+    phashFromDataUrl(snapshot).catch(() => ""),
   ])
 
   const res = await fetch("/api/scanner/scan", {
@@ -55,8 +58,9 @@ export async function matchPointScanSnapshot(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       image: visionCrop,
-      phash,
-      detected: hasOcrMatchFields(detected) ? detected : undefined,
+      phash: phash || undefined,
+      detected: ocrHint,
+      forceVision,
     }),
   })
   const json = (await res.json().catch(() => null)) as
