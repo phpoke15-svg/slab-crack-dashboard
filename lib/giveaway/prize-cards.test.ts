@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest"
+import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
 import {
+  catalogHitToGiveawayPrizeCard,
   isWithinPrizeCardBand,
   prizeCardPriceBand,
   pricedCatalogToGiveawayCards,
@@ -55,5 +57,29 @@ describe("giveaway prize cards", () => {
 
     const { cards } = pricedCatalogToGiveawayCards(catalog, 10, 5)
     expect(cards.map((card) => card.id)).toEqual(["b", "a"])
+  })
+
+  it("maps unified catalog hits to giveaway prize cards", () => {
+    const hit: CatalogSearchHit = {
+      id: "poke-sv1-12",
+      name: "Pikachu",
+      setName: "Scarlet & Violet",
+      setId: "sv1",
+      number: "12",
+      rarity: "Common",
+      imageUrl: "https://example.com/pikachu.png",
+      language: "en",
+      japaneseName: null,
+      rawPrice: 10.1,
+    }
+
+    expect(catalogHitToGiveawayPrizeCard(hit)).toEqual({
+      id: "poke-sv1-12",
+      name: "Pikachu (Common)",
+      set: "Scarlet & Violet",
+      cardNumber: "12",
+      image: "https://example.com/pikachu.png",
+      rawPrice: 10.1,
+    })
   })
 })
