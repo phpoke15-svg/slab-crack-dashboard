@@ -6,7 +6,7 @@ import {
   SCAN_VISION_MAX_EDGE,
 } from "@/lib/scanner/capture-settings"
 import { recognizeCardText } from "@/lib/scanner/ocr-client"
-import { hasOcrMatchFields } from "@/lib/scanner/ocr-parse"
+import { hasOcrMatchFields, shouldTrustOcrDetected } from "@/lib/scanner/ocr-parse"
 import { dHashFromImageSource } from "@/lib/scanner/phash"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 
@@ -31,7 +31,7 @@ export async function matchPointScanSnapshot(
 ): Promise<PointScanMatchOutcome> {
   const detected = await recognizeCardText(snapshot).catch(() => null)
 
-  if (hasOcrMatchFields(detected)) {
+  if (hasOcrMatchFields(detected) && shouldTrustOcrDetected(detected)) {
     const res = await fetch("/api/scanner/match", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
