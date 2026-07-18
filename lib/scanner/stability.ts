@@ -1,7 +1,9 @@
-import type { StabilitySample } from "@/lib/scanner/types"
+import type { CardBounds, StabilitySample } from "@/lib/scanner/types"
+import { boundsToPixels } from "@/lib/scanner/capture"
+import { SCAN_STABILITY_BLUR_MIN, SCAN_STABILITY_HOLD_MS } from "@/lib/scanner/capture-settings"
 
-const SAMPLE_W = 48
-const SAMPLE_H = 68
+const SAMPLE_W = 64
+const SAMPLE_H = 90
 
 /** Variance of Laplacian on grayscale — higher = sharper. */
 function laplacianVariance(gray: Float32Array, w: number, h: number): number {
@@ -49,9 +51,9 @@ export type StabilityGateOptions = {
 }
 
 const DEFAULTS: Required<StabilityGateOptions> = {
-  blurMin: 35,
+  blurMin: SCAN_STABILITY_BLUR_MIN,
   motionMax: 8,
-  holdMs: 320,
+  holdMs: SCAN_STABILITY_HOLD_MS,
 }
 
 /**
@@ -79,15 +81,21 @@ export class StabilityGate {
   }
 
   /** Sample current video frame; returns true once when stable hold completes. */
-  tick(video: HTMLVideoElement, now = Date.now()): boolean {
+  tick(video: HTMLVideoElement, bounds?: CardBounds, now = Date.now()): boolean {
     if (video.videoWidth <= 0 || video.videoHeight <= 0) return false
+
+    const fw = video.videoWidth
+    const fh = video.videoHeight
+    const region = bounds
+      ? boundsToPixels(bounds, fw, fh)
+      : { x: 0, y: 0, w: fw, h: fh }
 
     const canvas = document.createElement("canvas")
     canvas.width = SAMPLE_W
     canvas.height = SAMPLE_H
     const ctx = canvas.getContext("2d", { willReadFrequently: true })
     if (!ctx) return false
-    ctx.drawImage(video, 0, 0, SAMPLE_W, SAMPLE_H)
+    ctx.drawImage(video, region.x, region.y, region.w, region.h, 0, 0, SAMPLE_W, SAMPLE_H)
     const { data } = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H)
     const gray = toGray(data, SAMPLE_W, SAMPLE_H)
     const blur = laplacianVariance(gray, SAMPLE_W, SAMPLE_H)

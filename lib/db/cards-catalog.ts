@@ -1,5 +1,6 @@
 import type { CardSearchHit } from "@/lib/card-lookup"
 import { getCardPricesForIds } from "@/lib/pricing/db"
+import { cleanNumber, simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import { buildCardSlug, buildSetSlug } from "@/lib/seo/card-slugs"
 import { createAdminClient, createReadClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
@@ -175,6 +176,49 @@ export async function searchCatalogCardsLocal(
     return attachCachedPrices((data ?? []) as CatalogCardRow[])
   } catch (error) {
     console.error("[cards-catalog] search failed:", error)
+    return []
+  }
+}
+
+function collectorNumberMatches(stored: string, detected: string): boolean {
+  const left = stored.split("/")[0] ?? stored
+  return left.trim().toLowerCase() === detected.trim().toLowerCase()
+}
+
+/** Fast name + collector number lookup on the local cards table (Collectr-style). */
+export async function findCatalogCandidatesForDetected(
+  detected: { cardName: string; cardNumber: string },
+  limit = 12,
+): Promise<CatalogSearchHit[]> {
+  if (!isSupabaseConfigured()) return []
+
+  const name = simplifyCardName(detected.cardName).trim()
+  const number = cleanNumber(detected.cardNumber)
+  if (!name || !number) return []
+
+  const firstToken = name.split(/\s+/).find((t) => t.length > 2) ?? name
+  const safeToken = firstToken.replace(/[%_]/g, "")
+  const safeNumber = number.replace(/[%_]/g, "")
+
+  try {
+    const supabase = createReadClient()
+    const { data, error } = await supabase
+      .from("cards")
+      .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")
+      .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
+      .ilike("name", `%${safeToken}%`)
+      .order("name", { ascending: true })
+      .limit(Math.min(Math.max(limit, 1), 40))
+
+    if (error) {
+      if (error.code === "42P01") return []
+      throw error
+    }
+
+    const hits = await attachCachedPrices((data ?? []) as CatalogCardRow[])
+    return hits.filter((hit) => collectorNumberMatches(hit.number, number))
+  } catch (error) {
+    console.error("[cards-catalog] detected match failed:", error)
     return []
   }
 }

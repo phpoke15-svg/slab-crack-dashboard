@@ -6,6 +6,7 @@ import type { RootStackParamList } from "./lib/navigation"
 import { colors } from "./lib/theme"
 import { QueueWatchProvider } from "./lib/queue-watch"
 import InstallQueueWatcherScreen from "./screens/InstallQueueWatcherScreen"
+import PointScanScreen from "./screens/PointScanScreen"
 import SiteWebScreen from "./screens/SiteWebScreen"
 
 export type { RootStackParamList } from "./lib/navigation"
@@ -51,6 +52,14 @@ export default function App() {
               options={{
                 title: "CollecTools",
                 headerBackTitle: "Back",
+              }}
+            />
+            <Stack.Screen
+              name="PointScan"
+              component={PointScanScreen}
+              options={{
+                title: "Point & Scan",
+                headerShown: false,
               }}
             />
           </Stack.Navigator>

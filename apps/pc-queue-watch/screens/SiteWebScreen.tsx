@@ -1,21 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ActivityIndicator,
-  BackHandler,
   Linking,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native"
-import { useFocusEffect } from "@react-navigation/native"
+import { useNavigation, useRoute } from "@react-navigation/native"
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
+import type { RouteProp } from "@react-navigation/native"
 import { SafeAreaView } from "react-native-safe-area-context"
 import { WebView } from "react-native-webview"
 import type { ShouldStartLoadRequest } from "react-native-webview/lib/WebViewTypes"
 import { COLLECTOOLS_BASE_URL, isCollectoolsHost } from "../lib/config"
+import type { RootStackParamList } from "../lib/navigation"
 import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { BRIDGE_INJECT, saveQueueWatchCredentials } from "../lib/queue-watch/report-to-server"
+import { useAppExitGuard } from "../lib/use-app-exit-guard"
 
 function isAllowedInApp(url: string) {
   if (!url || url === "about:blank") return true
@@ -29,13 +32,35 @@ function isAllowedInApp(url: string) {
   }
 }
 
+function scanToolFromUrl(url: string): "slabcrack" | "slablab" | null {
+  try {
+    const path = new URL(url).pathname
+    if (path.includes("/slablab/scan")) return "slablab"
+    if (path.includes("/slabcrack/scan")) return "slabcrack"
+  } catch {
+    return null
+  }
+  return null
+}
+
 export default function SiteWebScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
+  const route = useRoute<RouteProp<RootStackParamList, "CollecTools">>()
+  const initialPath = route.params?.initialPath ?? "/pokewatch"
+  const startUrl = `${COLLECTOOLS_BASE_URL}${initialPath.startsWith("/") ? initialPath : `/${initialPath}`}`
+
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [reloadKey, setReloadKey] = useState(0)
+  const [contentCanGoBack, setContentCanGoBack] = useState(false)
   const webRef = useRef<WebView>(null)
-  const canGoBackRef = useRef(false)
   const { refreshProAccess } = useQueueWatch()
+
+  const webGoBack = useCallback(() => {
+    webRef.current?.goBack()
+  }, [])
+
+  useAppExitGuard({ contentCanGoBack, onContentGoBack: webGoBack })
 
   useEffect(() => {
     if (!loading) return
@@ -52,12 +77,21 @@ export default function SiteWebScreen() {
     injectHelpers()
   }, [injectHelpers])
 
-  const onShouldStartLoadWithRequest = useCallback((request: ShouldStartLoadRequest) => {
-    if (isAllowedInApp(request.url)) return true
-    Linking.openURL(request.url).catch(() => {})
-    setLoading(false)
-    return false
-  }, [])
+  const onShouldStartLoadWithRequest = useCallback(
+    (request: ShouldStartLoadRequest) => {
+      const scanTool = scanToolFromUrl(request.url)
+      if (scanTool) {
+        navigation.navigate("PointScan", { tool: scanTool })
+        return false
+      }
+
+      if (isAllowedInApp(request.url)) return true
+      Linking.openURL(request.url).catch(() => {})
+      setLoading(false)
+      return false
+    },
+    [navigation],
+  )
 
   const onMessage = useCallback(
     (event: { nativeEvent: { data: string } }) => {
@@ -85,31 +119,18 @@ export default function SiteWebScreen() {
   const retry = useCallback(() => {
     setLoadError(null)
     setLoading(true)
-    canGoBackRef.current = false
+    setContentCanGoBack(false)
     setReloadKey((k) => k + 1)
   }, [])
-
-  useFocusEffect(
-    useCallback(() => {
-      const onHardwareBack = () => {
-        if (canGoBackRef.current) {
-          webRef.current?.goBack()
-          return true
-        }
-        return false
-      }
-      const sub = BackHandler.addEventListener("hardwareBackPress", onHardwareBack)
-      return () => sub.remove()
-    }, []),
-  )
 
   return (
     <SafeAreaView style={styles.safe} edges={["bottom", "left", "right"]}>
       <WebView
-        key={reloadKey}
+        key={`${reloadKey}-${startUrl}`}
         ref={webRef}
-        source={{ uri: `${COLLECTOOLS_BASE_URL}/pokewatch` }}
+        source={{ uri: startUrl }}
         style={styles.web}
+        mediaCapturePermissionGrantType="grant"
         onLoadStart={() => {
           setLoadError(null)
           setLoading(true)
@@ -119,7 +140,7 @@ export default function SiteWebScreen() {
           if (nativeEvent.progress >= 0.9) setLoading(false)
         }}
         onNavigationStateChange={(nav) => {
-          canGoBackRef.current = Boolean(nav.canGoBack)
+          setContentCanGoBack(Boolean(nav.canGoBack))
           setTimeout(injectHelpers, 400)
         }}
         onError={(event) => {

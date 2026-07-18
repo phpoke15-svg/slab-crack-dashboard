@@ -1,4 +1,5 @@
 export type RootStackParamList = {
   Home: undefined
-  CollecTools: undefined
+  CollecTools: { initialPath?: string } | undefined
+  PointScan: { tool?: "slabcrack" | "slablab" }
 }

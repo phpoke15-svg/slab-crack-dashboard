@@ -3,6 +3,7 @@ import {
   cleanNumber,
   extractGeminiAnswerText,
   extractJsonObject,
+  hasNameAgreement,
   minAutoMatchScore,
   parseDetectedJson,
   pickBestCatalogHit,
@@ -105,8 +106,40 @@ describe("identify-parse", () => {
     }
     expect(scoreHit(hit, detected)).toBeGreaterThanOrEqual(minAutoMatchScore(detected))
     expect(scoreHit({ ...hit, cardNumber: "025" }, { ...detected, cardNumber: "25" })).toBeGreaterThanOrEqual(
-      50,
+      65,
     )
+  })
+
+  it("rejects number-only matches when the name does not agree", () => {
+    const detected = {
+      cardName: "Resonance Strike",
+      setName: "",
+      cardNumber: "4",
+      confidence: 0.82,
+    }
+    const hit = {
+      cardName: "Charizard",
+      setName: "Base Set",
+      cardNumber: "4/102",
+    }
+    expect(hasNameAgreement(hit, detected)).toBe(false)
+    expect(pickBestCatalogHit([hit], detected).hit).toBeNull()
+  })
+
+  it("accepts matches when name and number both agree", () => {
+    const detected = {
+      cardName: "Charizard",
+      setName: "",
+      cardNumber: "4",
+      confidence: 0.9,
+    }
+    const hit = {
+      cardName: "Charizard",
+      setName: "Base Set",
+      cardNumber: "4/102",
+    }
+    expect(hasNameAgreement(hit, detected)).toBe(true)
+    expect(pickBestCatalogHit([hit], detected).hit?.cardName).toBe("Charizard")
   })
 
   it("requires a stronger score when a collector number is present", () => {
@@ -117,7 +150,7 @@ describe("identify-parse", () => {
         cardNumber: "25",
         confidence: 0.8,
       }),
-    ).toBe(50)
+    ).toBe(65)
     expect(
       minAutoMatchScore({
         cardName: "Pikachu",

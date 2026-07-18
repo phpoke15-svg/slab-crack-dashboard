@@ -1,10 +1,37 @@
-import { cleanNumber, simplifyCardName, type DetectedCard } from "@/lib/slabcrack/identify-parse"
+import type { DetectedCard } from "./types"
 
 const COLLECTOR_NUMBER_RE = /\b([a-z]{0,3}\d{1,4}[a-z]?)\s*\/\s*([a-z]{0,3}\d{1,4})\b/i
 const NOISE_LINE_RE =
   /^(hp\b|weakness|resistance|retreat|pok[eé]mon|trainer|energy|illus|©|basic|stage|ability|attack|rarity|confetti)/i
 const ATTACK_LINE_RE =
   /\b(damage|during your turn|your opponent|coin|tails|heads|bench|switch|attach|discard|draw|knock out)\b/i
+
+export function cleanNumber(raw: string): string {
+  const trimmed = raw.trim().replace(/^#/, "")
+  if (!trimmed) return ""
+
+  const slash = trimmed.match(/^([a-z]{0,3}\d{1,4}[a-z]?)\s*\/\s*\d{1,4}$/i)
+  if (slash) return slash[1]!.replace(/^0+(?=\d)/, "")
+
+  const prefixed = trimmed.match(/^([a-z]{1,3})0*(\d{1,4}[a-z]?)$/i)
+  if (prefixed) return `${prefixed[1]!.toUpperCase()}${prefixed[2]!.replace(/^0+(?=\d)/, "")}`
+
+  const bare = trimmed.match(/^(\d{1,4}[a-z]?)$/i)
+  if (bare) return bare[1]!.replace(/^0+(?=\d)/, "")
+
+  return trimmed
+}
+
+export function simplifyCardName(name: string): string {
+  return name
+    .replace(
+      /\b(special illustration rare|illustration rare|hyper rare|secret rare|ultra rare|amazing rare|radiant|full art|alt art|sir|ir)\b/gi,
+      "",
+    )
+    .replace(/[()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
 
 export function extractCollectorNumberFromText(text: string): string {
   const normalized = text.replace(/\s+/g, " ")
@@ -63,20 +90,17 @@ function pickCardName(lines: string[], numberLineIndex: number): string {
   return ranked[0] ? simplifyCardName(ranked[0]) : ""
 }
 
-/** Parse raw OCR text into a detected card (name + collector number). */
-export function parseOcrText(raw: string): DetectedCard | null {
-  const lines = raw
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  if (!lines.length) return null
+/** Parse ML Kit / Vision text lines into card name + collector number. */
+export function parseOcrLines(lines: string[]): DetectedCard | null {
+  const raw = lines.join("\n")
+  const trimmedLines = lines.map((line) => line.trim()).filter(Boolean)
+  if (!trimmedLines.length) return null
 
   let numberLineIndex = -1
   let cardNumber = ""
 
-  for (let i = 0; i < lines.length; i += 1) {
-    const found = extractCollectorNumberFromText(lines[i]!)
+  for (let i = 0; i < trimmedLines.length; i += 1) {
+    const found = extractCollectorNumberFromText(trimmedLines[i]!)
     if (found) {
       numberLineIndex = i
       cardNumber = found
@@ -88,66 +112,18 @@ export function parseOcrText(raw: string): DetectedCard | null {
     cardNumber = extractCollectorNumberFromText(raw)
   }
 
-  const cardName = pickCardName(lines, numberLineIndex)
+  const cardName = pickCardName(trimmedLines, numberLineIndex)
   if (!cardName && !cardNumber) return null
-
-  const confidence = cardName && cardNumber ? 0.82 : cardName || cardNumber ? 0.55 : 0.4
 
   return {
     cardName,
     setName: "",
     cardNumber,
-    confidence,
-    notes: "ocr",
+    confidence: cardName && cardNumber ? 0.86 : 0.55,
+    notes: "native-ocr",
   }
 }
 
-/** Merge targeted name/number strip reads with the full-card OCR pass. */
-export function mergeOcrReads(
-  full: DetectedCard | null,
-  nameStrip: DetectedCard | null,
-  numberStrip: DetectedCard | null,
-): DetectedCard | null {
-  const cardName =
-    nameStrip?.cardName?.trim() ||
-    full?.cardName?.trim() ||
-    numberStrip?.cardName?.trim() ||
-    ""
-  const cardNumber =
-    numberStrip?.cardNumber?.trim() ||
-    full?.cardNumber?.trim() ||
-    nameStrip?.cardNumber?.trim() ||
-    ""
-
-  if (!cardName && !cardNumber) return null
-
-  const confidence = Math.max(
-    full?.confidence ?? 0,
-    nameStrip?.confidence ?? 0,
-    numberStrip?.confidence ?? 0,
-    cardName && cardNumber ? 0.86 : 0.5,
-  )
-
-  return {
-    cardName,
-    setName: "",
-    cardNumber,
-    confidence,
-    notes: "ocr",
-  }
-}
-
-/** Only skip vision when OCR read both fields with reasonable confidence. */
-export function shouldTrustOcrDetected(detected: DetectedCard | null | undefined): boolean {
-  if (!detected) return false
-  const name = detected.cardName.trim()
-  const number = detected.cardNumber.trim()
-  if (name && number) return detected.confidence >= 0.72
-  if (name || number) return detected.confidence >= 0.85
-  return false
-}
-
-/** Minimum OCR fields before hitting the local catalog match API. */
 export function hasOcrMatchFields(detected: DetectedCard | null | undefined): boolean {
   if (!detected) return false
   const name = simplifyCardName(detected.cardName).trim()
