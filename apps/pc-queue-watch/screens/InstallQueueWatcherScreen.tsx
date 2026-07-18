@@ -20,7 +20,6 @@ import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { SESSION_KEY, TOKEN_KEY } from "../lib/queue-watch/pro-access"
 import { buildInstallBookmarklet, createSessionId } from "../lib/queue-watch/build-bookmarklet"
-import { useHomeExitGuard } from "../lib/use-app-exit-guard"
 
 const POLL_MS = 5_000
 
@@ -60,7 +59,6 @@ function formatRelativeTime(iso: string) {
 
 export default function InstallQueueWatcherScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
-  useHomeExitGuard()
   const { hasPro, proChecking, refreshProAccess } = useQueueWatch()
   const [sessionId, setSessionId] = useState("")
   const [token, setToken] = useState("")
@@ -119,7 +117,11 @@ export default function InstallQueueWatcherScreen() {
   }, [widgetCode])
 
   const openCollecTools = useCallback(() => {
-    navigation.navigate("CollecTools")
+    if (navigation.canGoBack()) {
+      navigation.goBack()
+      return
+    }
+    navigation.navigate("Home")
   }, [navigation])
 
   const openPointScan = useCallback(() => {
@@ -192,6 +194,10 @@ export default function InstallQueueWatcherScreen() {
           </View>
         ) : (
           <>
+            <Pressable style={styles.secondaryButton} onPress={openCollecTools}>
+              <Text style={styles.secondaryButtonText}>Back to CollecTools</Text>
+            </Pressable>
+
             <Pressable
               style={[styles.primaryButton, !widgetCode && styles.buttonDisabled]}
               onPress={() => void copyWidgetCode()}

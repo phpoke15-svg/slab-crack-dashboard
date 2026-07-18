@@ -43,14 +43,14 @@ export default function App() {
           >
             <Stack.Screen
               name="Home"
-              component={InstallQueueWatcherScreen}
-              options={{ title: "PokeWatch", headerShown: true }}
+              component={SiteWebScreen}
+              options={{ headerShown: false }}
             />
             <Stack.Screen
-              name="CollecTools"
-              component={SiteWebScreen}
+              name="PokeWatch"
+              component={InstallQueueWatcherScreen}
               options={{
-                title: "CollecTools",
+                title: "PokeWatch",
                 headerBackTitle: "Back",
               }}
             />

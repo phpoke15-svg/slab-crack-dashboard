@@ -110,7 +110,7 @@ export default function PointScanScreen(_props: Props) {
   const openInApp = useCallback(() => {
     if (!match?.card) return
     const q = encodeURIComponent(`${match.card.cardName} ${match.card.cardNumber}`.trim())
-    navigation.navigate("CollecTools", {
+    navigation.navigate("Home", {
       initialPath: `/binder?q=${q}`,
     })
   }, [match, navigation])
