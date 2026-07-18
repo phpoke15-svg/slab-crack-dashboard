@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   extractCollectorNumberFromText,
+  mergeOcrReads,
   parseOcrText,
   shouldTrustOcrDetected,
 } from "@/lib/scanner/ocr-parse"
@@ -26,6 +27,35 @@ HP 120
 
   it("returns null when no useful text is found", () => {
     expect(parseOcrText("HP 120\nweakness")).toBeNull()
+  })
+})
+
+describe("mergeOcrReads", () => {
+  it("prefers name strip for card name and number strip for collector number", () => {
+    const merged = mergeOcrReads(
+      { cardName: "Char1zard", setName: "", cardNumber: "", confidence: 0.55, notes: "ocr" },
+      { cardName: "Charizard", setName: "", cardNumber: "", confidence: 0.82, notes: "ocr" },
+      { cardName: "", setName: "", cardNumber: "4", confidence: 0.82, notes: "ocr" },
+    )
+
+    expect(merged?.cardName).toBe("Charizard")
+    expect(merged?.cardNumber).toBe("4")
+    expect(merged?.confidence).toBeGreaterThanOrEqual(0.86)
+  })
+
+  it("falls back to full-card read when strips are empty", () => {
+    const merged = mergeOcrReads(
+      { cardName: "Pikachu", setName: "", cardNumber: "58", confidence: 0.82, notes: "ocr" },
+      null,
+      null,
+    )
+
+    expect(merged?.cardName).toBe("Pikachu")
+    expect(merged?.cardNumber).toBe("58")
+  })
+
+  it("returns null when no fields are found", () => {
+    expect(mergeOcrReads(null, null, null)).toBeNull()
   })
 })
 

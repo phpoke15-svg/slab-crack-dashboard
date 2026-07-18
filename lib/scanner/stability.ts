@@ -1,8 +1,9 @@
 import type { CardBounds, StabilitySample } from "@/lib/scanner/types"
 import { boundsToPixels } from "@/lib/scanner/capture"
+import { SCAN_STABILITY_BLUR_MIN, SCAN_STABILITY_HOLD_MS } from "@/lib/scanner/capture-settings"
 
-const SAMPLE_W = 48
-const SAMPLE_H = 68
+const SAMPLE_W = 64
+const SAMPLE_H = 90
 
 /** Variance of Laplacian on grayscale — higher = sharper. */
 function laplacianVariance(gray: Float32Array, w: number, h: number): number {
@@ -50,9 +51,9 @@ export type StabilityGateOptions = {
 }
 
 const DEFAULTS: Required<StabilityGateOptions> = {
-  blurMin: 28,
-  motionMax: 10,
-  holdMs: 480,
+  blurMin: SCAN_STABILITY_BLUR_MIN,
+  motionMax: 8,
+  holdMs: SCAN_STABILITY_HOLD_MS,
 }
 
 /**

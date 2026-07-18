@@ -92,6 +92,41 @@ export function parseOcrText(raw: string): DetectedCard | null {
   }
 }
 
+/** Merge targeted name/number strip reads with the full-card OCR pass. */
+export function mergeOcrReads(
+  full: DetectedCard | null,
+  nameStrip: DetectedCard | null,
+  numberStrip: DetectedCard | null,
+): DetectedCard | null {
+  const cardName =
+    nameStrip?.cardName?.trim() ||
+    full?.cardName?.trim() ||
+    numberStrip?.cardName?.trim() ||
+    ""
+  const cardNumber =
+    numberStrip?.cardNumber?.trim() ||
+    full?.cardNumber?.trim() ||
+    nameStrip?.cardNumber?.trim() ||
+    ""
+
+  if (!cardName && !cardNumber) return null
+
+  const confidence = Math.max(
+    full?.confidence ?? 0,
+    nameStrip?.confidence ?? 0,
+    numberStrip?.confidence ?? 0,
+    cardName && cardNumber ? 0.86 : 0.5,
+  )
+
+  return {
+    cardName,
+    setName: "",
+    cardNumber,
+    confidence,
+    notes: "ocr",
+  }
+}
+
 /** Only skip vision when OCR read both fields with reasonable confidence. */
 export function shouldTrustOcrDetected(detected: DetectedCard | null | undefined): boolean {
   if (!detected) return false

@@ -9,7 +9,7 @@ export const CARD_ASPECT = 63 / 88
 
 /** Centered guide box for alignment (fraction of frame). */
 export function defaultGuideBounds(videoW?: number, videoH?: number): CardBounds {
-  const h = 0.68
+  const h = 0.72
   const aspect = videoW && videoH && videoW > 0 ? videoH / videoW : 9 / 16
   const w = h * CARD_ASPECT * aspect
   return {
@@ -33,6 +33,41 @@ export function boundsToPixels(
   }
 }
 
+/** Downscale a JPEG data URL for vision / upload payloads. */
+export async function downscaleDataUrl(
+  imageDataUrl: string,
+  maxEdge: number,
+  quality: number,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new window.Image()
+    img.onload = () => {
+      const longest = Math.max(img.width, img.height)
+      if (longest <= maxEdge) {
+        resolve(imageDataUrl)
+        return
+      }
+      const scale = maxEdge / longest
+      const outW = Math.max(1, Math.round(img.width * scale))
+      const outH = Math.max(1, Math.round(img.height * scale))
+      const canvas = document.createElement("canvas")
+      canvas.width = outW
+      canvas.height = outH
+      const ctx = canvas.getContext("2d")
+      if (!ctx) {
+        resolve(imageDataUrl)
+        return
+      }
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = "high"
+      ctx.drawImage(img, 0, 0, outW, outH)
+      resolve(canvas.toDataURL("image/jpeg", quality))
+    }
+    img.onerror = () => reject(new Error("Could not downscale scan image"))
+    img.src = imageDataUrl
+  })
+}
+
 /** Crop guide region from video and return JPEG data URL. */
 export async function captureCardFromVideo(
   video: HTMLVideoElement,
@@ -46,7 +81,8 @@ export async function captureCardFromVideo(
 
   const guide = bounds ?? defaultGuideBounds(fw, fh)
   const { x, y, w, h } = boundsToPixels(guide, fw, fh)
-  const scale = Math.min(1, maxEdge / Math.max(w, h))
+  const longest = Math.max(w, h)
+  const scale = longest > maxEdge ? maxEdge / longest : 1
   const outW = Math.max(1, Math.round(w * scale))
   const outH = Math.max(1, Math.round(h * scale))
 

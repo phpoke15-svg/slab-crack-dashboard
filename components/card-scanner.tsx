@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Camera, ImagePlus, Loader2, ScanLine } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { captureCardFromVideo, defaultGuideBounds } from "@/lib/scanner/capture"
+import {
+  captureCardFromVideo,
+  defaultGuideBounds,
+  downscaleDataUrl,
+} from "@/lib/scanner/capture"
+import {
+  SCAN_VISION_JPEG_QUALITY,
+  SCAN_VISION_MAX_EDGE,
+} from "@/lib/scanner/capture-settings"
 import {
   preloadOcrWorker,
   recognizeCardText,
@@ -163,12 +171,12 @@ export function CardScanner({
   }, [startCamera, stopCamera])
 
   const scanImage = useCallback(
-    async (crop: string, phash: string) => {
+    async (ocrCrop: string, visionCrop: string, phash: string) => {
       setOcrStatus("Reading card text…")
-      const detected = await recognizeCardText(crop).catch(() => null)
+      const detected = await recognizeCardText(ocrCrop).catch(() => null)
       setOcrStatus(null)
 
-      const payload: Record<string, unknown> = { image: crop, phash }
+      const payload: Record<string, unknown> = { image: visionCrop, phash }
       if (shouldTrustOcrDetected(detected)) {
         payload.detected = detected
       }
@@ -186,7 +194,7 @@ export function CardScanner({
         throw new Error(json?.error || "Could not identify this card.")
       }
 
-      return { json: json as ScanPipelineResult, crop }
+      return { json: json as ScanPipelineResult, crop: ocrCrop }
     },
     [],
   )
@@ -197,13 +205,17 @@ export function CardScanner({
       scanLockRef.current = true
       lastScanAtRef.current = Date.now()
       gateRef.current.reset()
-      onScanStart?.()
 
       try {
-        const crop = await captureCardFromVideo(fromVideo, guide)
-        const phash = await phashFromDataUrl(crop)
-        const { json } = await scanImage(crop, phash)
-        onScanComplete(json, crop)
+        const ocrCrop = await captureCardFromVideo(fromVideo, guide)
+        onScanStart?.()
+
+        const [visionCrop, phash] = await Promise.all([
+          downscaleDataUrl(ocrCrop, SCAN_VISION_MAX_EDGE, SCAN_VISION_JPEG_QUALITY),
+          phashFromDataUrl(ocrCrop),
+        ])
+        const { json } = await scanImage(ocrCrop, visionCrop, phash)
+        onScanComplete(json, ocrCrop)
       } catch (err) {
         onScanFail(err instanceof Error ? err.message : "Scan failed", null)
       } finally {
@@ -247,10 +259,13 @@ export function CardScanner({
         const dataUrl = reader.result as string
         void (async () => {
           scanLockRef.current = true
-          onScanStart?.()
           try {
-            const phash = await phashFromDataUrl(dataUrl)
-            const { json } = await scanImage(dataUrl, phash)
+            const [visionCrop, phash] = await Promise.all([
+              downscaleDataUrl(dataUrl, SCAN_VISION_MAX_EDGE, SCAN_VISION_JPEG_QUALITY),
+              phashFromDataUrl(dataUrl),
+            ])
+            onScanStart?.()
+            const { json } = await scanImage(dataUrl, visionCrop, phash)
             onScanComplete(json, dataUrl)
           } catch (err) {
             onScanFail(err instanceof Error ? err.message : "Scan failed", dataUrl)
