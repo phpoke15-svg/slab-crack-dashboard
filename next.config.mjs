@@ -37,6 +37,12 @@ const nextConfig = {
         destination: "/slablabs/:path*",
         permanent: true,
       },
+      { source: "/slabcrack", destination: "/slablabs/slabcrack", permanent: true },
+      { source: "/slabcrack/scan", destination: "/slablabs/slabcrack/scan", permanent: true },
+      { source: "/slabcrack/multi-scan", destination: "/slablabs/slabcrack/multi-scan", permanent: true },
+      { source: "/slablab", destination: "/slablabs/slabit", permanent: true },
+      { source: "/slablab/scan", destination: "/slablabs/slabit/scan", permanent: true },
+      { source: "/slablab/multi-scan", destination: "/slablabs/slabit/multi-scan", permanent: true },
     ]
   },
   async rewrites() {

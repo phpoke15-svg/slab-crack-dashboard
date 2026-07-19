@@ -16,11 +16,10 @@ function tool(id: string): CollecTool {
 }
 
 describe("parseHubToolOrder", () => {
-  it("migrates legacy slablab and slablabs ids", () => {
-    expect(parseHubToolOrder(["slabcrack", "binder", "slablab", "slablabs"])).toEqual([
-      "slabcrack",
+  it("migrates legacy slabcrack, slablab, and slabit ids to slablabs", () => {
+    expect(parseHubToolOrder(["slabcrack", "binder", "slablab", "slabit"])).toEqual([
+      "slablabs",
       "binder",
-      "slabit",
     ])
   })
 })

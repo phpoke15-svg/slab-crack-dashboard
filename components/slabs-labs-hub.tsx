@@ -50,11 +50,6 @@ export function SlabLabsHub() {
                   <span className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="text-lg font-bold text-foreground">{tool.name}</span>
-                      {tool.comingSoon ? (
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Coming soon
-                        </span>
-                      ) : null}
                     </span>
                     <ArrowRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
                   </span>

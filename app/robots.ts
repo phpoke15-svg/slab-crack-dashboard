@@ -14,8 +14,6 @@ export default function robots(): MetadataRoute.Robots {
     "/live-binder-hud",
     "/slablabs/slabcrack/scan",
     "/slablabs/slabit/scan",
-    "/slabcrack/scan",
-    "/slablab/scan",
     "/pokewatch/mobile",
     "/queue-watch/mobile",
   ]

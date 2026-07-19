@@ -13,7 +13,6 @@ export type SlabLabsSubTool = {
   tagline: string
   blurb: string
   icon: LucideIcon
-  comingSoon?: boolean
 }
 
 export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [

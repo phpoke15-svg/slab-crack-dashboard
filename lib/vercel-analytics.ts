@@ -260,3 +260,17 @@ export async function getVercelTrafficSummary(): Promise<VercelTrafficSummary> {
     }
   }
 }
+
+let trafficCache: { at: number; data: VercelTrafficSummary } | null = null
+const TRAFFIC_CACHE_MS = 5 * 60 * 1000
+
+/** Cached wrapper — Supreme refresh won't hammer Vercel with 7 parallel API calls. */
+export async function getVercelTrafficSummaryCached(): Promise<VercelTrafficSummary> {
+  const now = Date.now()
+  if (trafficCache && now - trafficCache.at < TRAFFIC_CACHE_MS) {
+    return trafficCache.data
+  }
+  const data = await getVercelTrafficSummary()
+  trafficCache = { at: now, data }
+  return data
+}

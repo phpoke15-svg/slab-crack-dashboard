@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
+  ArrowLeft,
   Search,
   Zap,
   TrendingDown,
@@ -15,7 +16,7 @@ import {
   Camera,
 } from "lucide-react"
 import Link from "next/link"
-import { SLABCRACK_HREF } from "@/lib/slabs-labs-routes"
+import { SLABCRACK_HREF, SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
@@ -331,6 +332,14 @@ export function SlabDashboard() {
               <SiteAuthButton className="shrink-0" />
             </div>
           </div>
+
+          <Link
+            href={SLABLABS_HREF}
+            className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="size-3.5" aria-hidden />
+            Back to SlabLabs
+          </Link>
 
           {/* Search + Scan */}
           <div className="relative mt-4">

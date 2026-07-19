@@ -1,9 +1,10 @@
 import type { CollecTool } from "@/lib/collectools-tools"
 
-/** Legacy hub tile ids mapped to current tools. */
+/** Legacy hub tile ids collapsed into SlabLabs. */
 const LEGACY_HUB_TOOL_IDS: Record<string, string> = {
-  slablab: "slabit",
-  slablabs: "slabcrack",
+  slabcrack: "slablabs",
+  slablab: "slablabs",
+  slabit: "slablabs",
 }
 
 /** Parse stored hub order; ignores invalid entries and migrates legacy tool ids. */

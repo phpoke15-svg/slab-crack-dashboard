@@ -9,7 +9,7 @@ import { isWebPushConfigured } from "@/lib/push/web-push"
 import { isAdsDisplayEnabled } from "@/lib/adsense-config"
 import { createCrossUserReader } from "@/lib/trade-binder/cross-user-client"
 import { LEGAL_SITE_NAME, LEGAL_SITE_URL } from "@/lib/legal/config"
-import { getVercelTrafficSummary, isVercelAnalyticsConfigured } from "@/lib/vercel-analytics"
+import { getVercelTrafficSummaryCached, isVercelAnalyticsConfigured } from "@/lib/vercel-analytics"
 
 export const dynamic = "force-dynamic"
 
@@ -370,7 +370,7 @@ export async function GET() {
     vercelAnalyticsConfigured: isVercelAnalyticsConfigured(),
   }
 
-  const traffic = await getVercelTrafficSummary()
+  const traffic = await getVercelTrafficSummaryCached()
 
   return NextResponse.json({
     ok: true,
@@ -441,7 +441,6 @@ export async function GET() {
       authUsers: authUserCount,
       ...counts,
     },
-    planBreakdown,
     traffic,
   })
 }

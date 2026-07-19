@@ -17,6 +17,7 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { hubToolsForUser, type CollecTool } from "@/lib/collectools-tools"
 import { moveHubToolId, orderHubTools, parseHubToolOrder } from "@/lib/hub-tool-order"
+import { SLABLABS_SUBTOOLS } from "@/lib/slabs-labs-tools"
 import { cn } from "@/lib/utils"
 
 function HubToolTile({
@@ -480,6 +481,30 @@ export function CollecToolsHub() {
                     </li>
                   ))}
                 </ul>
+              ) : null}
+
+              {selected.id === "slablabs" ? (
+                <div className="mt-4 grid gap-2">
+                  {SLABLABS_SUBTOOLS.map((tool) => {
+                    const Icon = tool.icon
+                    return (
+                      <Link
+                        key={tool.id}
+                        href={tool.href}
+                        onClick={() => setSelected(null)}
+                        className="flex items-start gap-3 rounded-xl border border-border bg-card/60 p-3 text-left transition-colors hover:border-primary/40 hover:bg-card"
+                      >
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary">
+                          <Icon className="size-4" strokeWidth={2} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-foreground">{tool.name}</span>
+                          <span className="mt-0.5 block text-xs text-muted-foreground">{tool.blurb}</span>
+                        </span>
+                      </Link>
+                    )
+                  })}
+                </div>
               ) : null}
 
               <Link

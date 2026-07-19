@@ -26,6 +26,7 @@ import { GiveawayAdminPanel } from "@/components/giveaway-admin-panel"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
 import { SUPREME_TOOLS } from "@/lib/collectools-tools"
+import type { VercelTrafficSummary } from "@/lib/vercel-analytics"
 import { cn } from "@/lib/utils"
 
 type MetricsPayload = {
@@ -104,25 +105,7 @@ type MetricsPayload = {
     pushSubscriptions: number | null
   }
   counts: Record<string, number | null>
-  planBreakdown: Record<string, number>
-  traffic?: {
-    configured: boolean
-    projectId: string | null
-    error: string | null
-    fetchedAt: string
-    monthLabel: string
-    monthStart: string
-    periods: {
-      today: { pageviews: number | null; visitors: number | null }
-      last7d: { pageviews: number | null; visitors: number | null }
-      last30d: { pageviews: number | null; visitors: number | null }
-      monthToDate: { pageviews: number | null; visitors: number | null }
-    }
-    dailyLast30d: Array<{ date: string; pageviews: number; visitors: number }>
-    topRoutes: Array<{ key: string; pageviews: number; visitors: number }>
-    topReferrers: Array<{ key: string; pageviews: number; visitors: number }>
-    topCountries: Array<{ key: string; pageviews: number; visitors: number }>
-  }
+  traffic?: VercelTrafficSummary
   error?: string
 }
 
@@ -332,19 +315,12 @@ export function SupremeConsoleClient() {
                 {/* Overview KPIs */}
                 <section>
                   <SectionLabel icon={Activity} title="Overview" />
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <Kpi
                       label="Accounts"
                       value={fmt(data.accounts?.total ?? data.overview.authUsers)}
                       hint={`${fmt(data.accounts?.created7d)} new · 7d`}
                     />
-                    {data.traffic?.configured && !data.traffic.error ? (
-                      <Kpi
-                        label={`Visitors · ${data.traffic.monthLabel}`}
-                        value={fmt(data.traffic.periods.monthToDate.visitors)}
-                        hint={`${fmt(data.traffic.periods.monthToDate.pageviews)} page views`}
-                      />
-                    ) : null}
                     <Kpi
                       label="Active now"
                       value={fmt(data.activity?.activeNow)}
@@ -562,7 +538,7 @@ export function SupremeConsoleClient() {
                 {/* SlabCrack + Ops */}
                 <div className="grid gap-6 lg:grid-cols-2">
                   <section className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
-                    <SectionLabel icon={Layers} title="SlabCrack / SlabLab" />
+                    <SectionLabel icon={Layers} title="SlabCrack / SlabIt" />
                     <div className="mt-4 grid grid-cols-2 gap-3">
                       <MiniStat label="Catalog cards" value={fmt(data.slabcrack.slabCards)} />
                       <MiniStat label="Watchlist" value={fmt(data.slabcrack.watchlistCards)} />

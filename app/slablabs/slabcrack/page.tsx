@@ -1,6 +1,5 @@
-import { SlabDashboardClient } from "@/components/slab-dashboard-client"
+import { SlabDashboard } from "@/components/slab-dashboard"
 import { JsonLd } from "@/components/seo/json-ld"
-import { ToolSeoFooter, ToolSeoIntro } from "@/components/seo/tool-seo-intro"
 import { breadcrumbJsonLd, pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
 import { SLABCRACK_HREF, SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 
@@ -30,22 +29,7 @@ export default function SlabCrackPage() {
           ]),
         ]}
       />
-      <ToolSeoIntro
-        title="SlabCrack"
-        description={description}
-        bullets={[
-          "Compare raw market prices against PSA graded slab quotes",
-          "Browse live deficit opportunities for Pokémon TCG singles",
-          "Premium unlocks the full graded arbitrage feed",
-        ]}
-        related={[
-          { href: SLABLABS_HREF, label: "SlabLabs" },
-          { href: "/binder", label: "PokeMatch" },
-          { href: "/pricing", label: "Pricing" },
-        ]}
-      />
-      <SlabDashboardClient />
-      <ToolSeoFooter />
+      <SlabDashboard />
     </main>
   )
 }
