@@ -42,6 +42,26 @@ export type GiveawayPrizeCardsResult = {
   usedLivePriceCharting: boolean
 }
 
+type PrizeCardSource = {
+  id: string
+  name: string
+  setName: string
+  cardNumber?: string
+  rarity?: string | null
+  image?: string | null
+  rawPrice: number
+}
+
+type SlabCardRow = {
+  id: string
+  name: string
+  set_name: string
+  card_number: string
+  rarity: string | null
+  image_large: string | null
+  image_small: string | null
+}
+
 function roundUsd(amount: number): number {
   return Math.round(amount * 100) / 100
 }
@@ -75,6 +95,40 @@ function formatCardName(name: string): string {
   return name.replace(/\s+\([^)]+\)$/, "").trim() || name
 }
 
+function formatPrizeCardDisplayName(name: string, rarity?: string | null): string {
+  if (!rarity || name.toLowerCase().includes(rarity.toLowerCase())) return name
+  return `${name} (${rarity})`
+}
+
+function toGiveawayPrizeCard(source: PrizeCardSource): GiveawayPrizeCard | null {
+  if (source.rawPrice <= 0) return null
+  if (!isEnglishOrJapanesePricedCard({ setName: source.setName, productName: source.name })) {
+    return null
+  }
+
+  return {
+    id: source.id,
+    name: formatPrizeCardDisplayName(source.name, source.rarity),
+    set: source.setName,
+    cardNumber: source.cardNumber || undefined,
+    image: upgradeCardImageUrlSync(source.image ?? "/placeholder.svg"),
+    rawPrice: source.rawPrice,
+  }
+}
+
+export function catalogHitToGiveawayPrizeCard(hit: CatalogSearchHit): GiveawayPrizeCard | null {
+  if (!hit.rawPrice || hit.rawPrice <= 0) return null
+  return toGiveawayPrizeCard({
+    id: hit.id,
+    name: hit.name,
+    setName: hit.setName,
+    cardNumber: hit.number,
+    rarity: hit.rarity,
+    image: hit.imageUrl,
+    rawPrice: hit.rawPrice,
+  })
+}
+
 function scorePrizeCard(card: GiveawayPrizeCard, target: number): number {
   const distance = Math.abs(card.rawPrice - target)
   const hasRealImage = card.image && !card.image.includes("placeholder")
@@ -89,88 +143,42 @@ function sortPrizeCards(cards: GiveawayPrizeCard[], target: number): GiveawayPri
   })
 }
 
-function mockCardsInBand(min: number, max: number, target: number): GiveawayPrizeCard[] {
+function mockEntryToPrizeCard(entry: MockCardEntry): GiveawayPrizeCard | null {
+  if (entry.rawPrice <= 0 || entry.hasPricing === false) return null
+  return toGiveawayPrizeCard({
+    id: entry.id,
+    name: formatCardName(entry.cardName),
+    setName: entry.setName,
+    cardNumber: entry.cardNumber,
+    image: entry.imageUrl,
+    rawPrice: entry.rawPrice,
+  })
+}
+
+function collectMockCards(
+  target: number,
+  options?: { min?: number; max?: number; limit?: number },
+): GiveawayPrizeCard[] {
   const cards: GiveawayPrizeCard[] = []
   for (const entry of mockData as MockCardEntry[]) {
-    if (entry.rawPrice <= 0 || entry.hasPricing === false) continue
-    if (entry.rawPrice < min || entry.rawPrice > max) continue
-    if (!isEnglishOrJapanesePricedCard({ setName: entry.setName, productName: entry.cardName })) {
-      continue
-    }
-
-    cards.push({
-      id: entry.id,
-      name: formatCardName(entry.cardName),
-      set: entry.setName,
-      cardNumber: entry.cardNumber,
-      image: upgradeCardImageUrlSync(entry.imageUrl),
-      rawPrice: entry.rawPrice,
-    })
+    if (options?.min != null && entry.rawPrice < options.min) continue
+    if (options?.max != null && entry.rawPrice > options.max) continue
+    const card = mockEntryToPrizeCard(entry)
+    if (card) cards.push(card)
   }
 
-  return sortPrizeCards(cards, target)
+  const sorted = sortPrizeCards(cards, target)
+  return options?.limit ? sorted.slice(0, options.limit) : sorted
 }
 
-function mockCardsClosest(target: number, limit: number): GiveawayPrizeCard[] {
-  const cards: GiveawayPrizeCard[] = []
-  for (const entry of mockData as MockCardEntry[]) {
-    if (entry.rawPrice <= 0 || entry.hasPricing === false) continue
-    if (!isEnglishOrJapanesePricedCard({ setName: entry.setName, productName: entry.cardName })) {
-      continue
-    }
-
-    cards.push({
-      id: entry.id,
-      name: formatCardName(entry.cardName),
-      set: entry.setName,
-      cardNumber: entry.cardNumber,
-      image: upgradeCardImageUrlSync(entry.imageUrl),
-      rawPrice: entry.rawPrice,
-    })
-  }
-
-  return sortPrizeCards(cards, target).slice(0, limit)
-}
-
-export function catalogHitToGiveawayPrizeCard(hit: CatalogSearchHit): GiveawayPrizeCard | null {
-  if (!hit.rawPrice || hit.rawPrice <= 0) return null
-  if (!isEnglishOrJapanesePricedCard({ setName: hit.setName, productName: hit.name })) {
-    return null
-  }
-
-  const rarity = hit.rarity
-  const displayName =
-    rarity && !hit.name.toLowerCase().includes(rarity.toLowerCase())
-      ? `${hit.name} (${rarity})`
-      : hit.name
-
-  return {
-    id: hit.id,
-    name: displayName,
-    set: hit.setName,
-    cardNumber: hit.number || undefined,
-    image: upgradeCardImageUrlSync(hit.imageUrl),
-    rawPrice: hit.rawPrice,
+function trackCardVariants(cardId: string, seenIds: Set<string>) {
+  for (const variant of cardIdVariants(cardId)) {
+    seenIds.add(variant)
   }
 }
 
-type SlabCardRow = {
-  id: string
-  name: string
-  set_name: string
-  card_number: string
-  rarity: string | null
-  image_large: string | null
-  image_small: string | null
-}
-
-type CatalogCardRow = {
-  id: string
-  name: string
-  set_name: string
-  number: string
-  rarity: string | null
-  image_url: string | null
+function hasTrackedVariant(cardId: string, seenIds: Set<string>): boolean {
+  return cardIdVariants(cardId).some((variant) => seenIds.has(variant))
 }
 
 async function fetchSlabCardsById(cardIds: string[]): Promise<Map<string, SlabCardRow>> {
@@ -195,49 +203,6 @@ async function fetchSlabCardsById(cardIds: string[]): Promise<Map<string, SlabCa
   return byId
 }
 
-function slabToPrizeCard(slab: SlabCardRow, rawPrice: number, cardId?: string): GiveawayPrizeCard | null {
-  if (!isEnglishOrJapanesePricedCard({ setName: slab.set_name, productName: slab.name })) {
-    return null
-  }
-
-  const image = upgradeCardImageUrlSync(slab.image_large ?? slab.image_small ?? "/placeholder.svg")
-  const rarity = slab.rarity
-  const displayName =
-    rarity && !slab.name.toLowerCase().includes(rarity.toLowerCase())
-      ? `${slab.name} (${rarity})`
-      : slab.name
-
-  return {
-    id: cardId ?? slab.id,
-    name: displayName,
-    set: slab.set_name,
-    cardNumber: slab.card_number || undefined,
-    image,
-    rawPrice,
-  }
-}
-
-function catalogRowToPrizeCard(row: CatalogCardRow, rawPrice: number): GiveawayPrizeCard | null {
-  if (!isEnglishOrJapanesePricedCard({ setName: row.set_name, productName: row.name })) {
-    return null
-  }
-
-  const rarity = row.rarity
-  const displayName =
-    rarity && !row.name.toLowerCase().includes(rarity.toLowerCase())
-      ? `${row.name} (${rarity})`
-      : row.name
-
-  return {
-    id: row.id,
-    name: displayName,
-    set: row.set_name,
-    cardNumber: row.number || undefined,
-    image: upgradeCardImageUrlSync(row.image_url ?? "/placeholder.svg"),
-    rawPrice,
-  }
-}
-
 function resolveSlabForPriceId(
   cardId: string,
   slabById: Map<string, SlabCardRow>,
@@ -249,34 +214,39 @@ function resolveSlabForPriceId(
   return undefined
 }
 
-function hasCatalogVariant(cardId: string, seenIds: Set<string>): boolean {
-  return cardIdVariants(cardId).some((variant) => seenIds.has(variant))
-}
-
 async function legacySlabMatches(
   band: PrizeCardPriceBand,
   fetchLimit: number,
   seenIds: Set<string>,
+  cachedPrices: Map<string, number>,
 ): Promise<GiveawayPrizeCard[]> {
-  const priceByCardId = await getRawPriceByCardId()
-  const ranked = [...priceByCardId.entries()]
+  const ranked = [...cachedPrices.entries()]
     .map(([cardId, rawPrice]) => ({ cardId, rawPrice: Number(rawPrice) }))
     .filter((row) => row.rawPrice > 0)
     .filter((row) => row.rawPrice >= band.min && row.rawPrice <= band.max)
-    .filter((row) => !hasCatalogVariant(row.cardId, seenIds))
+    .filter((row) => !hasTrackedVariant(row.cardId, seenIds))
     .sort((a, b) => Math.abs(a.rawPrice - band.target) - Math.abs(b.rawPrice - band.target))
     .slice(0, fetchLimit)
 
   if (!ranked.length) return []
 
-  const lookupIds = [...new Set(ranked.flatMap((row) => cardIdVariants(row.cardId)))]
-  const slabById = await fetchSlabCardsById(lookupIds)
-  const cards: GiveawayPrizeCard[] = []
+  const slabById = await fetchSlabCardsById(
+    [...new Set(ranked.flatMap((row) => cardIdVariants(row.cardId)))],
+  )
 
+  const cards: GiveawayPrizeCard[] = []
   for (const row of ranked) {
     const slab = resolveSlabForPriceId(row.cardId, slabById)
     if (!slab) continue
-    const card = slabToPrizeCard(slab, row.rawPrice, row.cardId)
+    const card = toGiveawayPrizeCard({
+      id: row.cardId,
+      name: slab.name,
+      setName: slab.set_name,
+      cardNumber: slab.card_number,
+      rarity: slab.rarity,
+      image: slab.image_large ?? slab.image_small,
+      rawPrice: row.rawPrice,
+    })
     if (card && isWithinPrizeCardBand(card.rawPrice, band.target)) {
       cards.push(card)
     }
@@ -288,6 +258,7 @@ async function legacySlabMatches(
 async function pricedCatalogMatches(
   band: PrizeCardPriceBand,
   fetchLimit: number,
+  cachedPrices: Map<string, number>,
 ): Promise<GiveawayPrizeCard[]> {
   const cards: GiveawayPrizeCard[] = []
   const seenIds = new Set<string>()
@@ -297,19 +268,15 @@ async function pricedCatalogMatches(
     const card = catalogHitToGiveawayPrizeCard(hit)
     if (!card || !isWithinPrizeCardBand(card.rawPrice, band.target)) continue
     cards.push(card)
-    for (const variant of cardIdVariants(card.id)) {
-      seenIds.add(variant)
-    }
+    trackCardVariants(card.id, seenIds)
   }
 
   if (cards.length < fetchLimit) {
-    const legacy = await legacySlabMatches(band, fetchLimit - cards.length, seenIds)
+    const legacy = await legacySlabMatches(band, fetchLimit - cards.length, seenIds, cachedPrices)
     for (const card of legacy) {
-      if (seenIds.has(card.id)) continue
+      if (hasTrackedVariant(card.id, seenIds)) continue
       cards.push(card)
-      for (const variant of cardIdVariants(card.id)) {
-        seenIds.add(variant)
-      }
+      trackCardVariants(card.id, seenIds)
     }
   }
 
@@ -318,7 +285,7 @@ async function pricedCatalogMatches(
 
 async function closestPrizeCards(target: number, limit: number): Promise<GiveawayPrizeCard[]> {
   if (!isSupabaseConfigured()) {
-    return mockCardsClosest(target, limit)
+    return collectMockCards(target, { limit })
   }
 
   try {
@@ -331,18 +298,25 @@ async function closestPrizeCards(target: number, limit: number): Promise<Giveawa
     console.warn("[giveaway-prize-cards] closest catalog match failed:", error)
   }
 
-  return mockCardsClosest(target, limit)
+  return collectMockCards(target, { limit })
 }
 
-async function queryCatalogInBand(band: PrizeCardPriceBand): Promise<GiveawayPrizeCard[]> {
+async function queryCatalogInBand(
+  band: PrizeCardPriceBand,
+  cachedPrices: Map<string, number>,
+): Promise<GiveawayPrizeCard[]> {
   if (!isSupabaseConfigured()) {
-    const inBand = mockCardsInBand(band.min, band.max, band.target)
+    const inBand = collectMockCards(band.target, { min: band.min, max: band.max })
     if (inBand.length) return inBand
-    return mockCardsClosest(band.target, GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT)
+    return collectMockCards(band.target, { limit: GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT })
   }
 
   try {
-    const cards = await pricedCatalogMatches(band, GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT * 6)
+    const cards = await pricedCatalogMatches(
+      band,
+      GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT * 6,
+      cachedPrices,
+    )
     if (cards.length) return cards
   } catch (error) {
     console.warn("[giveaway-prize-cards] priced catalog query failed:", error)
@@ -355,55 +329,34 @@ async function priceChartingCardsInBand(
   band: PrizeCardPriceBand,
   limit: number,
   excludeIds: Set<string>,
+  cachedPrices: Map<string, number>,
 ): Promise<GiveawayPrizeCard[]> {
   if (!process.env.PRICECHARTING_API_KEY || !isSupabaseConfigured()) return []
 
-  const admin = createAdminClient()
-  const priceByCardId = await getRawPriceByCardId()
-
-  const { data: catalogRows, error } = await admin
-    .from("cards")
-    .select("id, name, set_name, number, rarity, image_url")
-    .order("updated_at", { ascending: false })
-    .limit(GIVEAWAY_PRIZE_CARD_PC_CANDIDATE_POOL)
-
-  if (error) {
-    console.warn("[giveaway-prize-cards] cards candidate load failed:", error.message)
-    return []
-  }
-
-  const candidates = ((catalogRows ?? []) as CatalogCardRow[])
-    .filter((row) => !excludeIds.has(row.id) && !hasCatalogVariant(row.id, excludeIds))
-    .sort((a, b) => {
-      const pa = priceByCardId.get(a.id) ?? 0
-      const pb = priceByCardId.get(b.id) ?? 0
-      if (pa > 0 && pb > 0) {
-        return Math.abs(pa - band.target) - Math.abs(pb - band.target)
-      }
-      if (pa > 0) return -1
-      if (pb > 0) return 1
-      return a.name.localeCompare(b.name)
-    })
+  const candidates = (await getCatalogCardsClosestToPrice(
+    band.target,
+    GIVEAWAY_PRIZE_CARD_PC_CANDIDATE_POOL,
+  )).filter((hit) => !hasTrackedVariant(hit.id, excludeIds))
 
   const priced = await attachBinderCardPrices(
-    candidates.map((row) => ({
-      id: row.id,
-      name: row.name,
-      set: row.set_name,
-      cardNumber: row.number,
+    candidates.map((hit) => ({
+      id: hit.id,
+      name: hit.name,
+      set: hit.setName,
+      cardNumber: hit.number,
     })),
     {
-      cachedPrices: priceByCardId,
+      cachedPrices,
       limit: GIVEAWAY_PRIZE_CARD_PC_LOOKUP_LIMIT,
       concurrency: 2,
     },
   )
 
   const cards: GiveawayPrizeCard[] = []
-  for (const row of candidates) {
-    const rawPrice = priced.get(row.id)
+  for (const hit of candidates) {
+    const rawPrice = priced.get(hit.id)
     if (!rawPrice || !isWithinPrizeCardBand(rawPrice, band.target)) continue
-    const card = catalogRowToPrizeCard(row, rawPrice)
+    const card = catalogHitToGiveawayPrizeCard({ ...hit, rawPrice })
     if (card) cards.push(card)
     if (cards.length >= limit) break
   }
@@ -433,15 +386,14 @@ export async function getGiveawayPrizeCards(
     return { band: { min: 0, max: 0, target: 0 }, cards: [], usedLivePriceCharting: false }
   }
 
-  let cached = dedupePrizeCards(
-    (await queryCatalogInBand(band)).filter((card) => isWithinPrizeCardBand(card.rawPrice, band.target)),
-    limit,
-  )
+  const cachedPrices = isSupabaseConfigured() ? await getRawPriceByCardId() : new Map<string, number>()
+
+  let cached = dedupePrizeCards(await queryCatalogInBand(band, cachedPrices), limit)
 
   let usedLivePriceCharting = false
   if (cached.length < limit) {
     const excludeIds = new Set(cached.map((card) => card.id))
-    const live = await priceChartingCardsInBand(band, limit - cached.length, excludeIds)
+    const live = await priceChartingCardsInBand(band, limit - cached.length, excludeIds, cachedPrices)
     if (live.length) {
       usedLivePriceCharting = true
       cached = dedupePrizeCards([...cached, ...live], limit)

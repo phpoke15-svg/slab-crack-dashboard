@@ -356,6 +356,22 @@ type PricedCatalogRow = {
   syncError: string | null
 }
 
+function parsePricedCatalogRows(
+  pricedRows: Array<{
+    card_id: unknown
+    raw_price: unknown
+    synced_at?: unknown
+    sync_error?: unknown
+  }>,
+): PricedCatalogRow[] {
+  return pricedRows.map((row) => ({
+    cardId: String(row.card_id),
+    rawPrice: Number(row.raw_price),
+    syncedAt: (row.synced_at as string | null) ?? null,
+    syncError: (row.sync_error as string | null) ?? null,
+  }))
+}
+
 function sortPricedRowsByTarget(rows: PricedCatalogRow[], target: number): PricedCatalogRow[] {
   return [...rows].sort(
     (a, b) => Math.abs(a.rawPrice - target) - Math.abs(b.rawPrice - target),
@@ -395,6 +411,25 @@ async function catalogHitsForPricedRows(
     .slice(0, limit)
 }
 
+async function queryPricedCatalogRows(
+  buildQuery: (
+    supabase: ReturnType<typeof createReadClient>,
+  ) => Promise<{
+    data: Array<{
+      card_id: unknown
+      raw_price: unknown
+      synced_at?: unknown
+      sync_error?: unknown
+    }> | null
+    error: { message: string } | null
+  }>,
+): Promise<PricedCatalogRow[]> {
+  const supabase = createReadClient()
+  const { data, error } = await buildQuery(supabase)
+  if (error || !data?.length) return []
+  return parsePricedCatalogRows(data)
+}
+
 /** Cards from card_prices within a raw price band, joined to the unified cards catalog. */
 export async function getCatalogCardsInPriceBand(
   min: number,
@@ -405,27 +440,18 @@ export async function getCatalogCardsInPriceBand(
   if (!isSupabaseConfigured() || limit <= 0) return []
 
   try {
-    const supabase = createReadClient()
     const poolSize = Math.min(Math.max(limit * 8, 80), 500)
-
-    const { data: pricedRows, error: priceError } = await supabase
-      .from("card_prices")
-      .select("card_id, raw_price, synced_at, sync_error")
-      .gt("raw_price", 0)
-      .gte("raw_price", min)
-      .lte("raw_price", max)
-      .neq("sync_error", "unavailable")
-      .like("card_id", "poke-%")
-      .limit(poolSize)
-
-    if (priceError || !pricedRows?.length) return []
-
-    const rows: PricedCatalogRow[] = pricedRows.map((row) => ({
-      cardId: String(row.card_id),
-      rawPrice: Number(row.raw_price),
-      syncedAt: (row.synced_at as string | null) ?? null,
-      syncError: (row.sync_error as string | null) ?? null,
-    }))
+    const rows = await queryPricedCatalogRows((supabase) =>
+      supabase
+        .from("card_prices")
+        .select("card_id, raw_price, synced_at, sync_error")
+        .gt("raw_price", 0)
+        .gte("raw_price", min)
+        .lte("raw_price", max)
+        .neq("sync_error", "unavailable")
+        .like("card_id", "poke-%")
+        .limit(poolSize),
+    )
 
     return catalogHitsForPricedRows(rows, target, limit)
   } catch (error) {
@@ -442,26 +468,22 @@ export async function getCatalogCardsClosestToPrice(
   if (!isSupabaseConfigured() || limit <= 0 || target <= 0) return []
 
   try {
-    const supabase = createReadClient()
     const poolSize = Math.min(Math.max(limit * 12, 120), 600)
+    const spread = Math.max(target * 2, 5)
+    const min = Math.max(0.01, target - spread)
+    const max = target + spread
 
-    const { data: pricedRows, error: priceError } = await supabase
-      .from("card_prices")
-      .select("card_id, raw_price, synced_at, sync_error")
-      .gt("raw_price", 0)
-      .neq("sync_error", "unavailable")
-      .like("card_id", "poke-%")
-      .order("raw_price", { ascending: false })
-      .limit(poolSize)
-
-    if (priceError || !pricedRows?.length) return []
-
-    const rows: PricedCatalogRow[] = pricedRows.map((row) => ({
-      cardId: String(row.card_id),
-      rawPrice: Number(row.raw_price),
-      syncedAt: (row.synced_at as string | null) ?? null,
-      syncError: (row.sync_error as string | null) ?? null,
-    }))
+    const rows = await queryPricedCatalogRows((supabase) =>
+      supabase
+        .from("card_prices")
+        .select("card_id, raw_price, synced_at, sync_error")
+        .gt("raw_price", 0)
+        .gte("raw_price", min)
+        .lte("raw_price", max)
+        .neq("sync_error", "unavailable")
+        .like("card_id", "poke-%")
+        .limit(poolSize),
+    )
 
     return catalogHitsForPricedRows(rows, target, limit)
   } catch (error) {
