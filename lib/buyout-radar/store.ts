@@ -1,7 +1,11 @@
 import "server-only"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { detectBuyoutRisks } from "@/lib/buyout-radar/detect"
+import { mergeBuyoutAlerts } from "@/lib/buyout-radar/merge-alerts"
 import { buildSeedBuyoutSales, SEED_BUYOUT_CARDS } from "@/lib/buyout-radar/seed"
+import { buildSeedMarketSnapshots } from "@/lib/buyout-radar/seed-snapshots"
+import { loadMarketSnapshots } from "@/lib/buyout-radar/snapshots"
+import { detectStealthBuyouts } from "@/lib/buyout-radar/stealth-detect"
 import type {
   BuyoutAlert,
   BuyoutCard,
@@ -138,6 +142,40 @@ function defaultBatchSize(): number {
   return Math.min(2000, Math.floor(raw))
 }
 
+function cardsByIdMap(cards: BuyoutCard[]): Map<
+  string,
+  { name: string; setName: string; releaseDate: string | null; imageUrl: string | null }
+> {
+  return new Map(
+    cards.map((card) => [
+      card.id,
+      {
+        name: card.name,
+        setName: card.setName,
+        releaseDate: card.releaseDate,
+        imageUrl: card.imageUrl,
+      },
+    ]),
+  )
+}
+
+async function detectAllBuyoutAlerts(
+  cards: BuyoutCard[],
+  sales: BuyoutSale[],
+  marketDerived: boolean,
+  opts?: { seedSnapshots?: boolean },
+): Promise<BuyoutAlert[]> {
+  const volumeAlerts = detectBuyoutRisks(cards, sales, {
+    marketVolumeOnly: marketDerived,
+  }).map((alert) => ({ ...alert, alertKind: alert.alertKind ?? "volume" }))
+
+  const dbSnapshots = opts?.seedSnapshots ? [] : await loadMarketSnapshots()
+  const snapshots = opts?.seedSnapshots ? buildSeedMarketSnapshots() : dbSnapshots
+  const stealthAlerts =
+    snapshots.length > 0 ? detectStealthBuyouts(snapshots, cardsByIdMap(cards)) : []
+  return mergeBuyoutAlerts(volumeAlerts, stealthAlerts)
+}
+
 export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
   const [db, progress] = await Promise.all([
     loadBuyoutMarketFromDatabase(),
@@ -147,9 +185,8 @@ export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
   const cards = db?.cards ?? SEED_BUYOUT_CARDS
   const marketDerived = Boolean(db) && sales.some((s) => s.buyerIpHash.startsWith("mkt-"))
 
-  let alerts = detectBuyoutRisks(cards, sales, {
-    // Public sold comps have no buyer IDs — classify live scans by volume spike.
-    marketVolumeOnly: marketDerived,
+  let alerts = await detectAllBuyoutAlerts(cards, sales, marketDerived, {
+    seedSnapshots: !db,
   })
 
   // Keep the board useful while coverage builds: if live data has no spikes yet,
@@ -162,8 +199,8 @@ export async function getBuyoutRadarFeed(): Promise<BuyoutRadarResponse> {
   let mode: "demo" | "live" = source === "seed" ? "demo" : "live"
 
   if (db && alerts.length === 0) {
-    alerts = detectBuyoutRisks(SEED_BUYOUT_CARDS, buildSeedBuyoutSales(), {
-      marketVolumeOnly: false,
+    alerts = await detectAllBuyoutAlerts(SEED_BUYOUT_CARDS, buildSeedBuyoutSales(), false, {
+      seedSnapshots: true,
     })
     source = "seed"
     mode = "demo"
@@ -200,8 +237,8 @@ export async function refreshBuyoutAnomaliesFromDatabase(): Promise<BuyoutAlert[
   const db = await loadBuyoutMarketFromDatabase()
   if (!db) return []
   const marketDerived = db.sales.some((s) => s.buyerIpHash.startsWith("mkt-"))
-  const alerts = detectBuyoutRisks(db.cards, db.sales, {
-    marketVolumeOnly: marketDerived,
+  const alerts = await detectAllBuyoutAlerts(db.cards, db.sales, marketDerived, {
+    seedSnapshots: false,
   })
   await persistBuyoutAnomalies(alerts)
   return alerts
@@ -231,6 +268,11 @@ export async function persistBuyoutAnomalies(alerts: BuyoutAlert[]): Promise<num
       notes: a.notes,
       active: true,
       detected_at: a.detectedAt,
+      alert_kind: a.alertKind ?? "volume",
+      volume_z_score: a.volumeZScore ?? null,
+      listings_z_score: a.listingsZScore ?? null,
+      unique_listings: a.uniqueListings ?? null,
+      price_pct_change_2p: a.pricePctChange2p ?? null,
     }))
 
     const { error } = await admin.from("buyout_anomalies_log").insert(rows)
