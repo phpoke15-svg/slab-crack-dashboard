@@ -10,7 +10,7 @@ export function HomeSeoIntro() {
   return (
     <section
       aria-label="CollecTools overview"
-      className="seo-crawl-intro border-b border-border bg-card/30 px-4 py-4 sm:px-6"
+      className="seo-crawl-intro"
     >
       <div className="mx-auto max-w-3xl">
         <h2 className="text-sm font-semibold tracking-tight text-foreground">
