@@ -2,17 +2,18 @@ import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   Bell,
-  FlaskConical,
   Gift,
+  Layers,
   MessageSquare,
   MessageSquarePlus,
   Package,
   Radar,
+  Ratio,
   ScanEye,
   ScanSearch,
 } from "lucide-react"
 import { PokeMatchIcon } from "@/components/icons/collec-tools-icons"
-import { SLABLABS_HREF } from "@/lib/slabs-labs-routes"
+import { SLABCRACK_HREF, SLABIT_HREF } from "@/lib/slabs-labs-routes"
 
 /** Flip to true when Walmart Affiliate Restocks ships again for everyone. */
 export const RESTOCKS_ENABLED = false
@@ -34,20 +35,36 @@ export type CollecTool = {
 
 const ALL_COLLECTOOLS: CollecTool[] = [
   {
-    id: "slablabs",
-    href: SLABLABS_HREF,
-    name: "SlabLabs",
-    tagline: "Crack · Pop · Submit",
-    blurb: "Graded slab toolkit — arbitrage, pop filters, and submission ROI.",
+    id: "slabcrack",
+    href: SLABCRACK_HREF,
+    name: "SlabCrack",
+    tagline: "Graded slab arbitrage",
+    blurb: "Spot raw vs PSA slab gaps and buy-crack-sell opportunities.",
     description:
-      "SlabLabs is the home for graded slab research on CollecTools. Open SlabCrack for raw vs PSA arbitrage, SlabPop for population and price filters, or SlabIt for PSA 10 submission spread and ROI rankings.",
+      "SlabCrack compares raw market prices against PSA graded slab quotes so you can find buy-crack-sell arbitrage and undervalued graded Pokémon TCG cards.",
     highlights: [
-      "SlabCrack — buy-crack-sell and graded vs raw gap hunting",
-      "SlabPop — non-linear pop report filters by grade and price",
-      "SlabIt — top 200 PSA 10 submission candidates by ROI",
-      "Camera scan on SlabCrack and SlabIt for instant pricing",
+      "Live deficit feed across the catalog",
+      "PSA 7–10 grade quotes per card",
+      "Camera scan for instant pricing",
+      "Watchlist and save-for-later folders",
     ],
-    icon: FlaskConical,
+    icon: Layers,
+  },
+  {
+    id: "slabit",
+    href: SLABIT_HREF,
+    name: "SlabIt",
+    tagline: "PSA 10 spread · ROI",
+    blurb: "Rank PSA 10 submission ROI across top modern cards.",
+    description:
+      "SlabIt ranks the top 200 Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and probability-weighted submission ROI using live market comps.",
+    highlights: [
+      "Top 200 PSA 10 submission candidates",
+      "Spread, multiplier, and grading-cost breakdown",
+      "Camera scan for Crack + SlabIt data",
+      "Watchlist and save-for-later",
+    ],
+    icon: Ratio,
   },
   {
     id: "binder",

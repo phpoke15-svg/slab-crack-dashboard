@@ -40,6 +40,5 @@ export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [
     tagline: "Pop report filters",
     blurb: "Filter graded cards by PSA population, price band, and grade.",
     icon: BarChart3,
-    comingSoon: true,
   },
 ]
