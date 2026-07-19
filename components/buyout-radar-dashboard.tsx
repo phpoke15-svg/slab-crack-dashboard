@@ -179,6 +179,9 @@ function metricExplainers(alert: BuyoutAlert): Record<
 function storyForAlert(alert: BuyoutAlert): string {
   const p = PRIORITY_META[alert.priority]
   const action = ACTION_COPY[alert.recommendedAction]
+  if (alert.alertKind === "stealth" || alert.alertKind === "both") {
+    return `${alert.cardName} is a ${p.label.toLowerCase()} stealth sweep: ${alert.currentVolume} copies in 24h while listings contracted (volume Z=${(alert.volumeZScore ?? 0).toFixed(1)}, listings Z=${(alert.listingsZScore ?? 0).toFixed(1)}). Price is still only ${alert.priceDeltaPct >= 0 ? "+" : ""}${alert.priceDeltaPct.toFixed(1)}% vs two periods ago — likely before the public spike. Suggested move: ${action.title}.`
+  }
   const priceBit =
     alert.avgPrice24h > 0
       ? ` Average paid price is ${money(alert.avgPrice24h)}${
@@ -430,6 +433,11 @@ function AlertCard({
                 >
                   {meta.label}
                 </span>
+                {alert.alertKind === "stealth" || alert.alertKind === "both" ? (
+                  <span className="inline-flex items-center rounded-md border border-violet-500/40 bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-200">
+                    Stealth
+                  </span>
+                ) : null}
               </div>
               <p className="truncate text-xs text-muted-foreground">{alert.setName}</p>
               <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-sm">

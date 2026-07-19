@@ -13,6 +13,7 @@ import {
   ScanSearch,
 } from "lucide-react"
 import { PokeMatchIcon } from "@/components/icons/collec-tools-icons"
+import { SLABCRACK_HREF, SLABIT_HREF } from "@/lib/slabs-labs-routes"
 
 /** Flip to true when Walmart Affiliate Restocks ships again for everyone. */
 export const RESTOCKS_ENABLED = false
@@ -35,33 +36,33 @@ export type CollecTool = {
 const ALL_COLLECTOOLS: CollecTool[] = [
   {
     id: "slabcrack",
-    href: "/slabcrack",
+    href: SLABCRACK_HREF,
     name: "SlabCrack",
     tagline: "Graded slab arbitrage",
-    blurb: "Find undervalued graded slabs vs raw market prices.",
+    blurb: "Spot raw vs PSA slab gaps and buy-crack-sell opportunities.",
     description:
-      "SlabCrack compares raw NM prices against PSA slab quotes so you can spot buy-crack-sell opportunities, collection bargains, and graded vs raw gaps. Premium unlocks the full deficit feed; Scan in search opens Crack + Lab pricing from a photo.",
+      "SlabCrack compares raw market prices against PSA graded slab quotes so you can find buy-crack-sell arbitrage and undervalued graded Pokémon TCG cards.",
     highlights: [
-      "Buy, crack, and sell when cracking a slab beats holding it",
-      "Hunt high-end cards priced under market for your collection",
-      "Track graded vs raw gaps with live comps",
-      "Camera scan in search for instant Crack + Lab prices",
+      "Live deficit feed across the catalog",
+      "PSA 7–10 grade quotes per card",
+      "Camera scan for instant pricing",
+      "Watchlist and save-for-later folders",
     ],
     icon: Layers,
   },
   {
-    id: "slablab",
-    href: "/slablab",
-    name: "SlabLab",
-    tagline: "Spread · multiplier · ROI",
-    blurb: "Rank PSA 10 submission ROI across the top modern cards.",
+    id: "slabit",
+    href: SLABIT_HREF,
+    name: "SlabIt",
+    tagline: "PSA 10 spread · ROI",
+    blurb: "Rank PSA 10 submission ROI across top modern cards.",
     description:
-      "SlabLab ranks the top 200 modern Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and net ROI after grading cost so you can pick stronger submission candidates. Scan in search opens the same Crack + Lab view from a photo.",
+      "SlabIt ranks the top 200 Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and probability-weighted submission ROI using live market comps.",
     highlights: [
-      "Live market comps for top PSA 10 grading opportunities",
-      "Model net ROI with current PSA grading tiers",
-      "Flag Prime Submission slots and 10-or-Bust danger zones",
-      "Camera scan in search for instant Crack + Lab ROI",
+      "Top 200 PSA 10 submission candidates",
+      "Spread, multiplier, and grading-cost breakdown",
+      "Camera scan for Crack + SlabIt data",
+      "Watchlist and save-for-later",
     ],
     icon: Ratio,
   },

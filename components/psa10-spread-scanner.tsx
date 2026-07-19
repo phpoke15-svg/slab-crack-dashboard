@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { SLABIT_HREF } from "@/lib/slabs-labs-routes"
 import {
   AlertTriangle,
   Bookmark,
@@ -350,7 +351,7 @@ export function Psa10SpreadScanner() {
             )}
           />
           <Link
-            href="/slablab/scan"
+            href={`${SLABIT_HREF}/scan`}
             className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
             aria-label="Scan a card"
           >
@@ -363,7 +364,7 @@ export function Psa10SpreadScanner() {
           <div
             className="flex rounded-xl border border-border bg-secondary/40 p-0.5"
             role="tablist"
-            aria-label="SlabLab view"
+            aria-label="SlabIt view"
           >
             <button
               type="button"
@@ -730,7 +731,7 @@ function SlabLabDetailDrawer({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`${row.name} SlabLab details`}
+        aria-label={`${row.name} SlabIt details`}
         className={cn(
           "relative z-10 flex max-h-[92dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-border bg-card shadow-2xl",
           "sm:mx-4 sm:max-h-[85dvh] sm:rounded-3xl",

@@ -67,7 +67,7 @@ export function catalogHitToBinderCard(hit: CatalogSearchHit): CatalogCard & {
   }
 }
 
-async function attachCachedPrices(rows: CatalogCardRow[]): Promise<CatalogSearchHit[]> {
+export async function attachCachedPrices(rows: CatalogCardRow[]): Promise<CatalogSearchHit[]> {
   if (rows.length === 0) return []
 
   const prices = await getCardPricesForIds(rows.map((row) => row.id))

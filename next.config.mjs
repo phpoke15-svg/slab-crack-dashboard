@@ -25,6 +25,20 @@ const nextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/slabslabs",
+        destination: "/slablabs",
+        permanent: true,
+      },
+      {
+        source: "/slabslabs/:path*",
+        destination: "/slablabs/:path*",
+        permanent: true,
+      },
+    ]
+  },
   async rewrites() {
     return [
       {

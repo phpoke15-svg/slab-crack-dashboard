@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCatalogCardCount } from "@/lib/db/cards-catalog"
-import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
@@ -45,10 +44,8 @@ export async function GET(request: NextRequest) {
       return catalogUnavailableResponse()
     }
 
-    const rawPriceByCardId = await getRawPriceByCardId()
-
     if (q.length >= 2) {
-      const catalogCards = await searchBinderCatalog(q, { limit: pageSize, rawPriceByCardId })
+      const catalogCards = await searchBinderCatalog(q, { limit: pageSize })
       const cards = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
 
       return NextResponse.json({

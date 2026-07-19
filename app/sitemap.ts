@@ -10,8 +10,10 @@ function staticSitemapEntries(): MetadataRoute.Sitemap {
 
   const entries: MetadataRoute.Sitemap = [
     { url: base, lastModified, changeFrequency: "weekly", priority: 1 },
-    { url: `${base}/slabcrack`, lastModified, changeFrequency: "daily", priority: 0.95 },
-    { url: `${base}/slablab`, lastModified, changeFrequency: "daily", priority: 0.9 },
+    { url: `${base}/slablabs`, lastModified, changeFrequency: "daily", priority: 0.95 },
+    { url: `${base}/slablabs/slabcrack`, lastModified, changeFrequency: "daily", priority: 0.93 },
+    { url: `${base}/slablabs/slabpop`, lastModified, changeFrequency: "weekly", priority: 0.88 },
+    { url: `${base}/slablabs/slabit`, lastModified, changeFrequency: "daily", priority: 0.9 },
     { url: `${base}/binder`, lastModified, changeFrequency: "daily", priority: 0.85 },
     { url: `${base}/pokewatch`, lastModified, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/feedback`, lastModified, changeFrequency: "weekly", priority: 0.5 },

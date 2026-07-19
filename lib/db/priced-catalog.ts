@@ -1,8 +1,11 @@
 import mockData from "@/lib/mockData.json"
-import { getBinderCardPriceById } from "@/lib/db/binder-card-prices"
-import { getRawPriceMapFromCardPrices } from "@/lib/pricing/db"
+import { getFeaturedCatalogCards } from "@/lib/db/cards-catalog"
+import { getBinderCardPriceById, getBinderCardPricesForIds } from "@/lib/db/binder-card-prices"
+import { getCardPricesForIds, getRawPriceMapFromCardPrices } from "@/lib/pricing/db"
 import { mergeCachedRawPrices } from "@/lib/pricing/views"
+import { expandCardIdList } from "@/lib/trade-binder/card-id-match"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
+import { cache } from "react"
 import {
   type PricedCatalogCard,
   type PricedCatalogSource,
@@ -11,16 +14,6 @@ import {
   toPricedCatalogCard,
 } from "@/lib/trade-binder/priced-catalog"
 import type { MockCardEntry } from "@/lib/slab-data"
-type SlabCardRow = {
-  id: string
-  name: string
-  set_name: string
-  card_number: string
-  rarity: string | null
-  image_large: string | null
-  image_small: string | null
-  release_date: string | null
-}
 
 type AnomalyRow = {
   watchlist_id: string
@@ -64,32 +57,21 @@ function sourcesToCatalog(
   return sortPricedCatalog([...byId.values()])
 }
 
-async function fetchAllSlabCards(): Promise<SlabCardRow[]> {
-  const supabase = createAdminClient()
-  const pageSize = 1000
-  let from = 0
-  const all: SlabCardRow[] = []
+async function allRowsFromDb(): Promise<PricedCatalogCard[]> {
+  const hits = await getFeaturedCatalogCards(500)
+  const sources: PricedCatalogSource[] = hits.map((hit) => ({
+    id: hit.id,
+    name: hit.name,
+    setName: hit.setName,
+    cardNumber: hit.number,
+    rarity: hit.rarity,
+    imageUrl: hit.imageUrl,
+    rawPrice: hit.rawPrice ?? 0,
+  }))
 
-  while (true) {
-    const { data, error } = await supabase
-      .from("slab_cards")
-      .select(
-        "id, name, set_name, card_number, rarity, image_large, image_small, release_date",
-      )
-      .range(from, from + pageSize - 1)
-
-    if (error) throw error
-    if (!data?.length) break
-
-    all.push(...(data as SlabCardRow[]))
-    if (data.length < pageSize) break
-    from += pageSize
-  }
-
-  return all
+  return sourcesToCatalog(sources, { requirePrice: false })
 }
-
-export async function getRawPriceByCardId(): Promise<Map<string, number>> {
+async function getRawPriceByCardIdUncached(): Promise<Map<string, number>> {
   const [unifiedPrices, binderPrices] = await Promise.all([
     getRawPriceMapFromCardPrices(),
     getBinderCardPriceById(),
@@ -130,20 +112,36 @@ export async function getRawPriceByCardId(): Promise<Map<string, number>> {
   }
 }
 
-async function allRowsFromDb(): Promise<PricedCatalogCard[]> {
-  const [slabCards, priceByCardId] = await Promise.all([fetchAllSlabCards(), getRawPriceByCardId()])
+export const getRawPriceByCardId = cache(getRawPriceByCardIdUncached)
 
-  const sources: PricedCatalogSource[] = slabCards.map((card) => ({
-    id: card.id,
-    name: card.name,
-    setName: card.set_name,
-    cardNumber: card.card_number,
-    rarity: card.rarity,
-    imageUrl: card.image_large ?? card.image_small,
-    rawPrice: priceByCardId.get(card.id) ?? 0,
-  }))
+/** Targeted price lookup for a page of card IDs (avoids full-table scans). */
+export async function getRawPricesForCardIds(cardIds: string[]): Promise<Map<string, number>> {
+  const uniqueIds = [...new Set(cardIds.filter(Boolean))]
+  if (uniqueIds.length === 0) return new Map()
 
-  return sourcesToCatalog(sources, { requirePrice: false })
+  const expandedIds = expandCardIdList(uniqueIds)
+  const [priceRows, binderPrices] = await Promise.all([
+    getCardPricesForIds(expandedIds),
+    getBinderCardPricesForIds(expandedIds),
+  ])
+
+  const unified = new Map<string, number>()
+  for (const [cardId, row] of priceRows) {
+    if ((row.raw_price ?? 0) > 0) unified.set(cardId, row.raw_price!)
+  }
+
+  const merged = mergeCachedRawPrices(unified, binderPrices)
+  const result = new Map<string, number>()
+  for (const id of uniqueIds) {
+    for (const variant of expandCardIdList([id])) {
+      const price = merged.get(variant)
+      if (price && price > 0) {
+        result.set(id, price)
+        break
+      }
+    }
+  }
+  return result
 }
 
 function pricedRowsFromMock(): PricedCatalogCard[] {

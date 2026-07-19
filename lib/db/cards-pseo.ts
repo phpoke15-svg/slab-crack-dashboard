@@ -1,5 +1,5 @@
 import {
-  getCatalogCardById,
+  attachCachedPrices,
   type CatalogCardRow,
   type CatalogSearchHit,
 } from "@/lib/db/cards-catalog"
@@ -7,6 +7,7 @@ import { getCardPriceById } from "@/lib/pricing/db"
 import type { CardPriceRow } from "@/lib/pricing/types"
 import { buildCardSlug, buildSetSlug } from "@/lib/seo/card-slugs"
 import { createReadClient, isSupabaseConfigured } from "@/lib/supabase/server"
+import { cache } from "react"
 
 const SITEMAP_CHUNK_SIZE = 45_000
 
@@ -64,7 +65,8 @@ export async function getCardBySlugs(
     }
     if (!data) return getCardBySlugsFallback(normalizedSet, normalizedCard)
 
-    return getCatalogCardById((data as CatalogCardRow).id)
+    const [hit] = await attachCachedPrices([data as CatalogCardRow])
+    return hit ?? null
   } catch (error) {
     console.error("[cards-pseo] slug lookup failed:", error)
     return null
@@ -89,7 +91,8 @@ async function getCardBySlugsFallback(
     for (const row of data as CatalogCardRow[]) {
       const slugs = rowToSlugs(row)
       if (slugs.setSlug === setSlug && slugs.cardSlug === cardSlug) {
-        return getCatalogCardById(row.id)
+        const [hit] = await attachCachedPrices([row])
+        return hit ?? null
       }
     }
     return null
@@ -127,7 +130,7 @@ export async function getRecentSoldCompCount(cardId: string): Promise<number> {
   }
 }
 
-export async function loadCardPseoPageData(
+export const loadCardPseoPageData = cache(async function loadCardPseoPageData(
   setSlug: string,
   cardSlug: string,
 ): Promise<CardPseoPageData | null> {
@@ -159,7 +162,7 @@ export async function loadCardPseoPageData(
     setSlug: slugs.setSlug,
     cardSlug: slugs.cardSlug,
   }
-}
+})
 
 export async function getCardSitemapChunkCount(): Promise<number> {
   if (!isSupabaseConfigured()) return 0

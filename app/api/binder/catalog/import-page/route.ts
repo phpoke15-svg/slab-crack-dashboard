@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
+import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import {
   fetchPokemonCatalogPage,
   pokemonApiToBinderCard,
@@ -12,10 +12,8 @@ export async function GET(request: NextRequest) {
   const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1)
 
   try {
-    const [{ cards: apiCards, totalCount, pageSize }, rawPriceByCardId] = await Promise.all([
-      fetchPokemonCatalogPage(page),
-      getRawPriceByCardId(),
-    ])
+    const { cards: apiCards, totalCount, pageSize } = await fetchPokemonCatalogPage(page)
+    const rawPriceByCardId = await getRawPricesForCardIds(apiCards.map((card) => card.id))
 
     const cards = apiCards
       .map((card) => pokemonApiToBinderCard(card, rawPriceByCardId.get(card.id) ?? 0))

@@ -84,7 +84,7 @@ export async function notifyPriceAlert(opts: {
   tool: "slabcrack" | "slablab"
   dedupeKey: string
 }): Promise<void> {
-  const url = opts.tool === "slablab" ? "/slablab" : "/slabcrack"
+  const url = opts.tool === "slablab" ? "/slablabs/slabit" : "/slablabs/slabcrack"
   await createUserNotification({
     userId: opts.userId,
     type: "price_alert",

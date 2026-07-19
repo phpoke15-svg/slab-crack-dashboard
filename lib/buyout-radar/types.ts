@@ -47,6 +47,12 @@ export type BuyoutAlert = {
   hourlyVolume: number[]
   notes: string
   detectedAt: string
+  /** Volume-spike detector vs stealth Z-score inventory sweep. */
+  alertKind?: "volume" | "stealth" | "both"
+  volumeZScore?: number | null
+  listingsZScore?: number | null
+  uniqueListings?: number | null
+  pricePctChange2p?: number | null
 }
 
 export type BuyoutRadarResponse = {

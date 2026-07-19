@@ -36,8 +36,16 @@ function isAllowedInApp(url: string) {
 function scanToolFromUrl(url: string): "slabcrack" | "slablab" | null {
   try {
     const path = new URL(url).pathname
-    if (path.includes("/slablab/scan")) return "slablab"
-    if (path.includes("/slabcrack/scan")) return "slabcrack"
+    if (
+      path.includes("/slablabs/slabit/scan") ||
+      path.includes("/slabit/scan") ||
+      path.includes("/slablab/scan")
+    ) {
+      return "slablab"
+    }
+    if (path.includes("/slablabs/slabcrack/scan") || path.includes("/slabcrack/scan")) {
+      return "slabcrack"
+    }
   } catch {
     return null
   }

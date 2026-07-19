@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
+import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import {
   fetchPokemonCatalogPage,
   pokemonApiToBinderCard,
@@ -26,8 +26,6 @@ export async function GET(request: NextRequest) {
   if (apiKey) headers["X-Api-Key"] = apiKey
 
   try {
-    const rawPriceByCardId = await getRawPriceByCardId()
-
     if (q.length >= 1) {
       const url = new URL("https://api.pokemontcg.io/v2/cards")
       url.searchParams.set("q", buildPokemonSearchQuery(q))
@@ -41,7 +39,9 @@ export async function GET(request: NextRequest) {
       }
 
       const data = (await res.json()) as { data?: PokemonApiCard[]; totalCount?: number }
-      const cards = toResponseCards(data.data ?? [], rawPriceByCardId)
+      const apiCards = data.data ?? []
+      const rawPriceByCardId = await getRawPricesForCardIds(apiCards.map((card) => card.id))
+      const cards = toResponseCards(apiCards, rawPriceByCardId)
       const filtered = filterPricedCatalog(cards, q)
 
       return NextResponse.json({
@@ -54,6 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { cards: apiCards, totalCount, pageSize } = await fetchPokemonCatalogPage(page, limit)
+    const rawPriceByCardId = await getRawPricesForCardIds(apiCards.map((card) => card.id))
     const cards = toResponseCards(apiCards, rawPriceByCardId)
 
     return NextResponse.json({

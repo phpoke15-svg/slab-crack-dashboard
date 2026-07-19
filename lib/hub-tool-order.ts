@@ -1,11 +1,27 @@
 import type { CollecTool } from "@/lib/collectools-tools"
 
-/** Parse stored hub order; ignores invalid entries. */
+/** Legacy hub tile ids mapped to current tools. */
+const LEGACY_HUB_TOOL_IDS: Record<string, string> = {
+  slablab: "slabit",
+  slablabs: "slabcrack",
+}
+
+/** Parse stored hub order; ignores invalid entries and migrates legacy tool ids. */
 export function parseHubToolOrder(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
-  return raw
-    .map((item) => (typeof item === "string" ? item.trim() : ""))
-    .filter(Boolean)
+  const seen = new Set<string>()
+  const order: string[] = []
+
+  for (const item of raw) {
+    const id = typeof item === "string" ? item.trim() : ""
+    if (!id) continue
+    const migrated = LEGACY_HUB_TOOL_IDS[id] ?? id
+    if (seen.has(migrated)) continue
+    seen.add(migrated)
+    order.push(migrated)
+  }
+
+  return order
 }
 
 /**

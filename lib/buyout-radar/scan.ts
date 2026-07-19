@@ -8,6 +8,12 @@ import {
   filterSoldItems,
   type EbaySoldItem,
 } from "@/lib/ebay-sold"
+import {
+  estimateListingProxyFromSoldItems,
+  fetchActiveListingCount,
+} from "@/lib/buyout-radar/ebay-listings"
+import { upsertMarketSnapshot } from "@/lib/buyout-radar/snapshots"
+import { snapshotFromSales } from "@/lib/buyout-radar/stealth-detect"
 import { refreshBuyoutAnomaliesFromDatabase } from "@/lib/buyout-radar/store"
 import { SEED_BUYOUT_CARDS } from "@/lib/buyout-radar/seed"
 import type { BuyoutAlert, BuyoutCard, BuyoutSale } from "@/lib/buyout-radar/types"
@@ -257,7 +263,10 @@ function salesFromSoldItems(cardId: string, items: EbaySoldItem[]): BuyoutSale[]
   return out
 }
 
-async function scrapeCardSales(apiKey: string, card: BuyoutCard): Promise<BuyoutSale[]> {
+async function scrapeCardMarketData(
+  apiKey: string,
+  card: BuyoutCard,
+): Promise<{ sales: BuyoutSale[]; rawItems: EbaySoldItem[]; searchQuery: string }> {
   const numberGuess = card.id.includes("-") ? card.id.split("-").pop() || "" : ""
   const queries = defaultEbayQueries({
     cardName: card.name.replace(/\s+\([^)]+\)\s*$/, "").trim() || card.name,
@@ -268,7 +277,11 @@ async function scrapeCardSales(apiKey: string, card: BuyoutCard): Promise<Buyout
     daysToScrape: SOLD_LOOKBACK_DAYS,
   })
   const rawItems = filterSoldItems(data.items ?? [], "raw")
-  return salesFromSoldItems(card.id, rawItems)
+  return {
+    sales: salesFromSoldItems(card.id, rawItems),
+    rawItems,
+    searchQuery: queries.raw,
+  }
 }
 
 /**
@@ -330,9 +343,21 @@ export async function scanBuyoutMarket(options?: {
     const card = batch[i]!
     const isChase = chaseIds.has(card.id)
     try {
-      const sales = await scrapeCardSales(apiKey, card)
+      const { sales, rawItems, searchQuery } = await scrapeCardMarketData(apiKey, card)
       const written = await replaceCardSales(card.id, sales)
       salesIngested += written
+
+      let uniqueListings = await fetchActiveListingCount(searchQuery)
+      let listingsSource: "ebay-browse" | "comp-proxy" = "comp-proxy"
+      if (uniqueListings != null) {
+        listingsSource = "ebay-browse"
+      } else {
+        uniqueListings = estimateListingProxyFromSoldItems(rawItems)
+      }
+      await upsertMarketSnapshot(
+        snapshotFromSales(card.id, sales, uniqueListings, listingsSource),
+      )
+
       cardsScanned += 1
       if (!isChase) marketCardsScanned += 1
       console.log(

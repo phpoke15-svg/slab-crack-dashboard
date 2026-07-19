@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { moveHubToolId, normalizeHubToolOrder, orderHubTools } from "@/lib/hub-tool-order"
+import { moveHubToolId, normalizeHubToolOrder, orderHubTools, parseHubToolOrder } from "@/lib/hub-tool-order"
 import type { CollecTool } from "@/lib/collectools-tools"
 import { Layers } from "lucide-react"
 
@@ -14,6 +14,16 @@ function tool(id: string): CollecTool {
     icon: Layers,
   }
 }
+
+describe("parseHubToolOrder", () => {
+  it("migrates legacy slablab and slablabs ids", () => {
+    expect(parseHubToolOrder(["slabcrack", "binder", "slablab", "slablabs"])).toEqual([
+      "slabcrack",
+      "binder",
+      "slabit",
+    ])
+  })
+})
 
 describe("orderHubTools", () => {
   it("reorders visible tools and appends any missing ids", () => {

@@ -9,6 +9,35 @@ export type BinderCardPriceRow = {
   synced_at: string
 }
 
+export async function getBinderCardPricesForIds(cardIds: string[]): Promise<Map<string, number>> {
+  const prices = new Map<string, number>()
+  if (!isSupabaseConfigured() || cardIds.length === 0) return prices
+
+  const supabase = createAdminClient()
+  const chunkSize = 200
+
+  try {
+    for (let i = 0; i < cardIds.length; i += chunkSize) {
+      const chunk = cardIds.slice(i, i + chunkSize)
+      const { data, error } = await supabase
+        .from("binder_card_prices")
+        .select("card_id, raw_price")
+        .in("card_id", chunk)
+        .gt("raw_price", 0)
+
+      if (error) throw error
+
+      for (const row of (data ?? []) as { card_id: string; raw_price: number }[]) {
+        prices.set(row.card_id, Number(row.raw_price))
+      }
+    }
+  } catch (error) {
+    console.error("[binder-card-prices] read by ids failed:", error)
+  }
+
+  return prices
+}
+
 export async function getBinderCardPriceById(): Promise<Map<string, number>> {
   if (!isSupabaseConfigured()) return new Map()
 
