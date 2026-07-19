@@ -56,9 +56,26 @@ export function PricingClient() {
   const entitlements = useEntitlements()
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [promotionCode, setPromotionCode] = useState("")
+  const [promotionStatus, setPromotionStatus] = useState<{
+    code: string
+    label: string
+  } | null>(null)
+  const [promotionBusy, setPromotionBusy] = useState(false)
 
   const checkoutState = searchParams.get("checkout")
+  const promoFromUrl = searchParams.get("promo")
   const refreshEntitlements = entitlements.refresh
+
+  useEffect(() => {
+    if (!promoFromUrl || promotionCode) return
+    setPromotionCode(promoFromUrl.trim())
+  }, [promoFromUrl, promotionCode])
+
+  useEffect(() => {
+    if (!promotionCode.trim() || promotionStatus?.code === promotionCode.trim()) return
+    setPromotionStatus(null)
+  }, [promotionCode, promotionStatus?.code])
 
   useEffect(() => {
     if (checkoutState !== "success") return
@@ -73,15 +90,60 @@ export function PricingClient() {
     }
   }, [checkoutState, refreshEntitlements])
 
+  const validatePromotionCode = async () => {
+    const code = promotionCode.trim()
+    if (!code) {
+      setPromotionStatus(null)
+      return true
+    }
+
+    setPromotionBusy(true)
+    setError(null)
+    try {
+      const res = await fetch("/api/billing/promo-code", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      })
+      const data = (await res.json().catch(() => null)) as {
+        ok?: boolean
+        error?: string
+        code?: string
+        label?: string
+      } | null
+      if (!res.ok || !data?.ok) {
+        setPromotionStatus(null)
+        setError(data?.error || "Promotion code could not be applied.")
+        return false
+      }
+      setPromotionStatus({ code: data.code ?? code, label: data.label ?? "Discount applied" })
+      return true
+    } catch {
+      setPromotionStatus(null)
+      setError("Could not validate promotion code. Try again.")
+      return false
+    } finally {
+      setPromotionBusy(false)
+    }
+  }
+
   const start = async (priceKey: PriceKey) => {
     if (!user) {
-      window.location.href = `/sign-in?next=${encodeURIComponent("/pricing")}`
+      const next = promotionCode.trim()
+        ? `/pricing?promo=${encodeURIComponent(promotionCode.trim())}`
+        : "/pricing"
+      window.location.href = `/sign-in?next=${encodeURIComponent(next)}`
       return
     }
     setBusyKey(priceKey)
     setError(null)
     try {
-      const url = await entitlements.startCheckout(priceKey)
+      if (promotionCode.trim()) {
+        const valid = await validatePromotionCode()
+        if (!valid) return
+      }
+      const url = await entitlements.startCheckout(priceKey, promotionCode.trim() || undefined)
       if (url) {
         window.location.assign(url)
         return
@@ -232,6 +294,41 @@ export function PricingClient() {
 
         {/* Plans */}
         <section id="plans" className="mt-12 scroll-mt-8 space-y-5">
+          <div className="rounded-2xl border border-border/80 bg-card/40 p-4 sm:p-5">
+            <label htmlFor="promotion-code" className="text-sm font-semibold text-foreground">
+              Promotion code
+            </label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Enter your code here before checkout. Discount codes replace the 7-day free trial so the
+              savings show up immediately on Stripe.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input
+                id="promotion-code"
+                value={promotionCode}
+                onChange={(event) => setPromotionCode(event.target.value)}
+                placeholder="collectools"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                className="h-11 flex-1 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/40 focus:ring-2"
+              />
+              <button
+                type="button"
+                onClick={() => void validatePromotionCode()}
+                disabled={promotionBusy || !promotionCode.trim()}
+                className="inline-flex h-11 items-center justify-center rounded-xl border border-primary/40 px-4 text-sm font-semibold text-foreground transition-colors hover:bg-primary/10 disabled:opacity-60"
+              >
+                {promotionBusy ? <Loader2 className="size-4 animate-spin" /> : "Apply code"}
+              </button>
+            </div>
+            {promotionStatus ? (
+              <p className="mt-2 text-sm text-primary">
+                {promotionStatus.code} applied — {promotionStatus.label}
+              </p>
+            ) : null}
+          </div>
+
           <PlanSpotlight
             badge="PRO"
             name="CollecTools Pro"

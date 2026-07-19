@@ -17,7 +17,7 @@ type EntitlementsState = Entitlements & {
   stripeConfigured: boolean
   isLoading: boolean
   refresh: (opts?: { silent?: boolean }) => Promise<void>
-  startCheckout: (priceKey: string) => Promise<string | null>
+  startCheckout: (priceKey: string, promotionCode?: string) => Promise<string | null>
   openPortal: () => Promise<string | null>
 }
 
@@ -111,12 +111,15 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     }
   }, [userId])
 
-  const startCheckout = useCallback(async (priceKey: string) => {
+  const startCheckout = useCallback(async (priceKey: string, promotionCode?: string) => {
     const res = await fetch("/api/billing/checkout", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ priceKey }),
+      body: JSON.stringify({
+        priceKey,
+        ...(promotionCode?.trim() ? { promotionCode: promotionCode.trim() } : {}),
+      }),
     })
     const data = (await res.json().catch(() => null)) as { url?: string; error?: string } | null
     if (!res.ok || !data?.url) {
