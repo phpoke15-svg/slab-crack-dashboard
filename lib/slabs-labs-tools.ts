@@ -13,6 +13,7 @@ export type SlabLabsSubTool = {
   tagline: string
   blurb: string
   icon: LucideIcon
+  comingSoon?: boolean
 }
 
 export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [
@@ -29,8 +30,9 @@ export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [
     href: SLABPOP_HREF,
     name: "SlabPop",
     tagline: "Pop report filters",
-    blurb: "Filter graded cards by population, price band, and grade.",
+    blurb: "Filter graded cards by PSA population, price band, and grade.",
     icon: BarChart3,
+    comingSoon: true,
   },
   {
     id: "slabit",

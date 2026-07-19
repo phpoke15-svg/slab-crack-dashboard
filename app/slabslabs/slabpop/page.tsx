@@ -4,14 +4,13 @@ import { ArrowLeft } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
-import { SlabPopClient } from "@/components/slabpop-client"
+import { SlabPopComingSoon } from "@/components/slabpop-coming-soon"
 import { JsonLd } from "@/components/seo/json-ld"
-import { getSlabPopCatalog } from "@/lib/card-filters/slabpop-catalog"
 import { pageMetadata, breadcrumbJsonLd, softwareApplicationJsonLd } from "@/lib/seo"
 import { SLABLABS_HREF, SLABPOP_HREF } from "@/lib/slabs-labs-routes"
 
 const description =
-  "SlabPop filters graded Pokémon TCG cards by population proxy, price range, and PSA grade using live PriceCharting prices."
+  "SlabPop — population report filters for graded Pokémon TCG cards. Coming soon to SlabLabs."
 
 export const metadata: Metadata = pageMetadata({
   title: "SlabPop",
@@ -19,10 +18,7 @@ export const metadata: Metadata = pageMetadata({
   path: SLABPOP_HREF,
 })
 
-export default async function SlabPopPage() {
-  const catalog = await getSlabPopCatalog()
-  const source = catalog.some((card) => card.popSource !== "demo") ? "live" : "demo"
-
+export default function SlabPopPage() {
   return (
     <main className="relative min-h-dvh overflow-x-hidden bg-background">
       <JsonLd
@@ -46,14 +42,12 @@ export default async function SlabPopPage() {
       <div className="relative mx-auto flex w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
         <header className="mb-6 flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <CollecToolsBrand href="/" size="lg" subtitle="SlabPop · population filters" />
+            <CollecToolsBrand href="/" size="lg" subtitle="SlabPop · coming soon" />
             <h1 className="mt-5 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               SlabPop
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Filter live PSA graded prices by pop proxy, price band, and grade. Pop counts use
-              SlabCrack sold-comp samples when available, otherwise recent market activity from
-              price history.
+              Population-report filters for graded cards — launching soon inside SlabLabs.
             </p>
             <Link
               href={SLABLABS_HREF}
@@ -66,7 +60,7 @@ export default async function SlabPopPage() {
           <SiteAuthButton />
         </header>
 
-        <SlabPopClient catalog={catalog} source={source} />
+        <SlabPopComingSoon />
 
         <SiteFooter className="mt-12" />
       </div>
