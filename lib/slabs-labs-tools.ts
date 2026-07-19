@@ -26,6 +26,14 @@ export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [
     icon: Layers,
   },
   {
+    id: "slabit",
+    href: SLABIT_HREF,
+    name: "SlabIt",
+    tagline: "Spread · multiplier · ROI",
+    blurb: "Rank PSA 10 submission ROI across top modern cards.",
+    icon: Ratio,
+  },
+  {
     id: "slabpop",
     href: SLABPOP_HREF,
     name: "SlabPop",
@@ -33,13 +41,5 @@ export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [
     blurb: "Filter graded cards by PSA population, price band, and grade.",
     icon: BarChart3,
     comingSoon: true,
-  },
-  {
-    id: "slabit",
-    href: SLABIT_HREF,
-    name: "SlabIt",
-    tagline: "Spread · multiplier · ROI",
-    blurb: "Rank PSA 10 submission ROI across top modern cards.",
-    icon: Ratio,
   },
 ]
