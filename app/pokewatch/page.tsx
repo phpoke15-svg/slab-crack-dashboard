@@ -52,7 +52,7 @@ export default function PokeWatchPage() {
         ]}
         related={[
           { href: "/pricing", label: "Pricing" },
-          { href: "/slabcrack", label: "SlabCrack" },
+          { href: "/slablabs", label: "SlabLabs" },
           { href: "/pokewatch/mobile", label: "Mobile install" },
         ]}
       />

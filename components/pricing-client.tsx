@@ -381,7 +381,7 @@ export function PricingClient() {
                 </ul>
               </div>
               <Link
-                href="/slabcrack"
+                href="/slablabs/slabcrack"
                 className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-border bg-secondary/50 px-5 text-sm font-semibold text-foreground transition-colors hover:border-primary/40"
               >
                 Try SlabCrack free

@@ -15,9 +15,6 @@ type FilterRangeSliderProps = {
   className?: string
 }
 
-const THUMB_CLASS =
-  "pointer-events-none absolute top-1/2 size-4 -translate-y-1/2 rounded-full border-2 border-primary bg-background shadow-md shadow-black/30 ring-0 transition-[box-shadow] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-
 const TRACK_CLASS = "absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-secondary"
 
 /**

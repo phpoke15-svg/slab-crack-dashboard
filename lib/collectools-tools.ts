@@ -2,17 +2,17 @@ import type { LucideIcon } from "lucide-react"
 import {
   Activity,
   Bell,
+  FlaskConical,
   Gift,
-  Layers,
   MessageSquare,
   MessageSquarePlus,
   Package,
   Radar,
-  Ratio,
   ScanEye,
   ScanSearch,
 } from "lucide-react"
 import { PokeMatchIcon } from "@/components/icons/collec-tools-icons"
+import { SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 
 /** Flip to true when Walmart Affiliate Restocks ships again for everyone. */
 export const RESTOCKS_ENABLED = false
@@ -34,36 +34,20 @@ export type CollecTool = {
 
 const ALL_COLLECTOOLS: CollecTool[] = [
   {
-    id: "slabcrack",
-    href: "/slabcrack",
-    name: "SlabCrack",
-    tagline: "Graded slab arbitrage",
-    blurb: "Find undervalued graded slabs vs raw market prices.",
+    id: "slablabs",
+    href: SLABLABS_HREF,
+    name: "SlabLabs",
+    tagline: "Crack · Pop · Submit",
+    blurb: "Graded slab toolkit — arbitrage, pop filters, and submission ROI.",
     description:
-      "SlabCrack compares raw NM prices against PSA slab quotes so you can spot buy-crack-sell opportunities, collection bargains, and graded vs raw gaps. Premium unlocks the full deficit feed; Scan in search opens Crack + Lab pricing from a photo.",
+      "SlabLabs is the home for graded slab research on CollecTools. Open SlabCrack for raw vs PSA arbitrage, SlabPop for population and price filters, or SlabIt for PSA 10 submission spread and ROI rankings.",
     highlights: [
-      "Buy, crack, and sell when cracking a slab beats holding it",
-      "Hunt high-end cards priced under market for your collection",
-      "Track graded vs raw gaps with live comps",
-      "Camera scan in search for instant Crack + Lab prices",
+      "SlabCrack — buy-crack-sell and graded vs raw gap hunting",
+      "SlabPop — non-linear pop report filters by grade and price",
+      "SlabIt — top 200 PSA 10 submission candidates by ROI",
+      "Camera scan on SlabCrack and SlabIt for instant pricing",
     ],
-    icon: Layers,
-  },
-  {
-    id: "slablab",
-    href: "/slablab",
-    name: "SlabLab",
-    tagline: "Spread · multiplier · ROI",
-    blurb: "Rank PSA 10 submission ROI across the top modern cards.",
-    description:
-      "SlabLab ranks the top 200 modern Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and net ROI after grading cost so you can pick stronger submission candidates. Scan in search opens the same Crack + Lab view from a photo.",
-    highlights: [
-      "Live market comps for top PSA 10 grading opportunities",
-      "Model net ROI with current PSA grading tiers",
-      "Flag Prime Submission slots and 10-or-Bust danger zones",
-      "Camera scan in search for instant Crack + Lab ROI",
-    ],
-    icon: Ratio,
+    icon: FlaskConical,
   },
   {
     id: "binder",

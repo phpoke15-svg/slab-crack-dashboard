@@ -9,8 +9,7 @@ type SiteFooterProps = {
 }
 
 const PRODUCT_LINKS = [
-  { href: "/slabcrack", label: "SlabCrack" },
-  { href: "/slablab", label: "SlabLab" },
+  { href: "/slablabs", label: "SlabLabs" },
   { href: "/binder", label: "PokeMatch" },
   { href: "/pokewatch", label: "PokeWatch" },
   ...(RESTOCKS_ENABLED ? [{ href: "/restocks", label: "Restocks" }] : []),

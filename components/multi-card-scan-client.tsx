@@ -21,7 +21,15 @@ import {
   type MockCardEntry,
 } from "@/lib/slab-data"
 
-type ScanTool = "slabcrack" | "slablab"
+import {
+  isSlabItTool,
+  slabLabsMultiScanHref,
+  slabLabsScanBackHref,
+  slabLabsScanHref,
+  type SlabLabsScanTool,
+} from "@/lib/slabs-labs-routes"
+
+type ScanTool = SlabLabsScanTool | "slablab"
 type Phase = "camera" | "results"
 
 type ResultRow = {
@@ -39,9 +47,9 @@ function formatMoney(n: number) {
 }
 
 export function MultiCardScanClient({ tool = "slabcrack" }: { tool?: ScanTool }) {
-  const backHref = tool === "slablab" ? "/slablab" : "/slabcrack"
-  const singleScanHref = tool === "slablab" ? "/slablab/scan" : "/slabcrack/scan"
-  const toolLabel = tool === "slablab" ? "SlabLab Multi-Scan" : "SlabCrack Multi-Scan"
+  const backHref = slabLabsScanBackHref(tool)
+  const singleScanHref = slabLabsScanHref(tool)
+  const toolLabel = isSlabItTool(tool) ? "SlabIt Multi-Scan" : "SlabCrack Multi-Scan"
 
   const refreshGenRef = useRef(0)
 

@@ -38,8 +38,7 @@ export default function BinderPage() {
           "Chat, complete swaps, and leave reviews",
         ]}
         related={[
-          { href: "/slabcrack", label: "SlabCrack" },
-          { href: "/slablab", label: "SlabLab" },
+          { href: "/slablabs", label: "SlabLabs" },
           { href: "/pricing", label: "Pricing" },
         ]}
       />

@@ -12,6 +12,8 @@ export default function robots(): MetadataRoute.Robots {
     "/grade-check",
     "/buyout-radar",
     "/live-binder-hud",
+    "/slablabs/slabcrack/scan",
+    "/slablabs/slabit/scan",
     "/slabcrack/scan",
     "/slablab/scan",
     "/pokewatch/mobile",

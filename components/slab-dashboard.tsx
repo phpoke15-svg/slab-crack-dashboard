@@ -15,6 +15,7 @@ import {
   Camera,
 } from "lucide-react"
 import Link from "next/link"
+import { SLABCRACK_HREF } from "@/lib/slabs-labs-routes"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
@@ -317,7 +318,7 @@ export function SlabDashboard() {
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="px-4 pt-5 pb-3 sm:px-6">
           <div className="flex items-center justify-between">
-            <CollecToolsBrand href="/" subtitle="SlabCrack · graded slab arbitrage" size="sm" />
+            <CollecToolsBrand href="/" subtitle="SlabLabs · SlabCrack" size="sm" />
             <div className="flex items-center gap-2">
               <div className="flex flex-col items-end">
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground">
@@ -344,7 +345,7 @@ export function SlabDashboard() {
               )}
             />
             <Link
-              href="/slabcrack/scan"
+              href={`${SLABCRACK_HREF}/scan`}
               className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
               aria-label="Scan a card"
             >

@@ -26,7 +26,14 @@ import {
   type MockCardEntry,
 } from "@/lib/slab-data"
 
-type ScanTool = "slabcrack" | "slablab"
+import {
+  isSlabItTool,
+  slabLabsMultiScanHref,
+  slabLabsScanBackHref,
+  type SlabLabsScanTool,
+} from "@/lib/slabs-labs-routes"
+
+type ScanTool = SlabLabsScanTool | "slablab"
 type Phase = "camera" | "manual" | "hud"
 
 function formatMoney(n: number) {
@@ -42,9 +49,9 @@ function formatSigned(n: number) {
 }
 
 export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool }) {
-  const backHref = tool === "slablab" ? "/slablab" : "/slabcrack"
-  const multiScanHref = tool === "slablab" ? "/slablab/multi-scan" : "/slabcrack/multi-scan"
-  const toolLabel = tool === "slablab" ? "SlabLab Scan" : "SlabCrack Scan"
+  const backHref = slabLabsScanBackHref(tool)
+  const multiScanHref = slabLabsMultiScanHref(tool)
+  const toolLabel = isSlabItTool(tool) ? "SlabIt Scan" : "SlabCrack Scan"
 
   const seededHitsRef = useRef<CardSearchHit[]>([])
   const seedQueryRef = useRef("")
@@ -301,7 +308,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
           <Link
             href={backHref}
             className="flex size-9 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/5 text-white/80"
-            aria-label={`Back to ${tool === "slablab" ? "SlabLab" : "SlabCrack"}`}
+            aria-label={`Back to ${isSlabItTool(tool) ? "SlabIt" : "SlabCrack"}`}
           >
             <ArrowLeft className="size-4" />
           </Link>
@@ -428,7 +435,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
 
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <div className="col-span-3 -mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-white/45">
-                  SlabLab · PSA 10
+                  SlabIt · PSA 10
                 </div>
                 <div className="rounded-xl border border-white/10 bg-white/5 px-2 py-2 text-center">
                   <p className="text-[10px] uppercase tracking-wide text-white/50">Gross</p>
@@ -469,10 +476,10 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   Full Crack + Lab data
                 </button>
                 <Link
-                  href={tool === "slablab" ? "/slablab" : "/slabcrack"}
+                  href={backHref}
                   className="inline-flex h-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 px-3 text-sm font-medium text-white"
                 >
-                  {tool === "slablab" ? "Board" : "Feed"}
+                  {isSlabItTool(tool) ? "Board" : "Feed"}
                 </Link>
                 <button
                   type="button"

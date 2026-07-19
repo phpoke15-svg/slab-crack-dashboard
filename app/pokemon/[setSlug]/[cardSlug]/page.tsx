@@ -113,7 +113,7 @@ export default async function PokemonCardPseoPage({ params }: PageProps) {
                 Open PokeMatch Binder
               </Link>
               <Link
-                href="/slabcrack"
+                href="/slablabs"
                 className="rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm font-medium hover:bg-accent"
               >
                 Check Slab Arbitrage
