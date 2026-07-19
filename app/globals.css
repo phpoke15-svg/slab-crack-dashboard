@@ -162,6 +162,7 @@
 
 /* Crawler-facing SEO intros — in the DOM for bots, not shown to users */
 .seo-crawl-intro {
+<<<<<<< HEAD
   position: absolute;
   width: 1px;
   height: 1px;
@@ -171,6 +172,24 @@
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+=======
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+/* CollecTools native app shell (WebView injects html.native-app) */
+html.native-app .seo-crawl-intro {
+  display: none !important;
+>>>>>>> b00ab76 (Hide SEO crawl intros globally for all users)
 }
 
 /* CollecTools native app shell (WebView injects html.native-app) */
