@@ -1,6 +1,6 @@
+import { getFeaturedCatalogCards } from "@/lib/db/cards-catalog"
 import { listDistinctBinderCards } from "@/lib/db/binder-card-prices"
 import { upsertBinderCardPrices } from "@/lib/db/binder-card-prices"
-import { getPricedCatalogCards } from "@/lib/db/priced-catalog"
 import { getWatchlistFromDb } from "@/lib/db/watchlist"
 import { fetchCardPricesBatch } from "@/lib/pricing/fetch"
 import {
@@ -8,7 +8,6 @@ import {
   listStaleCardPriceIds,
   upsertCardPricesSafe,
 } from "@/lib/pricing/db"
-import { sortPricedCatalog } from "@/lib/trade-binder/priced-catalog"
 import type { CardPriceTarget, PriceHistoryPoint, SyncCardPricesResult } from "@/lib/pricing/types"
 
 /** Vercel maxDuration is 300s — stay under with margin for DB writes. */
@@ -46,16 +45,15 @@ function mergeTargets(...groups: CardPriceTarget[][]): CardPriceTarget[] {
 
 async function popularTargetsFromCatalog(limit: number): Promise<CardPriceTarget[]> {
   try {
-    const catalog = sortPricedCatalog(await getPricedCatalogCards())
-    return catalog
-      .filter((card) => card.rawPrice > 0)
-      .slice(0, limit)
-      .map((card) => ({
-        cardId: card.id,
-        cardName: card.name,
-        setName: card.set,
-        cardNumber: card.cardNumber,
-        priceChartingId: card.id.startsWith("pc-") ? card.id.replace(/^pc-/, "") : undefined,
+    const hits = await getFeaturedCatalogCards(limit)
+    return hits
+      .filter((hit) => (hit.rawPrice ?? 0) > 0)
+      .map((hit) => ({
+        cardId: hit.id,
+        cardName: hit.name,
+        setName: hit.setName,
+        cardNumber: hit.number || undefined,
+        priceChartingId: hit.id.startsWith("pc-") ? hit.id.replace(/^pc-/, "") : undefined,
       }))
   } catch (error) {
     console.warn("[pricing/sync] popular catalog targets failed:", error)

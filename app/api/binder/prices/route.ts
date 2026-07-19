@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
 import { resolveSearchCardPrices } from "@/lib/pricing/persist-search-prices"
 
 export const maxDuration = 15

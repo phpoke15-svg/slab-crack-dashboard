@@ -258,7 +258,6 @@ async function legacySlabMatches(
 async function pricedCatalogMatches(
   band: PrizeCardPriceBand,
   fetchLimit: number,
-  cachedPrices: Map<string, number>,
 ): Promise<GiveawayPrizeCard[]> {
   const cards: GiveawayPrizeCard[] = []
   const seenIds = new Set<string>()
@@ -272,6 +271,7 @@ async function pricedCatalogMatches(
   }
 
   if (cards.length < fetchLimit) {
+    const cachedPrices = await getRawPriceByCardId()
     const legacy = await legacySlabMatches(band, fetchLimit - cards.length, seenIds, cachedPrices)
     for (const card of legacy) {
       if (hasTrackedVariant(card.id, seenIds)) continue
@@ -301,10 +301,7 @@ async function closestPrizeCards(target: number, limit: number): Promise<Giveawa
   return collectMockCards(target, { limit })
 }
 
-async function queryCatalogInBand(
-  band: PrizeCardPriceBand,
-  cachedPrices: Map<string, number>,
-): Promise<GiveawayPrizeCard[]> {
+async function queryCatalogInBand(band: PrizeCardPriceBand): Promise<GiveawayPrizeCard[]> {
   if (!isSupabaseConfigured()) {
     const inBand = collectMockCards(band.target, { min: band.min, max: band.max })
     if (inBand.length) return inBand
@@ -312,11 +309,7 @@ async function queryCatalogInBand(
   }
 
   try {
-    const cards = await pricedCatalogMatches(
-      band,
-      GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT * 6,
-      cachedPrices,
-    )
+    const cards = await pricedCatalogMatches(band, GIVEAWAY_PRIZE_CARD_SHOWCASE_LIMIT * 6)
     if (cards.length) return cards
   } catch (error) {
     console.warn("[giveaway-prize-cards] priced catalog query failed:", error)
@@ -329,7 +322,6 @@ async function priceChartingCardsInBand(
   band: PrizeCardPriceBand,
   limit: number,
   excludeIds: Set<string>,
-  cachedPrices: Map<string, number>,
 ): Promise<GiveawayPrizeCard[]> {
   if (!process.env.PRICECHARTING_API_KEY || !isSupabaseConfigured()) return []
 
@@ -338,6 +330,7 @@ async function priceChartingCardsInBand(
     GIVEAWAY_PRIZE_CARD_PC_CANDIDATE_POOL,
   )).filter((hit) => !hasTrackedVariant(hit.id, excludeIds))
 
+  const cachedPrices = await getRawPriceByCardId()
   const priced = await attachBinderCardPrices(
     candidates.map((hit) => ({
       id: hit.id,
@@ -386,14 +379,12 @@ export async function getGiveawayPrizeCards(
     return { band: { min: 0, max: 0, target: 0 }, cards: [], usedLivePriceCharting: false }
   }
 
-  const cachedPrices = isSupabaseConfigured() ? await getRawPriceByCardId() : new Map<string, number>()
-
-  let cached = dedupePrizeCards(await queryCatalogInBand(band, cachedPrices), limit)
+  let cached = dedupePrizeCards(await queryCatalogInBand(band), limit)
 
   let usedLivePriceCharting = false
   if (cached.length < limit) {
     const excludeIds = new Set(cached.map((card) => card.id))
-    const live = await priceChartingCardsInBand(band, limit - cached.length, excludeIds, cachedPrices)
+    const live = await priceChartingCardsInBand(band, limit - cached.length, excludeIds)
     if (live.length) {
       usedLivePriceCharting = true
       cached = dedupePrizeCards([...cached, ...live], limit)

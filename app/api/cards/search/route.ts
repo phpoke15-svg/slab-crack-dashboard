@@ -17,12 +17,12 @@ const searchCache = new Map<string, { results: CardSearchHit[]; expiresAt: numbe
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const q = searchParams.get("q")?.trim() ?? ""
+  const catalogReady = (await getCatalogCardCount()) > 0
 
   if (q.length < 2) {
-    return NextResponse.json({ results: [], catalogReady: (await getCatalogCardCount()) > 0 })
+    return NextResponse.json({ results: [], catalogReady })
   }
 
-  const catalogReady = (await getCatalogCardCount()) > 0
   if (!catalogReady) {
     return NextResponse.json(
       { results: [], catalogReady: false, error: CATALOG_NOT_SEEDED_MESSAGE },

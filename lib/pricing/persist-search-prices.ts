@@ -1,4 +1,4 @@
-import { getRawPriceByCardId } from "@/lib/db/priced-catalog"
+import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import type { BinderPriceInput } from "@/lib/trade-binder/binder-prices"
 
 /**
@@ -13,9 +13,10 @@ export async function resolveSearchCardPrices(
 ): Promise<Map<string, number>> {
   if (cards.length === 0) return new Map()
 
-  const cachedPrices = await getRawPriceByCardId()
-  const prices = new Map<string, number>()
   const limit = options?.limit ?? cards.length
+  const ids = cards.slice(0, limit).map((card) => card.id)
+  const cachedPrices = await getRawPricesForCardIds(ids)
+  const prices = new Map<string, number>()
 
   for (const card of cards.slice(0, limit)) {
     const price = cachedPrices.get(card.id)
