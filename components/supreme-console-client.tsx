@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BarChart3,
   FlaskConical,
+  Globe,
   Gift,
   Loader2,
   RefreshCw,
@@ -104,6 +105,24 @@ type MetricsPayload = {
   }
   counts: Record<string, number | null>
   planBreakdown: Record<string, number>
+  traffic?: {
+    configured: boolean
+    projectId: string | null
+    error: string | null
+    fetchedAt: string
+    monthLabel: string
+    monthStart: string
+    periods: {
+      today: { pageviews: number | null; visitors: number | null }
+      last7d: { pageviews: number | null; visitors: number | null }
+      last30d: { pageviews: number | null; visitors: number | null }
+      monthToDate: { pageviews: number | null; visitors: number | null }
+    }
+    dailyLast30d: Array<{ date: string; pageviews: number; visitors: number }>
+    topRoutes: Array<{ key: string; pageviews: number; visitors: number }>
+    topReferrers: Array<{ key: string; pageviews: number; visitors: number }>
+    topCountries: Array<{ key: string; pageviews: number; visitors: number }>
+  }
   error?: string
 }
 
@@ -120,6 +139,7 @@ const CHECK_LABELS: Record<string, string> = {
   queueWatchReportsReady: "PokeWatch table",
   discoveryMaxSetAgeYears: "Discovery max set age",
   supremeEmailsConfigured: "Supreme allowlist",
+  vercelAnalyticsConfigured: "Vercel Analytics API",
 }
 
 function fmt(n: number | null | undefined): string {
@@ -339,6 +359,73 @@ export function SupremeConsoleClient() {
                       hint={`${fmt(data.slabcrack.anomaliesHighSavings)} ≥20% save`}
                     />
                   </div>
+                </section>
+
+                {/* Site traffic (Vercel Analytics) */}
+                <section className="rounded-2xl border border-border bg-card/50 p-4 sm:p-5">
+                  <SectionLabel icon={Globe} title="Site traffic" />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Production page views and visitors from Vercel Web Analytics.
+                    {data.traffic?.fetchedAt ? (
+                      <>
+                        {" "}
+                        Updated {new Date(data.traffic.fetchedAt).toLocaleString()}.
+                      </>
+                    ) : null}
+                  </p>
+
+                  {!data.traffic?.configured ? (
+                    <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-muted-foreground">
+                      Add a Vercel access token as{" "}
+                      <span className="font-mono">VERCEL_ANALYTICS_TOKEN</span> in Production env
+                      vars, then redeploy. Project ID is picked up automatically from{" "}
+                      <span className="font-mono">VERCEL_PROJECT_ID</span>.
+                    </p>
+                  ) : data.traffic.error ? (
+                    <p className="mt-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                      {data.traffic.error}
+                    </p>
+                  ) : (
+                    <>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <Kpi
+                          label={`Visitors · ${data.traffic.monthLabel}`}
+                          value={fmt(data.traffic.periods.monthToDate.visitors)}
+                          hint={`${fmt(data.traffic.periods.monthToDate.pageviews)} page views`}
+                        />
+                        <Kpi
+                          label="Visitors · 30d"
+                          value={fmt(data.traffic.periods.last30d.visitors)}
+                          hint={`${fmt(data.traffic.periods.last30d.pageviews)} page views`}
+                        />
+                        <Kpi
+                          label="Visitors · 7d"
+                          value={fmt(data.traffic.periods.last7d.visitors)}
+                          hint={`${fmt(data.traffic.periods.last7d.pageviews)} page views`}
+                        />
+                        <Kpi
+                          label="Visitors · today"
+                          value={fmt(data.traffic.periods.today.visitors)}
+                          hint={`${fmt(data.traffic.periods.today.pageviews)} page views`}
+                        />
+                      </div>
+
+                      {data.traffic.dailyLast30d.length > 0 ? (
+                        <div className="mt-6">
+                          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            Daily visitors · last 30 days
+                          </p>
+                          <TrafficSparkline points={data.traffic.dailyLast30d} />
+                        </div>
+                      ) : null}
+
+                      <div className="mt-6 grid gap-6 md:grid-cols-3">
+                        <TrafficBreakdown title="Top routes" rows={data.traffic.topRoutes} />
+                        <TrafficBreakdown title="Top referrers" rows={data.traffic.topReferrers} />
+                        <TrafficBreakdown title="Top countries" rows={data.traffic.topCountries} />
+                      </div>
+                    </>
+                  )}
                 </section>
 
                 {/* Accounts & activity */}
@@ -631,6 +718,73 @@ function BreakdownBars({ data }: { data: Record<string, number> }) {
         </li>
       ))}
     </ul>
+  )
+}
+
+function TrafficSparkline({
+  points,
+}: {
+  points: Array<{ date: string; pageviews: number; visitors: number }>
+}) {
+  const max = Math.max(1, ...points.map((p) => p.visitors))
+  return (
+    <div className="flex h-20 items-end gap-0.5 overflow-x-auto rounded-xl border border-border/70 bg-secondary/20 px-2 py-2">
+      {points.map((point) => (
+        <div
+          key={point.date}
+          className="min-w-[6px] flex-1 rounded-sm bg-primary/70"
+          style={{ height: `${Math.max(6, (point.visitors / max) * 100)}%` }}
+          title={`${point.date}: ${point.visitors.toLocaleString()} visitors`}
+        />
+      ))}
+    </div>
+  )
+}
+
+function TrafficBreakdown({
+  title,
+  rows,
+}: {
+  title: string
+  rows: Array<{ key: string; pageviews: number; visitors: number }>
+}) {
+  const max = Math.max(1, ...rows.map((row) => row.pageviews))
+  if (rows.length === 0) {
+    return (
+      <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {title}
+        </p>
+        <p className="text-xs text-muted-foreground">No data</p>
+      </div>
+    )
+  }
+  return (
+    <div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </p>
+      <ul className="space-y-2">
+        {rows.map((row) => (
+          <li key={row.key}>
+            <div className="mb-0.5 flex items-center justify-between gap-2 text-xs">
+              <span className="truncate font-mono text-muted-foreground" title={row.key}>
+                {row.key}
+              </span>
+              <span className="shrink-0 font-mono tabular-nums text-foreground">
+                {row.pageviews.toLocaleString()}
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+              <div
+                className="h-full rounded-full bg-primary/60"
+                style={{ width: `${Math.max(4, (row.pageviews / max) * 100)}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

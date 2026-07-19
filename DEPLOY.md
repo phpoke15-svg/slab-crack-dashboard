@@ -45,6 +45,7 @@ Copy from [`.env.example`](./.env.example). Minimum for public:
 | `STRIPE_WEBHOOK_SECRET` | Subscription sync webhook |
 | `STRIPE_PRICE_PREMIUM_MONTHLY` / `_YEARLY` | Premium price IDs |
 | `STRIPE_PRICE_PRO_MONTHLY` / `_YEARLY` | Pro price IDs |
+| `VERCEL_ANALYTICS_TOKEN` | Optional — Vercel access token for Site Insights traffic on `/supreme` |
 
 After changing env vars, **Redeploy**.
 
