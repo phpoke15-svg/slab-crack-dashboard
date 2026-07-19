@@ -332,12 +332,19 @@ export function SupremeConsoleClient() {
                 {/* Overview KPIs */}
                 <section>
                   <SectionLabel icon={Activity} title="Overview" />
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                     <Kpi
                       label="Accounts"
                       value={fmt(data.accounts?.total ?? data.overview.authUsers)}
                       hint={`${fmt(data.accounts?.created7d)} new · 7d`}
                     />
+                    {data.traffic?.configured && !data.traffic.error ? (
+                      <Kpi
+                        label={`Visitors · ${data.traffic.monthLabel}`}
+                        value={fmt(data.traffic.periods.monthToDate.visitors)}
+                        hint={`${fmt(data.traffic.periods.monthToDate.pageviews)} page views`}
+                      />
+                    ) : null}
                     <Kpi
                       label="Active now"
                       value={fmt(data.activity?.activeNow)}
