@@ -6,11 +6,12 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { SlabPopClient } from "@/components/slabpop-client"
 import { JsonLd } from "@/components/seo/json-ld"
+import { getSlabPopCatalog } from "@/lib/card-filters/slabpop-catalog"
 import { pageMetadata, breadcrumbJsonLd, softwareApplicationJsonLd } from "@/lib/seo"
 import { SLABLABS_HREF, SLABPOP_HREF } from "@/lib/slabs-labs-routes"
 
 const description =
-  "SlabPop filters graded Pokémon TCG cards by population report, price range, and grade so you can hunt low-pop slabs in your budget."
+  "SlabPop filters graded Pokémon TCG cards by population proxy, price range, and PSA grade using live PriceCharting prices."
 
 export const metadata: Metadata = pageMetadata({
   title: "SlabPop",
@@ -18,7 +19,10 @@ export const metadata: Metadata = pageMetadata({
   path: SLABPOP_HREF,
 })
 
-export default function SlabPopPage() {
+export default async function SlabPopPage() {
+  const catalog = await getSlabPopCatalog()
+  const source = catalog.some((card) => card.popSource !== "demo") ? "live" : "demo"
+
   return (
     <main className="relative min-h-dvh overflow-x-hidden bg-background">
       <JsonLd
@@ -47,8 +51,9 @@ export default function SlabPopPage() {
               SlabPop
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Filter graded cards by pop report ceiling, price band, and grade. The non-linear pop
-              slider gives fine control for rare low-pop hunts.
+              Filter live PSA graded prices by pop proxy, price band, and grade. Pop counts use
+              SlabCrack sold-comp samples when available, otherwise recent market activity from
+              price history.
             </p>
             <Link
               href={SLABLABS_HREF}
@@ -61,7 +66,7 @@ export default function SlabPopPage() {
           <SiteAuthButton />
         </header>
 
-        <SlabPopClient />
+        <SlabPopClient catalog={catalog} source={source} />
 
         <SiteFooter className="mt-12" />
       </div>

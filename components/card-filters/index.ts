@@ -22,4 +22,6 @@ export type {
   CardMarketFilterState,
   GradeFilter,
   MockGradedCard,
+  SlabPopCard,
 } from "@/lib/card-filters/types"
+export { getSlabPopCatalog } from "@/lib/card-filters/slabpop-catalog"

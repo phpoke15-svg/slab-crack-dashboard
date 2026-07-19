@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { FilterRangeSlider } from "@/components/card-filters/filter-range-slider"
 import { GradePillGroup } from "@/components/card-filters/grade-pill-group"
 import { filterGradedCards } from "@/lib/card-filters/filter-catalog"
-import { MOCK_GRADED_CARDS } from "@/lib/card-filters/mock-catalog"
 import {
   formatPopLabel,
   POP_MAX,
@@ -19,7 +18,7 @@ import {
   PRICE_MAX,
   PRICE_MIN,
 } from "@/lib/card-filters/price-scale"
-import type { CardMarketFilterState, GradeFilter, MockGradedCard } from "@/lib/card-filters/types"
+import type { CardMarketFilterState, GradeFilter, SlabPopCard } from "@/lib/card-filters/types"
 import { cn } from "@/lib/utils"
 import { SlidersHorizontal } from "lucide-react"
 
@@ -31,9 +30,9 @@ const DEFAULT_FILTERS: CardMarketFilterState = {
 }
 
 type CardMarketFilterPanelProps = {
-  /** Override demo catalog — wire to live inventory in production. */
-  catalog?: MockGradedCard[]
-  onViewResults?: (matches: MockGradedCard[], filters: CardMarketFilterState) => void
+  /** Live or demo graded catalog rows */
+  catalog: SlabPopCard[]
+  onViewResults?: (matches: SlabPopCard[], filters: CardMarketFilterState) => void
   className?: string
 }
 
@@ -42,7 +41,7 @@ type CardMarketFilterPanelProps = {
  * grade pills, and a live result count action button.
  */
 export function CardMarketFilterPanel({
-  catalog = MOCK_GRADED_CARDS,
+  catalog,
   onViewResults,
   className,
 }: CardMarketFilterPanelProps) {
@@ -205,5 +204,5 @@ function PopCeilingSlider({ position, maxPop, summary, onPositionChange }: PopCe
   )
 }
 
-export { MOCK_GRADED_CARDS, filterGradedCards, DEFAULT_FILTERS }
-export type { CardMarketFilterState, MockGradedCard, GradeFilter }
+export { filterGradedCards, DEFAULT_FILTERS }
+export type { CardMarketFilterState, SlabPopCard, GradeFilter }

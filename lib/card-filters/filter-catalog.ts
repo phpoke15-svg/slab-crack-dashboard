@@ -1,9 +1,9 @@
-import type { CardMarketFilterState, MockGradedCard } from "@/lib/card-filters/types"
+import type { CardMarketFilterState, SlabPopCard } from "@/lib/card-filters/types"
 
 export function filterGradedCards(
-  cards: MockGradedCard[],
+  cards: SlabPopCard[],
   filters: CardMarketFilterState,
-): MockGradedCard[] {
+): SlabPopCard[] {
   return cards.filter((card) => {
     if (card.popCount > filters.maxPop) return false
     if (card.price < filters.minPrice || card.price > filters.maxPrice) return false
