@@ -38,21 +38,6 @@ create table if not exists public.price_history (
 create index if not exists price_history_lookup_idx
   on public.price_history (card_id, grade, snapshot_date desc);
 
--- Cursor for walking the full cards catalog across cron runs (price history backfill).
-create table if not exists public.price_history_sync_state (
-  id integer primary key check (id = 1),
-  cursor_offset integer not null default 0,
-  catalog_size integer not null default 0,
-  updated_at timestamptz not null default now()
-);
-
-insert into public.price_history_sync_state (id, cursor_offset, catalog_size)
-values (1, 0, 0)
-on conflict (id) do nothing;
-
-alter table public.price_history_sync_state enable row level security;
-grant all on public.price_history_sync_state to service_role;
-
 alter table public.card_prices enable row level security;
 alter table public.price_history enable row level security;
 

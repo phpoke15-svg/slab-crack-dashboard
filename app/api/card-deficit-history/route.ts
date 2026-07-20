@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getDailyPriceHistory } from "@/lib/db/price-history"
+import { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
 import {
   analyzeDeficitHistory,
   getDeficitTrendFromHistory,
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
   const grade = gradeParam as PsaGradeNumber
 
   try {
+    await ensureCardPriceHistory(id, { days })
     const { points, salesDays, snapshotDays } = await getDailyPriceHistory(id, grade, days)
     const history = points.map((p) => p.deficit)
     const trend = getDeficitTrendFromHistory(history)

@@ -5,6 +5,7 @@ import {
   enrichSearchCardPrices,
   SEARCH_SERVER_LIVE_PRICE_LIMIT,
 } from "@/lib/pricing/persist-search-prices"
+import { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalogWithSource } from "@/lib/trade-binder/catalog-search"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
@@ -78,6 +79,10 @@ export async function GET(request: NextRequest) {
         ...card,
         image: card.imageUrl ?? card.image,
       }))
+
+      void Promise.all(
+        pricedCards.slice(0, 3).map((card) => ensureCardPriceHistory(card.id).catch(() => null)),
+      )
 
       return NextResponse.json({
         cards: pricedCards,
