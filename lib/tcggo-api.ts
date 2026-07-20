@@ -389,13 +389,126 @@ export async function fetchTcgGoCardByTcgId(
   tcgId: string,
   options?: TcgGoRequestOptions,
 ): Promise<TcgGoCard | null> {
+  const normalized = tcgId.trim().toLowerCase()
+  if (!normalized) return null
+
+  const attempts: Array<Record<string, string | number>> = [
+    { tcgid: normalized, per_page: 1 },
+    { search: normalized, per_page: 5 },
+    { tcgids: normalized, per_page: 1 },
+  ]
+
+  for (const params of attempts) {
+    try {
+      const payload = await tcgGoFetch<unknown>("/cards", params, options)
+      const cards = unwrapCardList(payload)
+      const exact =
+        cards.find((card) => card.tcgid?.toLowerCase() === normalized) ??
+        cards.find((card) => card.tcgid?.toLowerCase().includes(normalized))
+      if (exact) return exact
+      if (cards[0]) return cards[0]
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
+export async function fetchTcgGoCardByTcgplayerId(
+  tcgplayerId: number,
+  options?: TcgGoRequestOptions,
+): Promise<TcgGoCard | null> {
   try {
-    const payload = await tcgGoFetch<unknown>("/cards", { tcgid: tcgId, per_page: 1 }, options)
-    const cards = unwrapCardList(payload)
-    return cards[0] ?? null
+    const payload = await tcgGoFetch<unknown>(
+      "/cards",
+      { tcgplayer_id: tcgplayerId, per_page: 1 },
+      options,
+    )
+    return unwrapCardList(payload)[0] ?? null
   } catch {
     return null
   }
+}
+
+export type TcgGoEpisode = {
+  id?: number
+  name?: string
+  code?: string
+}
+
+function unwrapEpisodeList(payload: unknown): TcgGoEpisode[] {
+  if (Array.isArray(payload)) return payload as TcgGoEpisode[]
+  if (!payload || typeof payload !== "object") return []
+
+  const record = payload as Record<string, unknown>
+  for (const key of ["data", "episodes", "results", "items"]) {
+    const value = record[key]
+    if (Array.isArray(value)) return value as TcgGoEpisode[]
+  }
+  return []
+}
+
+export async function fetchTcgGoEpisodes(
+  options?: { search?: string; perPage?: number },
+  requestOptions?: TcgGoRequestOptions,
+): Promise<TcgGoEpisode[]> {
+  try {
+    const payload = await tcgGoFetch<unknown>(
+      "/episodes",
+      { search: options?.search, per_page: options?.perPage ?? 30 },
+      requestOptions,
+    )
+    return unwrapEpisodeList(payload)
+  } catch {
+    return []
+  }
+}
+
+export async function fetchTcgGoEpisodeCards(
+  episodeId: number,
+  perPage = 250,
+  requestOptions?: TcgGoRequestOptions,
+): Promise<TcgGoCard[]> {
+  try {
+    const payload = await tcgGoFetch<unknown>(
+      `/episodes/${episodeId}/cards`,
+      { per_page: perPage },
+      requestOptions,
+    )
+    return unwrapCardList(payload)
+  } catch {
+    return []
+  }
+}
+
+export async function fetchTcgGoCardsByEpisodeCode(
+  episodeCode: string,
+  perPage = 250,
+  requestOptions?: TcgGoRequestOptions,
+): Promise<TcgGoCard[]> {
+  const code = episodeCode.trim().toLowerCase()
+  if (!code) return []
+
+  try {
+    const payload = await tcgGoFetch<unknown>(
+      "/cards",
+      { episode_code: code, per_page: perPage },
+      requestOptions,
+    )
+    const cards = unwrapCardList(payload)
+    if (cards.length > 0) return cards
+  } catch {
+    /* fall through to episode list lookup */
+  }
+
+  const episodes = await fetchTcgGoEpisodes({ search: code, perPage: 5 }, requestOptions)
+  const episode =
+    episodes.find((entry) => entry.code?.toLowerCase() === code) ??
+    episodes.find((entry) => entry.name?.toLowerCase().includes(code))
+  if (!episode?.id) return []
+
+  return fetchTcgGoEpisodeCards(episode.id, perPage, requestOptions)
 }
 
 export async function searchTcgGoCards(
@@ -498,7 +611,6 @@ export async function resolveTcgGoCardForTarget(input: {
   const hits = await searchTcgGoCards({
     search,
     name: input.cardName,
-    cardNumber: number,
     perPage: 10,
   })
 

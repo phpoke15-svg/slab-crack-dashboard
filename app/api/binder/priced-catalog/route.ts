@@ -8,7 +8,7 @@ import {
 import type { PokemonApiCard } from "@/lib/trade-binder/pokemon-tcg"
 import { filterPricedCatalog } from "@/lib/trade-binder/priced-catalog"
 
-export const maxDuration = 10
+export const maxDuration = 60
 
 function catalogId(card: PokemonApiCard): string {
   return card.id.startsWith("poke-") ? card.id : `poke-${card.id}`
