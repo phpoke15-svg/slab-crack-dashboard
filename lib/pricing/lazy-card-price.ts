@@ -1,6 +1,6 @@
 import { getCardPriceById, upsertCardPricesSafe } from "@/lib/pricing/db"
 import { fetchCardPricesForTarget } from "@/lib/pricing/fetch"
-import { getActivePriceProvider } from "@/lib/pricing/provider"
+import { getActivePriceProvider, isCachedPriceFromActiveProvider } from "@/lib/pricing/provider"
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
 
 const PRICE_TTL_MS = 24 * 60 * 60 * 1000
@@ -36,6 +36,15 @@ function hasUsablePrice(cached: Awaited<ReturnType<typeof getCardPriceById>>): b
   )
 }
 
+function cachedSourceLabel(
+  cached: NonNullable<Awaited<ReturnType<typeof getCardPriceById>>>,
+): LazyCardPriceResult["source"] {
+  const source = (cached.price_source ?? "pricecharting").trim().toLowerCase()
+  if (source === "tcggo") return "tcggo"
+  if (source === "pricecharting") return "pricecharting"
+  return "cache"
+}
+
 function cachedToResult(cardId: string, cached: NonNullable<Awaited<ReturnType<typeof getCardPriceById>>>): LazyCardPriceResult {
   if (cached.sync_error === "unavailable") {
     return {
@@ -58,7 +67,7 @@ function cachedToResult(cardId: string, cached: NonNullable<Awaited<ReturnType<t
     psa8Price: cached.psa8_price,
     psa9Price: cached.psa9_price,
     psa10Price: cached.psa10_price,
-    source: "cache",
+    source: cachedSourceLabel(cached),
     syncedAt: cached.synced_at,
   }
 }
@@ -66,12 +75,16 @@ function cachedToResult(cardId: string, cached: NonNullable<Awaited<ReturnType<t
 export async function getLazyCardPrice(card: CatalogSearchHit): Promise<LazyCardPriceResult> {
   const syncedAt = new Date().toISOString()
   const cached = await getCardPriceById(card.id)
+  const provider = getActivePriceProvider()
 
-  if (cached && isFresh(cached.synced_at, cached.sync_error) && hasUsablePrice(cached)) {
+  if (
+    cached &&
+    isFresh(cached.synced_at, cached.sync_error) &&
+    hasUsablePrice(cached) &&
+    isCachedPriceFromActiveProvider(cached, provider)
+  ) {
     return cachedToResult(card.id, cached)
   }
-
-  const provider = getActivePriceProvider()
   if (!provider) {
     return {
       cardId: card.id,

@@ -1,4 +1,16 @@
+import type { CardPriceRow } from "@/lib/pricing/types"
+
 export type ActivePriceProvider = "tcggo" | "pricecharting"
+
+/** True when a cached row should be reused for the currently configured provider. */
+export function isCachedPriceFromActiveProvider(
+  row: Pick<CardPriceRow, "price_source"> | null | undefined,
+  provider: ActivePriceProvider | null,
+): boolean {
+  if (!row || !provider) return false
+  const cachedSource = (row.price_source ?? "pricecharting").trim().toLowerCase() || "pricecharting"
+  return cachedSource === provider
+}
 
 /** Which backend supplies live card prices (search, sync, lazy lookup). */
 export function getActivePriceProvider(): ActivePriceProvider | null {

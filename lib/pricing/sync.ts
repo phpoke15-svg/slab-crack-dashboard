@@ -197,6 +197,7 @@ export async function syncUnifiedCardPrices(options?: {
       : await listStaleCardPriceIds(
           targets.map((t) => t.cardId),
           staleBefore,
+          { provider },
         )
   } catch (error) {
     const message = error instanceof Error ? error.message : "Stale lookup failed"
