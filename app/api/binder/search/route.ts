@@ -9,6 +9,7 @@ import { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalogWithSource } from "@/lib/trade-binder/catalog-search"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
+import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 import { enrichHitsWithTcgGoImages } from "@/lib/tcggo-api"
 
@@ -54,7 +55,13 @@ async function attachLiveSearchPrices(cards: BinderSearchResultCard[]): Promise<
     liveLimit: SEARCH_SERVER_LIVE_PRICE_LIMIT,
     timeBudgetMs: 25_000,
   })
-  return applySearchPricesToCards(cards, prices)
+  const priced = applySearchPricesToCards(cards, prices)
+  return priced.map((card) => {
+    if (promoCardMeta(card.id) && !prices.has(card.id)) {
+      return { ...card, rawPrice: undefined }
+    }
+    return card
+  })
 }
 
 export async function GET(request: NextRequest) {

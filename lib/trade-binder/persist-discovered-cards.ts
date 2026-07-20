@@ -96,7 +96,7 @@ async function persistHitPrices(hit: CatalogSearchHit): Promise<CatalogSearchHit
       },
     ])
 
-    return { ...hit, rawPrice: fetched.rawPrice > 0 ? fetched.rawPrice : hit.rawPrice }
+    return { ...hit, rawPrice: fetched.rawPrice > 0 ? fetched.rawPrice : undefined }
   } catch {
     await upsertCardPricesSafe([
       {
@@ -112,7 +112,7 @@ async function persistHitPrices(hit: CatalogSearchHit): Promise<CatalogSearchHit
         syncError: "unavailable",
       },
     ])
-    return hit
+    return { ...hit, rawPrice: undefined }
   }
 }
 
