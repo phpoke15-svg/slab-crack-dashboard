@@ -74,7 +74,6 @@ async function fetchTcgGoHistoryPoints(
   const history = await fetchAllTcgGoHistoryPrices({
     tcgGoId: resolved?.id ?? meta?.tcgGoId,
     tcgId: resolved?.tcgid ?? tcgId,
-    cardmarketId: resolved?.cardmarket_id,
     dateFrom: daysAgo(days),
     dateTo: formatDate(new Date()),
     maxPages: DEFAULT_MAX_PAGES,
