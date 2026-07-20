@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest"
 import {
   catalogRowMatchesQuery,
   catalogSearchMinLength,
+  rankCatalogSearchHits,
   sanitizeCatalogSearchToken,
 } from "@/lib/db/catalog-search-local"
-import type { CatalogCardRow } from "@/lib/db/cards-catalog"
-import { rankCatalogSearchHits } from "@/lib/db/catalog-search-local"
-import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
+import type { CatalogCardRow, CatalogSearchHit } from "@/lib/db/cards-catalog"
 
 const sampleRow: CatalogCardRow = {
   id: "poke-base1-4",

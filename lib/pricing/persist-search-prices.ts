@@ -6,6 +6,9 @@ import type { BinderPriceInput } from "@/lib/trade-binder/binder-prices"
 const PC_RATE_LIMIT_MS = 1100
 const DEFAULT_LIVE_CONCURRENCY = 2
 
+/** Max live PriceCharting lookups during a single search API request (rest via client backfill). */
+export const SEARCH_SERVER_LIVE_PRICE_LIMIT = 16
+
 export type SearchPriceOptions = {
   /** Max cards to look up from cache (default: all). */
   limit?: number

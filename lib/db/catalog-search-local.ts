@@ -77,8 +77,9 @@ async function fetchByNameAndNumber(
 ): Promise<CatalogCardRow[]> {
   const safeNumber = sanitizeCatalogSearchToken(number)
   const simplified = simplifyCardName(name).trim()
-  const firstToken = simplified.split(/\s+/).find((token) => token.length > 1) ?? simplified
-  const safeToken = sanitizeCatalogSearchToken(firstToken)
+  const nameTokens = simplified.split(/\s+/).filter((token) => token.length > 0)
+  const primaryToken = nameTokens.find((token) => token.length > 1) ?? simplified
+  const safeToken = sanitizeCatalogSearchToken(primaryToken)
 
   let request = supabase
     .from("cards")
@@ -86,17 +87,19 @@ async function fetchByNameAndNumber(
     .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
 
   if (safeToken) {
-    request = request.ilike("name", `%${safeToken}%`)
+    request = request.or(
+      `name.ilike.%${safeToken}%,japanese_name.ilike.%${safeToken}%,set_name.ilike.%${safeToken}%`,
+    )
   }
 
   const { data, error } = await request.order("name", { ascending: true }).limit(fetchLimit)
   if (error) throw error
 
-  return ((data ?? []) as CatalogCardRow[]).filter(
-    (row) =>
-      collectorNumberMatches(row.number, number) &&
-      (!safeToken || row.name.toLowerCase().includes(safeToken.toLowerCase())),
-  )
+  return ((data ?? []) as CatalogCardRow[]).filter((row) => {
+    if (!collectorNumberMatches(row.number, number)) return false
+    if (nameTokens.length <= 1) return true
+    return catalogRowMatchesQuery(row, name)
+  })
 }
 
 async function fetchByNumber(
@@ -127,7 +130,9 @@ async function fetchByText(
   const tokens = parseBinderSearchTokens(query)
   const text = tokens.name || query.trim()
   const parts = text.split(/\s+/).filter((part) => part.length >= 2 || /^\d+$/.test(part))
-  const primary = sanitizeCatalogSearchToken(parts[0] ?? text)
+  const primary = sanitizeCatalogSearchToken(
+    parts.sort((a, b) => b.length - a.length)[0] ?? text,
+  )
   if (!primary) return []
 
   const pattern = `%${primary}%`
@@ -179,6 +184,10 @@ export async function queryCatalogSearchRows(
 
   if (tokens.name && tokens.number) {
     rows = await fetchByNameAndNumber(supabase, tokens.name, tokens.number, fetchLimit)
+    if (rows.length === 0) {
+      const byName = await fetchByText(supabase, tokens.name, fetchLimit)
+      rows = byName.filter((row) => cardNumberMatches(row.number, tokens.number!))
+    }
   } else if (tokens.number && !tokens.name) {
     rows = await fetchByNumber(supabase, tokens.number, fetchLimit)
   } else {

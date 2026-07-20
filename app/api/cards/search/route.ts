@@ -6,7 +6,7 @@ import {
 } from "@/lib/db/cards-catalog"
 import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import type { CardSearchHit } from "@/lib/card-lookup"
-import { enrichCardSearchHitsWithPrices } from "@/lib/pricing/persist-search-prices"
+import { enrichCardSearchHitsWithPrices, SEARCH_SERVER_LIVE_PRICE_LIMIT } from "@/lib/pricing/persist-search-prices"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 
 export const dynamic = "force-dynamic"
@@ -44,7 +44,9 @@ export async function GET(request: Request) {
   try {
     const hits = await searchCatalogCardsLocal(q, SEARCH_LIMIT)
     const mapped = hits.map(catalogHitToCardSearchHit)
-    const results = await enrichCardSearchHitsWithPrices(mapped)
+    const results = await enrichCardSearchHitsWithPrices(mapped, {
+      liveLimit: SEARCH_SERVER_LIVE_PRICE_LIMIT,
+    })
     searchCache.set(cacheKey, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS })
     return NextResponse.json(
       { results, catalogReady: true },

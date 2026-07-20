@@ -3,6 +3,7 @@ import { getCatalogCardCount } from "@/lib/db/cards-catalog"
 import {
   applySearchPricesToCards,
   enrichSearchCardPrices,
+  SEARCH_SERVER_LIVE_PRICE_LIMIT,
 } from "@/lib/pricing/persist-search-prices"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
@@ -47,7 +48,9 @@ async function attachLiveSearchPrices(cards: BinderSearchResultCard[]): Promise<
     cardNumber: card.cardNumber,
     rawPrice: card.rawPrice,
   }))
-  const prices = await enrichSearchCardPrices(inputs)
+  const prices = await enrichSearchCardPrices(inputs, {
+    liveLimit: SEARCH_SERVER_LIVE_PRICE_LIMIT,
+  })
   return applySearchPricesToCards(cards, prices)
 }
 

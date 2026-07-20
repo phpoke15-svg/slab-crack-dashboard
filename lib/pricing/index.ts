@@ -27,7 +27,7 @@ export {
 
 export { syncUnifiedCardPrices } from "@/lib/pricing/sync"
 
-export { resolveSearchCardPrices, enrichSearchCardPrices, enrichCardSearchHitsWithPrices, binderPriceInputsFromCards, applySearchPricesToCards, applyPricesToCardSearchHits } from "@/lib/pricing/persist-search-prices"
+export { resolveSearchCardPrices, enrichSearchCardPrices, enrichCardSearchHitsWithPrices, binderPriceInputsFromCards, applySearchPricesToCards, applyPricesToCardSearchHits, SEARCH_SERVER_LIVE_PRICE_LIMIT } from "@/lib/pricing/persist-search-prices"
 
 export {
   buildCatalogPriceSearchQuery,
