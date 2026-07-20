@@ -152,6 +152,21 @@ function tcgGoMatchesNameAndNumber(card: TcgGoCard, name: string, number: string
   return numberCandidates.some((candidate) => cardNumberMatches(candidate, number))
 }
 
+function filterTcgGoByNameAndNumber(cards: TcgGoCard[], name: string, number: string): TcgGoCard[] {
+  return cards.filter((card) => tcgGoMatchesNameAndNumber(card, name, number))
+}
+
+async function safeSearchTcgGoCards(
+  params: Parameters<typeof searchTcgGoCards>[0],
+): Promise<TcgGoCard[]> {
+  try {
+    return await searchTcgGoCards(params)
+  } catch (error) {
+    console.warn("[pokemon-catalog] TCGGO search failed:", params, error)
+    return []
+  }
+}
+
 async function searchTcgGoByNameAndNumber(
   name: string,
   number: string,
@@ -163,25 +178,39 @@ async function searchTcgGoByNameAndNumber(
   const directIds = [`mep-${normalized}`, `mep-${padded}`]
   const directCards = await Promise.all(directIds.map((tcgId) => fetchTcgGoCardByTcgId(tcgId)))
   for (const card of directCards) {
-    if (card && tcgGoMatchesNameAndNumber(card, name, number)) return [card]
+    if (!card) continue
+    if (tcgGoMatchesNameAndNumber(card, name, number)) return [card]
+    const tcgId = card.tcgid?.toLowerCase() ?? ""
+    if (
+      tcgId === `mep-${normalized}` &&
+      (card.name ?? "").toLowerCase().includes(name.toLowerCase().trim())
+    ) {
+      return [card]
+    }
   }
 
-  for (const search of [`${name} ${number}`, `${name} ${padded}`, `${name} ${normalized}`]) {
-    const hits = await searchTcgGoCards({ search, perPage: 40 })
+  const searchAttempts = [
+    `${name} ${number}`,
+    `${name} ${padded}`,
+    `${name} ${normalized}`,
+    `mep-${normalized}`,
+    `mep-${padded}`,
+    name,
+  ]
+
+  for (const search of searchAttempts) {
+    const hits = await safeSearchTcgGoCards({ search, perPage: Math.max(pageSize, 80) })
     const matched = filterTcgGoByNameAndNumber(hits, name, number)
     if (matched.length > 0) return matched
   }
 
-  const [byNumber, byName] = await Promise.all([
-    searchTcgGoCards({ cardNumber: normalized, perPage: 80 }),
-    searchTcgGoCards({ search: name, name, perPage: 80 }),
-  ])
+  for (const tcgId of directIds) {
+    const hits = await safeSearchTcgGoCards({ search: tcgId, tcgId, perPage: 5 })
+    const matched = filterTcgGoByNameAndNumber(hits, name, number)
+    if (matched.length > 0) return matched
+  }
 
-  return filterTcgGoByNameAndNumber([...byNumber, ...byName], name, number)
-}
-
-function filterTcgGoByNameAndNumber(cards: TcgGoCard[], name: string, number: string): TcgGoCard[] {
-  return cards.filter((card) => tcgGoMatchesNameAndNumber(card, name, number))
+  return []
 }
 
 async function searchTcgGoCatalog(
@@ -213,9 +242,8 @@ async function searchTcgGoCatalog(
   ].filter((value): value is string => Boolean(value && value.trim())))]
 
   for (const attempt of attempts) {
-    const hits = await searchTcgGoCards({
+    const hits = await safeSearchTcgGoCards({
       search: attempt,
-      name: name || undefined,
       perPage: pageSize,
     })
     if (hits.length === 0) continue
@@ -250,9 +278,14 @@ export async function searchPokemonCatalog(
   const { number, name, setHint } = parseBinderSearchTokens(query)
 
   if (hasTcgGoApiKey()) {
-    const hits = await searchTcgGoCatalog(query, pageSize)
-    const cards = hits.map(tcgGoToPokemonApiCard)
-    return { cards, totalCount: cards.length }
+    try {
+      const hits = await searchTcgGoCatalog(query, pageSize)
+      const cards = hits.map(tcgGoToPokemonApiCard)
+      return { cards, totalCount: cards.length }
+    } catch (error) {
+      console.warn("[pokemon-catalog] TCGGO catalog search failed:", error)
+      return { cards: [], totalCount: 0 }
+    }
   }
 
   const queries = buildPokemonSearchQueries(query)
