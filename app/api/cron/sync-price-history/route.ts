@@ -15,7 +15,6 @@ export async function GET(request: Request) {
   const daysParam = searchParams.get("days")
   const maxCards = maxCardsParam ? Number(maxCardsParam) : undefined
   const days = daysParam ? Number(daysParam) : undefined
-
   try {
     const result = await syncTcgGoPriceHistory({
       maxCards: Number.isFinite(maxCards) && maxCards! > 0 ? maxCards : undefined,

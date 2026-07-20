@@ -1,28 +1,12 @@
-import { appendPriceHistory } from "@/lib/pricing/db"
 import { fetchCardPricesBatch } from "@/lib/pricing/fetch"
+import { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
 import { getActivePriceProvider } from "@/lib/pricing/provider"
-import type { CardPriceTarget, PriceHistoryPoint } from "@/lib/pricing/types"
-import {
-  fetchAllTcgGoHistoryPrices,
-  pokemonTcgIdFromCardId,
-  resolveTcgGoCardForTarget,
-} from "@/lib/tcggo-api"
-import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
+import type { CardPriceTarget } from "@/lib/pricing/types"
 import { collectSyncTargets } from "@/lib/pricing/sync"
 
 const DEFAULT_HISTORY_DAYS = 30
 const DEFAULT_MAX_CARDS = 40
 const DEFAULT_TIME_BUDGET_MS = 240_000
-
-function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10)
-}
-
-function daysAgo(days: number): string {
-  const date = new Date()
-  date.setUTCDate(date.getUTCDate() - days)
-  return formatDate(date)
-}
 
 export type SyncPriceHistoryResult = {
   syncedAt: string
@@ -33,40 +17,6 @@ export type SyncPriceHistoryResult = {
   failed: number
   errors: string[]
   stoppedEarly: boolean
-}
-
-async function historyPointsForTarget(
-  target: CardPriceTarget,
-  days: number,
-): Promise<PriceHistoryPoint[]> {
-  const tcgId = pokemonTcgIdFromCardId(target.cardId)
-  const meta = promoCardMeta(target.cardId)
-  const card = await resolveTcgGoCardForTarget({
-    cardId: target.cardId,
-    cardName: target.cardName,
-    setName: target.setName,
-    cardNumber: target.cardNumber,
-    tcgGoId: target.tcgGoId ?? meta?.tcgGoId,
-    tcgplayerId: target.tcgplayerId ?? meta?.tcgplayerId,
-  })
-
-  const history = await fetchAllTcgGoHistoryPrices({
-    tcgGoId: card?.id ?? target.tcgGoId,
-    tcgId: card?.tcgid ?? tcgId,
-    cardmarketId: card?.cardmarket_id,
-    dateFrom: daysAgo(days),
-    dateTo: formatDate(new Date()),
-    maxPages: 8,
-  })
-
-  return history.map((point) => ({
-    cardId: target.cardId,
-    snapshotDate: point.date,
-    grade: point.grade,
-    price: point.price,
-    saleCount: point.saleCount,
-    source: "tcggo",
-  }))
 }
 
 export async function syncTcgGoPriceHistory(options?: {
@@ -96,9 +46,9 @@ export async function syncTcgGoPriceHistory(options?: {
   }
 
   const targets = (options?.targets ?? (await collectSyncTargets())).slice(0, maxCards)
-  const allPoints: PriceHistoryPoint[] = []
   const errors: string[] = []
   let processed = 0
+  let historyPoints = 0
   let failed = 0
   let stoppedEarly = false
 
@@ -109,9 +59,16 @@ export async function syncTcgGoPriceHistory(options?: {
     }
 
     try {
-      const points = await historyPointsForTarget(target, days)
-      allPoints.push(...points)
-      processed++
+      const result = await ensureCardPriceHistory(target.cardId, { days, force: true })
+      if (result.reason === "fetched") {
+        processed++
+        historyPoints += result.points
+      } else if (result.reason === "fresh") {
+        processed++
+      } else if (result.reason === "not_found") {
+        failed++
+        if (errors.length < 20) errors.push(`${target.cardId}: card not found`)
+      }
     } catch (error) {
       failed++
       const message = error instanceof Error ? error.message : "history sync failed"
@@ -119,18 +76,12 @@ export async function syncTcgGoPriceHistory(options?: {
     }
   }
 
-  if (allPoints.length > 0) {
-    await appendPriceHistory(allPoints).catch((error) => {
-      console.warn("[pricing/history-sync] append failed:", error)
-    })
-  }
-
   return {
     syncedAt,
     provider: "tcggo",
     candidates: targets.length,
     processed,
-    historyPoints: allPoints.length,
+    historyPoints,
     failed,
     errors,
     stoppedEarly,
