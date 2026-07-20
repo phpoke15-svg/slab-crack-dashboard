@@ -1,4 +1,4 @@
-import { getCatalogCardById } from "@/lib/db/cards-catalog"
+import { catalogPokemonTcgId, getCatalogCardById } from "@/lib/db/cards-catalog"
 import { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
 import { cardPriceRowToMockEntry } from "@/lib/pricing/views"
 import type { LazyCardPriceResult } from "@/lib/pricing/lazy-card-price"
@@ -38,6 +38,7 @@ export async function lookupCatalogCardEntry(cardId: string): Promise<MockCardEn
 
   return cardPriceRowToMockEntry(row, {
     id: card.id,
+    pokemonTcgId: catalogPokemonTcgId(card.id),
     cardName: card.name,
     setName: card.setName,
     cardNumber: card.number,

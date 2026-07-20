@@ -349,6 +349,7 @@ export function SlabDrawer({
               </div>
               <PriceHistoryChart
                 cardId={selectedCard.id}
+                pokemonTcgId={selectedCard.pokemonTcgId}
                 grade={salesGrade}
                 currentRaw={selectedCard.rawPrice}
                 currentSlab={activeQuote.slabPrice}

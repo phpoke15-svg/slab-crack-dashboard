@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { PsaGradeNumber } from "@/lib/slab-data"
 import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
+import { resolveHistoryCardId } from "@/lib/pricing/history-card-id"
 
 type SeriesPoint = { date: string; price: number; saleCount?: number }
 
@@ -179,6 +180,8 @@ function MultiSeriesChart({
 
 type PriceHistoryChartProps = {
   cardId: string
+  /** When the card id is PriceCharting-only, pass the Pokémon tcg id for pokemon-api history. */
+  pokemonTcgId?: string
   grade: PsaGradeNumber
   currentRaw?: number
   currentSlab?: number
@@ -190,21 +193,21 @@ type PriceHistoryChartProps = {
 
 export function PriceHistoryChart({
   cardId,
+  pokemonTcgId,
   grade,
   currentRaw,
   currentSlab,
   className,
   compact = false,
   title,
-  days: initialDays = 90,
 }: PriceHistoryChartProps) {
+  const historyCardId = resolveHistoryCardId(cardId, pokemonTcgId)
   const rootRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
-  const [range, setRange] = useState<RangeKey>(
-    initialDays >= 365 ? "365" : initialDays <= 30 ? "30" : initialDays >= 9999 ? "all" : "90",
-  )
+  const [range, setRange] = useState<RangeKey>("all")
   const [seriesMap, setSeriesMap] = useState<Partial<Record<PriceHistorySeriesKey, SeriesPoint[]>>>({})
   const [labels, setLabels] = useState<Record<PriceHistorySeriesKey, string> | null>(null)
+  const [rangeMeta, setRangeMeta] = useState<{ from: string | null; to: string | null } | null>(null)
   const [loading, setLoading] = useState(false)
   const [loadedKey, setLoadedKey] = useState("")
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
@@ -225,18 +228,25 @@ export function PriceHistoryChart({
     return () => observer.disconnect()
   }, [])
 
-  const fetchKey = `${cardId}|${range}`
+  const fetchKey = `${historyCardId}|${range}`
 
   useEffect(() => {
-    if (!visible || loadedKey === fetchKey || !cardId) return
+    if (!visible || loadedKey === fetchKey || !historyCardId) return
     let cancelled = false
     setLoading(true)
-    void fetch(`/api/card-price-history?id=${encodeURIComponent(cardId)}&range=${range}`)
+    const params = new URLSearchParams({
+      id: cardId,
+      range,
+      v: "2",
+    })
+    if (pokemonTcgId) params.set("pokemonTcgId", pokemonTcgId)
+    void fetch(`/api/card-price-history?${params.toString()}`)
       .then(async (res) => {
         const data = (await res.json().catch(() => null)) as HistoryApiResponse | null
         if (cancelled) return
         setSeriesMap(data?.series ?? {})
         setLabels(data?.labels ?? null)
+        setRangeMeta(data?.range ?? null)
         setLoadedKey(fetchKey)
       })
       .catch(() => {
@@ -251,13 +261,13 @@ export function PriceHistoryChart({
     return () => {
       cancelled = true
     }
-  }, [visible, loadedKey, fetchKey, cardId, range])
+  }, [visible, loadedKey, fetchKey, historyCardId, cardId, pokemonTcgId, range])
 
   useEffect(() => {
     setLoadedKey("")
     setSeriesMap({})
     setHoverIndex(null)
-  }, [cardId])
+  }, [historyCardId])
 
   const activeKeys = useMemo(() => {
     const keys: PriceHistorySeriesKey[] = ["raw", highlightKey]
@@ -269,14 +279,18 @@ export function PriceHistoryChart({
     return keys.filter((key) => (seriesMap[key]?.length ?? 0) >= 2)
   }, [seriesMap, highlightKey, showAllGrades])
 
+  const chartKeys = activeKeys.length > 0 ? activeKeys : (["raw", highlightKey] as PriceHistorySeriesKey[]).filter(
+    (key) => (seriesMap[key]?.length ?? 0) >= 1,
+  )
+
   const { dates, values } = useMemo(
-    () => alignSeriesByDate(seriesMap, activeKeys),
-    [seriesMap, activeKeys],
+    () => alignSeriesByDate(seriesMap, chartKeys),
+    [seriesMap, chartKeys],
   )
 
   const hoverDate = hoverIndex != null ? dates[hoverIndex] : null
   const hoverPoints = hoverDate
-    ? activeKeys
+    ? chartKeys
         .map((key) => {
           const point = seriesMap[key]?.find((p) => p.date === hoverDate)
           return point ? { key, ...point } : null
@@ -306,7 +320,11 @@ export function PriceHistoryChart({
             {title ?? "Price history · pokemon-api"}
           </span>
           <p className="text-[9px] text-muted-foreground">
-            TCGPlayer raw + eBay PSA comps · {totalPoints > 0 ? `${totalPoints} points cached` : "loading…"}
+            TCGPlayer raw + eBay PSA comps from pokemon-api
+            {totalPoints > 0 ? ` · ${totalPoints} points` : loading ? " · loading…" : ""}
+            {range === "all" && totalPoints > 0 && rangeMeta?.from
+              ? ` · ${formatShortDate(rangeMeta.from)} – ${formatShortDate(rangeMeta.to ?? rangeMeta.from)}`
+              : ""}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1">
@@ -389,7 +407,7 @@ export function PriceHistoryChart({
         <MultiSeriesChart
           dates={dates}
           values={values}
-          activeKeys={activeKeys}
+          activeKeys={chartKeys}
           highlightKey={highlightKey}
           width={320}
           height={compact ? 88 : 112}
@@ -404,9 +422,9 @@ export function PriceHistoryChart({
         >
           {loading
             ? "Loading full price history from pokemon-api…"
-            : latestRaw > 0 && latestSlab > 0
-              ? "Only one day of history so far — check back after the next sync."
-              : "No price history yet for this card."}
+            : totalPoints === 0
+              ? "No pokemon-api history yet for this card. Try again in a moment."
+              : "Need at least 2 days of data to draw a chart for this range."}
         </div>
       )}
 

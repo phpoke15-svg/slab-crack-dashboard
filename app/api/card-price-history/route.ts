@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
+import { resolveHistoryCardIdAsync } from "@/lib/pricing/history-card-id"
 import {
   getPriceHistorySeriesMap,
   priceHistorySeriesLabels,
@@ -19,7 +20,7 @@ const RANGE_PRESETS = {
 type RangePreset = keyof typeof RANGE_PRESETS
 
 function parseRange(value: string | null): { days: number; full: boolean; preset: RangePreset } {
-  const normalized = (value ?? "90").trim().toLowerCase()
+  const normalized = (value ?? "all").trim().toLowerCase()
   if (normalized === "all" || normalized === "0") {
     return { days: 0, full: true, preset: "all" }
   }
@@ -44,6 +45,7 @@ function filterSeriesByDays<T extends { date: string }>(points: T[], days: numbe
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")?.trim()
+  const pokemonTcgId = searchParams.get("pokemonTcgId")?.trim()
   const rangeParam = searchParams.get("range") ?? searchParams.get("days")
   const { days, full } = parseRange(rangeParam)
 
@@ -51,31 +53,51 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
 
-  try {
-    await ensureCardPriceHistory(id, { days: days || 30, full, force: full })
+  const historyCardId = await resolveHistoryCardIdAsync(id, pokemonTcgId)
 
-    const { series, range } = await getPriceHistorySeriesMap(id, 0)
-    const filtered = Object.fromEntries(
+  try {
+    await ensureCardPriceHistory(historyCardId, { days: days || 30, full, force: full })
+
+    let { series, range } = await getPriceHistorySeriesMap(historyCardId, 0)
+    let filtered = Object.fromEntries(
       Object.entries(series).map(([key, points]) => [
         key,
         filterSeriesByDays(points, days),
       ]),
     ) as Record<PriceHistorySeriesKey, (typeof series)[PriceHistorySeriesKey]>
 
+    const totalFiltered = Object.values(filtered).reduce((sum, pts) => sum + pts.length, 0)
+    if (full && totalFiltered < 10) {
+      await ensureCardPriceHistory(historyCardId, { full: true, force: true })
+      const refreshed = await getPriceHistorySeriesMap(historyCardId, 0)
+      series = refreshed.series
+      range = refreshed.range
+      filtered = Object.fromEntries(
+        Object.entries(series).map(([key, points]) => [
+          key,
+          filterSeriesByDays(points, days),
+        ]),
+      ) as Record<PriceHistorySeriesKey, (typeof series)[PriceHistorySeriesKey]>
+    }
+
     const counts = Object.fromEntries(
       Object.entries(filtered).map(([key, points]) => [key, points.length]),
     ) as Record<PriceHistorySeriesKey, number>
 
-    return NextResponse.json({
-      cardId: id,
-      days,
-      full,
-      labels: priceHistorySeriesLabels(),
-      series: filtered,
-      counts,
-      range,
-      source: "tcggo",
-    })
+    return NextResponse.json(
+      {
+        cardId: historyCardId,
+        requestedId: id,
+        days,
+        full,
+        labels: priceHistorySeriesLabels(),
+        series: filtered,
+        counts,
+        range,
+        source: "tcggo",
+      },
+      { headers: { "Cache-Control": "no-store" } },
+    )
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load price history"
     return NextResponse.json({ error: message }, { status: 500 })

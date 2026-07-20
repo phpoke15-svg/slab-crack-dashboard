@@ -146,6 +146,7 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
       {priced && activeQuote && activeQuote.slabPrice > 0 && (
         <PriceHistoryChart
           cardId={card.id}
+          pokemonTcgId={card.pokemonTcgId}
           grade={activeGrade}
           currentRaw={card.rawPrice}
           currentSlab={activeQuote.slabPrice}
