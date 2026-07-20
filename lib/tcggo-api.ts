@@ -159,23 +159,19 @@ export function tcgGoCardToCatalogCard(card: TcgGoCard): {
 export function extractTcgGoCardPrices(card: TcgGoCard): TcgGoFetchedPrices {
   const tcg = card.prices?.tcg_player
   const ebayPsa = card.prices?.ebay?.graded?.psa
-  const cmPsa = card.prices?.cardmarket?.graded?.psa
 
+  // US only: TCGPlayer for raw, eBay PSA comps for graded. Never fall back to Cardmarket (EUR).
   const rawPrice =
     parsePositiveNumber(tcg?.market_price) ||
-    parsePositiveNumber(tcg?.mid_price) ||
-    parsePositiveNumber(card.prices?.cardmarket?.["7d_average"]) ||
-    parsePositiveNumber(card.prices?.cardmarket?.lowest_near_mint)
+    parsePositiveNumber(tcg?.mid_price)
 
   const psa10 =
     parsePositiveNumber(ebayPsa?.["10"]?.median_price) ||
-    parsePositiveNumber(ebayPsa?.["10"]) ||
-    parsePositiveNumber(cmPsa?.psa10)
+    parsePositiveNumber(ebayPsa?.["10"])
 
   const psa9 =
     parsePositiveNumber(ebayPsa?.["9"]?.median_price) ||
-    parsePositiveNumber(ebayPsa?.["9"]) ||
-    parsePositiveNumber(cmPsa?.psa9)
+    parsePositiveNumber(ebayPsa?.["9"])
 
   const psa8 =
     parsePositiveNumber(ebayPsa?.["8"]?.median_price) ||
@@ -240,15 +236,12 @@ function parseHistoryDate(value: unknown): string | null {
 
 function historyPriceFromRow(row: Record<string, unknown>, grade: number): number {
   if (grade === 0) {
+    // US only — TCGPlayer fields. Ignore Cardmarket (cm_*, lowest_near_mint EUR).
     return (
       parsePositiveNumber(row.tcg_player_market) ||
-      parsePositiveNumber(row.market_price) ||
       parsePositiveNumber(row.tcg_player_market_price) ||
       parsePositiveNumber(row.tcgplayer_market_price) ||
-      parsePositiveNumber(row.cm_low) ||
-      parsePositiveNumber(row.lowest_near_mint) ||
-      parsePositiveNumber(row.price) ||
-      parsePositiveNumber(row.average_price)
+      parsePositiveNumber(row.market_price)
     )
   }
 
@@ -661,7 +654,6 @@ export async function resolveTcgGoCardForTarget(input: {
 export async function fetchTcgGoHistoryPrices(input: {
   tcgGoId?: number
   tcgId?: string
-  cardmarketId?: number
   dateFrom: string
   dateTo: string
   page?: number
@@ -670,11 +662,11 @@ export async function fetchTcgGoHistoryPrices(input: {
   const query = {
     id: input.tcgGoId,
     tcgid: input.tcgId,
-    cardmarket_id: input.cardmarketId,
     date_from: input.dateFrom,
     date_to: input.dateTo,
     page,
     sort: "asc",
+    currency: "usd",
   }
 
   let payload: unknown
@@ -687,6 +679,7 @@ export async function fetchTcgGoHistoryPrices(input: {
       date_to: input.dateTo,
       page,
       sort: "asc",
+      currency: "usd",
     })
   }
 
@@ -706,7 +699,6 @@ export async function fetchTcgGoHistoryPrices(input: {
 export async function fetchAllTcgGoHistoryPrices(input: {
   tcgGoId?: number
   tcgId?: string
-  cardmarketId?: number
   dateFrom: string
   dateTo: string
   maxPages?: number

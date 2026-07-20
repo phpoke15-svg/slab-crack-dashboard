@@ -36,6 +36,32 @@ describe("extractTcgGoCardPrices", () => {
     expect(prices.psa8Price).toBe(70)
     expect(prices.psa7Price).toBe(35)
   })
+
+  it("ignores cardmarket-only prices (EUR)", () => {
+    const prices = extractTcgGoCardPrices({
+      prices: {
+        cardmarket: {
+          lowest_near_mint: 12.5,
+          "7d_average": 14,
+          graded: { psa: { psa10: 200, psa9: 90 } },
+        },
+      },
+    })
+
+    expect(prices.rawPrice).toBe(0)
+    expect(prices.psa10Price).toBe(0)
+    expect(prices.psa9Price).toBe(0)
+  })
+
+  it("uses tcgplayer mid_price when market_price is missing", () => {
+    const prices = extractTcgGoCardPrices({
+      prices: {
+        tcg_player: { mid_price: 42.5 },
+      },
+    })
+
+    expect(prices.rawPrice).toBe(42.5)
+  })
 })
 
 describe("parseTcgGoHistoryPoints", () => {
@@ -52,6 +78,17 @@ describe("parseTcgGoHistoryPoints", () => {
       { date: "2026-07-01", grade: 0, price: 70 },
       { date: "2026-07-02", grade: 0, price: 75 },
     ])
+  })
+
+  it("ignores cardmarket-only history rows", () => {
+    const points = parseTcgGoHistoryPoints({
+      data: {
+        "2026-07-01": { cm_low: 65, lowest_near_mint: 60, average_price: 62 },
+        "2026-07-02": { tcg_player_market: 75 },
+      },
+    })
+
+    expect(points).toEqual([{ date: "2026-07-02", grade: 0, price: 75 }])
   })
 
   it("parses legacy array history rows", () => {
