@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCatalogCardCount } from "@/lib/db/cards-catalog"
+import {
+  applySearchPricesToCards,
+  enrichSearchCardPrices,
+} from "@/lib/pricing/persist-search-prices"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 
-export const maxDuration = 30
+export const maxDuration = 60
 
 function mapCatalogCardsToBinder(
   catalogCards: Awaited<ReturnType<typeof searchBinderCatalog>>,
@@ -33,6 +37,20 @@ function catalogUnavailableResponse() {
   )
 }
 
+async function attachLiveSearchPrices(cards: BinderSearchResultCard[]): Promise<BinderSearchResultCard[]> {
+  if (cards.length === 0) return cards
+
+  const inputs = cards.map((card) => ({
+    id: card.id,
+    name: card.name,
+    set: card.set,
+    cardNumber: card.cardNumber,
+    rawPrice: card.rawPrice,
+  }))
+  const prices = await enrichSearchCardPrices(inputs)
+  return applySearchPricesToCards(cards, prices)
+}
+
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? ""
   const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1)
@@ -46,7 +64,8 @@ export async function GET(request: NextRequest) {
 
     if (q.length >= 2) {
       const catalogCards = await searchBinderCatalog(q, { limit: pageSize })
-      const cards = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
+      const merged = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
+      const cards = await attachLiveSearchPrices(merged)
 
       return NextResponse.json({
         cards,
@@ -60,7 +79,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (page === 1) {
-      const cards = await fetchPopularBinderCards(Math.min(pageSize, 30))
+      const popular = await fetchPopularBinderCards(Math.min(pageSize, 30))
+      const cards = await attachLiveSearchPrices(popular)
       return NextResponse.json({
         cards,
         totalCount: cards.length,

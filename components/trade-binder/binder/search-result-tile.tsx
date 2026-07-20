@@ -10,11 +10,13 @@ export type SearchResultCard = CatalogCard & { rawPrice?: number; cardNumber?: s
 export function SearchResultTile({
   card,
   ownedStatus,
+  pricePending = false,
   onAdd,
   onSetStatus,
 }: {
   card: SearchResultCard
   ownedStatus?: CardStatus | null
+  pricePending?: boolean
   onAdd: (status: CardStatus) => void
   onSetStatus?: (status: CardStatus) => void
 }) {
@@ -39,11 +41,13 @@ export function SearchResultTile({
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold leading-tight text-foreground">{card.name}</h3>
           <p className="truncate text-[11px] text-muted-foreground">{card.set}</p>
-          {card.rawPrice != null && card.rawPrice > 0 && (
+          {card.rawPrice != null && card.rawPrice > 0 ? (
             <p className="mt-0.5 font-mono text-[11px] font-medium text-primary tabular-nums">
               Raw ${card.rawPrice.toFixed(0)}
             </p>
-          )}
+          ) : pricePending ? (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Pricing…</p>
+          ) : null}
         </div>
 
         {owned && ownedStatus === "pending" ? (

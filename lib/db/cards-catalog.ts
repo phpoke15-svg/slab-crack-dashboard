@@ -1,5 +1,5 @@
 import type { CardSearchHit } from "@/lib/card-lookup"
-import { getCardPricesForIds } from "@/lib/pricing/db"
+import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import { cleanNumber, simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import { buildCardSlug, buildSetSlug } from "@/lib/seo/card-slugs"
 import { createAdminClient, createReadClient, isSupabaseConfigured } from "@/lib/supabase/server"
@@ -70,14 +70,14 @@ export function catalogHitToBinderCard(hit: CatalogSearchHit): CatalogCard & {
 export async function attachCachedPrices(rows: CatalogCardRow[]): Promise<CatalogSearchHit[]> {
   if (rows.length === 0) return []
 
-  const prices = await getCardPricesForIds(rows.map((row) => row.id))
+  const rawPrices = await getRawPricesForCardIds(rows.map((row) => row.id))
   return rows.map((row) => {
-    const cached = prices.get(row.id)
+    const rawPrice = rawPrices.get(row.id)
     return rowToHit({
       ...row,
-      raw_price: cached?.raw_price,
-      synced_at: cached?.synced_at,
-      sync_error: cached?.sync_error,
+      raw_price: rawPrice ?? null,
+      synced_at: undefined,
+      sync_error: undefined,
     })
   })
 }

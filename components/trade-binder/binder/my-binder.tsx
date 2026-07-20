@@ -72,7 +72,7 @@ export function MyBinder() {
   const isSearchActive = activeTab === "search"
   const searchEnabled = isSearchActive
   const isBrowsingPopular = isSearchActive && query.trim().length < 2
-  const { results: searchResults, isLoading: searchLoading, error: searchError, total: searchTotal, featured: searchFeatured } =
+  const { results: searchResults, isLoading: searchLoading, isPricing: searchPricing, error: searchError, total: searchTotal, featured: searchFeatured } =
     usePokemonSearch(query, searchEnabled)
 
   const ownedById = useMemo(() => new Map(cards.map((c) => [c.id, c.status])), [cards])
@@ -373,6 +373,7 @@ export function MyBinder() {
                           key={`${card.id}-${index}`}
                           card={card}
                           ownedStatus={ownedStatus}
+                          pricePending={searchPricing && (!card.rawPrice || card.rawPrice <= 0)}
                           onAdd={(status) => addCard(card, status)}
                           onSetStatus={
                             ownedStatus

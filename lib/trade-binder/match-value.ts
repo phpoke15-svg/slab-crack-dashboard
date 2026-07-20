@@ -1,4 +1,4 @@
-import { resolveSearchCardPrices } from "@/lib/pricing/persist-search-prices"
+import { enrichSearchCardPrices } from "@/lib/pricing/persist-search-prices"
 import {
   cardIdVariants,
   cardIdentityKey,
@@ -59,7 +59,7 @@ async function fetchMatchCardPrices(cards: MatchCard[]): Promise<Map<string, num
   }))
 
   if (typeof window === "undefined") {
-    const prices = await resolveSearchCardPrices(inputs, {
+    const prices = await enrichSearchCardPrices(inputs, {
       limit: Math.min(inputs.length, 80),
     })
     for (const [id, price] of prices) registerPrice(priceById, id, price)
