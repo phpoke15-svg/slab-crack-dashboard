@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   const grade = gradeParam as PsaGradeNumber
 
   try {
-    await ensureCardPriceHistory(id, { days })
+    await ensureCardPriceHistory(id, { days, full: days <= 0 })
     const { points, salesDays, snapshotDays } = await getDailyPriceHistory(id, grade, days)
     const history = points.map((p) => p.deficit)
     const trend = getDeficitTrendFromHistory(history)

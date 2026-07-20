@@ -3,70 +3,100 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import type { PsaGradeNumber } from "@/lib/slab-data"
+import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
 
-type HistoryPoint = {
-  deficit: number
-  rawPrice: number
-  slabPrice: number
-  snapshotDate: string
-  rawSaleCount?: number
-  slabSaleCount?: number
-  fromSales?: boolean
+type SeriesPoint = { date: string; price: number; saleCount?: number }
+
+type HistoryApiResponse = {
+  series?: Partial<Record<PriceHistorySeriesKey, SeriesPoint[]>>
+  labels?: Record<PriceHistorySeriesKey, string>
+  counts?: Partial<Record<PriceHistorySeriesKey, number>>
+  range?: { from: string | null; to: string | null }
+  error?: string
 }
 
-type HistoryResponse = {
-  points?: HistoryPoint[]
-  history?: number[]
-  days?: number
-  salesDays?: number
-  hasSalesHistory?: boolean
-  error?: string
+type RangeKey = "30" | "90" | "365" | "all"
+
+const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
+  { key: "30", label: "30D" },
+  { key: "90", label: "90D" },
+  { key: "365", label: "1Y" },
+  { key: "all", label: "All" },
+]
+
+const SERIES_COLORS: Record<PriceHistorySeriesKey, string> = {
+  raw: "var(--muted-foreground)",
+  psa7: "#94a3b8",
+  psa8: "#64748b",
+  psa9: "#38bdf8",
+  psa10: "var(--primary)",
+}
+
+const GRADE_TO_SERIES: Record<PsaGradeNumber, PriceHistorySeriesKey> = {
+  7: "psa7",
+  8: "psa8",
+  9: "psa9",
+  10: "psa10",
 }
 
 function formatShortDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`)
-  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
 }
 
-function DualPriceChart({
-  points,
+function alignSeriesByDate(
+  seriesMap: Partial<Record<PriceHistorySeriesKey, SeriesPoint[]>>,
+  keys: PriceHistorySeriesKey[],
+): { dates: string[]; values: Record<PriceHistorySeriesKey, (number | null)[]> } {
+  const dateSet = new Set<string>()
+  for (const key of keys) {
+    for (const point of seriesMap[key] ?? []) {
+      dateSet.add(point.date)
+    }
+  }
+  const dates = [...dateSet].sort()
+  const values = Object.fromEntries(
+    keys.map((key) => {
+      const byDate = new Map((seriesMap[key] ?? []).map((p) => [p.date, p.price]))
+      return [key, dates.map((date) => byDate.get(date) ?? null)]
+    }),
+  ) as Record<PriceHistorySeriesKey, (number | null)[]>
+  return { dates, values }
+}
+
+function MultiSeriesChart({
+  dates,
+  values,
+  activeKeys,
+  highlightKey,
   width,
   height,
-  grade,
   onHover,
 }: {
-  points: HistoryPoint[]
+  dates: string[]
+  values: Record<PriceHistorySeriesKey, (number | null)[]>
+  activeKeys: PriceHistorySeriesKey[]
+  highlightKey: PriceHistorySeriesKey
   width: number
   height: number
-  grade: PsaGradeNumber
   onHover: (index: number | null) => void
 }) {
-  const rawGradId = useId()
-  const slabGradId = useId()
-  const raw = points.map((p) => p.rawPrice)
-  const slab = points.map((p) => p.slabPrice)
-  if (raw.length < 2 || slab.length < 2) return null
-
-  const min = Math.min(...raw, ...slab)
-  const max = Math.max(...raw, ...slab)
-  const range = max - min || 1
-  const padX = 28
+  const padX = 36
   const padY = 14
   const chartW = width - padX * 2
   const chartH = height - padY * 2
 
-  const toPoints = (data: number[]) =>
-    data.map((v, i) => {
-      const x = padX + (i / (data.length - 1)) * chartW
-      const y = padY + chartH - ((v - min) / range) * chartH
-      return [x, y] as const
-    })
+  const allPrices = activeKeys.flatMap((key) =>
+    (values[key] ?? []).filter((v): v is number => v != null && v > 0),
+  )
+  if (dates.length < 2 || allPrices.length < 2) return null
 
-  const rawPts = toPoints(raw)
-  const slabPts = toPoints(slab)
-  const rawLine = rawPts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
-  const slabLine = slabPts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
-  const slabArea = `${padX},${padY + chartH} ${slabLine} ${padX + chartW},${padY + chartH}`
+  const min = Math.min(...allPrices)
+  const max = Math.max(...allPrices)
+  const range = max - min || 1
+
+  const toY = (v: number) => padY + chartH - ((v - min) / range) * chartH
+  const toX = (i: number) => padX + (i / (dates.length - 1)) * chartW
 
   const yTicks = [min, min + range / 2, max]
 
@@ -77,23 +107,12 @@ function DualPriceChart({
       height={height}
       className="overflow-visible"
       role="img"
-      aria-label={`Daily raw and PSA ${grade} price history`}
+      aria-label="Pokemon API price history"
       preserveAspectRatio="none"
       onMouseLeave={() => onHover(null)}
     >
-      <defs>
-        <linearGradient id={slabGradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--primary)" stopOpacity={0.2} />
-          <stop offset="100%" stopColor="var(--primary)" stopOpacity={0} />
-        </linearGradient>
-        <linearGradient id={rawGradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--muted-foreground)" stopOpacity={0.12} />
-          <stop offset="100%" stopColor="var(--muted-foreground)" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-
       {yTicks.map((tick) => {
-        const y = padY + chartH - ((tick - min) / range) * chartH
+        const y = toY(tick)
         return (
           <g key={tick}>
             <line
@@ -105,44 +124,43 @@ function DualPriceChart({
               strokeOpacity={0.5}
               strokeWidth={0.75}
             />
-            <text
-              x={padX - 4}
-              y={y + 3}
-              textAnchor="end"
-              className="fill-muted-foreground text-[8px]"
-            >
+            <text x={padX - 4} y={y + 3} textAnchor="end" className="fill-muted-foreground text-[8px]">
               ${Math.round(tick)}
             </text>
           </g>
         )
       })}
 
-      <polygon points={slabArea} fill={`url(#${slabGradId})`} />
-      <polyline
-        points={rawLine}
-        fill="none"
-        stroke="var(--muted-foreground)"
-        strokeWidth={1.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeDasharray="4 3"
-        opacity={0.9}
-      />
-      <polyline
-        points={slabLine}
-        fill="none"
-        stroke="var(--primary)"
-        strokeWidth={1.85}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      {activeKeys.map((key) => {
+        const pts = (values[key] ?? [])
+          .map((v, i) => (v != null && v > 0 ? ([toX(i), toY(v)] as const) : null))
+          .filter((p): p is readonly [number, number] => p != null)
+        if (pts.length < 2) return null
+        const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
+        const isHighlight = key === highlightKey
+        const isRaw = key === "raw"
+        return (
+          <polyline
+            key={key}
+            points={line}
+            fill="none"
+            stroke={SERIES_COLORS[key]}
+            strokeWidth={isHighlight ? 2 : 1.25}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeDasharray={isRaw ? "4 3" : undefined}
+            opacity={isHighlight || isRaw ? 1 : 0.55}
+          />
+        )
+      })}
 
-      {rawPts.map(([x, y], i) => (
-        <circle
+      {dates.map((_, i) => (
+        <rect
           key={`hit-${i}`}
-          cx={x}
-          cy={y}
-          r={10}
+          x={toX(i) - chartW / dates.length / 2}
+          y={padY}
+          width={chartW / dates.length}
+          height={chartH}
           fill="transparent"
           className="cursor-crosshair"
           onMouseEnter={() => onHover(i)}
@@ -150,29 +168,22 @@ function DualPriceChart({
       ))}
 
       <text x={padX} y={height - 2} className="fill-muted-foreground text-[8px]">
-        {formatShortDate(points[0]!.snapshotDate)}
+        {formatShortDate(dates[0]!)}
       </text>
-      <text
-        x={padX + chartW}
-        y={height - 2}
-        textAnchor="end"
-        className="fill-muted-foreground text-[8px]"
-      >
-        {formatShortDate(points[points.length - 1]!.snapshotDate)}
+      <text x={padX + chartW} y={height - 2} textAnchor="end" className="fill-muted-foreground text-[8px]">
+        {formatShortDate(dates[dates.length - 1]!)}
       </text>
     </svg>
   )
 }
 
 type PriceHistoryChartProps = {
-  /** Watchlist id used by slab_price_snapshots / slab_sale_events */
   cardId: string
   grade: PsaGradeNumber
   currentRaw?: number
   currentSlab?: number
   className?: string
   compact?: boolean
-  /** Label override, e.g. SlabLab */
   title?: string
   days?: number
 }
@@ -185,16 +196,21 @@ export function PriceHistoryChart({
   className,
   compact = false,
   title,
-  days = 30,
+  days: initialDays = 90,
 }: PriceHistoryChartProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
-  const [points, setPoints] = useState<HistoryPoint[]>([])
-  const [salesDays, setSalesDays] = useState(0)
-  const [hasSalesHistory, setHasSalesHistory] = useState(false)
+  const [range, setRange] = useState<RangeKey>(
+    initialDays >= 365 ? "365" : initialDays <= 30 ? "30" : initialDays >= 9999 ? "all" : "90",
+  )
+  const [seriesMap, setSeriesMap] = useState<Partial<Record<PriceHistorySeriesKey, SeriesPoint[]>>>({})
+  const [labels, setLabels] = useState<Record<PriceHistorySeriesKey, string> | null>(null)
   const [loading, setLoading] = useState(false)
-  const [loaded, setLoaded] = useState(false)
+  const [loadedKey, setLoadedKey] = useState("")
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
+  const [showAllGrades, setShowAllGrades] = useState(false)
+
+  const highlightKey = GRADE_TO_SERIES[grade]
 
   useEffect(() => {
     const el = rootRef.current
@@ -209,34 +225,24 @@ export function PriceHistoryChart({
     return () => observer.disconnect()
   }, [])
 
+  const fetchKey = `${cardId}|${range}`
+
   useEffect(() => {
-    if (!visible || loaded || !cardId) return
+    if (!visible || loadedKey === fetchKey || !cardId) return
     let cancelled = false
     setLoading(true)
-    void fetch(
-      `/api/card-deficit-history?id=${encodeURIComponent(cardId)}&grade=${grade}&days=${days}`,
-    )
+    void fetch(`/api/card-price-history?id=${encodeURIComponent(cardId)}&range=${range}`)
       .then(async (res) => {
-        const data = (await res.json().catch(() => null)) as HistoryResponse | null
+        const data = (await res.json().catch(() => null)) as HistoryApiResponse | null
         if (cancelled) return
-        const series = Array.isArray(data?.points) ? data.points : []
-        setPoints(
-          series.filter(
-            (p) =>
-              Number.isFinite(p.rawPrice) &&
-              Number.isFinite(p.slabPrice) &&
-              p.rawPrice > 0 &&
-              p.slabPrice > 0,
-          ),
-        )
-        setSalesDays(typeof data?.salesDays === "number" ? data.salesDays : 0)
-        setHasSalesHistory(Boolean(data?.hasSalesHistory))
-        setLoaded(true)
+        setSeriesMap(data?.series ?? {})
+        setLabels(data?.labels ?? null)
+        setLoadedKey(fetchKey)
       })
       .catch(() => {
         if (!cancelled) {
-          setPoints([])
-          setLoaded(true)
+          setSeriesMap({})
+          setLoadedKey(fetchKey)
         }
       })
       .finally(() => {
@@ -245,49 +251,43 @@ export function PriceHistoryChart({
     return () => {
       cancelled = true
     }
-  }, [visible, loaded, cardId, grade, days])
+  }, [visible, loadedKey, fetchKey, cardId, range])
 
   useEffect(() => {
-    setLoaded(false)
-    setPoints([])
+    setLoadedKey("")
+    setSeriesMap({})
     setHoverIndex(null)
-  }, [cardId, grade, days])
+  }, [cardId])
 
-  const series = useMemo(() => {
-    if (points.length > 0) return points
-    if (
-      typeof currentRaw === "number" &&
-      typeof currentSlab === "number" &&
-      currentRaw > 0 &&
-      currentSlab > 0
-    ) {
-      return [
-        {
-          deficit: currentRaw - currentSlab,
-          rawPrice: currentRaw,
-          slabPrice: currentSlab,
-          snapshotDate: new Date().toISOString().slice(0, 10),
-        },
-      ]
+  const activeKeys = useMemo(() => {
+    const keys: PriceHistorySeriesKey[] = ["raw", highlightKey]
+    if (showAllGrades) {
+      for (const k of ["psa7", "psa8", "psa9", "psa10"] as const) {
+        if (k !== highlightKey) keys.push(k)
+      }
     }
-    return []
-  }, [points, currentRaw, currentSlab])
+    return keys.filter((key) => (seriesMap[key]?.length ?? 0) >= 2)
+  }, [seriesMap, highlightKey, showAllGrades])
 
-  const raw = series.map((p) => p.rawPrice)
-  const slab = series.map((p) => p.slabPrice)
-  const latestRaw = raw[raw.length - 1] ?? 0
-  const latestSlab = slab[slab.length - 1] ?? 0
-  const firstRaw = raw[0] ?? latestRaw
-  const firstSlab = slab[0] ?? latestSlab
-  const rawDelta = latestRaw - firstRaw
-  const slabDelta = latestSlab - firstSlab
-  const hoverPoint = hoverIndex != null ? series[hoverIndex] : null
+  const { dates, values } = useMemo(
+    () => alignSeriesByDate(seriesMap, activeKeys),
+    [seriesMap, activeKeys],
+  )
 
-  const subtitle = hasSalesHistory
-    ? `${salesDays} day${salesDays === 1 ? "" : "s"} of eBay sold comps`
-    : series.length >= 2
-      ? "Daily sync medians"
-      : "Building daily history"
+  const hoverDate = hoverIndex != null ? dates[hoverIndex] : null
+  const hoverPoints = hoverDate
+    ? activeKeys
+        .map((key) => {
+          const point = seriesMap[key]?.find((p) => p.date === hoverDate)
+          return point ? { key, ...point } : null
+        })
+        .filter((p): p is { key: PriceHistorySeriesKey } & SeriesPoint => p != null)
+    : []
+
+  const latestRaw = seriesMap.raw?.[seriesMap.raw.length - 1]?.price ?? currentRaw ?? 0
+  const latestSlab =
+    seriesMap[highlightKey]?.[seriesMap[highlightKey]!.length - 1]?.price ?? currentSlab ?? 0
+  const totalPoints = Object.values(seriesMap).reduce((sum, pts) => sum + (pts?.length ?? 0), 0)
 
   return (
     <div
@@ -303,76 +303,117 @@ export function PriceHistoryChart({
       <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {title ?? `${days}-day sales · PSA ${grade}`}
+            {title ?? "Price history · pokemon-api"}
           </span>
-          <p className="text-[9px] text-muted-foreground">{subtitle}</p>
+          <p className="text-[9px] text-muted-foreground">
+            TCGPlayer raw + eBay PSA comps · {totalPoints > 0 ? `${totalPoints} points cached` : "loading…"}
+          </p>
         </div>
-        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block h-0.5 w-3 border-t border-dashed border-muted-foreground" />
-            Raw
-          </span>
-          <span className="inline-flex items-center gap-1 text-primary">
-            <span className="inline-block h-0.5 w-3 bg-primary" />
-            PSA {grade}
-          </span>
+        <div className="flex flex-wrap items-center gap-1">
+          {RANGE_OPTIONS.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => {
+                setRange(opt.key)
+                setLoadedKey("")
+              }}
+              className={cn(
+                "rounded-md px-1.5 py-0.5 text-[9px] font-medium transition-colors",
+                range === opt.key
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-card/80 text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {hoverPoint && (
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
+        {(["raw", "psa7", "psa8", "psa9", "psa10"] as const).map((key) => {
+          const count = seriesMap[key]?.length ?? 0
+          if (count < 1) return null
+          const active = activeKeys.includes(key)
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                if (key === "raw" || key === highlightKey) return
+                setShowAllGrades((v) => !v)
+              }}
+              className={cn(
+                "inline-flex items-center gap-1",
+                active ? "text-foreground" : "opacity-40",
+              )}
+            >
+              <span
+                className="inline-block h-0.5 w-3"
+                style={{
+                  backgroundColor: SERIES_COLORS[key],
+                  borderTop: key === "raw" ? "1px dashed" : undefined,
+                }}
+              />
+              {labels?.[key] ?? key}
+            </button>
+          )
+        })}
+        {!showAllGrades && (
+          <button
+            type="button"
+            className="text-[9px] text-primary hover:underline"
+            onClick={() => setShowAllGrades(true)}
+          >
+            + all grades
+          </button>
+        )}
+      </div>
+
+      {hoverPoints.length > 0 && (
         <div className="mb-1.5 rounded-lg border border-border/70 bg-card/80 px-2 py-1.5 text-[10px]">
-          <p className="font-medium text-foreground">{formatShortDate(hoverPoint.snapshotDate)}</p>
-          <p className="text-muted-foreground">
-            Raw ${hoverPoint.rawPrice.toFixed(0)}
-            {hoverPoint.rawSaleCount ? ` · ${hoverPoint.rawSaleCount} sale${hoverPoint.rawSaleCount === 1 ? "" : "s"}` : ""}
-            {" · "}
-            PSA {grade} ${hoverPoint.slabPrice.toFixed(0)}
-            {hoverPoint.slabSaleCount ? ` · ${hoverPoint.slabSaleCount} sale${hoverPoint.slabSaleCount === 1 ? "" : "s"}` : ""}
-          </p>
+          <p className="font-medium text-foreground">{formatShortDate(hoverDate!)}</p>
+          <div className="mt-0.5 space-y-0.5 text-muted-foreground">
+            {hoverPoints.map((p) => (
+              <p key={p.key}>
+                {labels?.[p.key] ?? p.key}: ${p.price.toFixed(0)}
+                {p.saleCount ? ` · ${p.saleCount} sales` : ""}
+              </p>
+            ))}
+          </div>
         </div>
       )}
 
-      {series.length >= 2 ? (
-        <DualPriceChart
-          points={series}
+      {dates.length >= 2 ? (
+        <MultiSeriesChart
+          dates={dates}
+          values={values}
+          activeKeys={activeKeys}
+          highlightKey={highlightKey}
           width={320}
-          height={compact ? 72 : 96}
-          grade={grade}
+          height={compact ? 88 : 112}
           onHover={setHoverIndex}
         />
       ) : (
         <div
           className={cn(
             "flex items-center text-[11px] text-muted-foreground",
-            compact ? "min-h-[72px]" : "min-h-[96px]",
+            compact ? "min-h-[88px]" : "min-h-[112px]",
           )}
         >
           {loading
-            ? "Loading price history…"
-            : series.length === 1
-              ? "Building history — daily syncs store sold comps for this chart."
+            ? "Loading full price history from pokemon-api…"
+            : latestRaw > 0 && latestSlab > 0
+              ? "Only one day of history so far — check back after the next sync."
               : "No price history yet for this card."}
         </div>
       )}
 
-      {series.length >= 1 && (
+      {(latestRaw > 0 || latestSlab > 0) && (
         <div className={cn("mt-2 grid gap-1.5", compact ? "grid-cols-2" : "grid-cols-4")}>
-          <Stat label="Raw now" value={`$${latestRaw.toFixed(0)}`} />
-          <Stat label={`PSA ${grade}`} value={`$${latestSlab.toFixed(0)}`} tone="up" />
-          {!compact && (
-            <>
-              <Stat
-                label="Raw Δ"
-                value={`${rawDelta >= 0 ? "+" : ""}$${rawDelta.toFixed(0)}`}
-                tone={rawDelta > 1 ? "up" : rawDelta < -1 ? "down" : "flat"}
-              />
-              <Stat
-                label="Slab Δ"
-                value={`${slabDelta >= 0 ? "+" : ""}$${slabDelta.toFixed(0)}`}
-                tone={slabDelta > 1 ? "up" : slabDelta < -1 ? "down" : "flat"}
-              />
-            </>
-          )}
+          <Stat label="Raw now" value={latestRaw > 0 ? `$${latestRaw.toFixed(0)}` : "—"} />
+          <Stat label={`PSA ${grade}`} value={latestSlab > 0 ? `$${latestSlab.toFixed(0)}` : "—"} tone="up" />
         </div>
       )}
     </div>

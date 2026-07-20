@@ -10,9 +10,13 @@ import {
 import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 
 const HISTORY_TTL_MS = 24 * 60 * 60 * 1000
+const FULL_HISTORY_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const MIN_HISTORY_POINTS = 2
+const MIN_FULL_HISTORY_POINTS = 20
 const DEFAULT_HISTORY_DAYS = 30
 const DEFAULT_MAX_PAGES = 8
+/** pokemon-api.com stores history back to card release; fetch from this floor. */
+const FULL_HISTORY_DATE_FROM = "2015-01-01"
 
 function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10)
@@ -56,9 +60,20 @@ async function isHistoryFresh(cardId: string, days: number): Promise<boolean> {
   return ageMs < HISTORY_TTL_MS
 }
 
+async function isFullHistoryFresh(cardId: string): Promise<boolean> {
+  const points = await getPriceHistoryForCard(cardId, 0, 0)
+  if (points.length < MIN_FULL_HISTORY_POINTS) return false
+
+  const latest = points[points.length - 1]?.snapshotDate
+  if (!latest) return false
+
+  const ageMs = Date.now() - new Date(`${latest}T00:00:00Z`).getTime()
+  return ageMs < FULL_HISTORY_TTL_MS
+}
+
 async function fetchTcgGoHistoryPoints(
   card: CatalogSearchHit,
-  days: number,
+  options: { days: number; full?: boolean },
 ): Promise<PriceHistoryPoint[]> {
   const meta = promoCardMeta(card.id)
   const tcgId = pokemonTcgIdFromCardId(card.id)
@@ -74,9 +89,9 @@ async function fetchTcgGoHistoryPoints(
   const history = await fetchAllTcgGoHistoryPrices({
     tcgGoId: resolved?.id ?? meta?.tcgGoId,
     tcgId: resolved?.tcgid ?? tcgId,
-    dateFrom: daysAgo(days),
+    dateFrom: options.full ? FULL_HISTORY_DATE_FROM : daysAgo(options.days),
     dateTo: formatDate(new Date()),
-    maxPages: DEFAULT_MAX_PAGES,
+    maxPages: options.full ? 0 : DEFAULT_MAX_PAGES,
   })
 
   return history.map((point) => ({
@@ -98,16 +113,18 @@ export type EnsureCardPriceHistoryResult = {
 /** Fetch TCGGO price history for a card when viewed/searched and cache in price_history. */
 export async function ensureCardPriceHistory(
   cardId: string,
-  options?: { days?: number; force?: boolean },
+  options?: { days?: number; force?: boolean; full?: boolean },
 ): Promise<EnsureCardPriceHistoryResult> {
-  const days = options?.days ?? DEFAULT_HISTORY_DAYS
+  const full = options?.full ?? false
+  const days = full ? 0 : (options?.days ?? DEFAULT_HISTORY_DAYS)
 
   if (getActivePriceProvider() !== "tcggo") {
     return { fetched: false, points: 0, reason: "no_provider" }
   }
 
-  if (!options?.force && (await isHistoryFresh(cardId, days))) {
-    return { fetched: false, points: 0, reason: "fresh" }
+  if (!options?.force) {
+    const fresh = full ? await isFullHistoryFresh(cardId) : await isHistoryFresh(cardId, days)
+    if (fresh) return { fetched: false, points: 0, reason: "fresh" }
   }
 
   const card = await resolveCardForHistory(cardId)
@@ -116,7 +133,7 @@ export async function ensureCardPriceHistory(
   }
 
   try {
-    const points = await fetchTcgGoHistoryPoints(card, days)
+    const points = await fetchTcgGoHistoryPoints(card, { days: days || DEFAULT_HISTORY_DAYS, full })
     if (points.length > 0) {
       await appendPriceHistory(points)
       return { fetched: true, points: points.length, reason: "fetched" }

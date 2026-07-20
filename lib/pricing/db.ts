@@ -320,19 +320,22 @@ export async function getPriceHistoryForCard(
 ): Promise<PriceHistoryPoint[]> {
   if (!isSupabaseConfigured()) return []
 
-  const since = new Date()
-  since.setUTCDate(since.getUTCDate() - days)
-  const sinceDate = since.toISOString().slice(0, 10)
-
   try {
     const supabase = createAdminClient()
-    const { data, error } = await supabase
+    let query = supabase
       .from("price_history")
       .select("card_id, snapshot_date, grade, price, sale_count, source")
       .eq("card_id", cardId)
       .eq("grade", grade)
-      .gte("snapshot_date", sinceDate)
       .order("snapshot_date", { ascending: true })
+
+    if (days > 0) {
+      const since = new Date()
+      since.setUTCDate(since.getUTCDate() - days)
+      query = query.gte("snapshot_date", since.toISOString().slice(0, 10))
+    }
+
+    const { data, error } = await query
 
     if (error) {
       if (error.code === "42P01") return []

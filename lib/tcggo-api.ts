@@ -351,7 +351,9 @@ export function parseTcgGoHistoryPoints(payload: unknown): TcgGoHistoryPoint[] {
 
     const explicitGrade = Number(entry.grade ?? entry.psa_grade)
     const grades =
-      Number.isFinite(explicitGrade) && explicitGrade >= 0 ? [explicitGrade] : [0, 9, 10]
+      Number.isFinite(explicitGrade) && explicitGrade >= 0
+        ? [explicitGrade]
+        : [0, 7, 8, 9, 10]
 
     for (const grade of grades) {
       const price = historyPriceFromRow(entry, grade)
@@ -734,12 +736,13 @@ export async function fetchAllTcgGoHistoryPrices(input: {
   tcgId?: string
   dateFrom: string
   dateTo: string
+  /** Max pages to fetch; 0 = until API has no more (capped at 100). Default 5. */
   maxPages?: number
 }): Promise<TcgGoHistoryPoint[]> {
-  const maxPages = input.maxPages ?? 5
+  const pageCap = input.maxPages === 0 ? 100 : (input.maxPages ?? 5)
   const merged = new Map<string, TcgGoHistoryPoint>()
 
-  for (let page = 1; page <= maxPages; page++) {
+  for (let page = 1; page <= pageCap; page++) {
     const { points, hasMore } = await fetchTcgGoHistoryPrices({ ...input, page })
     for (const point of points) {
       merged.set(`${point.date}|${point.grade}`, point)

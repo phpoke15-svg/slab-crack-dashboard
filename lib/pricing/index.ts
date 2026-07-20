@@ -43,6 +43,15 @@ export {
 export { lookupCatalogCardEntry } from "@/lib/pricing/catalog-card-lookup"
 export { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
 export { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
+export {
+  getPriceHistorySeriesMap,
+  priceHistorySeriesLabels,
+} from "@/lib/pricing/price-history-series"
+export type {
+  PriceHistorySeriesKey,
+  PriceHistorySeriesMap,
+  PriceHistorySeriesPoint,
+} from "@/lib/pricing/types"
 
 export {
   cardPriceRowToMockEntry,
