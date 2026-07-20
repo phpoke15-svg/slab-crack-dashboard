@@ -29,7 +29,9 @@ import {
 import type { SlabLabCard } from "@/lib/slablab-card"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
-import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
+import { CardSearchResults } from "@/components/card-search-results"
+import type { CardSearchHit } from "@/lib/card-lookup"
+import { useCatalogCardSearch } from "@/hooks/use-catalog-card-search"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
 import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
 import { toSlabLabCard } from "@/lib/slablab-card"
@@ -134,8 +136,12 @@ export function Psa10SpreadScanner() {
   const [view, setView] = useState<SlabLabView>("board")
   const [selectedRow, setSelectedRow] = useState<ComputedRow | null>(null)
   const [query, setQuery] = useState("")
-  const [searchHits, setSearchHits] = useState<CardSearchHit[]>([])
-  const [searchLoading, setSearchLoading] = useState(false)
+  const catalogSearchEnabled = view === "board" && query.trim().length >= 2
+  const {
+    hits: searchHits,
+    isLoading: searchLoading,
+    isPricing: searchPricing,
+  } = useCatalogCardSearch(query, catalogSearchEnabled)
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
   const [saveStore, setSaveStore] = useState<SaveForLaterStore>({ folders: [], items: [] })
   const [watchlistStore, setWatchlistStore] = useState<SlabLabWatchlistStore>({
@@ -155,26 +161,6 @@ export function Psa10SpreadScanner() {
   useEffect(() => {
     saveSlabLabWatchlistStore(watchlistStore)
   }, [watchlistStore])
-
-  useEffect(() => {
-    const q = query.trim()
-    if (q.length < 2) {
-      setSearchHits([])
-      setSearchLoading(false)
-      return
-    }
-
-    setSearchLoading(true)
-    const timer = window.setTimeout(() => {
-      fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
-        .then((res) => (res.ok ? res.json() : { results: [] }))
-        .then((data: { results?: CardSearchHit[] }) => setSearchHits(data.results ?? []))
-        .catch(() => setSearchHits([]))
-        .finally(() => setSearchLoading(false))
-    }, 350)
-
-    return () => window.clearTimeout(timer)
-  }, [query])
 
   useEffect(() => {
     let cancelled = false
@@ -509,6 +495,7 @@ export function Psa10SpreadScanner() {
         <CardSearchResults
           hits={searchHits}
           loading={searchLoading}
+          pricing={searchPricing}
           query={query}
           watchedIds={watchlistStore.ids}
           isHitWatched={checkHitWatched}

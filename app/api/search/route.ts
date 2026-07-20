@@ -4,9 +4,11 @@ import {
   getCatalogCardCount,
   searchCatalogCardsLocal,
 } from "@/lib/db/cards-catalog"
+import { enrichCardSearchHitsWithPrices } from "@/lib/pricing/persist-search-prices"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 60
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? ""
@@ -26,7 +28,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const hits = await searchCatalogCardsLocal(q, limit)
-    const results = hits.map(catalogHitToCardSearchHit)
+    const mapped = hits.map(catalogHitToCardSearchHit)
+    const results = await enrichCardSearchHitsWithPrices(mapped)
     return NextResponse.json(
       { results, catalogReady: true },
       { headers: { "Cache-Control": "private, max-age=60" } },

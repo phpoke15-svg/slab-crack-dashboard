@@ -128,3 +128,26 @@ export function applySearchPricesToCards<T extends { id: string; rawPrice?: numb
     return price && price > 0 ? { ...card, rawPrice: price } : card
   })
 }
+
+export function applyPricesToCardSearchHits<T extends { id: string; rawPrice?: number }>(
+  hits: T[],
+  prices: Map<string, number>,
+): T[] {
+  return applySearchPricesToCards(hits, prices)
+}
+
+export async function enrichCardSearchHitsWithPrices<
+  T extends { id: string; cardName: string; setName: string; cardNumber: string; rawPrice?: number },
+>(hits: T[], options?: SearchPriceOptions): Promise<T[]> {
+  if (hits.length === 0) return hits
+
+  const inputs: BinderPriceInput[] = hits.map((hit) => ({
+    id: hit.id,
+    name: hit.cardName,
+    set: hit.setName,
+    cardNumber: hit.cardNumber,
+    rawPrice: hit.rawPrice,
+  }))
+  const prices = await enrichSearchCardPrices(inputs, options)
+  return applyPricesToCardSearchHits(hits, prices)
+}

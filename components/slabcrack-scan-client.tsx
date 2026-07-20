@@ -16,6 +16,7 @@ import { ScanMatchFeedback } from "@/components/scan-match-feedback"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
+import { enrichCatalogSearchHits } from "@/hooks/use-catalog-card-search"
 import { addCardToBinder } from "@/lib/trade-binder/binder"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import {
@@ -65,6 +66,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const [query, setQuery] = useState("")
   const [hits, setHits] = useState<CardSearchHit[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+  const [searchPricing, setSearchPricing] = useState(false)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [lookupError, setLookupError] = useState<string | null>(null)
   const [detectedLabel, setDetectedLabel] = useState<string | null>(null)
@@ -98,6 +100,13 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       setLookupError(opts.error)
       if (opts.label) setDetectedLabel(opts.label)
       setPhase("manual")
+      if (nextHits.some((hit) => !hit.rawPrice || hit.rawPrice <= 0)) {
+        const controller = new AbortController()
+        setSearchPricing(true)
+        void enrichCatalogSearchHits(nextHits, controller.signal)
+          .then((priced) => setHits(priced))
+          .finally(() => setSearchPricing(false))
+      }
     },
     [],
   )
@@ -122,15 +131,31 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     }
 
     setSearchLoading(true)
+    const controller = new AbortController()
     const timer = window.setTimeout(() => {
-      fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
+      fetch(`/api/cards/search?q=${encodeURIComponent(q)}`, { signal: controller.signal })
         .then((res) => (res.ok ? res.json() : { results: [] }))
-        .then((data: { results?: CardSearchHit[] }) => setHits(data.results ?? []))
+        .then(async (data: { results?: CardSearchHit[] }) => {
+          const results = data.results ?? []
+          setHits(results)
+          if (results.some((hit) => !hit.rawPrice || hit.rawPrice <= 0)) {
+            setSearchPricing(true)
+            try {
+              const priced = await enrichCatalogSearchHits(results, controller.signal)
+              setHits(priced)
+            } finally {
+              setSearchPricing(false)
+            }
+          }
+        })
         .catch(() => setHits(seeded))
         .finally(() => setSearchLoading(false))
     }, 320)
 
-    return () => window.clearTimeout(timer)
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
   }, [phase, query])
 
   const presentMatch = useCallback((entry: MockCardEntry, opts?: { openDrawer?: boolean }) => {
@@ -569,6 +594,13 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                           {hit.setName}
                           {hit.cardNumber ? ` · #${hit.cardNumber}` : ""}
                         </p>
+                        {hit.rawPrice && hit.rawPrice > 0 ? (
+                          <p className="mt-0.5 font-mono text-[10px] text-primary tabular-nums">
+                            Raw {formatMoney(hit.rawPrice)}
+                          </p>
+                        ) : searchPricing ? (
+                          <p className="mt-0.5 text-[10px] text-white/45">Pricing…</p>
+                        ) : null}
                       </div>
                     </button>
                   </li>

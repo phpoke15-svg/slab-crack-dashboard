@@ -49,6 +49,7 @@ export function catalogHitToCardSearchHit(hit: CatalogSearchHit): CardSearchHit 
     cardNumber: hit.number,
     imageUrl: hit.imageUrl,
     rarity: hit.rarity,
+    rawPrice: hit.rawPrice && hit.rawPrice > 0 ? hit.rawPrice : undefined,
   }
 }
 

@@ -36,6 +36,7 @@ describe("catalogHitToCardSearchHit", () => {
       cardNumber: "4",
       imageUrl: sampleHit.imageUrl,
       rarity: "Legendary",
+      rawPrice: 250,
     })
   })
 })

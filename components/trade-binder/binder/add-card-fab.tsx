@@ -19,7 +19,7 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
   const searchRef = useRef<HTMLInputElement>(null)
 
   const pickerOpen = status !== null
-  const { results, isLoading, error } = usePokemonSearch(query, pickerOpen)
+  const { results, isLoading, isPricing, error } = usePokemonSearch(query, pickerOpen)
 
   useEffect(() => {
     if (pickerOpen) searchRef.current?.focus()
@@ -156,11 +156,13 @@ export function AddCardFab({ ownedIds, onAdd }: AddCardFabProps) {
                           <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium text-foreground">{card.name}</span>
                             <span className="block truncate text-[11px] text-muted-foreground">{card.set}</span>
-                            {"rawPrice" in card && typeof card.rawPrice === "number" && card.rawPrice > 0 && (
+                            {"rawPrice" in card && typeof card.rawPrice === "number" && card.rawPrice > 0 ? (
                               <span className="block font-mono text-[10px] text-primary tabular-nums">
                                 Raw ${card.rawPrice.toFixed(0)}
                               </span>
-                            )}
+                            ) : isPricing ? (
+                              <span className="block text-[10px] text-muted-foreground">Pricing…</span>
+                            ) : null}
                           </span>
                         </button>
                       </li>

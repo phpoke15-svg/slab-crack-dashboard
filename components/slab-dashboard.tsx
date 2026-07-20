@@ -34,8 +34,9 @@ import { AdSlot } from "@/components/ad-slot"
 import { interleaveFeedAds } from "@/lib/feed-ads"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
-import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
-import { searchHitToPlaceholder } from "@/lib/card-lookup"
+import { CardSearchResults } from "@/components/card-search-results"
+import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
+import { useCatalogCardSearch } from "@/hooks/use-catalog-card-search"
 import { FREE_SLABCRACK_LIMIT, pickMidDeficitCards } from "@/lib/slab-free-tier"
 import {
   findWatchedIdForHit,
@@ -94,8 +95,12 @@ export function SlabDashboard() {
     items: [],
   })
   const [sortMode, setSortMode] = useState<"dollar" | "percent">("dollar")
-  const [searchHits, setSearchHits] = useState<CardSearchHit[]>([])
-  const [searchLoading, setSearchLoading] = useState(false)
+  const catalogSearchEnabled = query.trim().length >= 2 && feed === "top"
+  const {
+    hits: searchHits,
+    isLoading: searchLoading,
+    isPricing: searchPricing,
+  } = useCatalogCardSearch(query, catalogSearchEnabled)
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
 
   useEffect(() => {
@@ -129,28 +134,6 @@ export function SlabDashboard() {
       })
       .finally(() => setFeedLoading(false))
   }, [])
-
-  useEffect(() => {
-    const q = query.trim()
-    if (q.length < 2) {
-      setSearchHits([])
-      setSearchLoading(false)
-      return
-    }
-
-    setSearchLoading(true)
-    const timer = window.setTimeout(() => {
-      fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
-        .then((res) => (res.ok ? res.json() : { results: [] }))
-        .then((data: { results?: CardSearchHit[] }) => {
-          setSearchHits(data.results ?? [])
-        })
-        .catch(() => setSearchHits([]))
-        .finally(() => setSearchLoading(false))
-    }, 350)
-
-    return () => window.clearTimeout(timer)
-  }, [query])
 
   const feedById = useMemo(() => {
     const map = new Map<string, MockCardEntry>()
@@ -289,7 +272,7 @@ export function SlabDashboard() {
   }, [arbitrageFeed, feed, fullSlabCrack, query, sortMode, savedCards, watchedCards])
 
   const showFreePreviewBanner = !fullSlabCrack && !entitlements?.isLoading && feed === "top"
-  const catalogSearchActive = query.trim().length >= 2 && feed === "top"
+  const catalogSearchActive = catalogSearchEnabled
   const freeSearchBlocked =
     !fullSlabCrack &&
     catalogSearchActive &&
@@ -434,6 +417,7 @@ export function SlabDashboard() {
           <CardSearchResults
             hits={searchHits}
             loading={searchLoading}
+            pricing={searchPricing}
             query={query}
             watchedIds={watchlistStore.ids}
             isHitWatched={checkHitWatched}

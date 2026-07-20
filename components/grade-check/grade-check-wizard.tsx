@@ -1,14 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useState } from "react"
 import Image from "next/image"
 import Link from "next/link"
 import { ArrowLeft, ArrowRight, Check, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
-import { CardSearchResults, type CardSearchHit } from "@/components/card-search-results"
+import { CardSearchResults } from "@/components/card-search-results"
+import type { CardSearchHit } from "@/lib/card-lookup"
 import { searchHitToPlaceholder } from "@/lib/card-lookup"
+import { useCatalogCardSearch } from "@/hooks/use-catalog-card-search"
 import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
 import {
   DEFAULT_BORDER_INSETS,
@@ -34,34 +36,18 @@ const STEP_LABELS: Record<Step, string> = {
 export function GradeCheckWizard() {
   const [step, setStep] = useState<Step>("card")
   const [query, setQuery] = useState("")
-  const [searchHits, setSearchHits] = useState<CardSearchHit[]>([])
-  const [searchLoading, setSearchLoading] = useState(false)
+  const catalogSearchEnabled = step === "card" && query.trim().length >= 2
+  const {
+    hits: searchHits,
+    isLoading: searchLoading,
+    isPricing: searchPricing,
+  } = useCatalogCardSearch(query, catalogSearchEnabled)
   const [selectedHit, setSelectedHit] = useState<CardSearchHit | null>(null)
   const [card, setCard] = useState<MockCardEntry | null>(null)
   const [lookupLoading, setLookupLoading] = useState(false)
   const [photos, setPhotos] = useState<CardPhotos>({ front: null, back: null })
   const [borders, setBorders] = useState(DEFAULT_BORDER_INSETS)
   const [condition, setCondition] = useState<ExtendedGradeCondition>(DEFAULT_EXTENDED_CONDITION)
-
-  useEffect(() => {
-    const q = query.trim()
-    if (q.length < 2) {
-      setSearchHits([])
-      setSearchLoading(false)
-      return
-    }
-
-    setSearchLoading(true)
-    const timer = window.setTimeout(() => {
-      fetch(`/api/cards/search?q=${encodeURIComponent(q)}`)
-        .then((res) => (res.ok ? res.json() : { results: [] }))
-        .then((data: { results?: CardSearchHit[] }) => setSearchHits(data.results ?? []))
-        .catch(() => setSearchHits([]))
-        .finally(() => setSearchLoading(false))
-    }, 350)
-
-    return () => window.clearTimeout(timer)
-  }, [query])
 
   const lookupCard = useCallback(async (hit: CardSearchHit) => {
     setLookupLoading(true)
@@ -164,6 +150,7 @@ export function GradeCheckWizard() {
             <CardSearchResults
               hits={searchHits}
               loading={searchLoading}
+              pricing={searchPricing}
               query={query}
               watchedIds={[]}
               isHitWatched={() => false}

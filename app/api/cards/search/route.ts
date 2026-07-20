@@ -5,10 +5,11 @@ import {
   searchCatalogCardsLocal,
 } from "@/lib/db/cards-catalog"
 import type { CardSearchHit } from "@/lib/card-lookup"
+import { enrichCardSearchHitsWithPrices } from "@/lib/pricing/persist-search-prices"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 15
+export const maxDuration = 60
 
 const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000
 const SEARCH_LIMIT = 40
@@ -41,7 +42,8 @@ export async function GET(request: Request) {
 
   try {
     const hits = await searchCatalogCardsLocal(q, SEARCH_LIMIT)
-    const results = hits.map(catalogHitToCardSearchHit)
+    const mapped = hits.map(catalogHitToCardSearchHit)
+    const results = await enrichCardSearchHitsWithPrices(mapped)
     searchCache.set(cacheKey, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS })
     return NextResponse.json(
       { results, catalogReady: true },

@@ -29,6 +29,7 @@ export type CardSearchHit = {
   cardNumber: string
   imageUrl: string
   rarity: string | null
+  rawPrice?: number
 }
 
 const LOOKUP_CACHE_TTL_MS = 15 * 60 * 1000
@@ -88,20 +89,21 @@ function setCachedLookup(key: string, entry: MockCardEntry) {
 }
 
 export function searchHitToPlaceholder(hit: CardSearchHit): MockCardEntry {
+  const rawPrice = hit.rawPrice && hit.rawPrice > 0 ? hit.rawPrice : 0
   return normalizeCardEntry({
     id: hit.id,
     cardName: hit.cardName,
     setName: hit.setName,
     cardNumber: hit.cardNumber,
     imageUrl: hit.imageUrl,
-    rawPrice: 0,
+    rawPrice,
     slabGrade: 8,
     slabPrice: 0,
     deficit: 0,
     percentageSavings: 0,
-    marketInsight: "Loading PSA 7–10 comps…",
-    gradeQuotes: buildGradeQuotes(0, {}),
-    hasPricing: false,
+    marketInsight: rawPrice > 0 ? "Loading PSA 7–10 comps…" : "Loading PSA 7–10 comps…",
+    gradeQuotes: buildGradeQuotes(rawPrice, {}),
+    hasPricing: rawPrice > 0,
   })
 }
 

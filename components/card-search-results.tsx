@@ -3,19 +3,14 @@
 import { Loader2, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SlabCardImage } from "@/components/slab-card-image"
-export type CardSearchHit = {
-  id: string
-  pokemonTcgId: string
-  cardName: string
-  setName: string
-  cardNumber: string
-  imageUrl: string
-  rarity: string | null
-}
+import type { CardSearchHit } from "@/lib/card-lookup"
+
+export type { CardSearchHit }
 
 export type CardSearchResultsProps = {
   hits: CardSearchHit[]
   loading: boolean
+  pricing?: boolean
   query: string
   watchedIds: string[]
   isHitWatched: (hit: CardSearchHit) => boolean
@@ -27,6 +22,7 @@ export type CardSearchResultsProps = {
 export function CardSearchResults({
   hits,
   loading,
+  pricing = false,
   query,
   watchedIds,
   isHitWatched,
@@ -42,7 +38,7 @@ export function CardSearchResults({
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Catalog search
         </h2>
-        {loading && <Loader2 className="size-3.5 animate-spin text-primary" />}
+        {(loading || pricing) && <Loader2 className="size-3.5 animate-spin text-primary" />}
       </div>
 
       {loading && hits.length === 0 ? (
@@ -58,6 +54,7 @@ export function CardSearchResults({
           {hits.map((hit) => {
             const watched = isHitWatched(hit)
             const loadingDetail = detailLoadingId === hit.id
+            const hasPrice = hit.rawPrice != null && hit.rawPrice > 0
 
             return (
               <li
@@ -90,9 +87,18 @@ export function CardSearchResults({
                       {hit.setName}
                       {hit.cardNumber ? ` · ${hit.cardNumber}` : ""}
                     </p>
-                    <p className="mt-0.5 text-[10px] text-primary">
-                      {loadingDetail ? "Loading PSA 7–10…" : "Tap for slab comps"}
-                    </p>
+                    {hasPrice ? (
+                      <p className="mt-0.5 font-mono text-[10px] font-medium text-primary tabular-nums">
+                        Raw ${hit.rawPrice!.toFixed(0)}
+                        {loadingDetail ? " · Loading PSA 7–10…" : ""}
+                      </p>
+                    ) : pricing ? (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">Pricing…</p>
+                    ) : (
+                      <p className="mt-0.5 text-[10px] text-primary">
+                        {loadingDetail ? "Loading PSA 7–10…" : "Tap for slab comps"}
+                      </p>
+                    )}
                   </div>
                 </button>
 
