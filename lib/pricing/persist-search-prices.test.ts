@@ -50,6 +50,10 @@ vi.mock("@/lib/pricing/provider", () => ({
   isCachedPriceFromActiveProvider: vi.fn((row: { price_source?: string }) => row.price_source === "tcggo"),
 }))
 
+vi.mock("@/lib/trade-binder/promo-card-meta", () => ({
+  promoCardMeta: vi.fn((cardId: string) => (cardId === "poke-mep-41" ? { id: cardId } : null)),
+}))
+
 describe("applySearchPricesToCards", () => {
   it("merges resolved prices onto cards", () => {
     const cards = [
@@ -96,5 +100,13 @@ describe("resolveSearchCardPrices", () => {
     expect(prices.get("cached-1")).toBe(12.5)
     expect(prices.has("stale-inline")).toBe(false)
     expect(prices.has("missing")).toBe(false)
+  })
+
+  it("skips cache for known promo cards so prices can be corrected", async () => {
+    const prices = await resolveSearchCardPrices([
+      { id: "poke-mep-41", name: "Chimchar", set: "MEP", rawPrice: 19.97 },
+    ])
+
+    expect(prices.has("poke-mep-41")).toBe(false)
   })
 })

@@ -36,6 +36,7 @@ export type TcgGoCardPrices = {
   tcg_player?: {
     currency?: string
     market_price?: number
+    low_price?: number
     mid_price?: number
   }
 }
@@ -186,8 +187,10 @@ export function extractTcgGoCardPrices(card: TcgGoCard): TcgGoFetchedPrices {
   const tcg = card.prices?.tcg_player
   const ebayPsa = card.prices?.ebay?.graded?.psa
 
-  // US only: TCGPlayer market price (not mid/listing median). Never Cardmarket (EUR).
-  const rawPrice = parsePositiveNumber(tcg?.market_price)
+  // US only: TCGPlayer market price, then low listing. Never mid_price (listing median) or Cardmarket.
+  const rawPrice =
+    parsePositiveNumber(tcg?.market_price) ||
+    parsePositiveNumber(tcg?.low_price)
 
   const psa10 =
     parsePositiveNumber(ebayPsa?.["10"]?.median_price) ||

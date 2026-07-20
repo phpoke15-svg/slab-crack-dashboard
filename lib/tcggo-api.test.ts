@@ -64,7 +64,7 @@ describe("extractTcgGoCardPrices", () => {
     expect(prices.rawPrice).toBe(0)
   })
 
-  it("uses tcgplayer market_price only", () => {
+  it("uses tcgplayer market_price only, not mid_price", () => {
     const prices = extractTcgGoCardPrices({
       prices: {
         tcg_player: { market_price: 6.38, mid_price: 19.97 },
@@ -72,6 +72,16 @@ describe("extractTcgGoCardPrices", () => {
     })
 
     expect(prices.rawPrice).toBe(6.38)
+  })
+
+  it("falls back to tcgplayer low_price when market is missing", () => {
+    const prices = extractTcgGoCardPrices({
+      prices: {
+        tcg_player: { low_price: 6.06, mid_price: 19.97 },
+      },
+    })
+
+    expect(prices.rawPrice).toBe(6.06)
   })
 })
 

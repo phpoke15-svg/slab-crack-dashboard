@@ -5,6 +5,7 @@ import { getCardPricesForIds } from "@/lib/pricing/db"
 import { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
 import { getActivePriceProvider, isCachedPriceFromActiveProvider } from "@/lib/pricing/provider"
 import type { BinderPriceInput } from "@/lib/trade-binder/binder-prices"
+import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 
 const PC_RATE_LIMIT_MS = 1100
 const DEFAULT_LIVE_CONCURRENCY = 2
@@ -59,14 +60,18 @@ export async function resolveSearchCardPrices(
 
   for (const card of slice) {
     const row = priceRows.get(card.id)
+    const skipCache = Boolean(promoCardMeta(card.id))
     const fromCache =
+      !skipCache &&
       provider &&
       row &&
       isCachedPriceFromActiveProvider(row, provider) &&
       isFreshSyncedAt(row.synced_at) &&
       hasUsableCachedRawPrice(row)
         ? row.raw_price!
-        : cachedPrices.get(card.id)
+        : skipCache
+          ? undefined
+          : cachedPrices.get(card.id)
 
     const fromCard =
       !provider && card.rawPrice && card.rawPrice > 0 ? card.rawPrice : undefined
