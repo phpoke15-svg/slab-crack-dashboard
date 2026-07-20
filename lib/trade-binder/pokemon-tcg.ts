@@ -59,6 +59,34 @@ const SET_HINT_IDS: Record<string, string> = {
   "151": "sv3pt5",
   pokemon151: "sv3pt5",
   sv151: "sv3pt5",
+  sv4: "sv4",
+  sv3: "sv3",
+  sv2: "sv2",
+  sv1: "sv1",
+  sv5: "sv5",
+  sv6: "sv6",
+  sv7: "sv7",
+  sv8: "sv8",
+  sv9: "sv9",
+  sv10: "sv10",
+  paldeaevolved: "sv4",
+  paradoxrift: "sv4",
+  obsidianflames: "sv3",
+  paldeafates: "sv4pt5",
+  temporalforces: "sv5",
+  twilightmasquerade: "sv6",
+  stellarcrown: "sv7",
+  shroudedfable: "sv6pt5",
+  surging: "sv8",
+  sv8pt5: "sv8pt5",
+  prismatic: "sv8pt5",
+}
+
+function normalizeSetHintToken(token: string): string {
+  const trimmed = token.trim()
+  if (/^sv151$/i.test(trimmed)) return "151"
+  if (/^sv\d{1,4}[a-z]?$/i.test(trimmed)) return trimmed.toLowerCase()
+  return trimmed
 }
 
 export function resolveBinderSetIdHint(setHint: string): string | null {
@@ -80,9 +108,8 @@ export function parseBinderSearchTokens(q: string): BinderSearchTokens {
     }
     if (/^#?\d{1,4}$/.test(right)) {
       const number = rightNumber
-      if (/^(?:sv)?\d{1,4}$/i.test(left)) {
-        const setHint = left.replace(/^sv/i, "")
-        return { name: "", setHint, number }
+      if (/^sv\d{1,4}[a-z]?$/i.test(left) || /^\d{2,4}$/.test(left)) {
+        return { name: "", setHint: normalizeSetHintToken(left), number }
       }
       return { name: left, number }
     }
@@ -90,8 +117,11 @@ export function parseBinderSearchTokens(q: string): BinderSearchTokens {
 
   if (tokens.length === 1) {
     const token = tokens[0]
-    if (/^(?:sv)?\d{2,4}$/i.test(token)) {
-      return { name: "", setHint: token.replace(/^sv/i, "") }
+    if (/^sv\d{1,4}[a-z]?$/i.test(token)) {
+      return { name: "", setHint: normalizeSetHintToken(token) }
+    }
+    if (/^\d{2,4}[a-z]?$/i.test(token)) {
+      return { name: "", setHint: token }
     }
   }
 

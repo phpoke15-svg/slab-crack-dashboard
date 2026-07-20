@@ -186,6 +186,14 @@ async function fetchByText(
   const tokens = parseBinderSearchTokens(query)
   const text = tokens.name || query.trim()
   const parts = text.split(/\s+/).filter((part) => part.length >= 2 || /^\d+$/.test(part))
+
+  if (parts.length > 1) {
+    const fullPatternRows = await fetchFullPattern(supabase, text, fetchLimit)
+    if (fullPatternRows.length > 0) {
+      return fullPatternRows.filter((row) => catalogRowMatchesQuery(row, query))
+    }
+  }
+
   const primary = sanitizeCatalogSearchToken(
     parts.sort((a, b) => b.length - a.length)[0] ?? text,
   )

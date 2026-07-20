@@ -2,13 +2,13 @@ import { NextResponse } from "next/server"
 import {
   catalogHitToCardSearchHit,
   getCatalogCardCount,
-  searchCatalogCardsLocal,
 } from "@/lib/db/cards-catalog"
 import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import type { CardSearchHit } from "@/lib/card-lookup"
 import { enrichCardSearchHitsWithPrices, SEARCH_SERVER_LIVE_PRICE_LIMIT } from "@/lib/pricing/persist-search-prices"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 import { enrichHitsWithTcgGoImages } from "@/lib/tcggo-api"
+import { searchCatalogHybrid } from "@/lib/trade-binder/catalog-search"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const hits = await searchCatalogCardsLocal(q, SEARCH_LIMIT)
+    const { hits, source } = await searchCatalogHybrid(q, { limit: SEARCH_LIMIT })
     const mapped = hits.map(catalogHitToCardSearchHit)
     const priced = await enrichCardSearchHitsWithPrices(mapped, {
       liveLimit: SEARCH_SERVER_LIVE_PRICE_LIMIT,
@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     const results = await enrichHitsWithTcgGoImages(priced)
     searchCache.set(cacheKey, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS })
     return NextResponse.json(
-      { results, catalogReady: true },
+      { results, catalogReady: true, catalogSource: source },
       { headers: { "Cache-Control": "private, max-age=120" } },
     )
   } catch (error) {
