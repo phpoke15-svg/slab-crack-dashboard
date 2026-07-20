@@ -2,6 +2,18 @@ import { describe, expect, it } from "vitest"
 import { parseBinderSearchTokens, resolveBinderSetIdHint } from "@/lib/trade-binder/pokemon-tcg"
 
 describe("parseBinderSearchTokens", () => {
+  it("parses sv set codes without stripping the prefix", () => {
+    expect(parseBinderSearchTokens("sv4 198")).toEqual({
+      name: "",
+      setHint: "sv4",
+      number: "198",
+    })
+    expect(parseBinderSearchTokens("sv4")).toEqual({
+      name: "",
+      setHint: "sv4",
+    })
+  })
+
   it("parses set + number shorthand", () => {
     expect(parseBinderSearchTokens("151 173")).toEqual({
       name: "",
@@ -42,6 +54,7 @@ describe("resolveBinderSetIdHint", () => {
   it("maps common 151 nicknames", () => {
     expect(resolveBinderSetIdHint("151")).toBe("sv3pt5")
     expect(resolveBinderSetIdHint("sv151")).toBe("sv3pt5")
+    expect(resolveBinderSetIdHint("sv4")).toBe("sv4")
     expect(resolveBinderSetIdHint("unknown")).toBeNull()
   })
 })

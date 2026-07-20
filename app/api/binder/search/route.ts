@@ -6,7 +6,7 @@ import {
   SEARCH_SERVER_LIVE_PRICE_LIMIT,
 } from "@/lib/pricing/persist-search-prices"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
-import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
+import { searchBinderCatalogWithSource } from "@/lib/trade-binder/catalog-search"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 import { enrichHitsWithTcgGoImages } from "@/lib/tcggo-api"
@@ -14,7 +14,7 @@ import { enrichHitsWithTcgGoImages } from "@/lib/tcggo-api"
 export const maxDuration = 60
 
 function mapCatalogCardsToBinder(
-  catalogCards: Awaited<ReturnType<typeof searchBinderCatalog>>,
+  catalogCards: Awaited<ReturnType<typeof searchBinderCatalogWithSource>>["cards"],
 ): BinderSearchResultCard[] {
   return catalogCards.map((card) => ({
     id: card.id,
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (q.length >= 2) {
-      const catalogCards = await searchBinderCatalog(q, { limit: pageSize })
+      const { cards: catalogCards, source } = await searchBinderCatalogWithSource(q, { limit: pageSize })
       const merged = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
       const cards = await attachLiveSearchPrices(merged)
       const withImages = await enrichHitsWithTcgGoImages(
@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
         page: 1,
         hasMore: false,
         languageFilter: "english",
-        catalogSource: "local",
+        catalogSource: source,
         catalogReady: true,
       })
     }

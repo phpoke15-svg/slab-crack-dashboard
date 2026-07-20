@@ -164,7 +164,7 @@ export async function searchCatalogCardsLocal(
 
   try {
     const supabase = createReadClient()
-    const fetchLimit = Math.min(Math.max(limit * 3, 60), 120)
+    const fetchLimit = Math.min(Math.max(limit * 4, 80), 200)
     const rows = await queryCatalogSearchRows(supabase, q, fetchLimit)
     const hits = await attachCachedPrices(rows)
     return rankCatalogSearchHits(hits, q, Math.min(Math.max(limit, 1), 80))

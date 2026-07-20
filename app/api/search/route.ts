@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import {
   catalogHitToCardSearchHit,
   getCatalogCardCount,
-  searchCatalogCardsLocal,
 } from "@/lib/db/cards-catalog"
 import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import { enrichCardSearchHitsWithPrices } from "@/lib/pricing/persist-search-prices"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
+import { searchCatalogHybrid } from "@/lib/trade-binder/catalog-search"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const hits = await searchCatalogCardsLocal(q, limit)
+    const { hits } = await searchCatalogHybrid(q, { limit })
     const mapped = hits.map(catalogHitToCardSearchHit)
     const results = await enrichCardSearchHitsWithPrices(mapped)
     return NextResponse.json(
