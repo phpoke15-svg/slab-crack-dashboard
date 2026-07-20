@@ -22,6 +22,8 @@ describe("extractTcgGoCardPrices", () => {
             psa: {
               "10": { median_price: 250 },
               "9": { median_price: 120 },
+              "8": { median_price: 70 },
+              "7": { median_price: 35 },
             },
           },
         },
@@ -31,11 +33,28 @@ describe("extractTcgGoCardPrices", () => {
     expect(prices.rawPrice).toBe(84.99)
     expect(prices.psa10Price).toBe(250)
     expect(prices.psa9Price).toBe(120)
+    expect(prices.psa8Price).toBe(70)
+    expect(prices.psa7Price).toBe(35)
   })
 })
 
 describe("parseTcgGoHistoryPoints", () => {
-  it("parses daily tcgplayer history rows", () => {
+  it("parses date-keyed tcggo history payloads", () => {
+    const points = parseTcgGoHistoryPoints({
+      data: {
+        "2026-07-01": { tcg_player_market: 70, cm_low: 65 },
+        "2026-07-02": { tcg_player_market: 75, cm_low: 72 },
+      },
+      paging: { current: 1, total: 1, per_page: 30 },
+    })
+
+    expect(points).toEqual([
+      { date: "2026-07-01", grade: 0, price: 70 },
+      { date: "2026-07-02", grade: 0, price: 75 },
+    ])
+  })
+
+  it("parses legacy array history rows", () => {
     const points = parseTcgGoHistoryPoints({
       data: [
         { date: "2026-07-01", market_price: 70 },

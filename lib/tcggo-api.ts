@@ -121,10 +121,18 @@ export function extractTcgGoCardPrices(card: TcgGoCard): TcgGoFetchedPrices {
     parsePositiveNumber(ebayPsa?.["9"]) ||
     parsePositiveNumber(cmPsa?.psa9)
 
+  const psa8 =
+    parsePositiveNumber(ebayPsa?.["8"]?.median_price) ||
+    parsePositiveNumber(ebayPsa?.["8"])
+
+  const psa7 =
+    parsePositiveNumber(ebayPsa?.["7"]?.median_price) ||
+    parsePositiveNumber(ebayPsa?.["7"])
+
   return {
     rawPrice,
-    psa7Price: 0,
-    psa8Price: 0,
+    psa7Price: psa7,
+    psa8Price: psa8,
     psa9Price: psa9,
     psa10Price: psa10,
     tcgGoId: card.id,
@@ -167,20 +175,31 @@ function parseHistoryDate(value: unknown): string | null {
 function historyPriceFromRow(row: Record<string, unknown>, grade: number): number {
   if (grade === 0) {
     return (
+      parsePositiveNumber(row.tcg_player_market) ||
       parsePositiveNumber(row.market_price) ||
       parsePositiveNumber(row.tcg_player_market_price) ||
       parsePositiveNumber(row.tcgplayer_market_price) ||
+      parsePositiveNumber(row.cm_low) ||
       parsePositiveNumber(row.lowest_near_mint) ||
       parsePositiveNumber(row.price) ||
       parsePositiveNumber(row.average_price)
     )
   }
 
+  if (grade === 7) {
+    return parsePositiveNumber(row.psa7_price) || parsePositiveNumber(row.ebay_psa7)
+  }
+
+  if (grade === 8) {
+    return parsePositiveNumber(row.psa8_price) || parsePositiveNumber(row.ebay_psa8)
+  }
+
   if (grade === 9) {
     return (
       parsePositiveNumber(row.psa9_price) ||
       parsePositiveNumber(row.psa_9_price) ||
-      parsePositiveNumber(row.grade_9_price)
+      parsePositiveNumber(row.grade_9_price) ||
+      parsePositiveNumber(row.ebay_psa9)
     )
   }
 
@@ -188,36 +207,67 @@ function historyPriceFromRow(row: Record<string, unknown>, grade: number): numbe
     return (
       parsePositiveNumber(row.psa10_price) ||
       parsePositiveNumber(row.psa_10_price) ||
-      parsePositiveNumber(row.grade_10_price)
+      parsePositiveNumber(row.grade_10_price) ||
+      parsePositiveNumber(row.ebay_psa10)
     )
   }
 
   return 0
 }
 
+function parseDateKeyedHistory(data: Record<string, unknown>): TcgGoHistoryPoint[] {
+  const points: TcgGoHistoryPoint[] = []
+
+  for (const [dateKey, value] of Object.entries(data)) {
+    const date = parseHistoryDate(dateKey)
+    if (!date || !value || typeof value !== "object") continue
+    const row = value as Record<string, unknown>
+    const price = historyPriceFromRow(row, 0)
+    if (price <= 0) continue
+    points.push({ date, grade: 0, price })
+  }
+
+  return points
+}
+
 export function parseTcgGoHistoryPoints(payload: unknown): TcgGoHistoryPoint[] {
-  const rows = unwrapHistoryRows(payload)
+  if (!payload || typeof payload !== "object") return []
+
+  const record = payload as Record<string, unknown>
+  const data = record.data
+
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const dateKeyed = parseDateKeyedHistory(data as Record<string, unknown>)
+    if (dateKeyed.length > 0) {
+      return dateKeyed.sort((a, b) => a.date.localeCompare(b.date))
+    }
+  }
+
+  const rows = Array.isArray(data)
+    ? data
+    : Array.isArray(payload)
+      ? payload
+      : unwrapHistoryRows(payload)
+
   const points: TcgGoHistoryPoint[] = []
   const seen = new Set<string>()
 
   for (const row of rows) {
     if (!row || typeof row !== "object") continue
-    const record = row as Record<string, unknown>
+    const entry = row as Record<string, unknown>
     const date =
-      parseHistoryDate(record.date) ??
-      parseHistoryDate(record.snapshot_date) ??
-      parseHistoryDate(record.captured_at)
+      parseHistoryDate(entry.date) ??
+      parseHistoryDate(entry.snapshot_date) ??
+      parseHistoryDate(entry.captured_at)
 
     if (!date) continue
 
-    const explicitGrade = Number(record.grade ?? record.psa_grade)
+    const explicitGrade = Number(entry.grade ?? entry.psa_grade)
     const grades =
-      Number.isFinite(explicitGrade) && explicitGrade >= 0
-        ? [explicitGrade]
-        : [0, 9, 10]
+      Number.isFinite(explicitGrade) && explicitGrade >= 0 ? [explicitGrade] : [0, 9, 10]
 
     for (const grade of grades) {
-      const price = historyPriceFromRow(record, grade)
+      const price = historyPriceFromRow(entry, grade)
       if (price <= 0) continue
       const key = `${date}|${grade}`
       if (seen.has(key)) continue
@@ -227,10 +277,10 @@ export function parseTcgGoHistoryPoints(payload: unknown): TcgGoHistoryPoint[] {
         grade,
         price,
         saleCount:
-          typeof record.sale_count === "number"
-            ? record.sale_count
-            : typeof record.sample_size === "number"
-              ? record.sample_size
+          typeof entry.sale_count === "number"
+            ? entry.sale_count
+            : typeof entry.sample_size === "number"
+              ? entry.sample_size
               : undefined,
       })
     }
@@ -374,21 +424,39 @@ export async function fetchTcgGoHistoryPrices(input: {
   dateTo: string
   page?: number
 }): Promise<{ points: TcgGoHistoryPoint[]; hasMore: boolean }> {
-  const payload = await tcgGoFetch<unknown>("/pokemon/history-prices", {
+  const page = input.page ?? 1
+  const query = {
     id: input.tcgGoId,
     tcgid: input.tcgId,
     cardmarket_id: input.cardmarketId,
     date_from: input.dateFrom,
     date_to: input.dateTo,
-    page: input.page ?? 1,
+    page,
     sort: "asc",
-  })
+  }
+
+  let payload: unknown
+  try {
+    payload = await tcgGoFetch<unknown>("/history-prices", query)
+  } catch (error) {
+    if (!input.tcgGoId) throw error
+    payload = await tcgGoFetch<unknown>(`/cards/${input.tcgGoId}/history-prices`, {
+      date_from: input.dateFrom,
+      date_to: input.dateTo,
+      page,
+      sort: "asc",
+    })
+  }
 
   const points = parseTcgGoHistoryPoints(payload)
   const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {}
-  const currentPage = Number(record.page ?? input.page ?? 1)
-  const lastPage = Number(record.last_page ?? record.total_pages ?? currentPage)
-  const hasMore = Number.isFinite(lastPage) && currentPage < lastPage
+  const paging =
+    record.paging && typeof record.paging === "object"
+      ? (record.paging as Record<string, unknown>)
+      : {}
+  const currentPage = Number(paging.current ?? record.page ?? page)
+  const totalPages = Number(paging.total ?? record.last_page ?? record.total_pages ?? currentPage)
+  const hasMore = Number.isFinite(totalPages) && currentPage < totalPages
 
   return { points, hasMore }
 }
