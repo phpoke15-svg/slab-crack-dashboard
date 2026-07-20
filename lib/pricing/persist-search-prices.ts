@@ -1,7 +1,8 @@
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
 import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
+import { getCardPricesForIds } from "@/lib/pricing/db"
 import { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
-import { getActivePriceProvider } from "@/lib/pricing/provider"
+import { getActivePriceProvider, isCachedPriceFromActiveProvider } from "@/lib/pricing/provider"
 import type { BinderPriceInput } from "@/lib/trade-binder/binder-prices"
 
 const PC_RATE_LIMIT_MS = 1100
@@ -38,12 +39,20 @@ export async function resolveSearchCardPrices(
 
   const limit = options?.limit ?? cards.length
   const slice = cards.slice(0, limit)
-  const cachedPrices = await getRawPricesForCardIds(slice.map((card) => card.id))
+  const provider = getActivePriceProvider()
+  const [cachedPrices, priceRows] = await Promise.all([
+    getRawPricesForCardIds(slice.map((card) => card.id)),
+    provider ? getCardPricesForIds(slice.map((card) => card.id)) : Promise.resolve(new Map()),
+  ])
   const prices = new Map<string, number>()
 
   for (const card of slice) {
     const fromCard = card.rawPrice && card.rawPrice > 0 ? card.rawPrice : undefined
-    const fromCache = cachedPrices.get(card.id)
+    const row = priceRows.get(card.id)
+    const fromCache =
+      provider && row && !isCachedPriceFromActiveProvider(row, provider)
+        ? undefined
+        : cachedPrices.get(card.id)
     const price = fromCard ?? (fromCache && fromCache > 0 ? fromCache : undefined)
     if (price && price > 0) prices.set(card.id, price)
   }

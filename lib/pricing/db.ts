@@ -1,4 +1,6 @@
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
+import { isCachedPriceFromActiveProvider } from "@/lib/pricing/provider"
+import type { ActivePriceProvider } from "@/lib/pricing/provider"
 import type { CardPriceRow, CardPriceTarget, FetchedCardPrices, PriceHistoryPoint } from "@/lib/pricing/types"
 
 const PAGE_SIZE = 1000
@@ -124,18 +126,20 @@ export async function getCardPriceById(cardId: string): Promise<CardPriceRow | n
 export async function listStaleCardPriceIds(
   cardIds: string[],
   staleBeforeIso: string,
+  options?: { provider?: ActivePriceProvider | null },
 ): Promise<Set<string>> {
   if (!isSupabaseConfigured() || cardIds.length === 0) return new Set(cardIds)
 
   const supabase = createAdminClient()
   const stale = new Set<string>()
   const chunkSize = 200
+  const provider = options?.provider ?? null
 
   for (let i = 0; i < cardIds.length; i += chunkSize) {
     const chunk = cardIds.slice(i, i + chunkSize)
     const { data, error } = await supabase
       .from("card_prices")
-      .select("card_id, synced_at")
+      .select("card_id, synced_at, price_source")
       .in("card_id", chunk)
 
     if (error) {
@@ -143,14 +147,22 @@ export async function listStaleCardPriceIds(
       throw error
     }
 
-    const fresh = new Set(
-      ((data ?? []) as { card_id: string; synced_at: string }[])
-        .filter((row) => row.synced_at >= staleBeforeIso)
-        .map((row) => row.card_id),
+    const rowsById = new Map(
+      ((data ?? []) as { card_id: string; synced_at: string; price_source?: string | null }[]).map((row) => [
+        row.card_id,
+        row,
+      ]),
     )
 
     for (const id of chunk) {
-      if (!fresh.has(id)) stale.add(id)
+      const row = rowsById.get(id)
+      if (!row || row.synced_at < staleBeforeIso) {
+        stale.add(id)
+        continue
+      }
+      if (provider && !isCachedPriceFromActiveProvider({ price_source: row.price_source ?? "pricecharting" }, provider)) {
+        stale.add(id)
+      }
     }
   }
 
