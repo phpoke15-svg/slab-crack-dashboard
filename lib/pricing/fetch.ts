@@ -6,6 +6,7 @@ import {
   extractTcgGoCardPrices,
   pokemonTcgIdFromCardId,
   resolveTcgGoCardForTarget,
+  tcgGoCardMatchesTarget,
 } from "@/lib/tcggo-api"
 import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
 import { getActivePriceProvider } from "@/lib/pricing/provider"
@@ -64,6 +65,10 @@ export async function fetchCardPricesFromTcgGo(target: CardPriceTarget): Promise
 
   if (!card) {
     throw new Error("Card not found in TCGGO API")
+  }
+
+  if (!tcgGoCardMatchesTarget(card, { cardName: target.cardName, cardNumber: target.cardNumber })) {
+    throw new Error("TCGGO API returned a different card than requested")
   }
 
   const extracted = extractTcgGoCardPrices(card)

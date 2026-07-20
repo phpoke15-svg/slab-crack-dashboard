@@ -3,6 +3,7 @@ import {
   extractTcgGoCardPrices,
   parseTcgGoHistoryPoints,
   pokemonTcgIdFromCardId,
+  tcgGoCardMatchesTarget,
 } from "@/lib/tcggo-api"
 import { getActivePriceProvider } from "@/lib/pricing/provider"
 
@@ -53,14 +54,44 @@ describe("extractTcgGoCardPrices", () => {
     expect(prices.psa9Price).toBe(0)
   })
 
-  it("uses tcgplayer mid_price when market_price is missing", () => {
+  it("ignores tcgplayer mid_price (listing median, not market)", () => {
     const prices = extractTcgGoCardPrices({
       prices: {
-        tcg_player: { mid_price: 42.5 },
+        tcg_player: { mid_price: 19.97 },
       },
     })
 
-    expect(prices.rawPrice).toBe(42.5)
+    expect(prices.rawPrice).toBe(0)
+  })
+
+  it("uses tcgplayer market_price only", () => {
+    const prices = extractTcgGoCardPrices({
+      prices: {
+        tcg_player: { market_price: 6.38, mid_price: 19.97 },
+      },
+    })
+
+    expect(prices.rawPrice).toBe(6.38)
+  })
+})
+
+describe("tcgGoCardMatchesTarget", () => {
+  it("matches chimchar mep-41", () => {
+    expect(
+      tcgGoCardMatchesTarget(
+        { name: "Chimchar", card_number: "41", tcgid: "mep-41" },
+        { cardName: "Chimchar", cardNumber: "41" },
+      ),
+    ).toBe(true)
+  })
+
+  it("rejects wrong card for chimchar mep-41", () => {
+    expect(
+      tcgGoCardMatchesTarget(
+        { name: "Pikachu at the Museum", card_number: "41", tcgid: "mep-41" },
+        { cardName: "Chimchar", cardNumber: "41" },
+      ),
+    ).toBe(false)
   })
 })
 

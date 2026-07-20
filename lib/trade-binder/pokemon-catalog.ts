@@ -249,7 +249,7 @@ async function searchTcgGoCatalog(
   if (setHint && number) {
     for (const tcgId of tcgIdCandidatesForSetNumber(setHint, number)) {
       const card = await fetchTcgGoCardByTcgId(tcgId)
-      if (card) return [card]
+      if (card && (!name || tcgGoMatchesNameAndNumber(card, name, number))) return [card]
     }
 
     const resolved = resolveBinderSetIdHint(setHint) ?? setHint.toLowerCase()

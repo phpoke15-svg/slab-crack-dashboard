@@ -1,4 +1,5 @@
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
+import type { CardPriceRow } from "@/lib/pricing/types"
 import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import { getCardPricesForIds } from "@/lib/pricing/db"
 import { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
@@ -7,6 +8,7 @@ import type { BinderPriceInput } from "@/lib/trade-binder/binder-prices"
 
 const PC_RATE_LIMIT_MS = 1100
 const DEFAULT_LIVE_CONCURRENCY = 2
+const SEARCH_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 
 /** Max live PriceCharting lookups during a single search API request (rest via client backfill). */
 export const SEARCH_SERVER_LIVE_PRICE_LIMIT = 40
@@ -30,6 +32,15 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function isFreshSyncedAt(syncedAt: string | null | undefined): boolean {
+  if (!syncedAt) return false
+  return Date.now() - new Date(syncedAt).getTime() < SEARCH_PRICE_TTL_MS
+}
+
+function hasUsableCachedRawPrice(row: CardPriceRow): boolean {
+  return (row.raw_price ?? 0) > 0 && row.sync_error !== "unavailable"
+}
+
 /** Cache lookup via card_prices + binder_card_prices with ID variant expansion. */
 export async function resolveSearchCardPrices(
   cards: BinderPriceInput[],
@@ -47,13 +58,25 @@ export async function resolveSearchCardPrices(
   const prices = new Map<string, number>()
 
   for (const card of slice) {
-    const fromCard = card.rawPrice && card.rawPrice > 0 ? card.rawPrice : undefined
     const row = priceRows.get(card.id)
     const fromCache =
-      provider && row && !isCachedPriceFromActiveProvider(row, provider)
-        ? undefined
+      provider &&
+      row &&
+      isCachedPriceFromActiveProvider(row, provider) &&
+      isFreshSyncedAt(row.synced_at) &&
+      hasUsableCachedRawPrice(row)
+        ? row.raw_price!
         : cachedPrices.get(card.id)
-    const price = fromCard ?? (fromCache && fromCache > 0 ? fromCache : undefined)
+
+    const fromCard =
+      !provider && card.rawPrice && card.rawPrice > 0 ? card.rawPrice : undefined
+
+    const price =
+      fromCache && fromCache > 0
+        ? fromCache
+        : fromCard && fromCard > 0
+          ? fromCard
+          : undefined
     if (price && price > 0) prices.set(card.id, price)
   }
 
