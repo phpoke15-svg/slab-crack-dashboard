@@ -5,6 +5,8 @@ import {
   resolveSearchCardPrices,
 } from "@/lib/pricing/persist-search-prices"
 
+const freshSyncedAt = new Date().toISOString()
+
 vi.mock("@/lib/db/priced-catalog", () => ({
   getRawPricesForCardIds: vi.fn(async (ids: string[]) => {
     const map = new Map<string, number>()
@@ -14,6 +16,38 @@ vi.mock("@/lib/db/priced-catalog", () => ({
     }
     return map
   }),
+}))
+
+vi.mock("@/lib/pricing/db", () => ({
+  getCardPricesForIds: vi.fn(async (ids: string[]) => {
+    const map = new Map<string, Record<string, unknown>>()
+    for (const id of ids) {
+      if (id === "fresh-cached") {
+        map.set(id, {
+          card_id: id,
+          raw_price: 8.25,
+          price_source: "tcggo",
+          synced_at: freshSyncedAt,
+          sync_error: null,
+        })
+      }
+      if (id === "stale-inline") {
+        map.set(id, {
+          card_id: id,
+          raw_price: 19.97,
+          price_source: "tcggo",
+          synced_at: "2020-01-01T00:00:00.000Z",
+          sync_error: null,
+        })
+      }
+    }
+    return map
+  }),
+}))
+
+vi.mock("@/lib/pricing/provider", () => ({
+  getActivePriceProvider: vi.fn(() => "tcggo"),
+  isCachedPriceFromActiveProvider: vi.fn((row: { price_source?: string }) => row.price_source === "tcggo"),
 }))
 
 describe("applySearchPricesToCards", () => {
@@ -50,15 +84,17 @@ describe("binderPriceInputsFromCards", () => {
 })
 
 describe("resolveSearchCardPrices", () => {
-  it("uses card rawPrice, then cache", async () => {
+  it("prefers fresh tcggo cache over catalog rawPrice", async () => {
     const prices = await resolveSearchCardPrices([
-      { id: "inline", name: "Inline", set: "S", rawPrice: 7 },
+      { id: "fresh-cached", name: "Chimchar", set: "MEP", rawPrice: 19.97 },
       { id: "cached-1", name: "Cached", set: "S" },
+      { id: "stale-inline", name: "Stale", set: "S", rawPrice: 19.97 },
       { id: "missing", name: "Missing", set: "S" },
     ])
 
-    expect(prices.get("inline")).toBe(7)
+    expect(prices.get("fresh-cached")).toBe(8.25)
     expect(prices.get("cached-1")).toBe(12.5)
+    expect(prices.has("stale-inline")).toBe(false)
     expect(prices.has("missing")).toBe(false)
   })
 })

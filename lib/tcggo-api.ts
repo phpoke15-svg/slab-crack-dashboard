@@ -4,6 +4,8 @@
  * Subscribe: https://rapidapi.com/tcggopro/api/pokemon-tcg-api
  */
 
+import { cardNumberMatches } from "@/lib/trade-binder/pokemon-tcg"
+
 const DEFAULT_HOST = "pokemon-tcg-api.p.rapidapi.com"
 const DEFAULT_BASE_URL = `https://${DEFAULT_HOST}`
 
@@ -132,6 +134,30 @@ export function tcgGoCardSetName(card: TcgGoCard): string {
   return card.episode?.name?.trim() || "Unknown Set"
 }
 
+/** True when a TCGGO card matches the catalog target (name + optional number). */
+export function tcgGoCardMatchesTarget(
+  tcgCard: TcgGoCard,
+  target: { cardName: string; cardNumber?: string },
+): boolean {
+  const expectedName = target.cardName.toLowerCase().trim()
+  const cardName = (tcgCard.name ?? "").toLowerCase()
+  const nameMatches =
+    !expectedName ||
+    cardName.includes(expectedName) ||
+    expectedName.split(/\s+/).every((token) => token.length > 1 && cardName.includes(token))
+  if (!nameMatches) return false
+
+  const number = target.cardNumber?.split("/")[0]?.replace(/^#/, "").trim()
+  if (!number) return true
+
+  const numberCandidates = [
+    tcgGoCardNumber(tcgCard),
+    tcgCard.card_code_number ?? "",
+    tcgCard.tcgid?.split("-").pop() ?? "",
+  ]
+  return numberCandidates.some((candidate) => cardNumberMatches(candidate, number))
+}
+
 /** Map TCGGO card → shared catalog shape used by scanners and lookup. */
 export function tcgGoCardToCatalogCard(card: TcgGoCard): {
   id: string
@@ -160,10 +186,8 @@ export function extractTcgGoCardPrices(card: TcgGoCard): TcgGoFetchedPrices {
   const tcg = card.prices?.tcg_player
   const ebayPsa = card.prices?.ebay?.graded?.psa
 
-  // US only: TCGPlayer for raw, eBay PSA comps for graded. Never fall back to Cardmarket (EUR).
-  const rawPrice =
-    parsePositiveNumber(tcg?.market_price) ||
-    parsePositiveNumber(tcg?.mid_price)
+  // US only: TCGPlayer market price (not mid/listing median). Never Cardmarket (EUR).
+  const rawPrice = parsePositiveNumber(tcg?.market_price)
 
   const psa10 =
     parsePositiveNumber(ebayPsa?.["10"]?.median_price) ||
@@ -586,19 +610,18 @@ export async function resolveTcgGoCardForTarget(input: {
   tcgGoId?: number
   tcgplayerId?: number
 }): Promise<TcgGoCard | null> {
-  if (input.tcgGoId) {
-    const byId = await fetchTcgGoCardById(input.tcgGoId)
-    if (byId) return byId
-  }
+  const target = { cardName: input.cardName, cardNumber: input.cardNumber }
+  const accepts = (card: TcgGoCard | null | undefined): TcgGoCard | null =>
+    card && tcgGoCardMatchesTarget(card, target) ? card : null
 
-  if (input.tcgplayerId) {
-    const byTcgplayer = await fetchTcgGoCardByTcgplayerId(input.tcgplayerId)
-    if (byTcgplayer) return byTcgplayer
+  if (input.tcgGoId) {
+    const byId = accepts(await fetchTcgGoCardById(input.tcgGoId))
+    if (byId) return byId
   }
 
   const tcgId = pokemonTcgIdFromCardId(input.cardId)
   if (tcgId) {
-    const byTcgId = await fetchTcgGoCardByTcgId(tcgId)
+    const byTcgId = accepts(await fetchTcgGoCardByTcgId(tcgId))
     if (byTcgId) return byTcgId
 
     const episodeCode = tcgId.split("-")[0]
@@ -616,6 +639,11 @@ export async function resolveTcgGoCardForTarget(input: {
       })
       if (matched) return matched
     }
+  }
+
+  if (input.tcgplayerId) {
+    const byTcgplayer = accepts(await fetchTcgGoCardByTcgplayerId(input.tcgplayerId))
+    if (byTcgplayer) return byTcgplayer
   }
 
   const number = input.cardNumber?.split("/")[0]?.replace(/^#/, "").trim()
@@ -648,7 +676,8 @@ export async function resolveTcgGoCardForTarget(input: {
     })
     .sort((a, b) => b.score - a.score)
 
-  return ranked[0]?.card ?? hits[0] ?? null
+  const best = ranked[0]?.card ?? hits[0] ?? null
+  return accepts(best)
 }
 
 export async function fetchTcgGoHistoryPrices(input: {
