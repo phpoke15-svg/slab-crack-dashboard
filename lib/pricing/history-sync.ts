@@ -7,6 +7,7 @@ import {
   pokemonTcgIdFromCardId,
   resolveTcgGoCardForTarget,
 } from "@/lib/tcggo-api"
+import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 import { collectSyncTargets } from "@/lib/pricing/sync"
 
 const DEFAULT_HISTORY_DAYS = 30
@@ -39,12 +40,14 @@ async function historyPointsForTarget(
   days: number,
 ): Promise<PriceHistoryPoint[]> {
   const tcgId = pokemonTcgIdFromCardId(target.cardId)
+  const meta = promoCardMeta(target.cardId)
   const card = await resolveTcgGoCardForTarget({
     cardId: target.cardId,
     cardName: target.cardName,
     setName: target.setName,
     cardNumber: target.cardNumber,
-    tcgGoId: target.tcgGoId,
+    tcgGoId: target.tcgGoId ?? meta?.tcgGoId,
+    tcgplayerId: target.tcgplayerId ?? meta?.tcgplayerId,
   })
 
   const history = await fetchAllTcgGoHistoryPrices({

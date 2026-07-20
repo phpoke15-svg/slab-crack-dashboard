@@ -591,16 +591,38 @@ export async function resolveTcgGoCardForTarget(input: {
   setName: string
   cardNumber?: string
   tcgGoId?: number
+  tcgplayerId?: number
 }): Promise<TcgGoCard | null> {
   if (input.tcgGoId) {
     const byId = await fetchTcgGoCardById(input.tcgGoId)
     if (byId) return byId
   }
 
+  if (input.tcgplayerId) {
+    const byTcgplayer = await fetchTcgGoCardByTcgplayerId(input.tcgplayerId)
+    if (byTcgplayer) return byTcgplayer
+  }
+
   const tcgId = pokemonTcgIdFromCardId(input.cardId)
   if (tcgId) {
     const byTcgId = await fetchTcgGoCardByTcgId(tcgId)
     if (byTcgId) return byTcgId
+
+    const episodeCode = tcgId.split("-")[0]
+    if (episodeCode) {
+      const episodeCards = await fetchTcgGoCardsByEpisodeCode(episodeCode, 120)
+      const number = input.cardNumber?.split("/")[0]?.replace(/^#/, "").trim()
+      const normalizedName = input.cardName.toLowerCase().trim()
+      const matched = episodeCards.find((card) => {
+        const cardName = (card.name ?? "").toLowerCase()
+        const nameMatches = !normalizedName || cardName.includes(normalizedName)
+        if (!nameMatches) return false
+        if (!number) return true
+        const cardNumber = tcgGoCardNumber(card)
+        return cardNumber === number || card.tcgid?.endsWith(`-${number}`)
+      })
+      if (matched) return matched
+    }
   }
 
   const number = input.cardNumber?.split("/")[0]?.replace(/^#/, "").trim()

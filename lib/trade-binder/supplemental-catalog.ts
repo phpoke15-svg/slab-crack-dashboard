@@ -4,21 +4,20 @@ import {
   resolveBinderSetIdHint,
 } from "@/lib/trade-binder/pokemon-tcg"
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
+import { allPromoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 
 /** Cards missing from pokemon-tcg-data / local import but searchable by name+number. */
-const SUPPLEMENTAL_CARDS: CatalogSearchHit[] = [
-  {
-    id: "poke-mep-41",
-    name: "Chimchar",
-    setName: "Mega Evolution Black Star Promos",
-    setId: "mep",
-    number: "41",
-    rarity: "Common",
-    imageUrl: "/placeholder.svg",
-    language: "en",
-    japaneseName: null,
-  },
-]
+const SUPPLEMENTAL_CARDS: CatalogSearchHit[] = allPromoCardMeta().map((card) => ({
+  id: card.id,
+  name: card.name,
+  setName: card.setName,
+  setId: card.setId,
+  number: card.number,
+  rarity: card.rarity,
+  imageUrl: "/placeholder.svg",
+  language: card.language,
+  japaneseName: null,
+}))
 
 function supplementalMatchesQuery(hit: CatalogSearchHit, query: string): boolean {
   const tokens = parseBinderSearchTokens(query)

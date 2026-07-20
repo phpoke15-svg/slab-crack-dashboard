@@ -1,14 +1,13 @@
 import {
   catalogHitToBinderCard,
   searchCatalogCardsLocal,
-  upsertCatalogCards,
   type CatalogSearchHit,
 } from "@/lib/db/cards-catalog"
-import { catalogPokemonTcgId } from "@/lib/db/cards-catalog"
 import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
 import { mergeBinderSearchResults } from "@/lib/trade-binder/binder-search"
+import { persistDiscoveredCatalogHits } from "@/lib/trade-binder/persist-discovered-cards"
 import { searchTcgGoBinderCards, type PricedCatalogCard } from "@/lib/trade-binder/pokemon-catalog"
 import { searchSupplementalCatalog } from "@/lib/trade-binder/supplemental-catalog"
 import { parseBinderSearchTokens, resolveBinderSetIdHint, cardNumberMatches } from "@/lib/trade-binder/pokemon-tcg"
@@ -107,30 +106,23 @@ function shouldFetchLiveCatalog(
   return false
 }
 
-async function persistLiveCatalogHits(hits: CatalogSearchHit[]): Promise<void> {
-  if (hits.length === 0 || !process.env.SUPABASE_SERVICE_ROLE_KEY) return
-
-  const rows = hits.map((hit) => {
-    const tcgId = catalogPokemonTcgId(hit.id)
-    const setId = hit.setId || tcgId.split("-")[0] || "unknown"
-    return {
-      id: hit.id,
-      name: hit.name,
-      set_name: hit.setName,
-      set_id: setId,
-      number: hit.number,
-      rarity: hit.rarity,
-      image_url: hit.imageUrl,
-      language: hit.language,
-    }
-  })
-
-  await upsertCatalogCards(rows)
-}
-
 async function fetchLiveCatalogHits(query: string, limit: number): Promise<CatalogSearchHit[]> {
   const cards = await searchTcgGoBinderCards(query, limit)
   return cards.map(pricedCardToCatalogHit)
+}
+
+function discoveredHitsToPersist(
+  hits: CatalogSearchHit[],
+  liveHits: CatalogSearchHit[],
+  supplementalHits: CatalogSearchHit[],
+): CatalogSearchHit[] {
+  const hitIds = new Set(hits.map((hit) => hit.id))
+  const discovered = [...liveHits, ...supplementalHits].filter((hit) => hitIds.has(hit.id))
+  const byId = new Map<string, CatalogSearchHit>()
+  for (const hit of discovered) {
+    if (!byId.has(hit.id)) byId.set(hit.id, hit)
+  }
+  return [...byId.values()]
 }
 
 function mergeCatalogHits(
@@ -229,13 +221,17 @@ export async function searchCatalogHybrid(
     }
   }
 
-  const { hits, source } = mergeCatalogHits(localHits, liveHits, supplementalHits, query, limit)
+  let { hits, source } = mergeCatalogHits(localHits, liveHits, supplementalHits, query, limit)
 
-  if (hits.length > 0 && (liveHits.length > 0 || supplementalHits.length > 0)) {
-    const toPersist = [...liveHits, ...supplementalHits.filter((hit) => hits.some((result) => result.id === hit.id))]
-    await persistLiveCatalogHits(toPersist).catch((error) => {
-      console.warn("[catalog-search] persist supplemental/live hits failed:", error)
-    })
+  const toPersist = discoveredHitsToPersist(hits, liveHits, supplementalHits)
+  if (toPersist.length > 0) {
+    try {
+      const persisted = await persistDiscoveredCatalogHits(toPersist)
+      const persistedById = new Map(persisted.map((hit) => [hit.id, hit]))
+      hits = hits.map((hit) => persistedById.get(hit.id) ?? hit)
+    } catch (error) {
+      console.warn("[catalog-search] persist discovered hits failed:", error)
+    }
   }
 
   const enriched = hits.map((hit) => {

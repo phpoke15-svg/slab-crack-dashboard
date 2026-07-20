@@ -2,6 +2,7 @@ import { getCardPriceById, upsertCardPricesSafe } from "@/lib/pricing/db"
 import { fetchCardPricesForTarget } from "@/lib/pricing/fetch"
 import { getActivePriceProvider, isCachedPriceFromActiveProvider } from "@/lib/pricing/provider"
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
+import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 
 const PRICE_TTL_MS = 24 * 60 * 60 * 1000
 
@@ -99,11 +100,14 @@ export async function getLazyCardPrice(card: CatalogSearchHit): Promise<LazyCard
   }
 
   try {
+    const meta = promoCardMeta(card.id)
     const fetched = await fetchCardPricesForTarget({
       cardId: card.id,
       cardName: card.name,
       setName: card.setName,
       cardNumber: card.number,
+      tcgGoId: meta?.tcgGoId,
+      tcgplayerId: meta?.tcgplayerId,
     })
 
     if ((fetched.rawPrice ?? 0) <= 0 && fetched.psa10Price <= 0) {

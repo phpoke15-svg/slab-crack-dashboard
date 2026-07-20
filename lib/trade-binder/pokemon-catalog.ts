@@ -25,12 +25,10 @@ import {
   isEnglishOrJapanesePricedCard,
   type PricedCatalogCard,
 } from "@/lib/trade-binder/priced-catalog"
+import { promoCardMetaByTcgId } from "@/lib/trade-binder/promo-card-meta"
 
 const POKEMON_PAGE_SIZE = 50
 const PROMO_EPISODE_CODES = ["mep"] as const
-const KNOWN_PROMO_TCGPLAYER_IDS: Record<string, number> = {
-  "mep-41": 684465,
-}
 
 function tcgGoToPokemonApiCard(card: TcgGoCard): PokemonApiCard {
   const image = tcgGoCardImageUrl(card) ?? undefined
@@ -205,10 +203,11 @@ async function searchTcgGoByNameAndNumber(
   }
 
   for (const tcgId of directIds) {
-    const tcgplayerId = KNOWN_PROMO_TCGPLAYER_IDS[tcgId]
-    if (!tcgplayerId) continue
-    const card = await fetchTcgGoCardByTcgplayerId(tcgplayerId)
-    if (card && tcgGoMatchesNameAndNumber(card, name, number)) return [card]
+    const meta = promoCardMetaByTcgId(tcgId)
+    if (meta?.tcgplayerId) {
+      const card = await fetchTcgGoCardByTcgplayerId(meta.tcgplayerId)
+      if (card && tcgGoMatchesNameAndNumber(card, name, number)) return [card]
+    }
   }
 
   for (const episodeCode of PROMO_EPISODE_CODES) {
