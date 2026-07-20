@@ -157,50 +157,27 @@ async function searchTcgGoByNameAndNumber(
   number: string,
   pageSize: number,
 ): Promise<TcgGoCard[]> {
-  const padded = number.replace(/^#/, "").padStart(3, "0")
   const normalized = number.replace(/^#/, "").replace(/^0+/, "") || number
+  const padded = normalized.padStart(3, "0")
 
-  const tcgIdPrefixes = [
-    "mep",
-    "sv",
-    "swsh",
-    "sm",
-    "xy",
-    "bw",
-    "dp",
-    "pl",
-    "hgss",
-    "base",
-    "me",
-  ]
-  for (const prefix of tcgIdPrefixes) {
-    for (const cardNumber of [normalized, padded, number]) {
-      const card = await fetchTcgGoCardByTcgId(`${prefix}-${cardNumber}`)
-      if (card && tcgGoMatchesNameAndNumber(card, name, number)) return [card]
-    }
+  const directIds = [`mep-${normalized}`, `mep-${padded}`]
+  const directCards = await Promise.all(directIds.map((tcgId) => fetchTcgGoCardByTcgId(tcgId)))
+  for (const card of directCards) {
+    if (card && tcgGoMatchesNameAndNumber(card, name, number)) return [card]
   }
 
-  const searchAttempts = [
-    `${name} ${number}`,
-    `${name} ${padded}`,
-    `${name} ${normalized}`,
-    `${name} ${number} promo`,
-    name,
-  ]
-
-  for (const search of searchAttempts) {
-    const hits = await searchTcgGoCards({ search, name, perPage: Math.max(pageSize, 80) })
+  for (const search of [`${name} ${number}`, `${name} ${padded}`, `${name} ${normalized}`]) {
+    const hits = await searchTcgGoCards({ search, perPage: 40 })
     const matched = filterTcgGoByNameAndNumber(hits, name, number)
     if (matched.length > 0) return matched
   }
 
-  for (const cardNumber of [number, padded, normalized]) {
-    const hits = await searchTcgGoCards({ cardNumber, perPage: 100 })
-    const matched = filterTcgGoByNameAndNumber(hits, name, number)
-    if (matched.length > 0) return matched
-  }
+  const [byNumber, byName] = await Promise.all([
+    searchTcgGoCards({ cardNumber: normalized, perPage: 80 }),
+    searchTcgGoCards({ search: name, name, perPage: 80 }),
+  ])
 
-  return []
+  return filterTcgGoByNameAndNumber([...byNumber, ...byName], name, number)
 }
 
 function filterTcgGoByNameAndNumber(cards: TcgGoCard[], name: string, number: string): TcgGoCard[] {

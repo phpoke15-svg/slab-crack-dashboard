@@ -389,9 +389,13 @@ export async function fetchTcgGoCardByTcgId(
   tcgId: string,
   options?: TcgGoRequestOptions,
 ): Promise<TcgGoCard | null> {
-  const payload = await tcgGoFetch<unknown>("/cards", { tcgid: tcgId, per_page: 1 }, options)
-  const cards = unwrapCardList(payload)
-  return cards[0] ?? null
+  try {
+    const payload = await tcgGoFetch<unknown>("/cards", { tcgid: tcgId, per_page: 1 }, options)
+    const cards = unwrapCardList(payload)
+    return cards[0] ?? null
+  } catch {
+    return null
+  }
 }
 
 export async function searchTcgGoCards(
