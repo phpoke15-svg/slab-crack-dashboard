@@ -2,7 +2,7 @@ export type ActivePriceProvider = "tcggo" | "pricecharting"
 
 /** Which backend supplies live card prices (search, sync, lazy lookup). */
 export function getActivePriceProvider(): ActivePriceProvider | null {
-  const configured = (process.env.PRICE_PROVIDER ?? "auto").trim().toLowerCase()
+  const configured = (process.env.PRICE_PROVIDER ?? "tcggo").trim().toLowerCase()
 
   if (configured === "tcggo") {
     return hasTcgGoApiKey() ? "tcggo" : null
@@ -10,8 +10,13 @@ export function getActivePriceProvider(): ActivePriceProvider | null {
   if (configured === "pricecharting") {
     return hasPriceChartingApiKey() ? "pricecharting" : null
   }
+  if (configured === "auto") {
+    if (hasTcgGoApiKey()) return "tcggo"
+    if (hasPriceChartingApiKey()) return "pricecharting"
+    return null
+  }
 
-  // auto: prefer TCGGO RapidAPI when configured
+  // Default: pokemon-api.com (TCGGO RapidAPI) when configured.
   if (hasTcgGoApiKey()) return "tcggo"
   if (hasPriceChartingApiKey()) return "pricecharting"
   return null

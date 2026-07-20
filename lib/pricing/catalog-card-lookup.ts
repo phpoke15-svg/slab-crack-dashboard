@@ -6,6 +6,12 @@ import type { MockCardEntry } from "@/lib/slab-data"
 import type { CardPriceRow } from "@/lib/pricing/types"
 
 function lazyToPriceRow(lazy: LazyCardPriceResult): CardPriceRow {
+  const source =
+    lazy.source === "tcggo"
+      ? "tcggo"
+      : lazy.source === "pricecharting"
+        ? "pricecharting"
+        : "pricecharting"
   return {
     card_id: lazy.cardId,
     raw_price: lazy.rawPrice,
@@ -13,7 +19,7 @@ function lazyToPriceRow(lazy: LazyCardPriceResult): CardPriceRow {
     psa8_price: lazy.psa8Price,
     psa9_price: lazy.psa9Price,
     psa10_price: lazy.psa10Price,
-    price_source: lazy.source === "pricecharting" ? "pricecharting" : "pricecharting",
+    price_source: source,
     synced_at: lazy.syncedAt,
     sync_error: lazy.source === "unavailable" ? "unavailable" : null,
     card_name: null,
@@ -37,14 +43,16 @@ export async function lookupCatalogCardEntry(cardId: string): Promise<MockCardEn
     cardNumber: card.number,
     imageUrl: card.imageUrl,
     marketInsight:
-      lazy.source === "pricecharting"
-        ? "Live PriceCharting prices loaded on demand."
-        : lazy.source === "unavailable"
-          ? "No PriceCharting match found — try again later."
-          : lazy.source === "skipped"
-            ? "Price lookup unavailable — API key not configured."
-            : (lazy.rawPrice ?? 0) > 0
-              ? "Cached market prices (refreshed on demand or by nightly sync)."
-              : "Price pending — tap again to refresh.",
+      lazy.source === "tcggo"
+        ? "Live pokemon-api.com prices loaded on demand."
+        : lazy.source === "pricecharting"
+          ? "Live PriceCharting prices loaded on demand."
+          : lazy.source === "unavailable"
+            ? "No market price found — try again later."
+            : lazy.source === "skipped"
+              ? "Price lookup unavailable — set RAPIDAPI_POKEMON_TCG_KEY on the server."
+              : (lazy.rawPrice ?? 0) > 0
+                ? "Cached market prices (refreshed on demand or by nightly sync)."
+                : "Price pending — tap again to refresh.",
   })
 }

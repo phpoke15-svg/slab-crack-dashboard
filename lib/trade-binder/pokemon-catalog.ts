@@ -5,12 +5,34 @@ import {
   parseBinderSearchTokens,
 } from "@/lib/trade-binder/pokemon-tcg"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
+import { hasTcgGoApiKey } from "@/lib/pricing/provider"
+import {
+  extractTcgGoCardPrices,
+  fetchTcgGoCatalogPage,
+  searchTcgGoCards,
+  tcgGoCardImageUrl,
+  tcgGoCardNumber,
+  tcgGoCardSetName,
+  type TcgGoCard,
+} from "@/lib/tcggo-api"
 import {
   isEnglishOrJapanesePricedCard,
   type PricedCatalogCard,
 } from "@/lib/trade-binder/priced-catalog"
 
-const POKEMON_PAGE_SIZE = 250
+const POKEMON_PAGE_SIZE = 50
+
+function tcgGoToPokemonApiCard(card: TcgGoCard): PokemonApiCard {
+  const image = tcgGoCardImageUrl(card) ?? undefined
+  return {
+    id: card.tcgid ?? String(card.id ?? ""),
+    name: card.name ?? "Unknown",
+    number: tcgGoCardNumber(card),
+    rarity: card.rarity ?? undefined,
+    set: { id: card.episode?.code, name: tcgGoCardSetName(card) },
+    images: image ? { small: image, large: image } : undefined,
+  }
+}
 
 export function pokemonApiToBinderCard(
   card: PokemonApiCard,
@@ -22,7 +44,7 @@ export function pokemonApiToBinderCard(
   }
 
   return {
-    id: card.id,
+    id: card.id.startsWith("poke-") ? card.id : `poke-${card.id}`,
     name: card.name,
     set: setName,
     rarity: mapPokemonRarity(card.rarity),
@@ -32,10 +54,25 @@ export function pokemonApiToBinderCard(
   }
 }
 
+export function tcgGoToBinderCard(card: TcgGoCard): PricedCatalogCard | null {
+  const apiCard = tcgGoToPokemonApiCard(card)
+  const prices = extractTcgGoCardPrices(card)
+  return pokemonApiToBinderCard(apiCard, prices.rawPrice)
+}
+
 export async function fetchPokemonCatalogPage(
   page: number,
   pageSize = POKEMON_PAGE_SIZE,
 ): Promise<{ cards: PokemonApiCard[]; totalCount: number; pageSize: number }> {
+  if (hasTcgGoApiKey()) {
+    const result = await fetchTcgGoCatalogPage(page, pageSize)
+    return {
+      cards: result.cards.map(tcgGoToPokemonApiCard),
+      totalCount: result.totalCount,
+      pageSize: result.pageSize,
+    }
+  }
+
   const url = new URL("https://api.pokemontcg.io/v2/cards")
   url.searchParams.set("page", String(page))
   url.searchParams.set("pageSize", String(pageSize))
@@ -67,6 +104,20 @@ export async function searchPokemonCatalog(
   query: string,
   pageSize = 40,
 ): Promise<{ cards: PokemonApiCard[]; totalCount: number }> {
+  const { number, name, setHint } = parseBinderSearchTokens(query)
+
+  if (hasTcgGoApiKey()) {
+    const searchParts = [name, number, setHint, query.trim()].filter(Boolean)
+    const hits = await searchTcgGoCards({
+      search: searchParts.join(" ").trim(),
+      name: name || undefined,
+      cardNumber: number,
+      perPage: pageSize,
+    })
+    const cards = hits.map(tcgGoToPokemonApiCard)
+    return { cards, totalCount: cards.length }
+  }
+
   const queries = buildPokemonSearchQueries(query)
   if (queries.length === 0) return { cards: [], totalCount: 0 }
 
@@ -74,7 +125,6 @@ export async function searchPokemonCatalog(
   const apiKey = process.env.POKEMON_TCG_API_KEY
   if (apiKey) headers["X-Api-Key"] = apiKey
 
-  const { number } = parseBinderSearchTokens(query)
   const seen = new Set<string>()
   const cards: PokemonApiCard[] = []
 

@@ -1,4 +1,6 @@
 import "server-only"
+import { fetchCardPricesForTarget } from "@/lib/pricing/fetch"
+import { hasTcgGoApiKey, getPriceChartingApiKey } from "@/lib/pricing/provider"
 import {
   extractCardPrices,
   resolvePriceChartingForCard,
@@ -64,11 +66,50 @@ async function mapPool<T, R>(
   return out
 }
 
-async function priceOneBinderCard(
-  apiKey: string,
-  card: BinderPriceRequest,
-): Promise<BinderPriceResult> {
+async function priceOneBinderCard(card: BinderPriceRequest): Promise<BinderPriceResult> {
   try {
+    if (hasTcgGoApiKey()) {
+      const fetched = await fetchCardPricesForTarget({
+        cardId: `poke-${card.name}`,
+        cardName: card.name,
+        setName: card.set || "",
+        cardNumber: card.number,
+      })
+      const psa7 = fetched.psa7Price
+      const psa8 = fetched.psa8Price
+      const psa9 = fetched.psa9Price
+      const psa10 = fetched.psa10Price
+      const rawPrice = fetched.rawPrice
+      const bestGrade =
+        [
+          { grade: 10, price: psa10 },
+          { grade: 9, price: psa9 },
+          { grade: 8, price: psa8 },
+          { grade: 7, price: psa7 },
+        ].find((g) => g.price > 0) || null
+
+      return {
+        ok: true,
+        slot: card.slot,
+        name: card.name,
+        set: card.set || "",
+        number: card.number || "",
+        productName: card.name,
+        consoleName: card.set || "",
+        productId: null,
+        prices: { rawNm: rawPrice, psa7, psa8, psa9, psa10 },
+        trend: {
+          rawNm: rawPrice,
+          gradedSpread:
+            rawPrice > 0 && psa10 > 0 ? Number((psa10 - rawPrice).toFixed(2)) : null,
+          bestGrade,
+        },
+      }
+    }
+
+    const apiKey = getPriceChartingApiKey()
+    if (!apiKey) throw new Error("RAPIDAPI_POKEMON_TCG_KEY or PRICECHARTING_API_KEY is not configured.")
+
     const { product, resolvedId } = await resolvePriceChartingForCard(apiKey, {
       cardName: card.name,
       setName: card.set || "",
@@ -123,10 +164,11 @@ async function priceOneBinderCard(
 
 export async function priceBinderCards(
   cards: BinderPriceRequest[],
-  apiKeyOverride?: string,
+  _apiKeyOverride?: string,
 ): Promise<BinderPriceResult[]> {
-  const apiKey = (apiKeyOverride || process.env.PRICECHARTING_API_KEY || "").trim()
-  if (!apiKey) throw new Error("PRICECHARTING_API_KEY is not configured.")
+  if (!hasTcgGoApiKey() && !getPriceChartingApiKey()) {
+    throw new Error("RAPIDAPI_POKEMON_TCG_KEY or PRICECHARTING_API_KEY is not configured.")
+  }
 
-  return mapPool(cards, PRICE_LOOKUP_CONCURRENCY, (card) => priceOneBinderCard(apiKey, card))
+  return mapPool(cards, PRICE_LOOKUP_CONCURRENCY, (card) => priceOneBinderCard(card))
 }

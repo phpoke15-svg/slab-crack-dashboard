@@ -1,4 +1,5 @@
-import { fetchPokemonCardForWatchlist, resolvePokemonCardImage } from "@/lib/pokemon-tcg"
+import { hasTcgGoApiKey } from "@/lib/pricing/provider"
+import { resolveTcgGoCardForTarget, tcgGoCardImageUrl } from "@/lib/tcggo-api"
 import {
   bestKnownImageUrl,
   cardImageNeedsUpgrade,
@@ -178,17 +179,31 @@ function upgradePriceChartingImageUrlLocal(url: string): string {
   return upgradeCardImageUrlSync(url)
 }
 
-/** PriceCharting product ID is ground truth for discovered cards; Pokémon API is validated fallback. */
+/** pokemon-api.com (TCGGO) first, then legacy Pokémon/PriceCharting fallbacks. */
 export async function resolveCardArtwork(input: {
   cardName: string
   setName: string
   cardNumber: string
   imageUrl?: string
   pricechartingId?: string
+  pokemonTcgId?: string
 }): Promise<string | null> {
   const cardNumber = input.cardNumber || extractCardNumberFromName(input.cardName)
   const lookupName = cleanCardNameForLookup(input.cardName)
 
+  if (hasTcgGoApiKey()) {
+    const tcgId = input.pokemonTcgId?.replace(/^poke-/, "")
+    const card = await resolveTcgGoCardForTarget({
+      cardId: tcgId ? `poke-${tcgId}` : `poke-${lookupName}`,
+      cardName: lookupName,
+      setName: input.setName,
+      cardNumber,
+    })
+    const tcgImage = card ? tcgGoCardImageUrl(card) : null
+    if (tcgImage) return tcgImage
+  }
+
+  const { resolvePokemonCardImage, fetchPokemonCardForWatchlist } = await import("@/lib/pokemon-tcg")
   const fromPokemon = await resolvePokemonCardImage({
     cardName: lookupName,
     setName: input.setName,

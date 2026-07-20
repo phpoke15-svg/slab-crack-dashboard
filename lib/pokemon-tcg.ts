@@ -1,3 +1,10 @@
+import { hasTcgGoApiKey } from "@/lib/pricing/provider"
+import {
+  fetchTcgGoCardByTcgId,
+  searchTcgGoCards,
+  tcgGoCardToCatalogCard,
+} from "@/lib/tcggo-api"
+
 export type PokemonApiCard = {
   id: string
   name: string
@@ -268,6 +275,20 @@ export function toCatalogCard(card: PokemonApiCard): CatalogCard {
   }
 }
 
+function luceneQueryToTcgGoSearch(query: string): { search?: string; name?: string; cardNumber?: string } {
+  const name =
+    query.match(/name:"([^"]+)"/)?.[1] ??
+    query.match(/name:([^\s]+)/)?.[1]
+  const number = query.match(/number:([^\s]+)/)?.[1]
+  const setHint = query.match(/set\.name:"([^"]+)"/)?.[1] ?? query.match(/set\.name:([^\s]+)/)?.[1]
+  const parts = [name, number, setHint].filter(Boolean)
+  return {
+    search: parts.join(" ").trim() || query.replace(/[^\w\s#/-]/g, " ").trim(),
+    name: name?.replace(/\\"/g, '"'),
+    cardNumber: number,
+  }
+}
+
 async function fetchWithTimeout(url: string, headers: HeadersInit, ms = 6000) {
   const run = async () => {
     const controller = new AbortController()
@@ -289,6 +310,12 @@ async function fetchWithTimeout(url: string, headers: HeadersInit, ms = 6000) {
 }
 
 export async function fetchPokemonCardsByQuery(query: string, pageSize = 8): Promise<CatalogCard[]> {
+  if (hasTcgGoApiKey()) {
+    const params = luceneQueryToTcgGoSearch(query)
+    const hits = await searchTcgGoCards({ ...params, perPage: pageSize })
+    return hits.map((card) => tcgGoCardToCatalogCard(card))
+  }
+
   const url = new URL("https://api.pokemontcg.io/v2/cards")
   url.searchParams.set("q", query)
   url.searchParams.set("pageSize", String(pageSize))
@@ -313,6 +340,12 @@ export async function fetchPokemonCardByQuery(query: string): Promise<CatalogCar
 }
 
 export async function fetchPokemonCardById(id: string): Promise<CatalogCard | null> {
+  if (hasTcgGoApiKey()) {
+    const tcgId = id.replace(/^poke-/, "")
+    const card = await fetchTcgGoCardByTcgId(tcgId)
+    return card ? tcgGoCardToCatalogCard(card) : null
+  }
+
   const headers: HeadersInit = { Accept: "application/json" }
   const apiKey = process.env.POKEMON_TCG_API_KEY
   if (apiKey) headers["X-Api-Key"] = apiKey

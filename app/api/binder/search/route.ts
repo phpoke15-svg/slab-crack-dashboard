@@ -9,6 +9,7 @@ import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/tra
 import { searchBinderCatalog } from "@/lib/trade-binder/catalog-search"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
+import { enrichHitsWithTcgGoImages } from "@/lib/tcggo-api"
 
 export const maxDuration = 60
 
@@ -70,9 +71,16 @@ export async function GET(request: NextRequest) {
       const catalogCards = await searchBinderCatalog(q, { limit: pageSize })
       const merged = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
       const cards = await attachLiveSearchPrices(merged)
+      const withImages = await enrichHitsWithTcgGoImages(
+        cards.map((card) => ({ ...card, imageUrl: card.image })),
+      )
+      const pricedCards = withImages.map((card) => ({
+        ...card,
+        image: card.imageUrl ?? card.image,
+      }))
 
       return NextResponse.json({
-        cards,
+        cards: pricedCards,
         totalCount: cards.length,
         page: 1,
         hasMore: false,

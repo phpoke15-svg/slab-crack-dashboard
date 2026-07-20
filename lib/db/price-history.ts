@@ -74,6 +74,8 @@ export async function getDailyPriceHistory(
   let salesDays = 0
   let snapshotDays = 0
 
+  let lastSlabPrice = 0
+
   const points: DailyPriceHistoryPoint[] = [...allDates]
     .sort()
     .map((date) => {
@@ -83,6 +85,8 @@ export async function getDailyPriceHistory(
 
       const rawPrice = rawSales?.medianPrice ?? snap?.rawPrice ?? 0
       const slabPrice = slabSales?.medianPrice ?? snap?.slabPrice ?? 0
+      if (slabPrice > 0) lastSlabPrice = slabPrice
+      const effectiveSlab = slabPrice > 0 ? slabPrice : lastSlabPrice
       const fromSales = Boolean(rawSales || slabSales)
 
       if (fromSales) salesDays += 1
@@ -91,8 +95,8 @@ export async function getDailyPriceHistory(
       return {
         snapshotDate: date,
         rawPrice,
-        slabPrice,
-        deficit: rawPrice - slabPrice,
+        slabPrice: effectiveSlab,
+        deficit: rawPrice - effectiveSlab,
         rawSaleCount: rawSales?.saleCount ?? 0,
         slabSaleCount: slabSales?.saleCount ?? 0,
         fromSales,

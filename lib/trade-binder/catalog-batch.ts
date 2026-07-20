@@ -1,10 +1,35 @@
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { lookupCardById } from "@/lib/card-lookup"
+import { hasTcgGoApiKey } from "@/lib/pricing/provider"
+import {
+  fetchTcgGoCardsByTcgIds,
+  tcgGoCardToCatalogCard,
+} from "@/lib/tcggo-api"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
 import { mapPokemonRarity, toCatalogCard, type PokemonApiCard } from "@/lib/trade-binder/pokemon-tcg"
 
 async function fetchPokemonCardsByIds(pokemonIds: string[]): Promise<CatalogCard[]> {
   if (pokemonIds.length === 0) return []
+
+  if (hasTcgGoApiKey()) {
+    const cards: CatalogCard[] = []
+    for (let i = 0; i < pokemonIds.length; i += 20) {
+      const chunk = pokemonIds.slice(i, i + 20)
+      const hits = await fetchTcgGoCardsByTcgIds(chunk)
+      for (const hit of hits) {
+        const catalog = tcgGoCardToCatalogCard(hit)
+        cards.push({
+          id: catalog.id.startsWith("poke-") ? catalog.id : `poke-${catalog.id}`,
+          name: catalog.name,
+          set: catalog.setName,
+          rarity: mapPokemonRarity(catalog.rarity ?? undefined),
+          image: upgradeCardImageUrlSync(catalog.imageLarge ?? catalog.imageSmall ?? "/placeholder.svg"),
+          cardNumber: catalog.cardNumber,
+        })
+      }
+    }
+    return cards
+  }
 
   const query = pokemonIds.map((id) => `id:${id}`).join(" OR ")
   const url = new URL("https://api.pokemontcg.io/v2/cards")
@@ -22,8 +47,12 @@ async function fetchPokemonCardsByIds(pokemonIds: string[]): Promise<CatalogCard
   return ((data.data as PokemonApiCard[]) ?? []).map((card) => {
     const catalog = toCatalogCard(card)
     return {
-      ...catalog,
-      image: upgradeCardImageUrlSync(catalog.image),
+      id: catalog.id.startsWith("poke-") ? catalog.id : `poke-${catalog.id}`,
+      name: catalog.name,
+      set: catalog.setName,
+      rarity: mapPokemonRarity(catalog.rarity ?? undefined),
+      image: upgradeCardImageUrlSync(catalog.imageLarge ?? catalog.imageSmall ?? "/placeholder.svg"),
+      cardNumber: catalog.cardNumber,
     }
   })
 }
@@ -62,7 +91,7 @@ export async function lookupCatalogCardsByIds(ids: string[]): Promise<CatalogCar
 
   const [pokemonCards, pcCards] = await Promise.all([
     fetchPokemonCardsByIds(pokemonIds),
-    fetchPriceChartingCardsByIds(pcIds),
+    hasTcgGoApiKey() ? Promise.resolve([]) : fetchPriceChartingCardsByIds(pcIds),
   ])
 
   return [...pokemonCards, ...pcCards]

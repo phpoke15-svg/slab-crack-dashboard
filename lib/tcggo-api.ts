@@ -1,6 +1,7 @@
 /**
- * Pokémon TCG API on RapidAPI (TCGGO) — live + historical market prices.
- * Docs: https://rapidapi.com/tcggopro/api/pokemon-tcg-api
+ * Pokémon TCG API on RapidAPI (pokemon-api.com / TCGGO).
+ * Docs: https://www.pokemon-api.com/docs/
+ * Subscribe: https://rapidapi.com/tcggopro/api/pokemon-tcg-api
  */
 
 const DEFAULT_HOST = "pokemon-tcg-api.p.rapidapi.com"
@@ -42,11 +43,14 @@ export type TcgGoCard = {
   name?: string
   name_numbered?: string
   card_code_number?: string
+  card_number?: number | string
   tcgid?: string
   tcgplayer_id?: number
   cardmarket_id?: number
+  rarity?: string | null
+  image?: string | null
   prices?: TcgGoCardPrices
-  episode?: { name?: string; code?: string }
+  episode?: { id?: number; name?: string; code?: string }
 }
 
 export type TcgGoHistoryPoint = {
@@ -93,11 +97,63 @@ function parsePositiveNumber(value: unknown): number {
   return num
 }
 
-/** poke-sv3pt5-173 → sv3pt5-173 */
+/** poke-sv3pt5-173 → sv3pt5-173; also accepts bare tcgid. */
 export function pokemonTcgIdFromCardId(cardId: string): string | undefined {
   if (cardId.startsWith("poke-")) return cardId.slice("poke-".length)
   if (cardId.includes("-") && !cardId.startsWith("pc-")) return cardId
   return undefined
+}
+
+export function catalogIdFromTcgGoCard(card: TcgGoCard): string {
+  const tcgId = card.tcgid?.trim()
+  if (tcgId) return `poke-${tcgId}`
+  if (card.id != null) return `poke-tcggo-${card.id}`
+  return "poke-unknown"
+}
+
+export function tcgGoCardImageUrl(card: TcgGoCard): string | null {
+  const image = card.image?.trim()
+  return image || null
+}
+
+export function tcgGoCardNumber(card: TcgGoCard): string {
+  if (typeof card.card_number === "number") return String(card.card_number)
+  if (typeof card.card_number === "string" && card.card_number.trim()) return card.card_number.trim()
+  const coded = card.card_code_number?.trim()
+  if (coded) {
+    const match = coded.match(/(\d+[a-zA-Z]?)$/)
+    if (match) return match[1]!
+    return coded
+  }
+  return ""
+}
+
+export function tcgGoCardSetName(card: TcgGoCard): string {
+  return card.episode?.name?.trim() || "Unknown Set"
+}
+
+/** Map TCGGO card → shared catalog shape used by scanners and lookup. */
+export function tcgGoCardToCatalogCard(card: TcgGoCard): {
+  id: string
+  name: string
+  setName: string
+  cardNumber: string
+  rarity: string | null
+  imageSmall: string | null
+  imageLarge: string | null
+  tcgGoId?: number
+} {
+  const image = tcgGoCardImageUrl(card)
+  return {
+    id: card.tcgid ?? String(card.id ?? ""),
+    name: card.name ?? "Unknown",
+    setName: tcgGoCardSetName(card),
+    cardNumber: tcgGoCardNumber(card),
+    rarity: card.rarity ?? null,
+    imageSmall: image,
+    imageLarge: image,
+    tcgGoId: card.id,
+  }
 }
 
 export function extractTcgGoCardPrices(card: TcgGoCard): TcgGoFetchedPrices {
@@ -138,6 +194,16 @@ export function extractTcgGoCardPrices(card: TcgGoCard): TcgGoFetchedPrices {
     tcgGoId: card.id,
     tcgId: card.tcgid,
   }
+}
+
+function unwrapCard(payload: unknown): TcgGoCard | null {
+  if (!payload || typeof payload !== "object") return null
+  const record = payload as Record<string, unknown>
+  if (record.data && typeof record.data === "object" && !Array.isArray(record.data)) {
+    return record.data as TcgGoCard
+  }
+  if (record.id != null) return record as TcgGoCard
+  return unwrapCardList(payload)[0] ?? null
 }
 
 function unwrapCardList(payload: unknown): TcgGoCard[] {
@@ -358,10 +424,48 @@ export async function fetchTcgGoCardById(
   options?: TcgGoRequestOptions,
 ): Promise<TcgGoCard | null> {
   try {
-    return await tcgGoFetch<TcgGoCard>(`/cards/${tcgGoId}`, undefined, options)
+    const payload = await tcgGoFetch<unknown>(`/cards/${tcgGoId}`, undefined, options)
+    return unwrapCard(payload)
   } catch {
     return null
   }
+}
+
+export async function fetchTcgGoCardsByTcgIds(
+  tcgIds: string[],
+  options?: TcgGoRequestOptions,
+): Promise<TcgGoCard[]> {
+  const ids = [...new Set(tcgIds.map((id) => id.trim()).filter(Boolean))].slice(0, 20)
+  if (ids.length === 0) return []
+
+  const payload = await tcgGoFetch<unknown>(
+    "/cards",
+    { tcgids: ids.join(","), per_page: ids.length },
+    options,
+  )
+  return unwrapCardList(payload)
+}
+
+export async function fetchTcgGoCatalogPage(
+  page: number,
+  perPage = 50,
+  options?: TcgGoRequestOptions,
+): Promise<{ cards: TcgGoCard[]; totalCount: number; pageSize: number }> {
+  const payload = await tcgGoFetch<unknown>(
+    "/cards",
+    { page, per_page: perPage, sort: "-released_at" },
+    options,
+  )
+  const cards = unwrapCardList(payload)
+  const record = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {}
+  const paging =
+    record.paging && typeof record.paging === "object"
+      ? (record.paging as Record<string, unknown>)
+      : {}
+  const totalCount = Number(record.results ?? paging.total ?? cards.length)
+  const pageSize = Number(paging.per_page ?? perPage)
+
+  return { cards, totalCount: Number.isFinite(totalCount) ? totalCount : cards.length, pageSize }
 }
 
 export async function resolveTcgGoCardForTarget(input: {
@@ -481,4 +585,38 @@ export async function fetchAllTcgGoHistoryPrices(input: {
   }
 
   return [...merged.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Replace catalog images with pokemon-api.com artwork when available. */
+export async function enrichHitsWithTcgGoImages<
+  T extends { id: string; imageUrl?: string | null; image?: string | null },
+>(hits: T[], limit = 12): Promise<T[]> {
+  if (!process.env.RAPIDAPI_POKEMON_TCG_KEY?.trim() || hits.length === 0) return hits
+
+  const slice = hits.slice(0, limit)
+  const tcgIds = slice
+    .map((hit) => pokemonTcgIdFromCardId(hit.id))
+    .filter((id): id is string => Boolean(id))
+  if (tcgIds.length === 0) return hits
+
+  try {
+    const cards = await fetchTcgGoCardsByTcgIds(tcgIds)
+    const imageByTcgId = new Map<string, string>()
+    for (const card of cards) {
+      const tcgId = card.tcgid
+      const image = tcgGoCardImageUrl(card)
+      if (tcgId && image) imageByTcgId.set(tcgId, image)
+    }
+
+    return hits.map((hit) => {
+      const tcgId = pokemonTcgIdFromCardId(hit.id)
+      const image = tcgId ? imageByTcgId.get(tcgId) : undefined
+      if (!image) return hit
+      if ("imageUrl" in hit) return { ...hit, imageUrl: image }
+      if ("image" in hit) return { ...hit, image }
+      return hit
+    })
+  } catch {
+    return hits
+  }
 }
