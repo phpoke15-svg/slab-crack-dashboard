@@ -178,6 +178,33 @@ async function fetchByNumber(
   )
 }
 
+async function fetchByNameAndSetHint(
+  supabase: SupabaseClient,
+  name: string,
+  setHint: string,
+  fetchLimit: number,
+): Promise<CatalogCardRow[]> {
+  const simplified = simplifyCardName(name).trim()
+  const nameTokens = simplified.split(/\s+/).filter((token) => token.length > 0)
+  const primaryToken = nameTokens.find((token) => token.length > 1) ?? simplified
+  const safeToken = sanitizeCatalogSearchToken(primaryToken)
+
+  const { data, error } = await supabase
+    .from("cards")
+    .select(CARD_SELECT)
+    .or(buildSetHintOrFilter(setHint))
+    .or(`name.ilike.%${safeToken}%,japanese_name.ilike.%${safeToken}%`)
+    .order("name", { ascending: true })
+    .limit(fetchLimit)
+
+  if (error) throw error
+
+  return ((data ?? []) as CatalogCardRow[]).filter((row) => {
+    if (nameTokens.length <= 1) return true
+    return catalogRowMatchesQuery(row, name)
+  })
+}
+
 async function fetchByText(
   supabase: SupabaseClient,
   query: string,
@@ -250,6 +277,8 @@ export async function queryCatalogSearchRows(
     rows = await fetchBySetAndNumber(supabase, tokens.setHint, tokens.number, fetchLimit)
   } else if (tokens.setHint && !tokens.number) {
     rows = await fetchBySetHint(supabase, tokens.setHint, fetchLimit)
+  } else if (tokens.name && tokens.setHint) {
+    rows = await fetchByNameAndSetHint(supabase, tokens.name, tokens.setHint, fetchLimit)
   } else if (tokens.name && tokens.number) {
     rows = await fetchByNameAndNumber(supabase, tokens.name, tokens.number, fetchLimit)
     if (rows.length === 0) {
