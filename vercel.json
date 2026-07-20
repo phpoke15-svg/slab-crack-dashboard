@@ -15,6 +15,14 @@
       "schedule": "30 3 * * *"
     },
     {
+      "path": "/api/cron/sync-catalog-price-history",
+      "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/sync-catalog-price-history",
+      "schedule": "30 */2 * * *"
+    },
+    {
       "path": "/api/cron/sync-prices",
       "schedule": "0 5 * * *"
     },
