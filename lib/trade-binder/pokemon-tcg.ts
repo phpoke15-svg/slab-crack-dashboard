@@ -47,11 +47,54 @@ export function toCatalogCard(card: PokemonApiCard): CatalogCard {
   }
 }
 
-export function parseBinderSearchTokens(q: string): { name: string; number?: string } {
+export type BinderSearchTokens = {
+  name: string
+  number?: string
+  /** Set shorthand when query is like "151 173" or "sv151 173". */
+  setHint?: string
+}
+
+/** User-facing set nicknames → catalog set_id (e.g. 151 → sv3pt5). */
+const SET_HINT_IDS: Record<string, string> = {
+  "151": "sv3pt5",
+  pokemon151: "sv3pt5",
+  sv151: "sv3pt5",
+}
+
+export function resolveBinderSetIdHint(setHint: string): string | null {
+  const key = setHint.toLowerCase().replace(/[^a-z0-9]/g, "")
+  return SET_HINT_IDS[key] ?? null
+}
+
+export function parseBinderSearchTokens(q: string): BinderSearchTokens {
   const trimmed = q.trim()
   if (!trimmed) return { name: "" }
 
   const tokens = trimmed.split(/\s+/).filter(Boolean)
+
+  if (tokens.length === 2) {
+    const [left, right] = tokens
+    const rightNumber = right.replace(/^#/, "")
+    if (/^\d{1,4}$/.test(left) && /^\d{1,4}$/.test(rightNumber)) {
+      return { name: "", setHint: left, number: rightNumber }
+    }
+    if (/^#?\d{1,4}$/.test(right)) {
+      const number = rightNumber
+      if (/^(?:sv)?\d{1,4}$/i.test(left)) {
+        const setHint = left.replace(/^sv/i, "")
+        return { name: "", setHint, number }
+      }
+      return { name: left, number }
+    }
+  }
+
+  if (tokens.length === 1) {
+    const token = tokens[0]
+    if (/^(?:sv)?\d{2,4}$/i.test(token)) {
+      return { name: "", setHint: token.replace(/^sv/i, "") }
+    }
+  }
+
   const numberIndex = tokens.findIndex((token) => /^#?\d{1,4}$/.test(token))
 
   if (numberIndex >= 0) {

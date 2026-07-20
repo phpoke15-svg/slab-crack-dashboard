@@ -50,6 +50,7 @@ async function attachLiveSearchPrices(cards: BinderSearchResultCard[]): Promise<
   }))
   const prices = await enrichSearchCardPrices(inputs, {
     liveLimit: SEARCH_SERVER_LIVE_PRICE_LIMIT,
+    timeBudgetMs: 25_000,
   })
   return applySearchPricesToCards(cards, prices)
 }

@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js"
 import { mergeBinderSearchResults } from "@/lib/trade-binder/binder-search"
-import { cardNumberMatches, parseBinderSearchTokens } from "@/lib/trade-binder/pokemon-tcg"
+import {
+  cardNumberMatches,
+  parseBinderSearchTokens,
+  resolveBinderSetIdHint,
+} from "@/lib/trade-binder/pokemon-tcg"
 import { simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import type { CatalogCardRow, CatalogSearchHit } from "@/lib/db/cards-catalog"
 
@@ -15,6 +19,7 @@ export function catalogSearchMinLength(query: string): boolean {
   const q = query.trim()
   if (!q) return false
   const tokens = parseBinderSearchTokens(q)
+  if (tokens.setHint) return true
   if (tokens.number && !tokens.name) return tokens.number.length > 0
   return q.length >= 2
 }
@@ -67,6 +72,57 @@ export function rankCatalogSearchHits(
 function collectorNumberMatches(stored: string, detected: string): boolean {
   const left = stored.split("/")[0] ?? stored
   return left.trim().toLowerCase() === detected.trim().toLowerCase()
+}
+
+function buildSetHintOrFilter(setHint: string): string {
+  const safeSet = sanitizeCatalogSearchToken(setHint)
+  const pattern = `%${safeSet}%`
+  const resolvedSetId = resolveBinderSetIdHint(setHint)
+  const parts = [
+    `set_name.ilike.${pattern}`,
+    `set_id.ilike.%${safeSet}%`,
+    `set_id.ilike.%sv${safeSet}%`,
+  ]
+  if (resolvedSetId) parts.push(`set_id.eq.${resolvedSetId}`)
+  return parts.join(",")
+}
+
+async function fetchBySetHint(
+  supabase: SupabaseClient,
+  setHint: string,
+  fetchLimit: number,
+): Promise<CatalogCardRow[]> {
+  const { data, error } = await supabase
+    .from("cards")
+    .select(CARD_SELECT)
+    .or(buildSetHintOrFilter(setHint))
+    .order("name", { ascending: true })
+    .limit(fetchLimit)
+
+  if (error) throw error
+  return (data ?? []) as CatalogCardRow[]
+}
+
+async function fetchBySetAndNumber(
+  supabase: SupabaseClient,
+  setHint: string,
+  number: string,
+  fetchLimit: number,
+): Promise<CatalogCardRow[]> {
+  const safeNumber = sanitizeCatalogSearchToken(number)
+  const { data, error } = await supabase
+    .from("cards")
+    .select(CARD_SELECT)
+    .or(buildSetHintOrFilter(setHint))
+    .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
+    .order("name", { ascending: true })
+    .limit(fetchLimit)
+
+  if (error) throw error
+
+  return ((data ?? []) as CatalogCardRow[]).filter((row) =>
+    collectorNumberMatches(row.number, number),
+  )
 }
 
 async function fetchByNameAndNumber(
@@ -182,7 +238,11 @@ export async function queryCatalogSearchRows(
   const tokens = parseBinderSearchTokens(q)
   let rows: CatalogCardRow[] = []
 
-  if (tokens.name && tokens.number) {
+  if (tokens.setHint && tokens.number) {
+    rows = await fetchBySetAndNumber(supabase, tokens.setHint, tokens.number, fetchLimit)
+  } else if (tokens.setHint && !tokens.number) {
+    rows = await fetchBySetHint(supabase, tokens.setHint, fetchLimit)
+  } else if (tokens.name && tokens.number) {
     rows = await fetchByNameAndNumber(supabase, tokens.name, tokens.number, fetchLimit)
     if (rows.length === 0) {
       const byName = await fetchByText(supabase, tokens.name, fetchLimit)

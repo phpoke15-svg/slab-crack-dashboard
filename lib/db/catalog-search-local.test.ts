@@ -30,6 +30,11 @@ describe("catalogSearchMinLength", () => {
     expect(catalogSearchMinLength("a")).toBe(false)
     expect(catalogSearchMinLength("pi")).toBe(true)
   })
+
+  it("allows set shorthand browse queries", () => {
+    expect(catalogSearchMinLength("151")).toBe(true)
+    expect(catalogSearchMinLength("151 173")).toBe(true)
+  })
 })
 
 describe("catalogRowMatchesQuery", () => {

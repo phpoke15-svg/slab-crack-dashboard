@@ -7,7 +7,9 @@ const PC_RATE_LIMIT_MS = 1100
 const DEFAULT_LIVE_CONCURRENCY = 2
 
 /** Max live PriceCharting lookups during a single search API request (rest via client backfill). */
-export const SEARCH_SERVER_LIVE_PRICE_LIMIT = 16
+export const SEARCH_SERVER_LIVE_PRICE_LIMIT = 40
+
+const SEARCH_LIVE_TIME_BUDGET_MS = 25_000
 
 export type SearchPriceOptions = {
   /** Max cards to look up from cache (default: all). */
@@ -16,6 +18,8 @@ export type SearchPriceOptions = {
   liveLimit?: number
   /** Parallel live lookups per batch (default: 2). */
   concurrency?: number
+  /** Max wall-clock time for live lookups during one request. */
+  timeBudgetMs?: number
   /** Skip live PriceCharting (cache-only). */
   cacheOnly?: boolean
 }
@@ -69,9 +73,13 @@ export async function enrichSearchCardPrices(
 
   const liveLimit = options?.liveLimit ?? unpriced.length
   const concurrency = Math.max(1, options?.concurrency ?? DEFAULT_LIVE_CONCURRENCY)
+  const timeBudgetMs = options?.timeBudgetMs ?? SEARCH_LIVE_TIME_BUDGET_MS
   const toFetch = unpriced.slice(0, liveLimit)
+  const startedAt = Date.now()
 
   for (let i = 0; i < toFetch.length; i += concurrency) {
+    if (Date.now() - startedAt >= timeBudgetMs) break
+
     const batch = toFetch.slice(i, i + concurrency)
     await Promise.all(
       batch.map(async (card) => {

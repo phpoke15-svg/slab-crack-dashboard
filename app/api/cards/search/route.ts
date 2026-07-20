@@ -12,7 +12,7 @@ import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-const SEARCH_CACHE_TTL_MS = 2 * 60 * 1000
+const SEARCH_CACHE_TTL_MS = 30 * 1000
 const SEARCH_LIMIT = 40
 const searchCache = new Map<string, { results: CardSearchHit[]; expiresAt: number }>()
 
@@ -46,6 +46,7 @@ export async function GET(request: Request) {
     const mapped = hits.map(catalogHitToCardSearchHit)
     const results = await enrichCardSearchHitsWithPrices(mapped, {
       liveLimit: SEARCH_SERVER_LIVE_PRICE_LIMIT,
+      timeBudgetMs: 25_000,
     })
     searchCache.set(cacheKey, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS })
     return NextResponse.json(
