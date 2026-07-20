@@ -27,6 +27,17 @@ describe("parseBinderSearchTokens", () => {
     })
   })
 
+  it("parses name + set shorthand", () => {
+    expect(parseBinderSearchTokens("charizard 151")).toEqual({
+      name: "charizard",
+      setHint: "151",
+    })
+    expect(parseBinderSearchTokens("charizard sv4")).toEqual({
+      name: "charizard",
+      setHint: "sv4",
+    })
+  })
+
   it("parses name + number", () => {
     expect(parseBinderSearchTokens("charizard 4")).toEqual({
       name: "charizard",

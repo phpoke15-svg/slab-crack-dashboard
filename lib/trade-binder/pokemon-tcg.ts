@@ -82,6 +82,16 @@ const SET_HINT_IDS: Record<string, string> = {
   prismatic: "sv8pt5",
 }
 
+function looksLikeSetHint(token: string): boolean {
+  const normalized = token.replace(/^#/, "").trim()
+  if (!normalized) return false
+  if (resolveBinderSetIdHint(normalized)) return true
+  if (/^sv\d{1,4}[a-z]?$/i.test(normalized)) return true
+  const compact = normalized.toLowerCase().replace(/[^a-z0-9]/g, "")
+  if (/^\d{2,4}$/.test(normalized) && SET_HINT_IDS[compact]) return true
+  return false
+}
+
 function normalizeSetHintToken(token: string): string {
   const trimmed = token.trim()
   if (/^sv151$/i.test(trimmed)) return "151"
@@ -106,10 +116,16 @@ export function parseBinderSearchTokens(q: string): BinderSearchTokens {
     if (/^\d{1,4}$/.test(left) && /^\d{1,4}$/.test(rightNumber)) {
       return { name: "", setHint: left, number: rightNumber }
     }
+    if (looksLikeSetHint(right) && /[a-z]/i.test(left)) {
+      return { name: left, setHint: normalizeSetHintToken(right) }
+    }
     if (/^#?\d{1,4}$/.test(right)) {
       const number = rightNumber
       if (/^sv\d{1,4}[a-z]?$/i.test(left) || /^\d{2,4}$/.test(left)) {
         return { name: "", setHint: normalizeSetHintToken(left), number }
+      }
+      if (looksLikeSetHint(rightNumber) && /[a-z]/i.test(left)) {
+        return { name: left, setHint: normalizeSetHintToken(rightNumber) }
       }
       return { name: left, number }
     }
