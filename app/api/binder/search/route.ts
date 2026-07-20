@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
 
       return NextResponse.json({
         cards: pricedCards,
-        totalCount: cards.length,
+        totalCount: pricedCards.length,
         page: 1,
         hasMore: false,
         languageFilter: "english",
