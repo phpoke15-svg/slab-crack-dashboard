@@ -84,15 +84,18 @@ function mergeCatalogHits(
   }
 
   const merged = mergeBinderSearchResults(
-    [...localHits.map(catalogHitToBinderCard), ...liveHits.map(catalogHitToCatalogHit)].map((card) => ({
-      id: card.id,
-      name: card.name,
-      set: card.set,
-      rarity: card.rarity ?? "Common",
-      image: card.image,
-      cardNumber: card.cardNumber,
-      rawPrice: card.rawPrice,
-    })),
+    [...localHits, ...liveHits].map((hit) => {
+      const card = catalogHitToBinderCard(hit)
+      return {
+        id: card.id,
+        name: card.name,
+        set: card.set,
+        rarity: card.rarity ?? "Common",
+        image: card.image,
+        cardNumber: card.cardNumber,
+        rawPrice: card.rawPrice,
+      }
+    }),
     query,
   )
 
