@@ -23,6 +23,8 @@ export type CardPriceTarget = {
   priceChartingId?: string
   /** TCGGO / RapidAPI internal card id (cached after first lookup). */
   tcgGoId?: number
+  /** TCGplayer product id for cards not yet indexed by tcgid. */
+  tcgplayerId?: number
 }
 
 export type FetchedCardPrices = {

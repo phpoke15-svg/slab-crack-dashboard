@@ -80,6 +80,9 @@ const SET_HINT_IDS: Record<string, string> = {
   surging: "sv8",
   sv8pt5: "sv8pt5",
   prismatic: "sv8pt5",
+  mep: "mep",
+  megaevolution: "mep",
+  megaevolutionpromo: "mep",
 }
 
 function looksLikeSetHint(token: string): boolean {
@@ -121,6 +124,9 @@ export function parseBinderSearchTokens(q: string): BinderSearchTokens {
     }
     if (/^#?\d{1,4}$/.test(right)) {
       const number = rightNumber
+      if (looksLikeSetHint(left)) {
+        return { name: "", setHint: normalizeSetHintToken(left), number }
+      }
       if (/^sv\d{1,4}[a-z]?$/i.test(left) || /^\d{2,4}$/.test(left)) {
         return { name: "", setHint: normalizeSetHintToken(left), number }
       }

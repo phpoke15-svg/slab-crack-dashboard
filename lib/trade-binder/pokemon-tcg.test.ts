@@ -53,6 +53,14 @@ describe("parseBinderSearchTokens", () => {
     })
   })
 
+  it("parses promo set shorthand with number", () => {
+    expect(parseBinderSearchTokens("mep 41")).toEqual({
+      name: "",
+      setHint: "mep",
+      number: "41",
+    })
+  })
+
   it("parses set-only browse", () => {
     expect(parseBinderSearchTokens("151")).toEqual({
       name: "",
@@ -70,6 +78,7 @@ describe("resolveBinderSetIdHint", () => {
     expect(resolveBinderSetIdHint("151")).toBe("sv3pt5")
     expect(resolveBinderSetIdHint("sv151")).toBe("sv3pt5")
     expect(resolveBinderSetIdHint("sv4")).toBe("sv4")
+    expect(resolveBinderSetIdHint("mep")).toBe("mep")
     expect(resolveBinderSetIdHint("unknown")).toBeNull()
   })
 })

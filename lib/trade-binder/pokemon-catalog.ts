@@ -12,6 +12,8 @@ import {
   catalogIdFromTcgGoCard,
   extractTcgGoCardPrices,
   fetchTcgGoCardByTcgId,
+  fetchTcgGoCardByTcgplayerId,
+  fetchTcgGoCardsByEpisodeCode,
   fetchTcgGoCatalogPage,
   searchTcgGoCards,
   tcgGoCardImageUrl,
@@ -23,8 +25,10 @@ import {
   isEnglishOrJapanesePricedCard,
   type PricedCatalogCard,
 } from "@/lib/trade-binder/priced-catalog"
+import { promoCardMetaByTcgId } from "@/lib/trade-binder/promo-card-meta"
 
 const POKEMON_PAGE_SIZE = 50
+const PROMO_EPISODE_CODES = ["mep"] as const
 
 function tcgGoToPokemonApiCard(card: TcgGoCard): PokemonApiCard {
   const image = tcgGoCardImageUrl(card) ?? undefined
@@ -167,6 +171,15 @@ async function safeSearchTcgGoCards(
   }
 }
 
+async function searchTcgGoPromoEpisode(
+  episodeCode: string,
+  name: string,
+  number: string,
+): Promise<TcgGoCard[]> {
+  const cards = await fetchTcgGoCardsByEpisodeCode(episodeCode, 120)
+  return filterTcgGoByNameAndNumber(cards, name, number)
+}
+
 async function searchTcgGoByNameAndNumber(
   name: string,
   number: string,
@@ -187,6 +200,19 @@ async function searchTcgGoByNameAndNumber(
     ) {
       return [card]
     }
+  }
+
+  for (const tcgId of directIds) {
+    const meta = promoCardMetaByTcgId(tcgId)
+    if (meta?.tcgplayerId) {
+      const card = await fetchTcgGoCardByTcgplayerId(meta.tcgplayerId)
+      if (card && tcgGoMatchesNameAndNumber(card, name, number)) return [card]
+    }
+  }
+
+  for (const episodeCode of PROMO_EPISODE_CODES) {
+    const promoMatches = await searchTcgGoPromoEpisode(episodeCode, name, number)
+    if (promoMatches.length > 0) return promoMatches
   }
 
   const searchAttempts = [
@@ -224,6 +250,12 @@ async function searchTcgGoCatalog(
     for (const tcgId of tcgIdCandidatesForSetNumber(setHint, number)) {
       const card = await fetchTcgGoCardByTcgId(tcgId)
       if (card) return [card]
+    }
+
+    const resolved = resolveBinderSetIdHint(setHint) ?? setHint.toLowerCase()
+    if (PROMO_EPISODE_CODES.includes(resolved as (typeof PROMO_EPISODE_CODES)[number]) && name) {
+      const promoMatches = await searchTcgGoPromoEpisode(resolved, name, number)
+      if (promoMatches.length > 0) return promoMatches
     }
   }
 

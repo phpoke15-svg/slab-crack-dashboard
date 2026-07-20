@@ -59,6 +59,7 @@ export async function fetchCardPricesFromTcgGo(target: CardPriceTarget): Promise
     setName: target.setName,
     cardNumber: target.cardNumber,
     tcgGoId: target.tcgGoId,
+    tcgplayerId: target.tcgplayerId,
   })
 
   if (!card) {
