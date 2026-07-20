@@ -9,6 +9,7 @@ import type { QueueSignal } from "@/lib/pokemon-center/queue-detector"
 import { requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { verifyQueueWatchToken } from "@/lib/billing/queue-watch-token"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
+import { getSiteUrl } from "@/lib/site-url"
 
 export const dynamic = "force-dynamic"
 
@@ -53,6 +54,7 @@ function syncHtml(
     pushReason: meta?.pushReason ?? null,
     challengePushReason: meta?.challengePushReason ?? null,
   })
+  const targetOrigin = JSON.stringify(getSiteUrl().replace(/\/$/, ""))
   const bg = ok ? "#111" : "#7f1d1d"
   const body = ok
     ? "PokeWatch ping OK"
@@ -60,7 +62,7 @@ function syncHtml(
   const closeMs = ok ? 500 : 4000
   return new NextResponse(
     `<!doctype html><html><body style="font:14px system-ui;padding:16px;background:${bg};color:#eee">${body}<script>
-try{if(window.opener){window.opener.postMessage(${payload},"*");}}catch(e){}
+try{if(window.opener){window.opener.postMessage(${payload},${targetOrigin});}}catch(e){}
 setTimeout(function(){try{window.close()}catch(e){}},${closeMs});
 </script></body></html>`,
     {

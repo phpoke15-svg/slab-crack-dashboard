@@ -10,17 +10,16 @@ import {
   Text,
   View,
 } from "react-native"
-import { useNavigation } from "@react-navigation/native"
+import { useFocusEffect, useNavigation } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import { SafeAreaView } from "react-native-safe-area-context"
 import * as Clipboard from "expo-clipboard"
-import AsyncStorage from "@react-native-async-storage/async-storage"
 import { COLLECTOOLS_BASE_URL } from "../lib/config"
 import type { RootStackParamList } from "../lib/navigation"
 import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
-import { SESSION_KEY, TOKEN_KEY } from "../lib/queue-watch/pro-access"
-import { buildInstallBookmarklet, createSessionId } from "../lib/queue-watch/build-bookmarklet"
+import { loadStoredCredentials } from "../lib/queue-watch/credentials"
+import { buildInstallBookmarklet } from "../lib/queue-watch/build-bookmarklet"
 
 const POLL_MS = 5_000
 
@@ -68,17 +67,19 @@ export default function InstallQueueWatcherScreen() {
   const [statusError, setStatusError] = useState<string | null>(null)
   const previousLiveRef = useRef(false)
 
-  useEffect(() => {
-    void (async () => {
-      let sid = (await AsyncStorage.getItem(SESSION_KEY))?.trim()
-      if (!sid) {
-        sid = createSessionId()
-        await AsyncStorage.setItem(SESSION_KEY, sid)
-      }
-      setSessionId(sid)
-      setToken((await AsyncStorage.getItem(TOKEN_KEY))?.trim() || "")
-    })()
+  const reloadCredentials = useCallback(async () => {
+    const creds = await loadStoredCredentials()
+    setSessionId(creds.sessionId)
+    setToken(creds.token)
+    return creds
   }, [])
+
+  useFocusEffect(
+    useCallback(() => {
+      void reloadCredentials()
+      void refreshProAccess()
+    }, [reloadCredentials, refreshProAccess]),
+  )
 
   const widgetCode = useMemo(() => {
     if (!sessionId || !token) return ""
@@ -89,7 +90,7 @@ export default function InstallQueueWatcherScreen() {
     if (!token) return
     try {
       const res = await fetch(
-        `${COLLECTOOLS_BASE_URL}/api/pokemon-center/status?sessionId=${encodeURIComponent(sessionId)}&token=${encodeURIComponent(token)}`,
+        `${COLLECTOOLS_BASE_URL}/api/pokemon-center/status?sessionId=${encodeURIComponent(sessionId)}`,
         { headers: { "X-Queue-Watch-Token": token } },
       )
       if (!res.ok) {
@@ -139,6 +140,10 @@ export default function InstallQueueWatcherScreen() {
     navigation.navigate("Home")
   }, [navigation])
 
+  const openNativeMonitor = useCallback(() => {
+    navigation.navigate("NativeQueueMonitor")
+  }, [navigation])
+
   const openPointScan = useCallback(() => {
     navigation.navigate("PointScan", { tool: "slabcrack" })
   }, [navigation])
@@ -168,12 +173,20 @@ export default function InstallQueueWatcherScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom", "left", "right"]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        <Text style={styles.kicker}>Low-risk · Bookmarklet · Push alerts</Text>
-        <Text style={styles.title}>Install Queue Watcher</Text>
+        <Text style={styles.kicker}>Low-risk · In-app monitor · Push alerts</Text>
+        <Text style={styles.title}>PokeWatch</Text>
         <Text style={styles.subtitle}>
-          This app never loads Pokemon Center directly. Install the watcher in your mobile browser,
-          then get push alerts when the queue goes live.
+          Use the in-app Pokemon Center monitor during drops, or install the bookmarklet in your
+          mobile browser for a second tab.
         </Text>
+
+        <Pressable
+          style={[styles.primaryButton, (!hasPro || !token) && styles.buttonDisabled]}
+          onPress={openNativeMonitor}
+          disabled={!hasPro || !token}
+        >
+          <Text style={styles.primaryButtonText}>Start in-app monitor</Text>
+        </Pressable>
 
         <Pressable style={styles.secondaryButton} onPress={openPointScan}>
           <Text style={styles.secondaryButtonText}>Point & Scan cards (native OCR)</Text>
@@ -203,7 +216,10 @@ export default function InstallQueueWatcherScreen() {
             <Pressable style={styles.primaryButton} onPress={openCollecTools}>
               <Text style={styles.primaryButtonText}>Open CollecTools to sign in</Text>
             </Pressable>
-            <Pressable style={styles.ghostButton} onPress={() => void refreshProAccess()}>
+            <Pressable
+              style={styles.ghostButton}
+              onPress={() => void refreshProAccess().then(() => reloadCredentials())}
+            >
               <Text style={styles.ghostButtonText}>Refresh access</Text>
             </Pressable>
           </View>
@@ -213,13 +229,14 @@ export default function InstallQueueWatcherScreen() {
               <Text style={styles.secondaryButtonText}>Back to CollecTools</Text>
             </Pressable>
 
+            <Text style={styles.stepsHeading}>Optional: mobile browser bookmarklet</Text>
             <Pressable
-              style={[styles.primaryButton, !widgetCode && styles.buttonDisabled]}
+              style={[styles.secondaryButton, !widgetCode && styles.buttonDisabled]}
               onPress={() => void copyWidgetCode()}
               disabled={!widgetCode}
             >
-              <Text style={styles.primaryButtonText}>
-                {copied ? "Copied to clipboard!" : "Copy Widget Code"}
+              <Text style={styles.secondaryButtonText}>
+                {copied ? "Copied to clipboard!" : "Copy bookmarklet code"}
               </Text>
             </Pressable>
 
@@ -245,8 +262,8 @@ export default function InstallQueueWatcherScreen() {
         )}
 
         <Text style={styles.footer}>
-          On drop day: when you get a push, open your browser, go to pokemoncenter.com, and tap your
-          PC Queue bookmark to monitor your place in line.
+          On drop day: keep the in-app monitor open, or use the bookmarklet in your mobile browser.
+          You will get a push when the queue goes live.
         </Text>
       </ScrollView>
     </SafeAreaView>

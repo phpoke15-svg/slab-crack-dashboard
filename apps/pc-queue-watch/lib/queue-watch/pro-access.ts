@@ -32,14 +32,11 @@ export async function verifyProAccess(): Promise<{
   const timer = setTimeout(() => controller.abort(), VERIFY_TIMEOUT_MS)
 
   try {
-    const res = await fetch(
-      `${COLLECTOOLS_BASE_URL}/api/pokemon-center/status?token=${encodeURIComponent(token)}`,
-      {
-        method: "GET",
-        headers: { "X-Queue-Watch-Token": token },
-        signal: controller.signal,
-      },
-    )
+    const res = await fetch(`${COLLECTOOLS_BASE_URL}/api/pokemon-center/status`, {
+      method: "GET",
+      headers: { "X-Queue-Watch-Token": token },
+      signal: controller.signal,
+    })
     if (res.status === 403 || res.status === 401) {
       await clearQueueWatchToken()
       return { hasPro: false, reason: "forbidden" }

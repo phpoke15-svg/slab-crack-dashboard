@@ -111,7 +111,7 @@ export default function SiteWebScreen() {
           token?: string
         }
         if (data?.type === "open-native-queue") {
-          navigation.navigate("PokeWatch")
+          navigation.navigate("NativeQueueMonitor")
           return
         }
         if (data?.type === "collectools-qw-creds") {
@@ -126,7 +126,7 @@ export default function SiteWebScreen() {
         // ignore
       }
     },
-    [refreshProAccess],
+    [navigation, refreshProAccess],
   )
 
   const retry = useCallback(() => {

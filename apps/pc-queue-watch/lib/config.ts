@@ -13,3 +13,12 @@ export function isCollectoolsHost(hostname: string): boolean {
   if (host.endsWith(".supabase.co") || host === "supabase.co") return true
   return false
 }
+
+/** Pokemon Center + Queue-it hosts allowed in the native monitor WebView. */
+export function isPokemonCenterHost(hostname: string): boolean {
+  const host = hostname.toLowerCase()
+  if (host === "pokemoncenter.com" || host === "www.pokemoncenter.com") return true
+  if (host.endsWith(".pokemoncenter.com")) return true
+  if (host.endsWith(".queue-it.net") || host === "queue-it.net") return true
+  return false
+}
