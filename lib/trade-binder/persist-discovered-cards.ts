@@ -14,7 +14,27 @@ import {
   tcgGoCardNumber,
   tcgGoCardSetName,
 } from "@/lib/tcggo-api"
-import { mapPokemonRarity } from "@/lib/trade-binder/pokemon-tcg"
+import { mapPokemonRarity, cardNumberMatches } from "@/lib/trade-binder/pokemon-tcg"
+import type { TcgGoCard } from "@/lib/tcggo-api"
+
+function tcgGoMatchesHit(tcgCard: TcgGoCard, hit: CatalogSearchHit): boolean {
+  const expectedName = hit.name.toLowerCase().trim()
+  const cardName = (tcgCard.name ?? "").toLowerCase()
+  const nameMatches =
+    !expectedName ||
+    cardName.includes(expectedName) ||
+    expectedName.split(/\s+/).every((token) => token.length > 1 && cardName.includes(token))
+  if (!nameMatches) return false
+
+  if (!hit.number) return true
+
+  const numberCandidates = [
+    tcgGoCardNumber(tcgCard),
+    tcgCard.card_code_number ?? "",
+    tcgCard.tcgid?.split("-").pop() ?? "",
+  ]
+  return numberCandidates.some((candidate) => cardNumberMatches(candidate, hit.number))
+}
 
 function hitToCatalogRow(hit: CatalogSearchHit) {
   const tcgId = catalogPokemonTcgId(hit.id)
@@ -42,7 +62,7 @@ async function enrichHitFromTcgGo(hit: CatalogSearchHit): Promise<CatalogSearchH
     tcgplayerId: meta?.tcgplayerId,
   })
 
-  if (!tcgCard) return hit
+  if (!tcgCard || !tcgGoMatchesHit(tcgCard, hit)) return hit
 
   const prices = extractTcgGoCardPrices(tcgCard)
   const image = tcgGoCardImageUrl(tcgCard)
