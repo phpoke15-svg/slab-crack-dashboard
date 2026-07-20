@@ -11,6 +11,10 @@
       "schedule": "0 4 * * *"
     },
     {
+      "path": "/api/cron/sync-price-history",
+      "schedule": "30 3 * * *"
+    },
+    {
       "path": "/api/cron/sync-prices",
       "schedule": "0 5 * * *"
     },

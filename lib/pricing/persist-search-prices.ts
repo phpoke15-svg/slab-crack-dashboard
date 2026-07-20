@@ -1,6 +1,7 @@
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
 import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
+import { getActivePriceProvider } from "@/lib/pricing/provider"
 import type { BinderPriceInput } from "@/lib/trade-binder/binder-prices"
 
 const PC_RATE_LIMIT_MS = 1100
@@ -61,8 +62,8 @@ export async function enrichSearchCardPrices(
   const prices = await resolveSearchCardPrices(cards, { limit: options?.limit ?? cards.length })
   if (options?.cacheOnly) return prices
 
-  const apiKey = process.env.PRICECHARTING_API_KEY?.trim()
-  if (!apiKey) return prices
+  const provider = getActivePriceProvider()
+  if (!provider) return prices
 
   const unpriced = cards.filter((card) => {
     const existing = prices.get(card.id)

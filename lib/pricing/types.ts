@@ -1,4 +1,4 @@
-export type PriceSource = "pricecharting" | "ebay" | "binder_migrate" | "merged"
+export type PriceSource = "pricecharting" | "tcggo" | "ebay" | "binder_migrate" | "merged"
 
 export type CardPriceRow = {
   card_id: string
@@ -21,6 +21,8 @@ export type CardPriceTarget = {
   setName: string
   cardNumber?: string
   priceChartingId?: string
+  /** TCGGO / RapidAPI internal card id (cached after first lookup). */
+  tcgGoId?: number
 }
 
 export type FetchedCardPrices = {
@@ -51,5 +53,5 @@ export type SyncCardPricesResult = {
   remaining: number
   stoppedEarly: boolean
   errors: string[]
-  source: "pricecharting" | "skipped"
+  source: "pricecharting" | "tcggo" | "skipped"
 }

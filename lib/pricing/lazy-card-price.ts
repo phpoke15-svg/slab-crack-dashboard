@@ -1,5 +1,6 @@
 import { getCardPriceById, upsertCardPricesSafe } from "@/lib/pricing/db"
-import { fetchCardPricesFromPriceCharting } from "@/lib/pricing/fetch"
+import { fetchCardPricesForTarget } from "@/lib/pricing/fetch"
+import { getActivePriceProvider } from "@/lib/pricing/provider"
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
 
 const PRICE_TTL_MS = 24 * 60 * 60 * 1000
@@ -11,7 +12,7 @@ export type LazyCardPriceResult = {
   psa8Price: number | null
   psa9Price: number | null
   psa10Price: number | null
-  source: "cache" | "pricecharting" | "unavailable" | "skipped"
+  source: "cache" | "pricecharting" | "tcggo" | "unavailable" | "skipped"
   syncedAt: string
   unavailableUntil?: string
 }
@@ -70,8 +71,8 @@ export async function getLazyCardPrice(card: CatalogSearchHit): Promise<LazyCard
     return cachedToResult(card.id, cached)
   }
 
-  const apiKey = process.env.PRICECHARTING_API_KEY
-  if (!apiKey) {
+  const provider = getActivePriceProvider()
+  if (!provider) {
     return {
       cardId: card.id,
       rawPrice: cached?.raw_price ?? null,
@@ -85,7 +86,7 @@ export async function getLazyCardPrice(card: CatalogSearchHit): Promise<LazyCard
   }
 
   try {
-    const fetched = await fetchCardPricesFromPriceCharting(apiKey, {
+    const fetched = await fetchCardPricesForTarget({
       cardId: card.id,
       cardName: card.name,
       setName: card.setName,
@@ -116,7 +117,7 @@ export async function getLazyCardPrice(card: CatalogSearchHit): Promise<LazyCard
       psa8Price: fetched.psa8Price,
       psa9Price: fetched.psa9Price,
       psa10Price: fetched.psa10Price,
-      source: "pricecharting",
+      source: provider,
       syncedAt,
     }
   } catch {

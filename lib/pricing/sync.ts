@@ -4,6 +4,11 @@ import { upsertBinderCardPrices } from "@/lib/db/binder-card-prices"
 import { getWatchlistFromDb } from "@/lib/db/watchlist"
 import { fetchCardPricesBatch } from "@/lib/pricing/fetch"
 import {
+  getActivePriceProvider,
+  hasPriceChartingApiKey,
+  hasTcgGoApiKey,
+} from "@/lib/pricing/provider"
+import {
   appendPriceHistory,
   listStaleCardPriceIds,
   upsertCardPricesSafe,
@@ -61,7 +66,7 @@ async function popularTargetsFromCatalog(limit: number): Promise<CardPriceTarget
   }
 }
 
-async function collectSyncTargets(): Promise<CardPriceTarget[]> {
+export async function collectSyncTargets(): Promise<CardPriceTarget[]> {
   const [binderCards, watchlist, popularCards] = await Promise.all([
     listDistinctBinderCards().catch(() => [] as CardPriceTarget[]),
     getWatchlistFromDb().catch(() => []),
@@ -119,14 +124,16 @@ export async function probeUnifiedPriceSync(): Promise<{
   const checks: Record<string, string | boolean> = {
     supabaseUrl: Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL),
     serviceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    priceChartingKey: Boolean(process.env.PRICECHARTING_API_KEY),
+    priceProvider: getActivePriceProvider() ?? "none",
+    tcgGoKey: hasTcgGoApiKey(),
+    priceChartingKey: hasPriceChartingApiKey(),
     cronSecret: Boolean(process.env.CRON_SECRET),
   }
 
   try {
     const targets = await collectSyncTargets()
     checks.targetCount = targets.length
-    checks.ok = Boolean(checks.supabaseUrl && checks.serviceRoleKey && checks.priceChartingKey)
+    checks.ok = Boolean(checks.supabaseUrl && checks.serviceRoleKey && checks.priceProvider !== "none")
   } catch (error) {
     checks.ok = false
     checks.collectError = error instanceof Error ? error.message : "collect failed"
@@ -140,7 +147,7 @@ export async function syncUnifiedCardPrices(options?: {
   force?: boolean
   timeBudgetMs?: number
 }): Promise<SyncCardPricesResult> {
-  const apiKey = process.env.PRICECHARTING_API_KEY
+  const provider = getActivePriceProvider()
   const syncedAt = new Date().toISOString()
   const snapshotDate = syncedAt.slice(0, 10)
   const maxCards =
@@ -150,7 +157,7 @@ export async function syncUnifiedCardPrices(options?: {
     options?.timeBudgetMs ??
     parsePositiveInt(process.env.PRICE_SYNC_TIME_BUDGET_MS, DEFAULT_TIME_BUDGET_MS)
 
-  if (!apiKey) {
+  if (!provider) {
     return {
       syncedAt,
       candidates: 0,
@@ -160,7 +167,7 @@ export async function syncUnifiedCardPrices(options?: {
       processed: 0,
       remaining: 0,
       stoppedEarly: false,
-      errors: ["PRICECHARTING_API_KEY is not configured"],
+      errors: ["No pricing provider configured (set RAPIDAPI_POKEMON_TCG_KEY or PRICECHARTING_API_KEY)"],
       source: "skipped",
     }
   }
@@ -221,11 +228,11 @@ export async function syncUnifiedCardPrices(options?: {
       remaining: 0,
       stoppedEarly: false,
       errors: [],
-      source: "pricecharting",
+      source: provider,
     }
   }
 
-  const batchResults = await fetchCardPricesBatch(apiKey, toSync, { timeBudgetMs })
+  const batchResults = await fetchCardPricesBatch(toSync, { timeBudgetMs, provider })
   const processed = batchResults.length
   const stoppedEarly = processed < toSync.length
   const remaining = Math.max(0, staleTargets.length - processed)
@@ -286,6 +293,6 @@ export async function syncUnifiedCardPrices(options?: {
     remaining,
     stoppedEarly,
     errors,
-    source: "pricecharting",
+    source: provider,
   }
 }

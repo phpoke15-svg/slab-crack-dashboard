@@ -6,6 +6,7 @@ import {
   type BinderPriceTarget,
 } from "@/lib/db/binder-card-prices"
 import { attachBinderCardPrices } from "@/lib/trade-binder/binder-prices"
+import { getActivePriceProvider } from "@/lib/pricing/provider"
 import { fetchPopularBinderCardsUncached } from "@/lib/trade-binder/popular-binder-cards"
 
 export type SyncBinderPricesResult = {
@@ -13,7 +14,7 @@ export type SyncBinderPricesResult = {
   candidates: number
   refreshed: number
   skipped: number
-  source: "pricecharting" | "skipped"
+  source: "pricecharting" | "tcggo" | "skipped"
 }
 
 const DEFAULT_MAX_CARDS = 250
@@ -47,11 +48,12 @@ export async function syncBinderCardPrices(options?: {
   maxCards?: number
   force?: boolean
 }): Promise<SyncBinderPricesResult> {
-  const apiKey = process.env.PRICECHARTING_API_KEY
-  const maxCards = options?.maxCards ?? DEFAULT_MAX_CARDS
+  const provider = getActivePriceProvider()
   const syncedAt = new Date().toISOString()
 
-  if (!apiKey) {
+  const maxCards = options?.maxCards ?? DEFAULT_MAX_CARDS
+
+  if (!provider) {
     return {
       syncedAt,
       candidates: 0,
@@ -84,7 +86,7 @@ export async function syncBinderCardPrices(options?: {
       candidates: targets.length,
       refreshed: 0,
       skipped: targets.length,
-      source: "pricecharting",
+      source: provider,
     }
   }
 
@@ -121,6 +123,6 @@ export async function syncBinderCardPrices(options?: {
     candidates: targets.length,
     refreshed,
     skipped: Math.max(0, targets.length - toSync.length),
-    source: "pricecharting",
+    source: provider,
   }
 }

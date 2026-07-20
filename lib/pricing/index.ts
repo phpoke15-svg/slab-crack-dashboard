@@ -21,9 +21,14 @@ export {
 
 export {
   fetchCardPricesBatch,
+  fetchCardPricesForTarget,
   fetchCardPricesFromPriceCharting,
+  fetchCardPricesFromTcgGo,
   priceChartingIdFromCardId,
 } from "@/lib/pricing/fetch"
+
+export { getActivePriceProvider, hasTcgGoApiKey, hasPriceChartingApiKey } from "@/lib/pricing/provider"
+export { syncTcgGoPriceHistory } from "@/lib/pricing/history-sync"
 
 export { syncUnifiedCardPrices } from "@/lib/pricing/sync"
 
