@@ -77,8 +77,10 @@ export async function getLazyCardPrice(card: CatalogSearchHit): Promise<LazyCard
   const syncedAt = new Date().toISOString()
   const cached = await getCardPriceById(card.id)
   const provider = getActivePriceProvider()
+  const isPromoCard = Boolean(promoCardMeta(card.id))
 
   if (
+    !isPromoCard &&
     cached &&
     isFresh(cached.synced_at, cached.sync_error) &&
     hasUsablePrice(cached) &&
