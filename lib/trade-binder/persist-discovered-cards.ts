@@ -43,7 +43,10 @@ async function enrichHitFromTcgGo(hit: CatalogSearchHit): Promise<CatalogSearchH
     tcgplayerId: meta?.tcgplayerId,
   })
 
-  if (!tcgCard || !tcgGoCardMatchesTarget(tcgCard, hit)) return hit
+  if (!tcgCard || !tcgGoCardMatchesTarget(tcgCard, { cardName: hit.name, cardNumber: hit.number })) {
+    if (meta) return { ...hit, imageUrl: "/placeholder.svg" }
+    return hit
+  }
 
   const prices = extractTcgGoCardPrices(tcgCard)
   const image = tcgGoCardImageUrl(tcgCard)

@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
       const merged = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
       const cards = await attachLiveSearchPrices(merged)
       const withImages = await enrichHitsWithTcgGoImages(
-        cards.map((card) => ({ ...card, imageUrl: card.image })),
+        cards.map((card) => ({ ...card, imageUrl: card.image, setName: card.set })),
       )
       const pricedCards = withImages.map((card) => ({
         ...card,

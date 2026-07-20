@@ -5,6 +5,7 @@
  */
 
 import { cardNumberMatches } from "@/lib/trade-binder/pokemon-tcg"
+import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 
 const DEFAULT_HOST = "pokemon-tcg-api.p.rapidapi.com"
 const DEFAULT_BASE_URL = `https://${DEFAULT_HOST}`
@@ -778,34 +779,87 @@ export async function fetchLatestTcgGoRawMarketPrice(input: {
 
 /** Replace catalog images with pokemon-api.com artwork when available. */
 export async function enrichHitsWithTcgGoImages<
-  T extends { id: string; imageUrl?: string | null; image?: string | null },
+  T extends {
+    id: string
+    name?: string
+    cardName?: string
+    cardNumber?: string
+    setName?: string
+    imageUrl?: string | null
+    image?: string | null
+  },
 >(hits: T[], limit = 12): Promise<T[]> {
   if (!process.env.RAPIDAPI_POKEMON_TCG_KEY?.trim() || hits.length === 0) return hits
 
   const slice = hits.slice(0, limit)
-  const tcgIds = slice
-    .map((hit) => pokemonTcgIdFromCardId(hit.id))
-    .filter((id): id is string => Boolean(id))
-  if (tcgIds.length === 0) return hits
+  const rest = hits.slice(limit)
 
-  try {
-    const cards = await fetchTcgGoCardsByTcgIds(tcgIds)
-    const imageByTcgId = new Map<string, string>()
-    for (const card of cards) {
-      const tcgId = card.tcgid
-      const image = tcgGoCardImageUrl(card)
-      if (tcgId && image) imageByTcgId.set(tcgId, image)
+  const tcgIds = [
+    ...new Set(
+      slice
+        .map((hit) => pokemonTcgIdFromCardId(hit.id))
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ]
+
+  let bulkCards: TcgGoCard[] = []
+  if (tcgIds.length > 0) {
+    try {
+      bulkCards = await fetchTcgGoCardsByTcgIds(tcgIds)
+    } catch {
+      bulkCards = []
     }
+  }
 
-    return hits.map((hit) => {
-      const tcgId = pokemonTcgIdFromCardId(hit.id)
-      const image = tcgId ? imageByTcgId.get(tcgId) : undefined
-      if (!image) return hit
+  const enriched = await Promise.all(
+    slice.map(async (hit) => {
+      const meta = promoCardMeta(hit.id)
+      const cardName = hit.name ?? hit.cardName ?? meta?.name ?? ""
+      const cardNumber = hit.cardNumber ?? meta?.number
+      const setName = hit.setName ?? meta?.setName ?? ""
+      const target = { cardName, cardNumber }
+
+      const tcgId = pokemonTcgIdFromCardId(hit.id)?.toLowerCase()
+      const bulkCandidate = tcgId
+        ? bulkCards.find((card) => card.tcgid?.toLowerCase() === tcgId)
+        : undefined
+
+      let tcgCard =
+        bulkCandidate && tcgGoCardMatchesTarget(bulkCandidate, target) ? bulkCandidate : null
+
+      if (!tcgCard) {
+        tcgCard = await resolveTcgGoCardForTarget({
+          cardId: hit.id,
+          cardName,
+          setName,
+          cardNumber,
+          tcgGoId: meta?.tcgGoId,
+          tcgplayerId: meta?.tcgplayerId,
+        })
+      }
+
+      if (!tcgCard || !tcgGoCardMatchesTarget(tcgCard, target)) {
+        if (meta) {
+          if ("imageUrl" in hit) return { ...hit, imageUrl: "/placeholder.svg" }
+          if ("image" in hit) return { ...hit, image: "/placeholder.svg" }
+        }
+        return hit
+      }
+
+      const image = tcgGoCardImageUrl(tcgCard)
+      if (!image) {
+        if (meta) {
+          if ("imageUrl" in hit) return { ...hit, imageUrl: "/placeholder.svg" }
+          if ("image" in hit) return { ...hit, image: "/placeholder.svg" }
+        }
+        return hit
+      }
+
       if ("imageUrl" in hit) return { ...hit, imageUrl: image }
       if ("image" in hit) return { ...hit, image }
       return hit
-    })
-  } catch {
-    return hits
-  }
+    }),
+  )
+
+  return [...enriched, ...rest]
 }
