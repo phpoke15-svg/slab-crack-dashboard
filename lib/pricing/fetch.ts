@@ -4,6 +4,7 @@ import {
 } from "@/lib/pricecharting"
 import {
   extractTcgGoCardPrices,
+  fetchLatestTcgGoRawMarketPrice,
   pokemonTcgIdFromCardId,
   resolveTcgGoCardForTarget,
   tcgGoCardMatchesTarget,
@@ -72,12 +73,20 @@ export async function fetchCardPricesFromTcgGo(target: CardPriceTarget): Promise
   }
 
   const extracted = extractTcgGoCardPrices(card)
-  if (extracted.rawPrice <= 0 && extracted.psa10Price <= 0 && extracted.psa9Price <= 0) {
+  let rawPrice = extracted.rawPrice
+  if (rawPrice <= 0) {
+    rawPrice = await fetchLatestTcgGoRawMarketPrice({
+      tcgGoId: card.id ?? target.tcgGoId,
+      tcgId: card.tcgid ?? pokemonTcgIdFromCardId(target.cardId),
+    })
+  }
+
+  if (rawPrice <= 0 && extracted.psa10Price <= 0 && extracted.psa9Price <= 0) {
     throw new Error("No price returned from TCGGO API")
   }
 
   return {
-    rawPrice: extracted.rawPrice,
+    rawPrice,
     psa7Price: extracted.psa7Price,
     psa8Price: extracted.psa8Price,
     psa9Price: extracted.psa9Price,

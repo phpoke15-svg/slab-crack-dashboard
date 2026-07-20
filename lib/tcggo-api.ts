@@ -749,6 +749,33 @@ export async function fetchAllTcgGoHistoryPrices(input: {
   return [...merged.values()].sort((a, b) => a.date.localeCompare(b.date))
 }
 
+/** Latest USD raw market from TCGGO history when card snapshot lacks tcg_player.market_price. */
+export async function fetchLatestTcgGoRawMarketPrice(input: {
+  tcgGoId?: number
+  tcgId?: string
+  lookbackDays?: number
+}): Promise<number> {
+  const lookbackDays = input.lookbackDays ?? 14
+  const dateTo = new Date().toISOString().slice(0, 10)
+  const from = new Date()
+  from.setUTCDate(from.getUTCDate() - lookbackDays)
+  const dateFrom = from.toISOString().slice(0, 10)
+
+  try {
+    const points = await fetchAllTcgGoHistoryPrices({
+      tcgGoId: input.tcgGoId,
+      tcgId: input.tcgId,
+      dateFrom,
+      dateTo,
+      maxPages: 2,
+    })
+    const rawPoints = points.filter((point) => point.grade === 0 && point.price > 0)
+    return rawPoints[rawPoints.length - 1]?.price ?? 0
+  } catch {
+    return 0
+  }
+}
+
 /** Replace catalog images with pokemon-api.com artwork when available. */
 export async function enrichHitsWithTcgGoImages<
   T extends { id: string; imageUrl?: string | null; image?: string | null },

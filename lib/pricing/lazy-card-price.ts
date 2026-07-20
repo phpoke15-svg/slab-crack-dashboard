@@ -112,7 +112,11 @@ export async function getLazyCardPrice(card: CatalogSearchHit): Promise<LazyCard
       tcgplayerId: meta?.tcgplayerId,
     })
 
-    if ((fetched.rawPrice ?? 0) <= 0 && fetched.psa10Price <= 0) {
+    if (
+      (fetched.rawPrice ?? 0) <= 0 &&
+      fetched.psa10Price <= 0 &&
+      fetched.psa9Price <= 0
+    ) {
       throw new Error("No price returned")
     }
 
