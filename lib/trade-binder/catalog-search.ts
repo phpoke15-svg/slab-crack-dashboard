@@ -8,7 +8,7 @@ import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
 import { mergeBinderSearchResults } from "@/lib/trade-binder/binder-search"
 import { searchTcgGoBinderCards, type PricedCatalogCard } from "@/lib/trade-binder/pokemon-catalog"
-import { parseBinderSearchTokens, resolveBinderSetIdHint } from "@/lib/trade-binder/pokemon-tcg"
+import { parseBinderSearchTokens, resolveBinderSetIdHint, cardNumberMatches } from "@/lib/trade-binder/pokemon-tcg"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
 
 export type BinderCatalogCard = CatalogCard & { rawPrice?: number; cardNumber?: string }
@@ -62,6 +62,18 @@ function localResultsMatchSetHint(
   })
 }
 
+function localResultsMatchNameAndNumber(
+  hits: CatalogSearchHit[],
+  name: string,
+  number: string,
+): boolean {
+  const normalizedName = name.toLowerCase().trim()
+  return hits.some((hit) => {
+    if (!cardNumberMatches(hit.number, number)) return false
+    return hit.name.toLowerCase().includes(normalizedName)
+  })
+}
+
 function shouldFetchLiveCatalog(
   query: string,
   localHits: CatalogSearchHit[],
@@ -70,6 +82,9 @@ function shouldFetchLiveCatalog(
   if (!hasTcgGoApiKey()) return false
 
   const tokens = parseBinderSearchTokens(query)
+  if (tokens.name && tokens.number && !localResultsMatchNameAndNumber(localHits, tokens.name, tokens.number)) {
+    return true
+  }
   if (tokens.setHint && tokens.number && !localResultsMatchSetHint(localHits, tokens.setHint, tokens.number)) {
     return true
   }

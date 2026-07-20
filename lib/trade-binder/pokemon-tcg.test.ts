@@ -43,6 +43,10 @@ describe("parseBinderSearchTokens", () => {
       name: "charizard",
       number: "4",
     })
+    expect(parseBinderSearchTokens("chimchar 41")).toEqual({
+      name: "chimchar",
+      number: "41",
+    })
     expect(parseBinderSearchTokens("pikachu 173")).toEqual({
       name: "pikachu",
       number: "173",

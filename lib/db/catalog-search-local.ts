@@ -131,24 +131,32 @@ async function fetchByNameAndNumber(
   number: string,
   fetchLimit: number,
 ): Promise<CatalogCardRow[]> {
-  const safeNumber = sanitizeCatalogSearchToken(number)
   const simplified = simplifyCardName(name).trim()
   const nameTokens = simplified.split(/\s+/).filter((token) => token.length > 0)
+
+  const byName = await fetchByText(supabase, name, fetchLimit)
+  let rows = byName.filter((row) => collectorNumberMatches(row.number, number))
+  if (rows.length > 0) return rows
+
+  const byNumber = await fetchByNumber(supabase, number, fetchLimit)
+  rows = byNumber.filter((row) => {
+    const haystack = `${row.name} ${row.japanese_name ?? ""}`.toLowerCase()
+    return nameTokens.every((token) => haystack.includes(token.toLowerCase()))
+  })
+  if (rows.length > 0) return rows
+
+  const safeNumber = sanitizeCatalogSearchToken(number)
   const primaryToken = nameTokens.find((token) => token.length > 1) ?? simplified
   const safeToken = sanitizeCatalogSearchToken(primaryToken)
 
-  let request = supabase
+  const { data, error } = await supabase
     .from("cards")
     .select(CARD_SELECT)
+    .ilike("name", `%${safeToken}%`)
     .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
+    .order("name", { ascending: true })
+    .limit(fetchLimit)
 
-  if (safeToken) {
-    request = request.or(
-      `name.ilike.%${safeToken}%,japanese_name.ilike.%${safeToken}%,set_name.ilike.%${safeToken}%`,
-    )
-  }
-
-  const { data, error } = await request.order("name", { ascending: true }).limit(fetchLimit)
   if (error) throw error
 
   return ((data ?? []) as CatalogCardRow[]).filter((row) => {

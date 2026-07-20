@@ -1,6 +1,7 @@
 import type { PokemonApiCard } from "@/lib/trade-binder/pokemon-tcg"
 import {
   buildPokemonSearchQueries,
+  cardNumberMatches,
   mapPokemonRarity,
   parseBinderSearchTokens,
   resolveBinderSetIdHint,
@@ -114,6 +115,19 @@ function tcgIdCandidatesForSetNumber(setHint: string, number: string): string[] 
   ])]
 }
 
+function tcgGoMatchesNameAndNumber(card: TcgGoCard, name: string, number: string): boolean {
+  if (!cardNumberMatches(tcgGoCardNumber(card), number)) return false
+  const normalizedName = name.toLowerCase().trim()
+  const cardName = (card.name ?? "").toLowerCase()
+  if (!normalizedName) return true
+  if (cardName.includes(normalizedName)) return true
+  return normalizedName.split(/\s+/).every((token) => token.length > 1 && cardName.includes(token))
+}
+
+function filterTcgGoByNameAndNumber(cards: TcgGoCard[], name: string, number: string): TcgGoCard[] {
+  return cards.filter((card) => tcgGoMatchesNameAndNumber(card, name, number))
+}
+
 async function searchTcgGoCatalog(
   query: string,
   pageSize = 40,
@@ -128,11 +142,28 @@ async function searchTcgGoCatalog(
     }
   }
 
+  if (name && number) {
+    const nameHits = await searchTcgGoCards({
+      search: name,
+      name,
+      perPage: Math.max(pageSize, 60),
+    })
+    const exact = filterTcgGoByNameAndNumber(nameHits, name, number)
+    if (exact.length > 0) return exact.slice(0, pageSize)
+
+    const combinedHits = await searchTcgGoCards({
+      search: `${name} ${number}`,
+      perPage: Math.max(pageSize, 60),
+    })
+    const combinedExact = filterTcgGoByNameAndNumber(combinedHits, name, number)
+    if (combinedExact.length > 0) return combinedExact.slice(0, pageSize)
+  }
+
   const attempts = [...new Set([
     trimmed,
+    name && number ? `${name} ${number}` : "",
     name,
     name.split(/\s+/).slice(-2).join(" "),
-    name.split(/\s+/).slice(-1)[0],
     setHint && number ? `${setHint} ${number}` : "",
     setHint && name ? `${name} ${setHint}` : "",
   ].filter((value): value is string => Boolean(value && value.trim())))]
@@ -141,10 +172,15 @@ async function searchTcgGoCatalog(
     const hits = await searchTcgGoCards({
       search: attempt,
       name: name || undefined,
-      cardNumber: number || undefined,
       perPage: pageSize,
     })
-    if (hits.length > 0) return hits
+    if (hits.length === 0) continue
+    if (name && number) {
+      const matched = filterTcgGoByNameAndNumber(hits, name, number)
+      if (matched.length > 0) return matched.slice(0, pageSize)
+      continue
+    }
+    return hits
   }
 
   return []
