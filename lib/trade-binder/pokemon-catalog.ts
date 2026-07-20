@@ -3,11 +3,13 @@ import {
   buildPokemonSearchQueries,
   mapPokemonRarity,
   parseBinderSearchTokens,
+  resolveBinderSetIdHint,
 } from "@/lib/trade-binder/pokemon-tcg"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
 import {
   extractTcgGoCardPrices,
+  fetchTcgGoCardByTcgId,
   fetchTcgGoCatalogPage,
   searchTcgGoCards,
   tcgGoCardImageUrl,
@@ -100,6 +102,67 @@ export async function fetchPokemonCatalogPage(
   }
 }
 
+function tcgIdCandidatesForSetNumber(setHint: string, number: string): string[] {
+  const resolved = resolveBinderSetIdHint(setHint) ?? setHint.toLowerCase()
+  const normalizedNumber = number.replace(/^#/, "").replace(/^0+/, "") || number
+  const padded = normalizedNumber.padStart(3, "0")
+  return [...new Set([
+    `${resolved}-${normalizedNumber}`,
+    `${resolved}-${padded}`,
+    `${setHint.toLowerCase()}-${normalizedNumber}`,
+    `${setHint.toLowerCase()}-${padded}`,
+  ])]
+}
+
+async function searchTcgGoCatalog(
+  query: string,
+  pageSize = 40,
+): Promise<TcgGoCard[]> {
+  const trimmed = query.trim()
+  const { number, name, setHint } = parseBinderSearchTokens(trimmed)
+
+  if (setHint && number) {
+    for (const tcgId of tcgIdCandidatesForSetNumber(setHint, number)) {
+      const card = await fetchTcgGoCardByTcgId(tcgId)
+      if (card) return [card]
+    }
+  }
+
+  const attempts = [...new Set([
+    trimmed,
+    name,
+    name.split(/\s+/).slice(-2).join(" "),
+    name.split(/\s+/).slice(-1)[0],
+    setHint && number ? `${setHint} ${number}` : "",
+    setHint && name ? `${name} ${setHint}` : "",
+  ].filter((value): value is string => Boolean(value && value.trim())))]
+
+  for (const attempt of attempts) {
+    const hits = await searchTcgGoCards({
+      search: attempt,
+      name: name || undefined,
+      cardNumber: number || undefined,
+      perPage: pageSize,
+    })
+    if (hits.length > 0) return hits
+  }
+
+  return []
+}
+
+export async function searchTcgGoBinderCards(
+  query: string,
+  pageSize = 40,
+): Promise<PricedCatalogCard[]> {
+  const hits = await searchTcgGoCatalog(query, pageSize)
+  const cards: PricedCatalogCard[] = []
+  for (const hit of hits) {
+    const priced = tcgGoToBinderCard(hit)
+    if (priced) cards.push(priced)
+  }
+  return cards
+}
+
 export async function searchPokemonCatalog(
   query: string,
   pageSize = 40,
@@ -107,13 +170,7 @@ export async function searchPokemonCatalog(
   const { number, name, setHint } = parseBinderSearchTokens(query)
 
   if (hasTcgGoApiKey()) {
-    const searchParts = [name, number, setHint, query.trim()].filter(Boolean)
-    const hits = await searchTcgGoCards({
-      search: searchParts.join(" ").trim(),
-      name: name || undefined,
-      cardNumber: number,
-      perPage: pageSize,
-    })
+    const hits = await searchTcgGoCatalog(query, pageSize)
     const cards = hits.map(tcgGoToPokemonApiCard)
     return { cards, totalCount: cards.length }
   }

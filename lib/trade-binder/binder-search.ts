@@ -1,6 +1,7 @@
 import {
   cardNumberMatches,
   parseBinderSearchTokens,
+  resolveBinderSetIdHint,
 } from "@/lib/trade-binder/pokemon-tcg"
 
 export type BinderSearchResultCard = {
@@ -22,6 +23,20 @@ function mergeKey(card: BinderSearchResultCard): string {
   return `${normalizeName(card.name)}|${card.set.toLowerCase()}|${num}`
 }
 
+function cardMatchesSetHint(setName: string, setHint: string, cardId?: string): boolean {
+  const hint = setHint.toLowerCase().replace(/[^a-z0-9]/g, "")
+  if (!hint) return true
+
+  const resolved = resolveBinderSetIdHint(setHint)?.toLowerCase()
+  const setCompact = setName.toLowerCase().replace(/[^a-z0-9]/g, "")
+  const idLower = cardId?.toLowerCase() ?? ""
+
+  if (resolved && (setCompact.includes(resolved) || idLower.includes(resolved))) return true
+  if (setCompact.includes(hint) || idLower.includes(hint)) return true
+  if (idLower.includes(`poke-${hint}-`) || idLower.includes(`-${hint}-`)) return true
+  return false
+}
+
 function scoreSearchResult(
   card: BinderSearchResultCard,
   query: string,
@@ -35,6 +50,7 @@ function scoreSearchResult(
   else if (tokens.name && name.startsWith(normalizeName(tokens.name))) score += 18
 
   if (tokens.number && cardNumberMatches(card.cardNumber, tokens.number)) score += 40
+  if (tokens.setHint && cardMatchesSetHint(card.set, tokens.setHint, card.id)) score += 35
 
   for (const token of q.split(/\s+/).filter(Boolean)) {
     if (token.length < 2) continue
@@ -86,7 +102,13 @@ export function mergeBinderSearchResults(
     .map((entry) => entry.card)
 
   if (tokens.number) {
-    const numbered = ranked.filter((card) => cardNumberMatches(card.cardNumber, tokens.number))
+    let numbered = ranked.filter((card) => cardNumberMatches(card.cardNumber, tokens.number))
+    if (tokens.setHint) {
+      const setMatched = numbered.filter((card) =>
+        cardMatchesSetHint(card.set, tokens.setHint!, card.id),
+      )
+      if (setMatched.length > 0) return setMatched
+    }
     if (numbered.length > 0) return numbered
   }
 

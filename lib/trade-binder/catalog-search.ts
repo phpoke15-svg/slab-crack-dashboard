@@ -7,11 +7,8 @@ import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
 import { mergeBinderSearchResults } from "@/lib/trade-binder/binder-search"
-import {
-  pokemonApiToBinderCard,
-  searchPokemonCatalog,
-  type PricedCatalogCard,
-} from "@/lib/trade-binder/pokemon-catalog"
+import { searchTcgGoBinderCards, type PricedCatalogCard } from "@/lib/trade-binder/pokemon-catalog"
+import { parseBinderSearchTokens, resolveBinderSetIdHint } from "@/lib/trade-binder/pokemon-tcg"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
 
 export type BinderCatalogCard = CatalogCard & { rawPrice?: number; cardNumber?: string }
@@ -46,8 +43,38 @@ function binderCardFromPriced(card: PricedCatalogCard): BinderCatalogCard {
   }
 }
 
-function shouldFetchLiveCatalog(query: string, localCount: number, limit: number): boolean {
+function localResultsMatchSetHint(
+  hits: CatalogSearchHit[],
+  setHint: string,
+  number?: string,
+): boolean {
+  if (hits.length === 0) return false
+  const top = hits.slice(0, 5)
+  return top.some((hit) => {
+    const setCompact = hit.setName.toLowerCase().replace(/[^a-z0-9]/g, "")
+    const resolved = resolveBinderSetIdHint(setHint)?.toLowerCase() ?? setHint.toLowerCase()
+    const idLower = hit.id.toLowerCase()
+    const setMatches =
+      setCompact.includes(resolved) || idLower.includes(resolved) || idLower.includes(setHint.toLowerCase())
+    if (!number) return setMatches
+    const numberMatches = hit.number.split("/")[0]?.replace(/^#/, "") === number.replace(/^#/, "")
+    return setMatches && numberMatches
+  })
+}
+
+function shouldFetchLiveCatalog(
+  query: string,
+  localHits: CatalogSearchHit[],
+  limit: number,
+): boolean {
   if (!hasTcgGoApiKey()) return false
+
+  const tokens = parseBinderSearchTokens(query)
+  if (tokens.setHint && tokens.number && !localResultsMatchSetHint(localHits, tokens.setHint, tokens.number)) {
+    return true
+  }
+
+  const localCount = localHits.length
   if (localCount === 0) return true
   if (localCount < Math.min(LIVE_FALLBACK_THRESHOLD, limit)) {
     const tokenCount = query.trim().split(/\s+/).filter(Boolean).length
@@ -57,17 +84,8 @@ function shouldFetchLiveCatalog(query: string, localCount: number, limit: number
 }
 
 async function fetchLiveCatalogHits(query: string, limit: number): Promise<CatalogSearchHit[]> {
-  const { cards } = await searchPokemonCatalog(query, limit)
-  const hits: CatalogSearchHit[] = []
-
-  for (const apiCard of cards) {
-    const priced = pokemonApiToBinderCard(apiCard)
-    if (!priced) continue
-    hits.push(pricedCardToCatalogHit(priced))
-    if (hits.length >= limit) break
-  }
-
-  return hits
+  const cards = await searchTcgGoBinderCards(query, limit)
+  return cards.map(pricedCardToCatalogHit)
 }
 
 function mergeCatalogHits(
@@ -126,7 +144,7 @@ export async function searchCatalogHybrid(
   const localHits = await searchCatalogCardsLocal(query, Math.min(limit * 2, 80))
   let liveHits: CatalogSearchHit[] = []
 
-  if (shouldFetchLiveCatalog(query, localHits.length, limit)) {
+  if (shouldFetchLiveCatalog(query, localHits, limit)) {
     try {
       liveHits = await fetchLiveCatalogHits(query, limit)
     } catch (error) {
