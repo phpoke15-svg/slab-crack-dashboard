@@ -15,9 +15,9 @@ export async function searchBinderCatalog(
   const limit = options?.limit ?? 40
   const rawPriceByCardId = options?.rawPriceByCardId ?? new Map<string, number>()
 
-  if (query.trim().length < 2) return []
+  if (!query.trim() || query.trim().length < 1) return []
 
-  const localHits = await searchCatalogCardsLocal(query, limit)
+  const localHits = await searchCatalogCardsLocal(query, Math.min(limit * 3, 120))
   const cards: BinderCatalogCard[] = []
 
   for (const hit of localHits) {
@@ -31,6 +31,7 @@ export async function searchBinderCatalog(
       if (cached && cached > 0) card.rawPrice = cached
     }
     cards.push(card)
+    if (cards.length >= limit) break
   }
 
   return cards.map((card) => {

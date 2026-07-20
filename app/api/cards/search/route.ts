@@ -4,6 +4,7 @@ import {
   getCatalogCardCount,
   searchCatalogCardsLocal,
 } from "@/lib/db/cards-catalog"
+import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import type { CardSearchHit } from "@/lib/card-lookup"
 import { enrichCardSearchHitsWithPrices } from "@/lib/pricing/persist-search-prices"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
@@ -20,7 +21,7 @@ export async function GET(request: Request) {
   const q = searchParams.get("q")?.trim() ?? ""
   const catalogReady = (await getCatalogCardCount()) > 0
 
-  if (q.length < 2) {
+  if (!catalogSearchMinLength(q)) {
     return NextResponse.json({ results: [], catalogReady })
   }
 

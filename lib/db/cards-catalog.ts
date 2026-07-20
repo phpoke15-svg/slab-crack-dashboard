@@ -1,4 +1,9 @@
 import type { CardSearchHit } from "@/lib/card-lookup"
+import {
+  catalogSearchMinLength,
+  queryCatalogSearchRows,
+  rankCatalogSearchHits,
+} from "@/lib/db/catalog-search-local"
 import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import { cleanNumber, simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import { buildCardSlug, buildSetSlug } from "@/lib/seo/card-slugs"
@@ -155,26 +160,14 @@ export async function searchCatalogCardsLocal(
   if (!isSupabaseConfigured()) return []
 
   const q = query.trim()
-  if (q.length < 2) return []
+  if (!catalogSearchMinLength(q)) return []
 
   try {
     const supabase = createReadClient()
-    const pattern = `%${q.replace(/[%_]/g, "")}%`
-    const { data, error } = await supabase
-      .from("cards")
-      .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")
-      .or(
-        `name.ilike.${pattern},japanese_name.ilike.${pattern},set_name.ilike.${pattern},number.ilike.${pattern}`,
-      )
-      .order("name", { ascending: true })
-      .limit(Math.min(Math.max(limit, 1), 80))
-
-    if (error) {
-      if (error.code === "42P01") return []
-      throw error
-    }
-
-    return attachCachedPrices((data ?? []) as CatalogCardRow[])
+    const fetchLimit = Math.min(Math.max(limit * 3, 60), 120)
+    const rows = await queryCatalogSearchRows(supabase, q, fetchLimit)
+    const hits = await attachCachedPrices(rows)
+    return rankCatalogSearchHits(hits, q, Math.min(Math.max(limit, 1), 80))
   } catch (error) {
     console.error("[cards-catalog] search failed:", error)
     return []
