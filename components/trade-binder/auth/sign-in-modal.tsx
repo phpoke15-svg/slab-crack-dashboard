@@ -4,7 +4,7 @@ import { SignInForm } from "./sign-in-form"
 import { useAuth } from "./auth-provider"
 
 export function SignInModal() {
-  const { authModalOpen, closeAuthModal } = useAuth()
+  const { authModalOpen, authModalMode, closeAuthModal } = useAuth()
 
   if (!authModalOpen) return null
 
@@ -18,7 +18,12 @@ export function SignInModal() {
       />
 
       <div className="relative z-10 w-full max-w-sm">
-        <SignInForm onSuccess={closeAuthModal} onClose={closeAuthModal} />
+        <SignInForm
+          key={authModalMode}
+          defaultMode={authModalMode}
+          onSuccess={closeAuthModal}
+          onClose={closeAuthModal}
+        />
       </div>
     </div>
   )

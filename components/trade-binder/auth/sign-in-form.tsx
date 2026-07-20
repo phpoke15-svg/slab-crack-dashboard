@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Loader2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
@@ -12,16 +12,23 @@ type SignInFormProps = {
   onSuccess?: () => void
   onClose?: () => void
   className?: string
+  defaultMode?: Mode
 }
 
-export function SignInForm({ onSuccess, onClose, className }: SignInFormProps) {
+export function SignInForm({ onSuccess, onClose, className, defaultMode = "sign-in" }: SignInFormProps) {
   const { signIn, signUp, requestPasswordReset } = useAuth()
-  const [mode, setMode] = useState<Mode>("sign-in")
+  const [mode, setMode] = useState<Mode>(defaultMode)
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  useEffect(() => {
+    setMode(defaultMode)
+    setError(null)
+    setInfo(null)
+  }, [defaultMode])
 
   const switchMode = (next: Mode) => {
     setMode(next)

@@ -22,7 +22,8 @@ type AuthContextValue = {
   isLoading: boolean
   isConfigured: boolean
   authModalOpen: boolean
-  openAuthModal: () => void
+  authModalMode: "sign-in" | "sign-up"
+  openAuthModal: (options?: { mode?: "sign-in" | "sign-up" }) => void
   closeAuthModal: () => void
   getSupabase: () => SupabaseClient
   signIn: (email: string, password: string) => Promise<{ error: string | null }>
@@ -46,6 +47,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [authModalMode, setAuthModalMode] = useState<"sign-in" | "sign-up">("sign-in")
   const [pendingAction, setPendingAction] = useState<(() => void | Promise<void>) | null>(null)
   const isConfigured = isSupabaseConfigured()
 
@@ -107,9 +109,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       isConfigured,
       authModalOpen,
-      openAuthModal: () => setAuthModalOpen(true),
+      authModalMode,
+      openAuthModal: (options) => {
+        setAuthModalMode(options?.mode ?? "sign-in")
+        setAuthModalOpen(true)
+      },
       closeAuthModal: () => {
         setAuthModalOpen(false)
+        setAuthModalMode("sign-in")
         setPendingAction(null)
       },
       getSupabase,
@@ -160,10 +167,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
         setPendingAction(() => action)
+        setAuthModalMode("sign-in")
         setAuthModalOpen(true)
       },
     }),
-    [user, isLoading, isConfigured, authModalOpen, getSupabase],
+    [user, isLoading, isConfigured, authModalOpen, authModalMode, getSupabase],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
