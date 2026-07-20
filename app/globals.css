@@ -160,22 +160,26 @@
   );
 }
 
-/* Crawler-facing SEO intros — in the DOM for bots, not shown to users */
+/* Compact server-rendered SEO intros — visible to users and crawlers */
+.seo-page-intro,
 .seo-crawl-intro {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  clip-path: inset(50%) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
-  background: transparent !important;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in oklch, var(--card) 55%, transparent);
 }
 
-/* CollecTools native app shell (WebView injects html.native-app) */
+.seo-page-intro-inner {
+  margin-inline: auto;
+  max-width: 80rem;
+  padding: 1rem 1rem 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .seo-page-intro-inner {
+    padding-inline: 1.5rem;
+  }
+}
+
+html.native-app .seo-page-intro,
 html.native-app .seo-crawl-intro {
   display: none !important;
 }

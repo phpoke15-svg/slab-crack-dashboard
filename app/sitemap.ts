@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next"
-import { listCardSitemapRows, getCardSitemapChunkCount } from "@/lib/db/cards-pseo"
+import { listCardSitemapRows, getCardSitemapChunkCount, listSetSitemapRows } from "@/lib/db/cards-pseo"
 import { RESTOCKS_ENABLED } from "@/lib/collectools-tools"
 import { LEGAL_SITE_URL } from "@/lib/legal/config"
 import { cardPagePath } from "@/lib/seo/card-slugs"
@@ -18,6 +18,7 @@ function staticSitemapEntries(): MetadataRoute.Sitemap {
     { url: `${base}/pokewatch`, lastModified, changeFrequency: "weekly", priority: 0.8 },
     { url: `${base}/feedback`, lastModified, changeFrequency: "weekly", priority: 0.5 },
     { url: `${base}/pricing`, lastModified, changeFrequency: "monthly", priority: 0.75 },
+    { url: `${base}/pokemon`, lastModified, changeFrequency: "weekly", priority: 0.82 },
     { url: `${base}/giveaway`, lastModified, changeFrequency: "weekly", priority: 0.7 },
     { url: `${base}/privacy`, lastModified, changeFrequency: "yearly", priority: 0.2 },
     { url: `${base}/terms`, lastModified, changeFrequency: "yearly", priority: 0.2 },
@@ -56,7 +57,14 @@ export default async function sitemap(props: { id: number | string | Promise<num
   const base = LEGAL_SITE_URL.replace(/\/$/, "")
 
   if (id === 0) {
-    return staticSitemapEntries()
+    const setRows = await listSetSitemapRows()
+    const setEntries: MetadataRoute.Sitemap = setRows.map((row) => ({
+      url: `${base}/pokemon/${row.setSlug}`,
+      lastModified: new Date(row.lastModified),
+      changeFrequency: "weekly" as const,
+      priority: 0.72,
+    }))
+    return [...staticSitemapEntries(), ...setEntries]
   }
 
   const cardChunkIndex = id - 1

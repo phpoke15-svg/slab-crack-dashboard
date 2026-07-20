@@ -1,15 +1,17 @@
 import { redirect } from "next/navigation"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { getEntitlementsForUser } from "@/lib/billing/stripe"
+import { pageMetadata } from "@/lib/seo"
 
 export const dynamic = "force-dynamic"
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Live Binder HUD",
   description:
     "Supreme preview: Gemini box_2d multi-card detect on one frame, dynamic HUD overlays, PriceCharting comps.",
-  robots: { index: false, follow: false },
-}
+  path: "/live-binder-hud",
+  noIndex: true,
+})
 
 /** Live Binder HUD is Supreme-only while in development. */
 export default async function LiveBinderHudPage() {

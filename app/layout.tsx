@@ -42,9 +42,6 @@ export const metadata: Metadata = {
   creator: SEO_SITE_NAME,
   publisher: SEO_SITE_NAME,
   category: 'collectibles',
-  alternates: {
-    canonical: siteUrl,
-  },
   openGraph: {
     type: 'website',
     locale: 'en_US',

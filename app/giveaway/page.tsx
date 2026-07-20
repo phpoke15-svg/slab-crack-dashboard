@@ -1,11 +1,10 @@
-import { redirect } from "next/navigation"
 import { GiveawayClient } from "@/components/giveaway-client"
+import { JsonLd } from "@/components/seo/json-ld"
 import { monthPeriod, utcTodayIso } from "@/lib/giveaway/constants"
 import { getGiveawayPrizeCards } from "@/lib/giveaway/prize-cards"
 import { getPrizeSnapshotForMonth, getPromotionEntryStats } from "@/lib/giveaway/service"
 import type { GiveawayEntryPoolData, GiveawayPagePrizeData } from "@/lib/giveaway/types"
-import { pageMetadata } from "@/lib/seo"
-import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
+import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
@@ -67,10 +66,17 @@ async function loadGiveawayEntryPool(): Promise<GiveawayEntryPoolData> {
 }
 
 export default async function GiveawayPage() {
-  const auth = await requireUser()
-  if (!auth.ok) redirect(`/sign-in?next=${encodeURIComponent("/giveaway")}`)
-
   const [prizeData, entryPool] = await Promise.all([loadGiveawayPrizeData(), loadGiveawayEntryPool()])
 
-  return <GiveawayClient prizeData={prizeData} entryPool={entryPool} />
+  return (
+    <>
+      <JsonLd
+        data={breadcrumbJsonLd([
+          { name: "Home", path: "/" },
+          { name: "Monthly Giveaway", path: "/giveaway" },
+        ])}
+      />
+      <GiveawayClient prizeData={prizeData} entryPool={entryPool} />
+    </>
+  )
 }

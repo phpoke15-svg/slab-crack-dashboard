@@ -8,15 +8,12 @@ import { SEO_DEFAULT_DESCRIPTION } from "@/lib/seo"
  */
 export function HomeSeoIntro() {
   return (
-    <section
-      aria-label="CollecTools overview"
-      className="seo-crawl-intro"
-    >
-      <div className="mx-auto max-w-3xl">
-        <h2 className="text-sm font-semibold tracking-tight text-foreground">
+    <section aria-label="CollecTools overview" className="seo-page-intro">
+      <div className="seo-page-intro-inner mx-auto max-w-3xl">
+        <h1 className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
           Pokémon TCG collector tools
-        </h2>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{SEO_DEFAULT_DESCRIPTION}</p>
+        </h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{SEO_DEFAULT_DESCRIPTION}</p>
         <p className="mt-2 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">Tools: </span>
           {COLLECTOOLS.map((tool, index) => (

@@ -7,6 +7,7 @@ import { CollecToolsBrand } from "@/components/collectools-brand"
 import { loadCardPseoPageData } from "@/lib/db/cards-pseo"
 import { formatCardNumberForSeo } from "@/lib/seo/card-slugs"
 import { buildCardPseoMetadata, buildCardProductJsonLd } from "@/lib/seo/card-pseo"
+import { breadcrumbJsonLd } from "@/lib/seo"
 
 export const revalidate = 3600
 
@@ -35,7 +36,15 @@ export default async function PokemonCardPseoPage({ params }: PageProps) {
 
   const { card, price, soldCompCount } = data
   const number = formatCardNumberForSeo(card.number)
-  const jsonLd = buildCardProductJsonLd(data)
+  const jsonLd = [
+    buildCardProductJsonLd(data),
+    breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: "Pokémon TCG Sets", path: "/pokemon" },
+      { name: card.setName, path: `/pokemon/${setSlug}` },
+      { name: card.name, path: `/pokemon/${setSlug}/${cardSlug}` },
+    ]),
+  ]
 
   const rawPrice = price?.raw_price ?? card.rawPrice ?? null
   const psa9 = price?.psa9_price ?? null
@@ -66,7 +75,11 @@ export default async function PokemonCardPseoPage({ params }: PageProps) {
           </div>
 
           <div>
-            <p className="text-sm font-medium text-primary">{card.setName}</p>
+            <p className="text-sm font-medium text-primary">
+              <Link href={`/pokemon/${setSlug}`} className="hover:underline">
+                {card.setName}
+              </Link>
+            </p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight text-foreground">
               {card.name} {number}
             </h1>

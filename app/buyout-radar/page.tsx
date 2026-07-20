@@ -5,15 +5,17 @@ import { SiteFooter } from "@/components/legal/site-footer"
 import { BuyoutRadarDashboard } from "@/components/buyout-radar-dashboard"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { getEntitlementsForUser } from "@/lib/billing/stripe"
+import { pageMetadata } from "@/lib/seo"
 
 export const dynamic = "force-dynamic"
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Buyout Radar",
   description:
     "Supreme preview: detect high-volume TCG buyout clusters before retail prices spike.",
-  robots: { index: false, follow: false },
-}
+  path: "/buyout-radar",
+  noIndex: true,
+})
 
 /** Buyout Radar is Supreme-only while in development. */
 export default async function BuyoutRadarPage() {

@@ -21,6 +21,65 @@ export const PRICING_FAQ = [
   },
 ] as const
 
+export const SLABCRACK_FAQ = [
+  {
+    question: "What is SlabCrack?",
+    answer:
+      "SlabCrack is a graded Pokémon TCG arbitrage tool that compares PSA slab prices to raw market values so collectors can spot buy-crack-sell opportunities and undervalued high-end cards.",
+  },
+  {
+    question: "Is SlabCrack free?",
+    answer:
+      "Starter accounts see a limited preview of mid-tier opportunities. Premium and Pro unlock the full live deficit feed and ad-free browsing on /pricing.",
+  },
+  {
+    question: "How does SlabCrack find arbitrage?",
+    answer:
+      "SlabCrack ranks cards by raw vs graded price gaps using live market comps and PriceCharting data, sortable by dollar or percent deficit.",
+  },
+  {
+    question: "Can I scan cards in SlabCrack?",
+    answer:
+      "Yes. Use Scan in the search bar or visit /slablabs/slabcrack/scan to identify a card with your camera and jump straight into pricing data.",
+  },
+] as const
+
+export const SLABIT_FAQ = [
+  {
+    question: "What is SlabIt?",
+    answer:
+      "SlabIt ranks the top 200 modern Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and probability-weighted submission ROI using live market comps.",
+  },
+  {
+    question: "How is SlabIt ROI calculated?",
+    answer:
+      "SlabIt compares raw and PSA 10 prices, applies configurable PSA grading tier costs, and surfaces spread and multiplier metrics so you can prioritize submission candidates.",
+  },
+  {
+    question: "Is SlabIt included with Premium?",
+    answer:
+      "Yes. SlabIt and SlabPop are available on all account tiers. Premium and Pro remove ads and unlock the full SlabCrack feed.",
+  },
+] as const
+
+export const POKEMATCH_FAQ = [
+  {
+    question: "What is PokeMatch?",
+    answer:
+      "PokeMatch is a digital binder and trading platform for Pokémon TCG collectors. List cards you have and want, get matched with other collectors, and complete trades with chat and reviews.",
+  },
+  {
+    question: "Is PokeMatch free?",
+    answer:
+      "Yes. PokeMatch is available on all CollecTools account tiers. Premium and Pro remove ads from the binder and matches views.",
+  },
+  {
+    question: "How do trade matches work?",
+    answer:
+      "PokeMatch compares your trade and wishlist cards against other collectors and suggests fair swaps within a configurable value tolerance.",
+  },
+] as const
+
 export const POKEWATCH_FAQ = [
   {
     question: "What is PokeWatch?",

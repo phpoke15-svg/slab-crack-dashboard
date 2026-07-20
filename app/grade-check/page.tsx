@@ -2,14 +2,16 @@ import { redirect } from "next/navigation"
 import { GradeCheckClient } from "@/components/grade-check-client"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { getEntitlementsForUser } from "@/lib/billing/stripe"
+import { pageMetadata } from "@/lib/seo"
 
 export const dynamic = "force-dynamic"
 
-export const metadata = {
+export const metadata = pageMetadata({
   title: "Grade Check",
   description: "Condition helper for PSA submissions (Supreme preview).",
-  robots: { index: false, follow: false },
-}
+  path: "/grade-check",
+  noIndex: true,
+})
 
 /** Grade Check is Supreme-only while unfinished. */
 export default async function GradeCheckPage() {
