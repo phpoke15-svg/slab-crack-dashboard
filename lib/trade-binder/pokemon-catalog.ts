@@ -9,6 +9,7 @@ import {
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
 import {
+  catalogIdFromTcgGoCard,
   extractTcgGoCardPrices,
   fetchTcgGoCardByTcgId,
   fetchTcgGoCatalogPage,
@@ -61,6 +62,25 @@ export function tcgGoToBinderCard(card: TcgGoCard): PricedCatalogCard | null {
   const apiCard = tcgGoToPokemonApiCard(card)
   const prices = extractTcgGoCardPrices(card)
   return pokemonApiToBinderCard(apiCard, prices.rawPrice)
+}
+
+/** Search mapping — include promos and new sets not yet in the local catalog. */
+export function tcgGoToSearchBinderCard(card: TcgGoCard): PricedCatalogCard | null {
+  const name = card.name?.trim()
+  if (!name) return null
+
+  const prices = extractTcgGoCardPrices(card)
+  const image = tcgGoCardImageUrl(card) ?? "/placeholder.svg"
+
+  return {
+    id: catalogIdFromTcgGoCard(card),
+    name,
+    set: tcgGoCardSetName(card),
+    rarity: mapPokemonRarity(card.rarity ?? undefined),
+    image: upgradeCardImageUrlSync(image),
+    rawPrice: prices.rawPrice,
+    cardNumber: tcgGoCardNumber(card) || undefined,
+  }
 }
 
 export async function fetchPokemonCatalogPage(
@@ -116,12 +136,71 @@ function tcgIdCandidatesForSetNumber(setHint: string, number: string): string[] 
 }
 
 function tcgGoMatchesNameAndNumber(card: TcgGoCard, name: string, number: string): boolean {
-  if (!cardNumberMatches(tcgGoCardNumber(card), number)) return false
   const normalizedName = name.toLowerCase().trim()
   const cardName = (card.name ?? "").toLowerCase()
-  if (!normalizedName) return true
-  if (cardName.includes(normalizedName)) return true
-  return normalizedName.split(/\s+/).every((token) => token.length > 1 && cardName.includes(token))
+  const nameMatches =
+    !normalizedName ||
+    cardName.includes(normalizedName) ||
+    normalizedName.split(/\s+/).every((token) => token.length > 1 && cardName.includes(token))
+  if (!nameMatches) return false
+
+  const numberCandidates = [
+    tcgGoCardNumber(card),
+    card.card_code_number ?? "",
+    card.tcgid?.split("-").pop() ?? "",
+  ]
+  return numberCandidates.some((candidate) => cardNumberMatches(candidate, number))
+}
+
+async function searchTcgGoByNameAndNumber(
+  name: string,
+  number: string,
+  pageSize: number,
+): Promise<TcgGoCard[]> {
+  const padded = number.replace(/^#/, "").padStart(3, "0")
+  const normalized = number.replace(/^#/, "").replace(/^0+/, "") || number
+
+  const tcgIdPrefixes = [
+    "mep",
+    "sv",
+    "swsh",
+    "sm",
+    "xy",
+    "bw",
+    "dp",
+    "pl",
+    "hgss",
+    "base",
+    "me",
+  ]
+  for (const prefix of tcgIdPrefixes) {
+    for (const cardNumber of [normalized, padded, number]) {
+      const card = await fetchTcgGoCardByTcgId(`${prefix}-${cardNumber}`)
+      if (card && tcgGoMatchesNameAndNumber(card, name, number)) return [card]
+    }
+  }
+
+  const searchAttempts = [
+    `${name} ${number}`,
+    `${name} ${padded}`,
+    `${name} ${normalized}`,
+    `${name} ${number} promo`,
+    name,
+  ]
+
+  for (const search of searchAttempts) {
+    const hits = await searchTcgGoCards({ search, name, perPage: Math.max(pageSize, 80) })
+    const matched = filterTcgGoByNameAndNumber(hits, name, number)
+    if (matched.length > 0) return matched
+  }
+
+  for (const cardNumber of [number, padded, normalized]) {
+    const hits = await searchTcgGoCards({ cardNumber, perPage: 100 })
+    const matched = filterTcgGoByNameAndNumber(hits, name, number)
+    if (matched.length > 0) return matched
+  }
+
+  return []
 }
 
 function filterTcgGoByNameAndNumber(cards: TcgGoCard[], name: string, number: string): TcgGoCard[] {
@@ -143,20 +222,8 @@ async function searchTcgGoCatalog(
   }
 
   if (name && number) {
-    const nameHits = await searchTcgGoCards({
-      search: name,
-      name,
-      perPage: Math.max(pageSize, 60),
-    })
-    const exact = filterTcgGoByNameAndNumber(nameHits, name, number)
+    const exact = await searchTcgGoByNameAndNumber(name, number, pageSize)
     if (exact.length > 0) return exact.slice(0, pageSize)
-
-    const combinedHits = await searchTcgGoCards({
-      search: `${name} ${number}`,
-      perPage: Math.max(pageSize, 60),
-    })
-    const combinedExact = filterTcgGoByNameAndNumber(combinedHits, name, number)
-    if (combinedExact.length > 0) return combinedExact.slice(0, pageSize)
   }
 
   const attempts = [...new Set([
@@ -193,7 +260,7 @@ export async function searchTcgGoBinderCards(
   const hits = await searchTcgGoCatalog(query, pageSize)
   const cards: PricedCatalogCard[] = []
   for (const hit of hits) {
-    const priced = tcgGoToBinderCard(hit)
+    const priced = tcgGoToSearchBinderCard(hit)
     if (priced) cards.push(priced)
   }
   return cards
