@@ -45,6 +45,17 @@ export type PriceHistoryPoint = {
   source: string
 }
 
+export type PriceHistorySeriesKey = "raw" | "psa7" | "psa8" | "psa9" | "psa10"
+
+export type PriceHistorySeriesPoint = {
+  date: string
+  price: number
+  saleCount?: number
+  source?: string
+}
+
+export type PriceHistorySeriesMap = Record<PriceHistorySeriesKey, PriceHistorySeriesPoint[]>
+
 export type SyncCardPricesResult = {
   syncedAt: string
   candidates: number
