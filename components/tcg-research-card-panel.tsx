@@ -197,10 +197,14 @@ export function TcgResearchCardPanel({
 
           <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
             <div className="mb-3 flex items-center justify-between gap-2">
-              <h4 className="font-semibold text-foreground">Recent eBay sold comps</h4>
+              <h4 className="font-semibold text-foreground">Recent sold comps</h4>
               {salesLoading ? <Loader2 className="size-3.5 animate-spin text-muted-foreground" /> : null}
             </div>
             {salesError ? <p className="mb-3 text-sm text-destructive">{salesError}</p> : null}
+            <p className="mb-3 text-[11px] text-muted-foreground">
+              Historical eBay sales via Scrydex listings
+              {payload.scrydexId ? ` · ${payload.scrydexId}` : ""}
+            </p>
             <div className="flex flex-col gap-2">
               <RecentSalesList
                 title="Raw NM"
@@ -223,10 +227,18 @@ export function TcgResearchCardPanel({
               <h4 className="font-semibold text-foreground">Price history</h4>
             </div>
             <PriceHistoryChart
-              cardId={card.id}
+              cardId={payload.catalogId ?? card.id}
               grade={salesGrade}
               currentRaw={card.rawPrice}
               currentSlab={activeQuote?.slabPrice}
+              historyEndpoint="/api/tcg-research/price-history"
+              historyQuery={{
+                catalogId: payload.catalogId ?? undefined,
+                scrydexId: payload.scrydexId ?? undefined,
+                game: payload.game,
+              }}
+              title="Price history · Scrydex"
+              subtitle="Scrydex daily market history · raw + PSA grades"
             />
           </div>
 

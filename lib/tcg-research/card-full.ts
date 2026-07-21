@@ -1,5 +1,6 @@
-import { lookupCatalogCardEntry } from "@/lib/pricing/catalog-card-lookup"
 import { cardPriceRowToMockEntry } from "@/lib/pricing/views"
+import { ensureScrydexCardFresh } from "@/lib/scrydex/on-demand"
+import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import { loadCardBundle } from "@/lib/scrydex/db"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
 import { resolveCatalogId, splitCatalogId } from "@/lib/scrydex/constants"
@@ -64,7 +65,7 @@ function detailToMockEntry(detail: TcgResearchCardDetail): MockCardEntry {
     slabPrice: detail.psa10Price ?? 0,
     gradeQuotes: buildGradeQuotes(raw, byGrade),
     hasPricing: raw > 0 || Object.keys(byGrade).length > 0,
-    marketInsight: "Local Scrydex catalog prices. Sold comps load on demand.",
+    marketInsight: "Scrydex catalog prices. Sold comps and history load from Scrydex on demand.",
   })
 }
 
@@ -101,21 +102,8 @@ export async function resolveTcgResearchCardFull(input: {
   let priceUpdatedAt = detail.priceUpdatedAt
   let priceSource: string | null = null
 
-  const lookupId =
-    input.id?.startsWith("poke-") || input.id?.startsWith("pc-")
-      ? input.id
-      : detail.id.startsWith("poke-")
-        ? detail.id
-        : detail.scrydexId
-          ? `poke-${detail.scrydexId}`
-          : null
-
-  if (lookupId?.startsWith("poke-") && detail.game === "pokemon") {
-    const lookedUp = await lookupCatalogCardEntry(lookupId)
-    if (lookedUp) {
-      card = mergeMockEntry(card, lookedUp)
-      priceSource = lookedUp.hasPricing ? "catalog_lookup" : priceSource
-    }
+  if (catalogId && isScrydexConfigured()) {
+    await ensureScrydexCardFresh(detail.id, { activity: "view" })
   }
 
   if (catalogId) {
@@ -135,7 +123,7 @@ export async function resolveTcgResearchCardFull(input: {
           setName: bundle.card.set_name,
           cardNumber: bundle.card.number,
           imageUrl: bundle.card.image_large_url ?? bundle.card.image_small_url ?? card.imageUrl,
-          marketInsight: "Scrydex local catalog with cached market prices.",
+          marketInsight: "Scrydex market prices, population, and sold listing history.",
         })
         card = mergeMockEntry(card, fromBundle)
         priceUpdatedAt = priceRow.synced_at ?? priceUpdatedAt

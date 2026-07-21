@@ -125,6 +125,32 @@ export type ScrydexVisionResponse = {
   data?: ScrydexVisionResult
 }
 
+export type ScrydexListing = {
+  id?: string
+  source?: string
+  card_id?: string
+  title?: string
+  variant?: string
+  company?: string
+  grade?: string
+  condition?: string
+  is_perfect?: boolean
+  is_error?: boolean
+  is_signed?: boolean
+  url?: string
+  price?: number
+  currency?: string
+  sold_at?: string
+}
+
+export type ScrydexListingsResponse = {
+  data?: ScrydexListing[]
+  page?: number
+  page_size?: number
+  count?: number
+  total_count?: number
+}
+
 export type CatalogCardRow = {
   catalog_id: string
   game: TcgGame

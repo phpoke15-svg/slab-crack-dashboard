@@ -328,8 +328,8 @@ export function TcgResearchClient() {
         <div>
           <CollecToolsBrand href="/" size="lg" subtitle="TCG Research · catalog + market analytics" />
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Unlimited hybrid search across Pokémon, Lorcana, and MTG with local prices, grade spreads,
-            price history, and Scrydex Vision scanning.
+            Unlimited hybrid search across Pokémon, Lorcana, and MTG with Scrydex prices,
+            sold comps, price history, and Scrydex Vision scanning.
           </p>
         </div>
         <SiteAuthButton className="shrink-0" />

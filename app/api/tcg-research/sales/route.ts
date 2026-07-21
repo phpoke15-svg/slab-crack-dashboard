@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
-import { fetchRecentSalesForCard } from "@/lib/ebay-sold"
+import { fetchScrydexSoldComps } from "@/lib/scrydex/listings"
+import { isScrydexConfigured, resolveCatalogId } from "@/lib/scrydex/constants"
 import { parseTcgResearchGame } from "@/lib/tcg-research/search"
-import { resolveTcgResearchCardFull, tcgResearchSalesCard } from "@/lib/tcg-research/card-full"
-import { resolveCatalogId } from "@/lib/scrydex/constants"
+import { resolveTcgResearchCardFull } from "@/lib/tcg-research/card-full"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 45
@@ -24,9 +24,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "grade must be 7–10" }, { status: 400 })
   }
 
-  const apiKey = process.env.EBAY_SOLD_API_KEY
-  if (!apiKey) {
-    return NextResponse.json({ error: "EBAY_SOLD_API_KEY is not configured" }, { status: 503 })
+  if (!isScrydexConfigured()) {
+    return NextResponse.json({ error: "SCRYDEX_API_KEY and SCRYDEX_TEAM_ID must be configured" }, { status: 503 })
   }
 
   try {
@@ -41,8 +40,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Card not found" }, { status: 404 })
     }
 
-    const sales = await fetchRecentSalesForCard(apiKey, tcgResearchSalesCard(full), slabGrade)
-    return NextResponse.json(sales)
+    const sales = await fetchScrydexSoldComps({
+      catalogId: full.catalogId,
+      scrydexId: full.scrydexId,
+      game: full.game,
+      slabGrade,
+    })
+
+    return NextResponse.json({ ...sales, source: "scrydex" })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch sold comps"
     return NextResponse.json({ error: message }, { status: 500 })

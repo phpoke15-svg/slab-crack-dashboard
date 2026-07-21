@@ -185,7 +185,11 @@ type PriceHistoryChartProps = {
   className?: string
   compact?: boolean
   title?: string
+  subtitle?: string
   days?: number
+  /** Override default `/api/card-price-history` endpoint (TCG Research uses Scrydex). */
+  historyEndpoint?: string
+  historyQuery?: Record<string, string | undefined>
 }
 
 export function PriceHistoryChart({
@@ -196,7 +200,10 @@ export function PriceHistoryChart({
   className,
   compact = false,
   title,
+  subtitle,
   days: initialDays = 90,
+  historyEndpoint = "/api/card-price-history",
+  historyQuery,
 }: PriceHistoryChartProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
@@ -225,13 +232,17 @@ export function PriceHistoryChart({
     return () => observer.disconnect()
   }, [])
 
-  const fetchKey = `${cardId}|${range}`
+  const fetchKey = `${historyEndpoint}|${cardId}|${range}|${JSON.stringify(historyQuery ?? {})}`
 
   useEffect(() => {
     if (!visible || loadedKey === fetchKey || !cardId) return
     let cancelled = false
     setLoading(true)
-    void fetch(`/api/card-price-history?id=${encodeURIComponent(cardId)}&range=${range}`)
+    const params = new URLSearchParams({ id: cardId, range })
+    for (const [key, value] of Object.entries(historyQuery ?? {})) {
+      if (value) params.set(key, value)
+    }
+    void fetch(`${historyEndpoint}?${params.toString()}`)
       .then(async (res) => {
         const data = (await res.json().catch(() => null)) as HistoryApiResponse | null
         if (cancelled) return
@@ -251,7 +262,7 @@ export function PriceHistoryChart({
     return () => {
       cancelled = true
     }
-  }, [visible, loadedKey, fetchKey, cardId, range])
+  }, [visible, loadedKey, fetchKey, cardId, range, historyEndpoint, historyQuery])
 
   useEffect(() => {
     setLoadedKey("")
@@ -306,7 +317,8 @@ export function PriceHistoryChart({
             {title ?? "Price history · pokemon-api"}
           </span>
           <p className="text-[9px] text-muted-foreground">
-            TCGPlayer raw + eBay PSA comps · {totalPoints > 0 ? `${totalPoints} points cached` : "loading…"}
+            {subtitle ??
+              `TCGPlayer raw + eBay PSA comps · ${totalPoints > 0 ? `${totalPoints} points cached` : "loading…"}`}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-1">
