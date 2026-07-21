@@ -9,34 +9,12 @@ import {
   priceHistorySeriesLabels,
 } from "@/lib/pricing/price-history-series"
 import { isScrydexConfigured, resolveCatalogId } from "@/lib/scrydex/constants"
+import { parsePriceHistoryRange } from "@/lib/pricing/price-history-range"
 import { SCRYDEX_PRICE_HISTORY_LABELS } from "@/lib/tcg-research/scrydex-price-history"
 import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
-
-const RANGE_PRESETS = {
-  "30": 30,
-  "90": 90,
-  "365": 365,
-  all: 0,
-} as const
-
-type RangePreset = keyof typeof RANGE_PRESETS
-
-function parseRange(value: string | null): { days: number; full: boolean; preset: RangePreset } {
-  const normalized = (value ?? "90").trim().toLowerCase()
-  if (normalized === "all" || normalized === "0") {
-    return { days: 0, full: true, preset: "all" }
-  }
-  const days = Number(normalized)
-  if (Number.isFinite(days) && days > 0) {
-    return { days: Math.min(Math.round(days), 3650), full: false, preset: "90" }
-  }
-  const preset = normalized in RANGE_PRESETS ? (normalized as RangePreset) : "90"
-  const presetDays = RANGE_PRESETS[preset]
-  return { days: presetDays, full: presetDays === 0, preset }
-}
 
 function filterSeriesByDays<T extends { date: string }>(points: T[], days: number): T[] {
   if (days <= 0 || points.length === 0) return points
@@ -51,7 +29,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")?.trim()
   const rangeParam = searchParams.get("range") ?? searchParams.get("days")
-  const { days, full } = parseRange(rangeParam)
+  const { days, full } = parsePriceHistoryRange(rangeParam)
 
   if (!id) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })

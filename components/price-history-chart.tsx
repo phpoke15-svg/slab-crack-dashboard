@@ -1,7 +1,13 @@
 "use client"
 
-import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import {
+  DEFAULT_PRICE_HISTORY_RANGE,
+  PRICE_HISTORY_RANGE_OPTIONS,
+  priceHistoryRangeFromDays,
+  type PriceHistoryRangeKey,
+} from "@/lib/pricing/price-history-range"
 import type { PsaGradeNumber } from "@/lib/slab-data"
 import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
 
@@ -15,14 +21,9 @@ type HistoryApiResponse = {
   error?: string
 }
 
-type RangeKey = "30" | "90" | "365" | "all"
+type RangeKey = PriceHistoryRangeKey
 
-const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
-  { key: "30", label: "30D" },
-  { key: "90", label: "90D" },
-  { key: "365", label: "1Y" },
-  { key: "all", label: "All" },
-]
+const RANGE_OPTIONS = PRICE_HISTORY_RANGE_OPTIONS
 
 const SERIES_COLORS: Record<PriceHistorySeriesKey, string> = {
   raw: "var(--muted-foreground)",
@@ -203,16 +204,14 @@ export function PriceHistoryChart({
   compact = false,
   title,
   subtitle,
-  days: initialDays = 90,
+  days: initialDays = 30,
   historyEndpoint = "/api/card-price-history",
   historyQuery,
   rawOnly = false,
 }: PriceHistoryChartProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
-  const [range, setRange] = useState<RangeKey>(
-    initialDays >= 365 ? "365" : initialDays <= 30 ? "30" : initialDays >= 9999 ? "all" : "90",
-  )
+  const [range, setRange] = useState<RangeKey>(priceHistoryRangeFromDays(initialDays) ?? DEFAULT_PRICE_HISTORY_RANGE)
   const [seriesMap, setSeriesMap] = useState<Partial<Record<PriceHistorySeriesKey, SeriesPoint[]>>>({})
   const [labels, setLabels] = useState<Record<PriceHistorySeriesKey, string> | null>(null)
   const [loading, setLoading] = useState(false)
