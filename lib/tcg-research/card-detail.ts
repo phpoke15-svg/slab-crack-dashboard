@@ -144,6 +144,35 @@ async function lookupPublicCardsRow(input: {
   return rowToDetail(data as CardsRow)
 }
 
+export function mergeTcgResearchCardDetails(
+  local: TcgResearchCardDetail,
+  bundle: TcgResearchCardDetail,
+): TcgResearchCardDetail {
+  const rawPrice = bundle.rawPrice ?? local.rawPrice
+  const psa10Price = bundle.psa10Price ?? local.psa10Price
+
+  return {
+    ...bundle,
+    id: local.id || bundle.id,
+    catalogId: bundle.catalogId ?? local.catalogId,
+    scrydexId: bundle.scrydexId ?? local.scrydexId,
+    game: bundle.game ?? local.game,
+    name: bundle.name || local.name,
+    setName: bundle.setName || local.setName,
+    setId: bundle.setId || local.setId,
+    number: bundle.number || local.number,
+    rarity: bundle.rarity ?? local.rarity,
+    imageUrl: bundle.imageUrl || local.imageUrl,
+    rawPrice,
+    psa7Price: bundle.psa7Price ?? local.psa7Price,
+    psa8Price: bundle.psa8Price ?? local.psa8Price,
+    psa9Price: bundle.psa9Price ?? local.psa9Price,
+    psa10Price,
+    priceUpdatedAt: bundle.priceUpdatedAt ?? local.priceUpdatedAt,
+    priceTrend: trendFromPrices(rawPrice, psa10Price),
+  }
+}
+
 export async function resolveTcgResearchCard(input: {
   id?: string
   scrydexId?: string
@@ -170,13 +199,13 @@ export async function resolveTcgResearchCard(input: {
         })
       : null)
 
-  if (local && (local.rawPrice ?? 0) > 0) return local
-
+  let bundleDetail: TcgResearchCardDetail | null = null
   if (catalogId) {
     const bundle = await loadCardBundle(catalogId)
-    const fromBundle = catalogBundleToDetail(bundle)
-    if (fromBundle) return fromBundle
+    bundleDetail = catalogBundleToDetail(bundle)
   }
 
+  if (bundleDetail && local) return mergeTcgResearchCardDetails(local, bundleDetail)
+  if (bundleDetail) return bundleDetail
   return local
 }

@@ -98,12 +98,26 @@ export function gradedPricesFromMockCard(card: MockCardEntry): ScrydexGradedPric
     }))
 }
 
+/** Merge Scrydex rows with card-level fallbacks; Scrydex wins on duplicate company+grade. */
+export function mergeGradedPriceRows(
+  primary: ScrydexGradedPrice[],
+  fallback: ScrydexGradedPrice[],
+): ScrydexGradedPrice[] {
+  const byKey = new Map<string, ScrydexGradedPrice>()
+  for (const row of gradedRowsToPrices(fallback)) {
+    byKey.set(`${row.company}|${row.grade}`, row)
+  }
+  for (const row of gradedRowsToPrices(primary)) {
+    byKey.set(`${row.company}|${row.grade}`, row)
+  }
+  return [...byKey.values()]
+}
+
 export function resolveGradedPricesForCard(
   gradedPrices: ScrydexGradedPrice[] | undefined,
   card: MockCardEntry,
 ): ScrydexGradedPrice[] {
-  if (gradedPrices && gradedPrices.length > 0) return gradedPrices
-  return gradedPricesFromMockCard(card)
+  return mergeGradedPriceRows(gradedPrices ?? [], gradedPricesFromMockCard(card))
 }
 
 export function gradedRowsFromScrydexBundle(

@@ -5,6 +5,8 @@ import {
   ExternalLink,
   Lightbulb,
   Loader2,
+  TrendingDown,
+  TrendingUp,
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -19,6 +21,7 @@ import {
   buildSlabQuotesForCompany,
   getBestSlabQuote,
   pickGradedPrice,
+  resolveGradedPricesForCard,
 } from "@/lib/grading/quotes"
 import {
   DEFAULT_SLAB_GRADE,
@@ -27,6 +30,7 @@ import {
   type SlabGradeRef,
 } from "@/lib/grading/types"
 import type { RecentSale } from "@/lib/slab-data"
+import { resolvePsa10Price } from "@/lib/slab-data"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
 
 type CardSalesResponse = {
@@ -42,6 +46,35 @@ function formatUpdatedAt(iso: string | null): string {
   return date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 }
 
+function PriceTrendBadge({
+  trend,
+}: {
+  trend: TcgResearchCardFull["priceTrend"]
+}) {
+  if (!trend) return null
+
+  const copy =
+    trend === "up"
+      ? { label: "Strong grading premium", className: "border-primary/30 bg-primary/10 text-primary" }
+      : trend === "down"
+        ? { label: "Thin slab premium", className: "border-amber-500/30 bg-amber-500/10 text-amber-500" }
+        : { label: "Stable raw vs slab spread", className: "border-border bg-secondary/60 text-muted-foreground" }
+
+  const Icon = trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : null
+
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+        copy.className,
+      )}
+    >
+      {Icon ? <Icon className="size-3" /> : null}
+      {copy.label}
+    </span>
+  )
+}
+
 export function TcgResearchCardPanel({
   payload,
   onClose,
@@ -50,7 +83,10 @@ export function TcgResearchCardPanel({
   onClose: () => void
 }) {
   const card = payload.card
-  const gradedPrices = payload.gradedPrices
+  const gradedPrices = useMemo(
+    () => resolveGradedPricesForCard(payload.gradedPrices, card),
+    [payload.gradedPrices, card],
+  )
   const [slabGrade, setSlabGrade] = useState<SlabGradeRef>(DEFAULT_SLAB_GRADE)
   const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
   const [liveSlabSales, setLiveSlabSales] = useState<RecentSale[] | null>(null)
@@ -130,6 +166,12 @@ export function TcgResearchCardPanel({
     pickGradedPrice(gradedPrices, slabGrade) ??
     0
 
+  const psa10Price = useMemo(() => {
+    const direct = pickGradedPrice(gradedPrices, { company: "PSA", grade: "10" })
+    if (direct && direct > 0) return { price: direct, estimated: false }
+    return resolvePsa10Price(card)
+  }, [card, gradedPrices])
+
   const chartGradeProps = historyChartGradeProps(slabGrade)
 
   const rawSales = liveRawSales ?? card.recentRawSales ?? []
@@ -196,11 +238,22 @@ export function TcgResearchCardPanel({
 
           <div className="mt-5 rounded-2xl border border-border bg-secondary/40 p-3">
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
-                <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
-                  {priced && card.rawPrice > 0 ? `$${card.rawPrice.toFixed(2)}` : "—"}
-                </span>
+              <div className="flex flex-wrap items-end gap-4">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
+                  <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
+                    {priced && card.rawPrice > 0 ? `$${card.rawPrice.toFixed(2)}` : "—"}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">PSA 10</span>
+                  <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
+                    {priced && psa10Price.price > 0 ? `$${psa10Price.price.toFixed(2)}` : "—"}
+                  </span>
+                  {psa10Price.estimated ? (
+                    <span className="ml-1 text-[10px] text-muted-foreground">est.</span>
+                  ) : null}
+                </div>
               </div>
               <SlabGradeSelector
                 value={slabGrade}
@@ -209,12 +262,18 @@ export function TcgResearchCardPanel({
                 compact
               />
             </div>
+            {payload.priceTrend ? (
+              <div className="mb-3">
+                <PriceTrendBadge trend={payload.priceTrend} />
+              </div>
+            ) : null}
             <CompanyGradePriceGrid
               company={slabGrade.company}
               gradedPrices={gradedPrices}
               rawPrice={card.rawPrice}
               priced={priced}
               selected={slabGrade}
+              onSelectGrade={setSlabGrade}
             />
             {priced ? (
               <div className="mt-3">

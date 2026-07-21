@@ -1,7 +1,7 @@
-import { createCatalogService } from "@/lib/scrydex/catalog-service"
-import { isScrydexConfigured, splitCatalogId } from "@/lib/scrydex/constants"
+import { catalogIdToLegacyPokeId, isScrydexConfigured, splitCatalogId } from "@/lib/scrydex/constants"
 import { loadCardBundle } from "@/lib/scrydex/db"
 import { SCRYDEX_CACHE } from "@/lib/scrydex/types"
+import { ensureCardDailyPriceHistory } from "@/lib/pricing/card-daily-price-history"
 import {
   formatSlabLabel,
   gradesForCompany,
@@ -213,8 +213,8 @@ export async function loadTcgResearchScrydexPriceHistory(input: {
 
   if (isScrydexConfigured() && isHistoryStale(history)) {
     try {
-      const service = createCatalogService()
-      await service.ensureHistory(catalogId, input.days || 90)
+      const cardId = catalogIdToLegacyPokeId(catalogId) ?? catalogId
+      await ensureCardDailyPriceHistory(cardId)
       bundle = await loadCardBundle(catalogId)
       history = (bundle?.history ?? []) as HistoryRow[]
     } catch (error) {

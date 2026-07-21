@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest"
 import {
   buildSlabQuotesForCompany,
   gradedRowsFromScrydexBundle,
+  mergeGradedPriceRows,
   pickGradedPrice,
+  resolveGradedPricesForCard,
 } from "@/lib/grading/quotes"
 import {
   coerceSlabGradeRef,
@@ -74,5 +76,36 @@ describe("grading quotes", () => {
 
   it("picks graded price by company and grade", () => {
     expect(pickGradedPrice(rows, { company: "BGS", grade: "9.5" })).toBe(180)
+  })
+
+  it("merges Scrydex rows with card-level fallbacks", () => {
+    const merged = mergeGradedPriceRows(
+      [{ company: "PSA", grade: "9", marketPrice: 120 }],
+      [{ company: "PSA", grade: "10", marketPrice: 250 }],
+    )
+    expect(pickGradedPrice(merged, { company: "PSA", grade: "9" })).toBe(120)
+    expect(pickGradedPrice(merged, { company: "PSA", grade: "10" })).toBe(250)
+  })
+
+  it("fills missing Scrydex grades from mock card quotes", () => {
+    const resolved = resolveGradedPricesForCard(
+      [{ company: "PSA", grade: "9", marketPrice: 120 }],
+      {
+        id: "poke-test-1",
+        cardName: "Test",
+        setName: "Set",
+        cardNumber: "1",
+        imageUrl: "/placeholder.svg",
+        rawPrice: 50,
+        slabGrade: 10,
+        slabPrice: 300,
+        gradeQuotes: [{ grade: 10, slabPrice: 300, deficit: 0, percentageSavings: 0, isArbitrage: false }],
+        hasPricing: true,
+        marketInsight: "",
+      },
+    )
+
+    expect(pickGradedPrice(resolved, { company: "PSA", grade: "9" })).toBe(120)
+    expect(pickGradedPrice(resolved, { company: "PSA", grade: "10" })).toBe(300)
   })
 })
