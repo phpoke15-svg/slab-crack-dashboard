@@ -23,7 +23,6 @@ import {
 } from "@/lib/grading/quotes"
 import {
   DEFAULT_SLAB_GRADE,
-  coerceSlabGradeRef,
   formatSlabLabel,
   type SlabGradeRef,
 } from "@/lib/grading/types"
@@ -66,11 +65,7 @@ export function TcgResearchCardPanel({
   }, [])
 
   useEffect(() => {
-    const quotes = buildSlabQuotesForCompany(card.rawPrice, gradedPrices, "PSA").filter(
-      (quote) => quote.grade !== "10" && quote.grade !== "10 BL" && quote.grade !== "10 Pristine",
-    )
-    const best = getBestSlabQuote(quotes)
-    setSlabGrade(coerceSlabGradeRef("PSA", best?.grade ?? "9", gradedPrices))
+    setSlabGrade(DEFAULT_SLAB_GRADE)
     setLiveRawSales(null)
     setLiveSlabSales(null)
     setSalesError(null)
@@ -218,8 +213,6 @@ export function TcgResearchCardPanel({
               rawPrice={card.rawPrice}
               priced={priced}
               selected={slabGrade}
-              onSelectGrade={setSlabGrade}
-              highlightBest={false}
             />
             <p className="mt-3 text-[11px] text-muted-foreground">
               Prices updated {formatUpdatedAt(payload.priceUpdatedAt)}

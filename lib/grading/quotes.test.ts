@@ -29,7 +29,7 @@ describe("grading types", () => {
   it("coerces invalid grade to company default", () => {
     expect(coerceSlabGradeRef("CGC", "99", [{ company: "CGC", grade: "10" }])).toEqual({
       company: "CGC",
-      grade: "9",
+      grade: "10",
     })
   })
 

@@ -21,7 +21,6 @@ import {
 } from "@/lib/grading/quotes"
 import {
   DEFAULT_SLAB_GRADE,
-  coerceSlabGradeRef,
   formatSlabLabel,
   type SlabGradeRef,
 } from "@/lib/grading/types"
@@ -93,11 +92,7 @@ export function SlabDrawer({
 
   useEffect(() => {
     if (!selectedCard) return
-    const quotes = buildSlabQuotesForCompany(selectedCard.rawPrice, gradedPrices, "PSA").filter(
-      (quote) => quote.grade !== "10",
-    )
-    const best = getBestSlabQuote(quotes)
-    setSlabGrade(coerceSlabGradeRef("PSA", best?.grade ?? "9", gradedPrices))
+    setSlabGrade(DEFAULT_SLAB_GRADE)
   }, [selectedCard, gradedPrices])
 
   useEffect(() => {
@@ -349,8 +344,6 @@ export function SlabDrawer({
               rawPrice={selectedCard.rawPrice}
               priced={priced && !pricingLoading}
               selected={slabGrade}
-              onSelectGrade={setSlabGrade}
-              highlightBest={false}
             />
           </div>
 
