@@ -14,6 +14,7 @@ import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
 
 type SeriesPoint = { date: string; price: number; saleCount?: number }
 type SeriesKey = string
+type ChartViewMode = "raw" | "graded"
 
 type HistoryApiResponse = {
   series?: Partial<Record<SeriesKey, SeriesPoint[]>>
@@ -26,8 +27,6 @@ type HistoryApiResponse = {
 
 type RangeKey = PriceHistoryRangeKey
 
-const RANGE_OPTIONS = PRICE_HISTORY_RANGE_OPTIONS
-
 const SERIES_COLORS: Record<string, string> = {
   raw: "var(--muted-foreground)",
   psa7: "#94a3b8",
@@ -38,7 +37,7 @@ const SERIES_COLORS: Record<string, string> = {
 
 const EXTRA_SERIES_COLORS = ["#a78bfa", "#f472b6", "#34d399", "#fb923c", "#60a5fa", "#fbbf24"]
 
-function colorForSeriesKey(key: SeriesKey, index: number): string {
+function colorForSeriesKey(key: SeriesKey, index = 0): string {
   if (SERIES_COLORS[key]) return SERIES_COLORS[key]!
   return EXTRA_SERIES_COLORS[index % EXTRA_SERIES_COLORS.length]!
 }
@@ -53,6 +52,49 @@ const GRADE_TO_SERIES: Record<PsaGradeNumber, PriceHistorySeriesKey> = {
 function formatShortDate(iso: string): string {
   const d = new Date(`${iso}T00:00:00Z`)
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+}
+
+function formatMoney(value: number): string {
+  const abs = Math.abs(value)
+  return abs >= 100 ? `$${value.toFixed(0)}` : `$${value.toFixed(2)}`
+}
+
+function rangePeriodLabel(key: RangeKey): string {
+  switch (key) {
+    case "7":
+      return "Last 7 days"
+    case "30":
+      return "Last 30 days"
+    case "90":
+      return "Last 90 days"
+    case "180":
+      return "Last 6 months"
+    case "365":
+      return "Last year"
+    case "all":
+      return "All time"
+    default:
+      return "Selected period"
+  }
+}
+
+function periodStats(points: SeriesPoint[] | undefined) {
+  if (!points || points.length < 2) return null
+  const first = points[0]!.price
+  const latest = points[points.length - 1]!.price
+  const change = latest - first
+  const pct = first > 0 ? (change / first) * 100 : 0
+  return { first, latest, change, pct }
+}
+
+function seriesDisplayLabel(
+  key: SeriesKey,
+  labels: Record<SeriesKey, string> | null,
+  slabSelection?: SlabGradeRef,
+): string {
+  if (key === "raw") return labels?.raw ?? "Raw NM"
+  if (slabSelection) return formatSlabLabel(slabSelection)
+  return labels?.[key] ?? key
 }
 
 function alignSeriesByDate(
@@ -75,41 +117,51 @@ function alignSeriesByDate(
   return { dates, values }
 }
 
-function MultiSeriesChart({
+function CollectrLineChart({
   dates,
   values,
-  activeKeys,
-  highlightKey,
+  seriesKey,
   width,
   height,
+  hoverIndex,
   onHover,
 }: {
   dates: string[]
-  values: Record<SeriesKey, (number | null)[]>
-  activeKeys: SeriesKey[]
-  highlightKey: SeriesKey
+  values: (number | null)[]
+  seriesKey: SeriesKey
   width: number
   height: number
+  hoverIndex: number | null
   onHover: (index: number | null) => void
 }) {
-  const padX = 36
-  const padY = 14
+  const padX = 8
+  const padY = 18
   const chartW = width - padX * 2
   const chartH = height - padY * 2
 
-  const allPrices = activeKeys.flatMap((key) =>
-    (values[key] ?? []).filter((v): v is number => v != null && v > 0),
-  )
-  if (dates.length < 2 || allPrices.length < 2) return null
+  const prices = values.filter((v): v is number => v != null && v > 0)
+  if (dates.length < 2 || prices.length < 2) return null
 
-  const min = Math.min(...allPrices)
-  const max = Math.max(...allPrices)
+  const min = Math.min(...prices)
+  const max = Math.max(...prices)
   const range = max - min || 1
+  const color = colorForSeriesKey(seriesKey)
 
   const toY = (v: number) => padY + chartH - ((v - min) / range) * chartH
   const toX = (i: number) => padX + (i / (dates.length - 1)) * chartW
+  const baselineY = padY + chartH
 
-  const yTicks = [min, min + range / 2, max]
+  const pts = values
+    .map((v, i) => (v != null && v > 0 ? ([toX(i), toY(v)] as const) : null))
+    .filter((p): p is readonly [number, number] => p != null)
+
+  if (pts.length < 2) return null
+
+  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
+  const areaPath = `${pts.map(([x, y], index) => `${index === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ")} L${pts[pts.length - 1]![0].toFixed(1)},${baselineY.toFixed(1)} L${pts[0]![0].toFixed(1)},${baselineY.toFixed(1)} Z`
+  const hoverX = hoverIndex != null ? toX(hoverIndex) : null
+  const hoverPrice = hoverIndex != null ? values[hoverIndex] : null
+  const hoverY = hoverPrice != null && hoverPrice > 0 ? toY(hoverPrice) : null
 
   return (
     <svg
@@ -118,52 +170,41 @@ function MultiSeriesChart({
       height={height}
       className="overflow-visible"
       role="img"
-      aria-label="Pokemon API price history"
+      aria-label="Price history chart"
       preserveAspectRatio="none"
       onMouseLeave={() => onHover(null)}
     >
-      {yTicks.map((tick) => {
-        const y = toY(tick)
-        return (
-          <g key={tick}>
-            <line
-              x1={padX}
-              x2={padX + chartW}
-              y1={y}
-              y2={y}
-              stroke="var(--border)"
-              strokeOpacity={0.5}
-              strokeWidth={0.75}
-            />
-            <text x={padX - 4} y={y + 3} textAnchor="end" className="fill-muted-foreground text-[8px]">
-              ${Math.round(tick)}
-            </text>
-          </g>
-        )
-      })}
+      <defs>
+        <linearGradient id={`price-fill-${seriesKey}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
 
-      {activeKeys.map((key, index) => {
-        const pts = (values[key] ?? [])
-          .map((v, i) => (v != null && v > 0 ? ([toX(i), toY(v)] as const) : null))
-          .filter((p): p is readonly [number, number] => p != null)
-        if (pts.length < 2) return null
-        const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(" ")
-        const isHighlight = key === highlightKey
-        const isRaw = key === "raw"
-        return (
-          <polyline
-            key={key}
-            points={line}
-            fill="none"
-            stroke={colorForSeriesKey(key, index)}
-            strokeWidth={isHighlight ? 2 : 1.25}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray={isRaw ? "4 3" : undefined}
-            opacity={isHighlight || isRaw ? 1 : 0.55}
+      <path d={areaPath} fill={`url(#price-fill-${seriesKey})`} />
+      <polyline
+        points={line}
+        fill="none"
+        stroke={color}
+        strokeWidth={2.25}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {hoverX != null && hoverY != null ? (
+        <>
+          <line
+            x1={hoverX}
+            x2={hoverX}
+            y1={padY}
+            y2={baselineY}
+            stroke="var(--border)"
+            strokeWidth={1}
+            strokeDasharray="3 3"
           />
-        )
-      })}
+          <circle cx={hoverX} cy={hoverY} r={3.5} fill={color} stroke="var(--background)" strokeWidth={1.5} />
+        </>
+      ) : null}
 
       {dates.map((_, i) => (
         <rect
@@ -178,10 +219,10 @@ function MultiSeriesChart({
         />
       ))}
 
-      <text x={padX} y={height - 2} className="fill-muted-foreground text-[8px]">
+      <text x={padX} y={height - 4} className="fill-muted-foreground text-[9px]">
         {formatShortDate(dates[0]!)}
       </text>
-      <text x={padX + chartW} y={height - 2} textAnchor="end" className="fill-muted-foreground text-[8px]">
+      <text x={padX + chartW} y={height - 4} textAnchor="end" className="fill-muted-foreground text-[9px]">
         {formatShortDate(dates[dates.length - 1]!)}
       </text>
     </svg>
@@ -190,7 +231,6 @@ function MultiSeriesChart({
 
 type PriceHistoryChartProps = {
   cardId: string
-  /** Required unless `rawOnly` is set. */
   grade?: PsaGradeNumber
   slabSelection?: SlabGradeRef
   currentRaw?: number
@@ -200,10 +240,8 @@ type PriceHistoryChartProps = {
   title?: string
   subtitle?: string
   days?: number
-  /** Override default `/api/card-price-history` endpoint (TCG Research uses Scrydex). */
   historyEndpoint?: string
   historyQuery?: Record<string, string | undefined>
-  /** Show only raw NM series — for PokeMatch. */
   rawOnly?: boolean
 }
 
@@ -225,18 +263,19 @@ export function PriceHistoryChart({
   const rootRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
   const [range, setRange] = useState<RangeKey>(priceHistoryRangeFromDays(initialDays) ?? DEFAULT_PRICE_HISTORY_RANGE)
+  const [viewMode, setViewMode] = useState<ChartViewMode>("graded")
   const [seriesMap, setSeriesMap] = useState<Partial<Record<SeriesKey, SeriesPoint[]>>>({})
   const [labels, setLabels] = useState<Record<SeriesKey, string> | null>(null)
   const [highlightKey, setHighlightKey] = useState<SeriesKey>(
-    rawOnly ? "raw" : GRADE_TO_SERIES[grade ?? 9],
+    rawOnly ? "raw" : GRADE_TO_SERIES[grade ?? 10],
   )
   const [loading, setLoading] = useState(false)
   const [loadedKey, setLoadedKey] = useState("")
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
-  const [showAllGrades, setShowAllGrades] = useState(false)
 
   useEffect(() => {
     if (rawOnly) {
+      setViewMode("raw")
       setHighlightKey("raw")
       return
     }
@@ -278,7 +317,7 @@ export function PriceHistoryChart({
         if (cancelled) return
         setSeriesMap(data?.series ?? {})
         setLabels(data?.labels ?? null)
-        if (data?.highlightKey) setHighlightKey(data.highlightKey)
+        if (data?.highlightKey && !rawOnly) setHighlightKey(data.highlightKey)
         setLoadedKey(fetchKey)
       })
       .catch(() => {
@@ -293,7 +332,7 @@ export function PriceHistoryChart({
     return () => {
       cancelled = true
     }
-  }, [visible, loadedKey, fetchKey, cardId, range, historyEndpoint, historyQuery, slabSelection])
+  }, [visible, loadedKey, fetchKey, cardId, range, historyEndpoint, historyQuery, rawOnly])
 
   useEffect(() => {
     setLoadedKey("")
@@ -301,78 +340,83 @@ export function PriceHistoryChart({
     setHoverIndex(null)
   }, [cardId, slabSelection?.company, slabSelection?.grade])
 
-  const activeKeys = useMemo(() => {
-    if (rawOnly) {
-      return (seriesMap.raw?.length ?? 0) >= 2 ? (["raw"] as SeriesKey[]) : []
-    }
-    const keys: SeriesKey[] = ["raw", highlightKey]
-    if (showAllGrades) {
-      for (const key of Object.keys(seriesMap)) {
-        if (key !== "raw" && key !== highlightKey) keys.push(key)
-      }
-    }
-    return keys.filter((key) => (seriesMap[key]?.length ?? 0) >= 2)
-  }, [seriesMap, highlightKey, showAllGrades, rawOnly])
-
-  const legendKeys = useMemo(() => {
-    return Object.keys(seriesMap).filter((key) => (seriesMap[key]?.length ?? 0) >= 1)
-  }, [seriesMap])
+  const activeSeriesKey = viewMode === "raw" || rawOnly ? "raw" : highlightKey
+  const activeSeries = seriesMap[activeSeriesKey]
+  const hasChart = (activeSeries?.length ?? 0) >= 2
 
   const { dates, values } = useMemo(
-    () => alignSeriesByDate(seriesMap, activeKeys),
-    [seriesMap, activeKeys],
+    () => alignSeriesByDate(seriesMap, hasChart ? [activeSeriesKey] : []),
+    [seriesMap, activeSeriesKey, hasChart],
   )
 
+  const stats = periodStats(activeSeries)
   const hoverDate = hoverIndex != null ? dates[hoverIndex] : null
-  const hoverPoints = hoverDate
-    ? activeKeys
-        .map((key) => {
-          const point = seriesMap[key]?.find((p) => p.date === hoverDate)
-          return point ? { key, ...point } : null
-        })
-        .filter((p): p is { key: SeriesKey } & SeriesPoint => p != null)
-    : []
+  const hoverPoint =
+    hoverDate != null ? activeSeries?.find((point) => point.date === hoverDate) ?? null : null
 
-  const latestRaw = seriesMap.raw?.[seriesMap.raw.length - 1]?.price ?? currentRaw ?? 0
-  const latestSlab =
-    seriesMap[highlightKey]?.[seriesMap[highlightKey]!.length - 1]?.price ?? currentSlab ?? 0
-  const totalPoints = Object.values(seriesMap).reduce((sum, pts) => sum + (pts?.length ?? 0), 0)
+  const displayPrice =
+    hoverPoint?.price ??
+    stats?.latest ??
+    (viewMode === "raw" || rawOnly ? currentRaw : currentSlab) ??
+    0
+
+  const displayLabel = seriesDisplayLabel(activeSeriesKey, labels, slabSelection)
+  const periodLabel = rangePeriodLabel(range)
 
   return (
     <div
       ref={rootRef}
       className={cn(
-        "rounded-xl border border-border bg-secondary/30",
-        compact ? "p-2.5" : "p-3",
+        "rounded-2xl border border-border bg-card/60",
+        compact ? "p-3" : "p-4",
         className,
       )}
       onClick={(e) => e.stopPropagation()}
       onKeyDown={(e) => e.stopPropagation()}
     >
-      <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {title ?? "Price history · pokemon-api"}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        {!rawOnly ? (
+          <div className="inline-flex rounded-lg border border-border bg-secondary/40 p-0.5">
+            {(["raw", "graded"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => {
+                  setViewMode(mode)
+                  setHoverIndex(null)
+                }}
+                className={cn(
+                  "rounded-md px-3 py-1 text-[11px] font-semibold capitalize transition-colors",
+                  viewMode === mode
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {title ?? "Price history"}
           </span>
-          <p className="text-[9px] text-muted-foreground">
-            {subtitle ??
-              `TCGPlayer raw + eBay PSA comps · ${totalPoints > 0 ? `${totalPoints} points cached` : "loading…"}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-1">
-          {RANGE_OPTIONS.map((opt) => (
+        )}
+
+        <div className="inline-flex flex-wrap justify-end gap-1 rounded-lg border border-border bg-secondary/40 p-0.5">
+          {PRICE_HISTORY_RANGE_OPTIONS.map((opt) => (
             <button
               key={opt.key}
               type="button"
               onClick={() => {
                 setRange(opt.key)
                 setLoadedKey("")
+                setHoverIndex(null)
               }}
               className={cn(
-                "rounded-md px-1.5 py-0.5 text-[9px] font-medium transition-colors",
+                "rounded-md px-2 py-1 text-[10px] font-semibold transition-colors",
                 range === opt.key
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card/80 text-muted-foreground hover:text-foreground",
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
               )}
             >
               {opt.label}
@@ -381,131 +425,68 @@ export function PriceHistoryChart({
         </div>
       </div>
 
-      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-        {!rawOnly
-          ? legendKeys.map((key, index) => {
-              const count = seriesMap[key]?.length ?? 0
-              if (count < 1) return null
-              const active = activeKeys.includes(key)
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    if (key === "raw" || key === highlightKey) return
-                    setShowAllGrades((v) => !v)
-                  }}
-                  className={cn(
-                    "inline-flex items-center gap-1",
-                    active ? "text-foreground" : "opacity-40",
-                  )}
-                >
-                  <span
-                    className="inline-block h-0.5 w-3"
-                    style={{
-                      backgroundColor: colorForSeriesKey(key, index),
-                      borderTop: key === "raw" ? "1px dashed" : undefined,
-                    }}
-                  />
-                  {labels?.[key] ?? key}
-                </button>
-              )
-            })
-          : seriesMap.raw && seriesMap.raw.length > 0 ? (
-              <span className="inline-flex items-center gap-1 text-foreground">
-                <span
-                  className="inline-block h-0.5 w-3 border-t border-dashed"
-                  style={{ borderColor: SERIES_COLORS.raw }}
-                />
-                {labels?.raw ?? "Raw NM"}
-              </span>
-            ) : null}
-        {!rawOnly && !showAllGrades && (
-          <button
-            type="button"
-            className="text-[9px] text-primary hover:underline"
-            onClick={() => setShowAllGrades(true)}
-          >
-            + all grades
-          </button>
-        )}
+      <div className="mb-3 min-w-0">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-mono text-2xl font-bold tabular-nums tracking-tight text-foreground">
+              {displayPrice > 0 ? formatMoney(displayPrice) : "—"}
+            </p>
+            {stats && stats.change !== 0 ? (
+              <p
+                className={cn(
+                  "mt-0.5 font-mono text-sm font-semibold tabular-nums",
+                  stats.change > 0 ? "text-primary" : "text-destructive",
+                )}
+              >
+                {stats.change > 0 ? "+" : stats.change < 0 ? "−" : ""}
+                {formatMoney(Math.abs(stats.change))} ({stats.pct > 0 ? "+" : ""}
+                {stats.pct.toFixed(1)}%)
+              </p>
+            ) : (
+              <p className="mt-0.5 text-sm text-muted-foreground">No change in this period</p>
+            )}
+          </div>
+          {hoverPoint ? (
+            <div className="text-right">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Selected date</p>
+              <p className="font-medium text-foreground">{formatShortDate(hoverPoint.date)}</p>
+            </div>
+          ) : null}
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {displayLabel} · {periodLabel}
+          {subtitle ? ` · ${subtitle}` : ""}
+        </p>
       </div>
 
-      {hoverPoints.length > 0 && (
-        <div className="mb-1.5 rounded-lg border border-border/70 bg-card/80 px-2 py-1.5 text-[10px]">
-          <p className="font-medium text-foreground">{formatShortDate(hoverDate!)}</p>
-          <div className="mt-0.5 space-y-0.5 text-muted-foreground">
-            {hoverPoints.map((p) => (
-              <p key={p.key}>
-                {labels?.[p.key] ?? p.key}: ${p.price.toFixed(0)}
-                {p.saleCount ? ` · ${p.saleCount} sales` : ""}
-              </p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {dates.length >= 2 ? (
-        <MultiSeriesChart
+      {hasChart ? (
+        <CollectrLineChart
           dates={dates}
-          values={values}
-          activeKeys={activeKeys}
-          highlightKey={highlightKey}
-          width={320}
-          height={compact ? 88 : 112}
+          values={values[activeSeriesKey] ?? []}
+          seriesKey={activeSeriesKey}
+          width={360}
+          height={compact ? 132 : 168}
+          hoverIndex={hoverIndex}
           onHover={setHoverIndex}
         />
       ) : (
         <div
           className={cn(
-            "flex items-center text-[11px] text-muted-foreground",
-            compact ? "min-h-[88px]" : "min-h-[112px]",
+            "flex items-center justify-center rounded-xl border border-dashed border-border/80 bg-secondary/20 px-4 text-center text-sm text-muted-foreground",
+            compact ? "min-h-[132px]" : "min-h-[168px]",
           )}
         >
           {loading
             ? "Loading price history…"
-            : latestRaw > 0
-              ? "Only one day of history so far — check back after the next sync."
-              : "No price history yet for this card."}
+            : viewMode === "raw" || rawOnly
+              ? currentRaw && currentRaw > 0
+                ? "Raw price history is still building — check back after the next sync."
+                : "No raw price history yet for this card."
+              : currentSlab && currentSlab > 0
+                ? "Graded price history is still building — try Raw or another grade."
+                : "No graded price history yet for this selection."}
         </div>
       )}
-
-      {(latestRaw > 0 || (!rawOnly && latestSlab > 0)) && (
-        <div className={cn("mt-2 grid gap-1.5", rawOnly ? "grid-cols-1" : compact ? "grid-cols-2" : "grid-cols-4")}>
-          <Stat label="Raw now" value={latestRaw > 0 ? `$${latestRaw.toFixed(0)}` : "—"} />
-          {!rawOnly && grade != null ? (
-            <Stat
-              label={slabSelection ? formatSlabLabel(slabSelection) : `PSA ${grade}`}
-              value={latestSlab > 0 ? `$${latestSlab.toFixed(0)}` : "—"}
-              tone="up"
-            />
-          ) : null}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  tone = "flat",
-}: {
-  label: string
-  value: string
-  tone?: "up" | "down" | "flat"
-}) {
-  return (
-    <div className="rounded-lg border border-border/70 bg-card/50 px-1.5 py-1 text-center">
-      <p className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p
-        className={cn(
-          "font-mono text-[11px] font-semibold tabular-nums",
-          tone === "up" ? "text-primary" : tone === "down" ? "text-destructive" : "text-foreground",
-        )}
-      >
-        {value}
-      </p>
     </div>
   )
 }
