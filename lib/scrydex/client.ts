@@ -5,13 +5,13 @@ import {
   scrydexApiPath,
 } from "@/lib/scrydex/constants"
 import { CreditLedger } from "@/lib/scrydex/credit-ledger"
+import { ScrydexApiError } from "@/lib/scrydex/errors"
 import type {
   ScrydexCardResponse,
   ScrydexHistoryResponse,
   ScrydexListResponse,
   ScrydexListingsResponse,
   ScrydexPriceHistoryDuration,
-  ScrydexVisionResponse,
   TcgGame,
 } from "@/lib/scrydex/types"
 
@@ -211,48 +211,6 @@ export class ScrydexClient {
     )
   }
 
-  async visionIdentify(imageBase64: string, games?: TcgGame[], opts?: RequestOptions) {
-    const path = "/vision/v1/cards/identify"
-    await this.ledger.assertBudget(SCRYDEX_CREDIT_COST.vision)
-
-    const form = new FormData()
-    form.append(
-      "image",
-      new Blob([Buffer.from(imageBase64, "base64")], { type: "image/jpeg" }),
-      "scan.jpg",
-    )
-    if (games?.length) {
-      form.append("games", games.map((g) => SCRYDEX_GAME_PATH[g]).join(","))
-    }
-
-    const url = `${SCRYDEX_BASE_URL}${path}`
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        Accept: "application/json",
-        "X-Api-Key": this.apiKey,
-        "X-Team-ID": this.teamId,
-      },
-      body: form,
-      cache: "no-store",
-    })
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => "")
-      throw new Error(`Scrydex ${response.status}: ${body.slice(0, 240) || response.statusText}`)
-    }
-
-    await this.ledger.record({
-      endpoint: path,
-      credits: SCRYDEX_CREDIT_COST.vision,
-      game: opts?.game,
-      catalogId: opts?.catalogId,
-      jobId: opts?.jobId,
-    })
-
-    return (await response.json()) as ScrydexVisionResponse
-  }
-
   get ledgerInstance(): CreditLedger {
     return this.ledger
   }
@@ -280,7 +238,10 @@ export class ScrydexClient {
 
     if (!response.ok) {
       const body = await response.text().catch(() => "")
-      throw new Error(`Scrydex ${response.status}: ${body.slice(0, 240) || response.statusText}`)
+      throw new ScrydexApiError(
+        response.status,
+        `Scrydex ${response.status}: ${body.slice(0, 240) || response.statusText}`,
+      )
     }
 
     await this.ledger.record({
