@@ -10,7 +10,7 @@ export {
   countHydrationProgress,
 } from "@/lib/scrydex/hydration-queue"
 export { syncScrydexPrices, probeScrydexSync } from "@/lib/scrydex/price-sync"
-export { resolveScanToCatalog, hashScanImage } from "@/lib/scrydex/vision-pipeline"
+export { resolveScanToCatalog, hashScanImage, ScrydexVisionNoMatchError, visionScanGameScope } from "@/lib/scrydex/vision-pipeline"
 export {
   upsertCatalogCards,
   getCardsWithPricesBatch,
