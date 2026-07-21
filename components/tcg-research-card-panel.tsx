@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react"
 import {
-  Activity,
   ExternalLink,
   Lightbulb,
   Loader2,
@@ -130,6 +129,11 @@ export function TcgResearchCardPanel({
     pickGradedPrice(gradedPrices, slabGrade) ??
     0
 
+  const psaGradeForHistory =
+    slabGrade.company === "PSA" && /^\d+$/.test(slabGrade.grade)
+      ? (Number(slabGrade.grade) as 7 | 8 | 9 | 10)
+      : 10
+
   const rawSales = liveRawSales ?? card.recentRawSales ?? []
   const slabSales = liveSlabSales ?? card.recentSlabSales ?? []
 
@@ -214,6 +218,27 @@ export function TcgResearchCardPanel({
               priced={priced}
               selected={slabGrade}
             />
+            {priced ? (
+              <div className="mt-3">
+                <PriceHistoryChart
+                  cardId={payload.catalogId ?? card.id}
+                  grade={psaGradeForHistory}
+                  slabSelection={slabGrade.company === "PSA" ? undefined : slabGrade}
+                  currentRaw={card.rawPrice}
+                  currentSlab={activeSlabPrice}
+                  historyEndpoint="/api/tcg-research/price-history"
+                  historyQuery={{
+                    catalogId: payload.catalogId ?? undefined,
+                    scrydexId: payload.scrydexId ?? undefined,
+                    game: payload.game,
+                    company: slabGrade.company,
+                    grade: slabGrade.grade,
+                  }}
+                  title="Price history · Scrydex"
+                  subtitle={`Scrydex daily market history · raw + ${formatSlabLabel(slabGrade)}`}
+                />
+              </div>
+            ) : null}
             <p className="mt-3 text-[11px] text-muted-foreground">
               Prices updated {formatUpdatedAt(payload.priceUpdatedAt)}
             </p>
@@ -243,30 +268,6 @@ export function TcgResearchCardPanel({
                 defaultOpen
               />
             </div>
-          </div>
-
-          <div className="mt-4">
-            <div className="mb-2 flex items-center gap-2 px-0.5">
-              <Activity className="size-4 text-primary" />
-              <h4 className="font-semibold text-foreground">Price history</h4>
-            </div>
-            <PriceHistoryChart
-              cardId={payload.catalogId ?? card.id}
-              grade={9}
-              slabSelection={slabGrade}
-              currentRaw={card.rawPrice}
-              currentSlab={activeSlabPrice}
-              historyEndpoint="/api/tcg-research/price-history"
-              historyQuery={{
-                catalogId: payload.catalogId ?? undefined,
-                scrydexId: payload.scrydexId ?? undefined,
-                game: payload.game,
-                company: slabGrade.company,
-                grade: slabGrade.grade,
-              }}
-              title="Price history · Scrydex"
-              subtitle={`Scrydex daily market history · raw + ${formatSlabLabel(slabGrade)}`}
-            />
           </div>
 
           {payload.population.length > 0 ? (
