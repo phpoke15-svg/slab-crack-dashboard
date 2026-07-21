@@ -9,6 +9,7 @@ import type {
   ScrydexCardResponse,
   ScrydexHistoryResponse,
   ScrydexListResponse,
+  ScrydexListingsResponse,
   ScrydexVisionResponse,
   TcgGame,
 } from "@/lib/scrydex/types"
@@ -120,6 +121,40 @@ export class ScrydexClient {
       casing: "snake",
     })
     return this.fetch<ScrydexHistoryResponse>(`${path}${query}`, SCRYDEX_CREDIT_COST.history, opts)
+  }
+
+  async getListings(
+    game: TcgGame,
+    scrydexId: string,
+    params?: {
+      days?: number
+      source?: string
+      variant?: string
+      grade?: string
+      company?: string
+      condition?: string
+      page?: number
+      pageSize?: number
+    },
+    opts?: RequestOptions,
+  ) {
+    const path = scrydexApiPath(game, `/cards/${encodeURIComponent(scrydexId)}/listings`)
+    const query = buildQuery({
+      days: params?.days ?? 30,
+      source: params?.source,
+      variant: params?.variant,
+      grade: params?.grade,
+      company: params?.company,
+      condition: params?.condition,
+      page: params?.page ?? 1,
+      page_size: params?.pageSize ?? 40,
+      casing: "snake",
+    })
+    return this.fetch<ScrydexListingsResponse>(
+      `${path}${query}`,
+      SCRYDEX_CREDIT_COST.listings,
+      opts,
+    )
   }
 
   async visionIdentify(imageBase64: string, games?: TcgGame[], opts?: RequestOptions) {

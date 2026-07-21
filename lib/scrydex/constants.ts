@@ -12,6 +12,7 @@ export const SCRYDEX_GAME_PATH: Record<TcgGame, string> = {
 export const SCRYDEX_CREDIT_COST = {
   catalog: 1,
   history: 3,
+  listings: 1,
   vision: 5,
 } as const
 

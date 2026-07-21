@@ -1,23 +1,16 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import {
-  Camera,
-  Loader2,
-  Search,
-  TrendingDown,
-  TrendingUp,
-  Minus,
-} from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { Camera, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { CardSearchResults } from "@/components/card-search-results"
-import { PriceHistoryChart } from "@/components/price-history-chart"
+import { TcgResearchCardPanel } from "@/components/tcg-research-card-panel"
 import { SlabCardImage } from "@/components/slab-card-image"
 import type { CardSearchHit } from "@/lib/card-lookup"
-import type { TcgResearchCardDetail } from "@/lib/tcg-research/card-detail"
+import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
 import type { TcgGame } from "@/lib/scrydex/types"
 
 const GAME_TABS: { id: TcgGame; label: string }[] = [
@@ -29,31 +22,6 @@ const GAME_TABS: { id: TcgGame; label: string }[] = [
 function money(value: number | null | undefined): string {
   if (value == null || value <= 0) return "—"
   return value >= 100 ? `$${value.toFixed(0)}` : `$${value.toFixed(2)}`
-}
-
-function TrendBadge({ trend }: { trend: TcgResearchCardDetail["priceTrend"] }) {
-  if (trend === "up") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
-        <TrendingUp className="size-3" /> Strong spread
-      </span>
-    )
-  }
-  if (trend === "down") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400">
-        <TrendingDown className="size-3" /> Tight spread
-      </span>
-    )
-  }
-  if (trend === "flat") {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
-        <Minus className="size-3" /> Stable
-      </span>
-    )
-  }
-  return null
 }
 
 function useTcgResearchPopular(game: TcgGame) {
@@ -223,9 +191,9 @@ function useTcgResearchSearch(query: string, game: TcgGame, enabled: boolean) {
 export function TcgResearchClient() {
   const [game, setGame] = useState<TcgGame>("pokemon")
   const [query, setQuery] = useState("")
-  const [selectedHit, setSelectedHit] = useState<CardSearchHit | null>(null)
-  const [detail, setDetail] = useState<TcgResearchCardDetail | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
+  const [selectedPayload, setSelectedPayload] = useState<TcgResearchCardFull | null>(null)
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
+  const [detailError, setDetailError] = useState<string | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
   const [scanBusy, setScanBusy] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
@@ -244,36 +212,19 @@ export function TcgResearchClient() {
   const gameLabel = GAME_TABS.find((tab) => tab.id === game)?.label ?? "TCG"
 
   const loadDetail = useCallback(async (hit: CardSearchHit) => {
-    setSelectedHit(hit)
-    setDetailLoading(true)
+    setDetailLoadingId(hit.id)
+    setDetailError(null)
     try {
       const params = new URLSearchParams({ id: hit.id, game })
       const res = await fetch(`/api/tcg-research/card?${params.toString()}`)
-      const json = (await res.json()) as { card?: TcgResearchCardDetail; error?: string }
+      const json = (await res.json()) as TcgResearchCardFull & { error?: string }
       if (!res.ok || !json.card) throw new Error(json.error || "Could not load card")
-      setDetail(json.card)
-    } catch {
-      setDetail({
-        id: hit.id,
-        catalogId: null,
-        scrydexId: hit.pokemonTcgId,
-        game,
-        name: hit.cardName,
-        setName: hit.setName,
-        setId: "",
-        number: hit.cardNumber,
-        rarity: hit.rarity,
-        imageUrl: hit.imageUrl,
-        rawPrice: hit.rawPrice ?? null,
-        psa7Price: null,
-        psa8Price: null,
-        psa9Price: null,
-        psa10Price: null,
-        priceUpdatedAt: null,
-        priceTrend: null,
-      })
+      setSelectedPayload(json)
+    } catch (error) {
+      setSelectedPayload(null)
+      setDetailError(error instanceof Error ? error.message : "Could not load card")
     } finally {
-      setDetailLoading(false)
+      setDetailLoadingId(null)
     }
   }, [game])
 
@@ -301,22 +252,12 @@ export function TcgResearchClient() {
       if (json.card.catalog_id) lookupParams.set("catalogId", json.card.catalog_id)
 
       const lookupRes = await fetch(`/api/tcg-research/card?${lookupParams.toString()}`)
-      const lookupJson = (await lookupRes.json()) as { card?: TcgResearchCardDetail; error?: string }
+      const lookupJson = (await lookupRes.json()) as TcgResearchCardFull & { error?: string }
       if (!lookupRes.ok || !lookupJson.card) {
         throw new Error(lookupJson.error || "Local card lookup failed")
       }
 
-      setDetail(lookupJson.card)
-      setSelectedHit({
-        id: lookupJson.card.id,
-        pokemonTcgId: lookupJson.card.scrydexId ?? lookupJson.card.id.replace(/^poke-/, ""),
-        cardName: lookupJson.card.name,
-        setName: lookupJson.card.setName,
-        cardNumber: lookupJson.card.number,
-        imageUrl: lookupJson.card.imageUrl,
-        rarity: lookupJson.card.rarity,
-        rawPrice: lookupJson.card.rawPrice ?? undefined,
-      })
+      setSelectedPayload(lookupJson)
       setScanOpen(false)
     } catch (err) {
       setScanError(err instanceof Error ? err.message : "Vision scan failed")
@@ -381,25 +322,14 @@ export function TcgResearchClient() {
     [loadFromVision],
   )
 
-  const gradeSpreads = useMemo(() => {
-    if (!detail) return []
-    return [
-      { label: "Raw NM", value: detail.rawPrice },
-      { label: "PSA 7", value: detail.psa7Price },
-      { label: "PSA 8", value: detail.psa8Price },
-      { label: "PSA 9", value: detail.psa9Price },
-      { label: "PSA 10", value: detail.psa10Price },
-    ].filter((row) => row.value != null && row.value > 0)
-  }, [detail])
-
   return (
     <div className="flex flex-col gap-6">
       <header className="flex items-start justify-between gap-4">
         <div>
           <CollecToolsBrand href="/" size="lg" subtitle="TCG Research · catalog + market analytics" />
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Unlimited hybrid search across Pokémon, Lorcana, and MTG with local prices, grade spreads,
-            price history, and Scrydex Vision scanning.
+            Unlimited hybrid search across Pokémon, Lorcana, and MTG with Scrydex prices,
+            sold comps, price history, and Scrydex Vision scanning.
           </p>
         </div>
         <SiteAuthButton className="shrink-0" />
@@ -416,8 +346,8 @@ export function TcgResearchClient() {
                 aria-selected={game === tab.id}
                 onClick={() => {
                   setGame(tab.id)
-                  setSelectedHit(null)
-                  setDetail(null)
+                  setSelectedPayload(null)
+                  setDetailError(null)
                 }}
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors sm:text-sm",
@@ -468,7 +398,7 @@ export function TcgResearchClient() {
               isHitWatched={() => false}
               onSelect={(hit) => void loadDetail(hit)}
               onToggleWatch={() => {}}
-              detailLoadingId={detailLoading ? selectedHit?.id ?? null : null}
+              detailLoadingId={detailLoadingId}
             />
           </div>
         ) : (
@@ -481,72 +411,25 @@ export function TcgResearchClient() {
               "No popular cards indexed yet for this game. Try searching above or run Scrydex sync."
             }
             onSelect={(hit) => void loadDetail(hit)}
-            detailLoadingId={detailLoading ? selectedHit?.id ?? null : null}
+            detailLoadingId={detailLoadingId}
           />
         )}
+
+        {detailError ? (
+          <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {detailError}
+          </p>
+        ) : null}
       </section>
 
-      {detail ? (
-        <section className="grid gap-4 rounded-2xl border border-border bg-card/50 p-4 sm:grid-cols-[minmax(0,220px)_1fr] sm:p-5">
-          <div className="mx-auto w-full max-w-[220px]">
-            <div className="relative aspect-[3/4] overflow-hidden rounded-xl border border-white/10 bg-muted/30">
-              <SlabCardImage
-                card={{
-                  id: detail.id,
-                  cardName: detail.name,
-                  setName: detail.setName,
-                  imageUrl: detail.imageUrl,
-                  cardNumber: detail.number,
-                }}
-                alt={detail.name}
-                sizes="220px"
-                className="object-contain p-2"
-              />
-            </div>
-          </div>
-
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-semibold text-foreground">{detail.name}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {detail.setName} · #{detail.number}
-                  {detail.rarity ? ` · ${detail.rarity}` : ""}
-                </p>
-              </div>
-              <TrendBadge trend={detail.priceTrend} />
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-              {gradeSpreads.length > 0 ? (
-                gradeSpreads.map((row) => (
-                  <div key={row.label} className="rounded-xl border border-border bg-background/60 px-3 py-2">
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      {row.label}
-                    </p>
-                    <p className="mt-1 font-mono text-sm font-semibold tabular-nums text-foreground">
-                      {money(row.value)}
-                    </p>
-                  </div>
-                ))
-              ) : (
-                <p className="col-span-full text-sm text-muted-foreground">
-                  No local prices yet — prices refresh via Scrydex on-demand sync.
-                </p>
-              )}
-            </div>
-
-            <div className="mt-5">
-              <PriceHistoryChart
-                cardId={detail.id}
-                grade={10}
-                currentRaw={detail.rawPrice ?? undefined}
-                currentSlab={detail.psa10Price ?? undefined}
-                days={90}
-              />
-            </div>
-          </div>
-        </section>
+      {selectedPayload ? (
+        <TcgResearchCardPanel
+          payload={selectedPayload}
+          onClose={() => {
+            setSelectedPayload(null)
+            setDetailError(null)
+          }}
+        />
       ) : null}
 
       {scanOpen ? (
