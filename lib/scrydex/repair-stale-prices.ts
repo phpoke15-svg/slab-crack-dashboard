@@ -6,6 +6,7 @@ import {
   resolveCatalogId,
   splitCatalogId,
 } from "@/lib/scrydex/constants"
+import { formatUnknownError } from "@/lib/scrydex/errors"
 import { ScrydexCreditBudgetError } from "@/lib/scrydex/credit-ledger"
 import { getCatalogCard, loadCardBundle, persistCardPricingBundle } from "@/lib/scrydex/db"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
@@ -105,7 +106,10 @@ async function syncPublicCardsRowFromCatalog(catalogId: string): Promise<boolean
     .select("id")
 
   if (error?.code === "42P01") return false
-  if (error) throw error
+  if (error) {
+    console.warn("[repair-scrydex-prices] cards sync failed:", catalogId, formatUnknownError(error))
+    return false
+  }
   return (data ?? []).length > 0
 }
 
@@ -182,13 +186,19 @@ export async function repairScrydexCatalogPrices(opts?: {
       entry.psa10 = priceRow?.psa10_price ?? null
 
       if (scrydexId && (entry.raw != null || entry.psa10 != null)) {
-        const rowsWritten = await upsertWebhookDailyHistory({
-          scrydexId,
-          game: parts?.game ?? "pokemon",
-          raw: entry.raw,
-          psa10: entry.psa10,
-        })
-        historyRows += rowsWritten
+        try {
+          const rowsWritten = await upsertWebhookDailyHistory({
+            scrydexId,
+            game: parts?.game ?? "pokemon",
+            raw: entry.raw,
+            psa10: entry.psa10,
+          })
+          historyRows += rowsWritten
+        } catch (historyError) {
+          const message = formatUnknownError(historyError, "Daily history upsert failed")
+          entry.error = message
+          errors.push(`${catalogId}: ${message}`)
+        }
       }
 
       if (refresh.refreshed) {
@@ -197,10 +207,16 @@ export async function repairScrydexCatalogPrices(opts?: {
       }
 
       if (opts?.includeHistory && scrydexId) {
-        const legacyId = catalogIdToLegacyPokeId(catalogId) ?? catalogId
-        const history = await ensureCardDailyPriceHistory(legacyId)
-        if (history.backfilled || history.distinctDays >= 2) historyBackfilled += 1
-        if (history.pointsInserted > 0) creditsUsed += 3
+        try {
+          const legacyId = catalogIdToLegacyPokeId(catalogId) ?? catalogId
+          const history = await ensureCardDailyPriceHistory(legacyId)
+          if (history.backfilled || history.distinctDays >= 2) historyBackfilled += 1
+          if (history.pointsInserted > 0) creditsUsed += 3
+        } catch (historyError) {
+          const message = formatUnknownError(historyError, "Scrydex history backfill failed")
+          entry.error = entry.error ? `${entry.error}; ${message}` : message
+          errors.push(`${catalogId}: ${message}`)
+        }
       }
     } catch (error) {
       if (error instanceof ScrydexCreditBudgetError) {
@@ -209,8 +225,9 @@ export async function repairScrydexCatalogPrices(opts?: {
         results.push(entry)
         break
       }
-      entry.error = error instanceof Error ? error.message : String(error)
-      errors.push(`${catalogId}: ${entry.error}`)
+      const message = formatUnknownError(error, "Scrydex price repair failed")
+      entry.error = message
+      errors.push(`${catalogId}: ${message}`)
     }
 
     results.push(entry)
