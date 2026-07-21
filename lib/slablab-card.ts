@@ -1,6 +1,8 @@
 import {
   getGradeQuotes,
   resolvePsa10Price,
+  buildGradeQuotes,
+  type GradeQuote,
   type MockCardEntry,
 } from "@/lib/slab-data"
 
@@ -17,8 +19,17 @@ export type SlabLabCard = {
   /** True when PSA 10 was implied from a lower grade (sold comps sparse). */
   psa10Estimated?: boolean
   psa9Price: number
+  gradeQuotes: GradeQuote[]
   image: string
   cardNumber: string
+}
+
+export function gradeQuotesForSlabLabCard(card: Pick<SlabLabCard, "rawPrice" | "psa9Price" | "psa10Price" | "gradeQuotes">): GradeQuote[] {
+  if (card.gradeQuotes?.length) return card.gradeQuotes
+  return buildGradeQuotes(card.rawPrice, {
+    ...(card.psa9Price > 0 ? { 9: { slabPrice: card.psa9Price } } : {}),
+    ...(card.psa10Price > 0 ? { 10: { slabPrice: card.psa10Price } } : {}),
+  })
 }
 
 function yearsAgoFromRelease(iso?: string): number {
@@ -56,6 +67,7 @@ export function toSlabLabCard(entry: MockCardEntry): SlabLabCard | null {
     psa10Price: Math.round(psa10 * 100) / 100,
     psa10Estimated,
     psa9Price: psa9,
+    gradeQuotes: quotes,
     image: entry.imageUrl || "/placeholder.svg",
     cardNumber: entry.cardNumber || "",
   }

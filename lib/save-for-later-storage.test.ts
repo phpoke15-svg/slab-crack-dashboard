@@ -32,6 +32,7 @@ const slablabCard: SlabLabCard = {
   rawPrice: 10,
   psa10Price: 40,
   psa9Price: 15,
+  gradeQuotes: [],
   image: "",
   cardNumber: "58",
 }
