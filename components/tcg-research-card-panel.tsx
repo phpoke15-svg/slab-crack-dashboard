@@ -231,8 +231,8 @@ export function TcgResearchCardPanel({
                     company: slabGrade.company,
                     grade: slabGrade.grade,
                   }}
-                  title="Price history · Scrydex"
-                  subtitle={`Scrydex daily market history · raw + ${formatSlabLabel(slabGrade)}`}
+                  title="Price history"
+                  subtitle="Scrydex"
                 />
               </div>
             ) : null}
