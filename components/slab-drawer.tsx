@@ -209,37 +209,38 @@ export function SlabDrawer({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pb-5 pt-2">
-          <div className="flex gap-4">
+          <div className="mb-5 flex flex-col items-center text-center">
             <button
               type="button"
               onClick={() => setFullscreen(true)}
-              className="relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 shadow-lg transition-opacity hover:opacity-90 sm:w-28"
+              className="relative aspect-[3/4] w-full max-w-[200px] overflow-hidden rounded-2xl border border-white/10 bg-muted/30 shadow-lg transition-opacity hover:opacity-90"
               aria-label={`View ${selectedCard.cardName} full screen`}
             >
               <SlabCardImage
                 card={selectedCard}
                 alt={`${selectedCard.cardName} card artwork`}
-                sizes="(max-width: 640px) 112px, 128px"
-                className="object-contain p-1"
+                sizes="200px"
+                className="object-contain p-2"
                 upgrade
               />
             </button>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <h2 className="truncate text-xl font-bold text-foreground">{selectedCard.cardName}</h2>
-                <span className="shrink-0 font-mono text-sm text-muted-foreground">
-                  {selectedCard.cardNumber}
-                </span>
+            <div className="mt-4 w-full min-w-0">
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <h2 className="text-xl font-bold text-foreground">{selectedCard.cardName}</h2>
+                <span className="font-mono text-sm text-muted-foreground">{selectedCard.cardNumber}</span>
               </div>
-              <p className="text-sm text-muted-foreground">{selectedCard.setName}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{selectedCard.setName}</p>
               <button
                 type="button"
                 onClick={() => setFullscreen(true)}
-                className="mt-2 text-left text-[11px] font-medium text-primary hover:underline"
+                className="mt-2 text-[11px] font-medium text-primary hover:underline"
               >
                 Tap card for full screen
               </button>
-              <div className="mt-3 space-y-3">
+            </div>
+          </div>
+
+          <div className="space-y-3">
                 {pricingLoading ? (
                   <p className="text-sm text-muted-foreground">Loading PSA 7–10 comps…</p>
                 ) : (
@@ -284,8 +285,6 @@ export function SlabDrawer({
                     )}
                   </>
                 )}
-              </div>
-            </div>
           </div>
 
           {(focus === "slablab" || focus === "both") && (

@@ -171,16 +171,16 @@ export function TcgResearchCardPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pb-6 pt-2">
-          <div className="flex gap-4">
-            <div className="relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 shadow-lg sm:w-28">
-              <SlabCardImage card={card} alt={card.cardName} sizes="112px" className="object-contain p-1" />
+          <div className="mb-5 flex flex-col items-center text-center">
+            <div className="relative aspect-[3/4] w-full max-w-[220px] overflow-hidden rounded-2xl border border-white/10 bg-muted/30 shadow-lg">
+              <SlabCardImage card={card} alt={card.cardName} sizes="220px" className="object-contain p-2" />
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="mt-4 w-full min-w-0">
               <h2 className="text-xl font-bold text-foreground">{card.cardName}</h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="mt-1 text-sm text-muted-foreground">
                 {card.setName} · #{card.cardNumber}
               </p>
-              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+              <div className="mt-3 flex flex-wrap justify-center gap-2 text-[11px] text-muted-foreground">
                 <span className="rounded-full border border-border px-2 py-0.5 capitalize">{payload.game}</span>
                 {payload.catalogId ? (
                   <span className="rounded-full border border-border px-2 py-0.5 font-mono">{payload.catalogId}</span>
