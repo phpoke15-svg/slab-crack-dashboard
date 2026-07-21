@@ -45,4 +45,30 @@ describe("extractScrydexWebhookPrices", () => {
       }),
     ).toEqual({ raw: 15.25, psa10: 120 })
   })
+
+  it("prefers market over low and never uses mid for raw NM", () => {
+    expect(
+      extractScrydexWebhookPrices({
+        variants: [
+          {
+            name: "normal",
+            prices: [{ type: "raw", condition: "NM", market: 7.5, mid: 19.97, low: 6.06 }],
+          },
+        ],
+      }),
+    ).toEqual({ raw: 7.5, psa10: null })
+  })
+
+  it("falls back to low when market is missing", () => {
+    expect(
+      extractScrydexWebhookPrices({
+        variants: [
+          {
+            name: "normal",
+            prices: [{ type: "raw", condition: "NM", mid: 19.97, low: 6.06 }],
+          },
+        ],
+      }),
+    ).toEqual({ raw: 6.06, psa10: null })
+  })
 })

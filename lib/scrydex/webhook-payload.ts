@@ -57,7 +57,7 @@ function extractPricesFromVariants(variants: ScrydexVariant[] | undefined): {
   for (const variant of variants ?? []) {
     for (const price of variant.prices ?? []) {
       if (price.type === "raw" || (!price.type && !price.company)) {
-        const market = price.market ?? price.mid ?? price.low
+        const market = price.market ?? price.low
         if (market != null && market > 0 && raw == null) {
           raw = Number(market)
         }
@@ -67,7 +67,7 @@ function extractPricesFromVariants(variants: ScrydexVariant[] | undefined): {
         String(price.company ?? "").toUpperCase() === "PSA" &&
         String(price.grade) === "10"
       ) {
-        const market = price.market ?? price.mid ?? price.low
+        const market = price.market ?? price.low
         if (market != null && market > 0) {
           psa10 = Number(market)
         }
