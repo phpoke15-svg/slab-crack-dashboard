@@ -120,6 +120,12 @@ function cardEbayUrl(row: Pick<ScannerCard, "id" | "name" | "cardNumber">): stri
   )
 }
 
+function formatBoardSync(iso: string): string {
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return ""
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+}
+
 export function Psa10SpreadScanner() {
   const { user } = useAuth()
   const [cards, setCards] = useState<ScannerCard[]>([])
@@ -129,6 +135,7 @@ export function Psa10SpreadScanner() {
   const [sortMode, setSortMode] = useState<SortMode>("roi")
   const [view, setView] = useState<SlabLabView>("board")
   const [selectedRow, setSelectedRow] = useState<ComputedRow | null>(null)
+  const [boardSyncedAt, setBoardSyncedAt] = useState<string | null>(null)
   const [saveStore, setSaveStore] = useState<SaveForLaterStore>({ folders: [], items: [] })
   const [watchlistStore, setWatchlistStore] = useState<SlabLabWatchlistStore>({
     ids: [],
@@ -156,12 +163,15 @@ export function Psa10SpreadScanner() {
       try {
         const res = await fetch("/api/slabit/top", { credentials: "same-origin" })
         const json = (await res.json().catch(() => null)) as
-          | { ok?: boolean; cards?: ScannerCard[]; error?: string }
+          | { ok?: boolean; cards?: ScannerCard[]; error?: string; syncedAt?: string }
           | null
         if (!res.ok || !json?.cards) {
           throw new Error(json?.error || "Could not load grading opportunities")
         }
-        if (!cancelled) setCards(json.cards)
+        if (!cancelled) {
+          setCards(json.cards)
+          setBoardSyncedAt(typeof json.syncedAt === "string" ? json.syncedAt : null)
+        }
       } catch (err) {
         if (!cancelled) {
           setCards([])
@@ -395,10 +405,12 @@ export function Psa10SpreadScanner() {
               ? "Your watchlist is empty. Tap the star on any card to track it here."
               : `${rows.length} card${rows.length === 1 ? "" : "s"} on your watchlist`
           : loading
-            ? "Loading top grading opportunities…"
+            ? "Loading top grading opportunities from the past 5 years…"
             : error
               ? error
-              : `Top ${rows.length} of ${TOP_CARDS_LIMIT} · tap a card for full breakdown`}
+              : `Top ${rows.length} of ${TOP_CARDS_LIMIT} · sets from the past 5 years · refreshed daily${
+                  boardSyncedAt ? ` · board ${formatBoardSync(boardSyncedAt)}` : ""
+                } · tap a card for full breakdown`}
       </p>
 
       {/* Simplified feed */}

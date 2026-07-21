@@ -10,7 +10,7 @@ import { pageMetadata, breadcrumbJsonLd, softwareApplicationJsonLd } from "@/lib
 import { SLABIT_HREF, SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 
 const description =
-  "SlabIt ranks the top 100 Pokémon TCG cards by PSA 10 gross spread, graded multiplier, and probability-weighted submission ROI using live market comps."
+  "SlabIt ranks the top 100 Pokémon TCG cards from the past five years by PSA 10 gross spread, graded multiplier, and submission ROI using live market comps refreshed daily."
 
 export const metadata: Metadata = pageMetadata({
   title: "SlabIt",
@@ -47,8 +47,8 @@ export default function SlabItPage() {
               SlabIt
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Top 100 PSA 10 submission candidates from your local catalog. Tap a card for spread,
-              multiplier, and grading-cost breakdown. Use TCG Research for unlimited search and scanning.
+              Top 100 PSA 10 submission candidates from sets released in the past five years. The board
+              refreshes daily after price sync. Tap a card for spread, multiplier, and grading-cost breakdown.
             </p>
             <Link
               href={SLABLABS_HREF}
