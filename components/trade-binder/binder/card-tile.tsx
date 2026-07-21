@@ -10,16 +10,23 @@ export function CardTile({
   card,
   onSetStatus,
   onRemove,
+  onOpenDetail,
   showRemove = false,
 }: {
   card: TcgCard
   onSetStatus: (id: string, status: CardStatus) => void
   onRemove?: (id: string) => void
+  onOpenDetail?: (card: TcgCard) => void
   showRemove?: boolean
 }) {
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-      <div className="relative aspect-[3/4] overflow-hidden border-b border-border bg-muted/40">
+      <button
+        type="button"
+        onClick={() => onOpenDetail?.(card)}
+        disabled={!onOpenDetail}
+        className="relative aspect-[3/4] overflow-hidden border-b border-border bg-muted/40 text-left transition-colors hover:bg-muted/60 disabled:cursor-default"
+      >
         <CardImage
           card={card}
           alt={`${card.name} trading card`}
@@ -37,18 +44,25 @@ export function CardTile({
             <Trash2 className="size-3.5" aria-hidden="true" />
           </button>
         )}
-      </div>
+      </button>
 
       <div className="flex flex-1 flex-col gap-2.5 p-2.5">
-        <div className="min-w-0">
+        <button
+          type="button"
+          onClick={() => onOpenDetail?.(card)}
+          disabled={!onOpenDetail}
+          className="min-w-0 text-left transition-colors hover:text-primary disabled:cursor-default"
+        >
           <h3 className="truncate text-sm font-semibold leading-tight text-foreground">{card.name}</h3>
           <p className="truncate text-[11px] text-muted-foreground">{card.set}</p>
-          {card.rawPrice != null && card.rawPrice > 0 && (
+          {card.rawPrice != null && card.rawPrice > 0 ? (
             <p className="mt-0.5 font-mono text-[11px] font-medium text-primary tabular-nums">
               ${card.rawPrice >= 100 ? card.rawPrice.toFixed(0) : card.rawPrice.toFixed(2)}
             </p>
+          ) : (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Tap for market data</p>
           )}
-        </div>
+        </button>
 
         <FolderSwitcher
           status={card.status === "pending" ? null : card.status}

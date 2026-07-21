@@ -21,6 +21,7 @@ import { getMatchAdInterval, interleaveWithAds } from "@/lib/feed-ads"
 type MatchesPanelProps = {
   active?: boolean
   onCountChange?: (count: number) => void
+  onOpenCardDetail?: (card: MatchCard) => void
 }
 
 const TOLERANCE_OPTIONS = [
@@ -32,7 +33,7 @@ const TOLERANCE_OPTIONS = [
   { label: "10%", value: MATCH_VALUE_TOLERANCE_MAX },
 ] as const
 
-export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps) {
+export function MatchesPanel({ active = true, onCountChange, onOpenCardDetail }: MatchesPanelProps) {
   const { user } = useAuth()
   const social = useOptionalSocial()
   const entitlements = useOptionalEntitlements()
@@ -198,7 +199,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
             )}
             {!pricesLoaded && overlapUsers === 0 && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                Card prices could not be loaded — matching needs PriceCharting prices.
+                Card prices could not be loaded — matching needs Scrydex market prices on both cards.
               </p>
             )}
           </div>
@@ -268,7 +269,11 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                     className="rounded-xl border border-border bg-secondary/30 p-2.5 text-sm"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => onOpenCardDetail?.(pair.theyOffer)}
+                        className="min-w-0 flex-1 rounded-lg text-left transition-colors hover:text-primary"
+                      >
                         <p className="text-[10px] font-medium uppercase tracking-wide text-wishlist">
                           You get
                         </p>
@@ -280,9 +285,13 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                             {formatUsd(pair.theyOffer.rawPrice)}
                           </p>
                         ) : null}
-                      </div>
+                      </button>
                       <ArrowLeftRight className="mt-4 size-4 shrink-0 text-muted-foreground" />
-                      <div className="min-w-0 flex-1 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onOpenCardDetail?.(pair.youOffer)}
+                        className="min-w-0 flex-1 rounded-lg text-right transition-colors hover:text-primary"
+                      >
                         <p className="text-[10px] font-medium uppercase tracking-wide text-trade">
                           You give
                         </p>
@@ -294,7 +303,7 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
                             {formatUsd(pair.youOffer.rawPrice)}
                           </p>
                         ) : null}
-                      </div>
+                      </button>
                     </div>
                     <p className="mt-1.5 text-center text-[10px] text-primary">
                       {pair.valueDiffPercent.toFixed(1)}% value difference
@@ -310,13 +319,25 @@ export function MatchesPanel({ active = true, onCountChange }: MatchesPanelProps
               ) : (
                 <ul className="mt-3 space-y-2 text-sm">
                   {match.theyHaveYouWant.slice(0, 4).map((card) => (
-                    <li key={`get-${card.cardId}`} className="text-wishlist">
-                      You get: {card.cardName}
+                    <li key={`get-${card.cardId}`}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenCardDetail?.(card)}
+                        className="text-left text-wishlist transition-colors hover:underline"
+                      >
+                        You get: {card.cardName}
+                      </button>
                     </li>
                   ))}
                   {match.youHaveTheyWant.slice(0, 4).map((card) => (
-                    <li key={`give-${card.cardId}`} className="text-trade">
-                      You give: {card.cardName}
+                    <li key={`give-${card.cardId}`}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenCardDetail?.(card)}
+                        className="text-left text-trade transition-colors hover:underline"
+                      >
+                        You give: {card.cardName}
+                      </button>
                     </li>
                   ))}
                 </ul>

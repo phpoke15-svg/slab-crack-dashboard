@@ -162,7 +162,7 @@ export async function loadBinderCards(supabase: SupabaseClient, userId: string):
 }
 
 const PRICE_CHUNK = 20
-const DEFAULT_PRICE_ENRICH_LIMIT = 80
+const DEFAULT_PRICE_ENRICH_LIMIT = 200
 
 /** Fetch prices for binder cards without blocking the initial binder load. */
 export async function enrichBinderCardPrices(
