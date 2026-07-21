@@ -179,7 +179,8 @@ function MultiSeriesChart({
 
 type PriceHistoryChartProps = {
   cardId: string
-  grade: PsaGradeNumber
+  /** Required unless `rawOnly` is set. */
+  grade?: PsaGradeNumber
   currentRaw?: number
   currentSlab?: number
   className?: string
@@ -220,7 +221,7 @@ export function PriceHistoryChart({
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [showAllGrades, setShowAllGrades] = useState(false)
 
-  const highlightKey = GRADE_TO_SERIES[grade]
+  const highlightKey: PriceHistorySeriesKey = rawOnly ? "raw" : GRADE_TO_SERIES[grade ?? 9]
 
   useEffect(() => {
     const el = rootRef.current
@@ -441,7 +442,7 @@ export function PriceHistoryChart({
       {(latestRaw > 0 || (!rawOnly && latestSlab > 0)) && (
         <div className={cn("mt-2 grid gap-1.5", rawOnly ? "grid-cols-1" : compact ? "grid-cols-2" : "grid-cols-4")}>
           <Stat label="Raw now" value={latestRaw > 0 ? `$${latestRaw.toFixed(0)}` : "—"} />
-          {!rawOnly ? (
+          {!rawOnly && grade != null ? (
             <Stat label={`PSA ${grade}`} value={latestSlab > 0 ? `$${latestSlab.toFixed(0)}` : "—"} tone="up" />
           ) : null}
         </div>

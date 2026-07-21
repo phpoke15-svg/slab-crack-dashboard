@@ -40,6 +40,7 @@ export async function GET(request: Request) {
   const catalogIdParam = searchParams.get("catalogId")?.trim() || undefined
   const game = parseTcgResearchGame(searchParams.get("game"))
   const rangeParam = searchParams.get("range") ?? searchParams.get("days")
+  const rawOnly = searchParams.get("rawOnly") === "1" || searchParams.get("rawOnly") === "true"
   const { days, full } = parseRange(rangeParam)
 
   const catalogId =
@@ -63,13 +64,23 @@ export async function GET(request: Request) {
       Object.entries(series).map(([key, points]) => [key, points.length]),
     ) as Record<PriceHistorySeriesKey, number>
 
+    const filteredSeries = rawOnly ? { raw: series.raw ?? [] } : series
+    const filteredLabels = rawOnly
+      ? { raw: SCRYDEX_PRICE_HISTORY_LABELS.raw }
+      : SCRYDEX_PRICE_HISTORY_LABELS
+    const filteredCounts = rawOnly
+      ? ({ raw: counts.raw ?? 0 } as Record<PriceHistorySeriesKey, number>)
+      : counts
+
     return NextResponse.json({
       catalogId,
       days,
       full,
-      labels: SCRYDEX_PRICE_HISTORY_LABELS,
-      series,
-      counts,
+      rawOnly,
+      labels: filteredLabels,
+      highlightKey: rawOnly ? "raw" : "psa9",
+      series: filteredSeries,
+      counts: filteredCounts,
       range,
       source,
     })

@@ -7,11 +7,10 @@ import { PriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { CardImage } from "@/components/trade-binder/binder/card-image"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
-import type { RecentSale } from "@/lib/slab-data"
-import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
+import type { PokeMatchCardDetailPayload, PokeMatchRecentSale } from "@/lib/trade-binder/pokematch-card-full"
 
 type CardSalesResponse = {
-  recentRawSales?: RecentSale[]
+  recentRawSales?: PokeMatchRecentSale[]
   error?: string
 }
 
@@ -30,11 +29,10 @@ export function PokeMatchCardDetailPanel({
   payload,
   onClose,
 }: {
-  payload: TcgResearchCardFull
+  payload: PokeMatchCardDetailPayload
   onClose: () => void
 }) {
-  const card = payload.card
-  const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
+  const [liveRawSales, setLiveRawSales] = useState<PokeMatchRecentSale[] | null>(null)
   const [salesLoading, setSalesLoading] = useState(false)
   const [salesError, setSalesError] = useState<string | null>(null)
 
@@ -60,7 +58,7 @@ export function PokeMatchCardDetailPanel({
     setLiveRawSales(null)
 
     const params = new URLSearchParams({
-      id: card.id,
+      id: payload.id,
       game: payload.game,
       rawOnly: "true",
     })
@@ -87,13 +85,13 @@ export function PokeMatchCardDetailPanel({
     return () => {
       cancelled = true
     }
-  }, [card.id, payload.catalogId, payload.game, payload.scrydexId])
+  }, [payload.catalogId, payload.game, payload.id, payload.scrydexId])
 
-  const priced = card.hasPricing !== false && card.rawPrice > 0
-  const rawSales = liveRawSales ?? card.recentRawSales ?? []
+  const priced = payload.hasPricing && payload.rawPrice > 0
+  const rawSales = liveRawSales ?? payload.recentRawSales ?? []
   const ebayUrl = ebaySearchUrl(
-    `${card.cardName} ${card.cardNumber} NM`,
-    `pokematch-${card.id}-raw`,
+    `${payload.name} ${payload.cardNumber} NM`,
+    `pokematch-${payload.id}-raw`,
   )
 
   return (
@@ -108,7 +106,7 @@ export function PokeMatchCardDetailPanel({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={`${card.cardName} market details`}
+        aria-label={`${payload.name} market details`}
         className={cn(
           "relative flex max-h-[92vh] w-full max-w-2xl animate-slide-up flex-col overflow-hidden rounded-t-3xl border border-border bg-popover",
           "sm:rounded-3xl",
@@ -131,21 +129,21 @@ export function PokeMatchCardDetailPanel({
             <div className="relative aspect-[3/4] w-24 shrink-0 overflow-hidden rounded-xl border border-white/10 shadow-lg sm:w-28">
               <CardImage
                 card={{
-                  id: card.id,
-                  name: card.cardName,
-                  set: card.setName,
-                  image: card.imageUrl,
+                  id: payload.id,
+                  name: payload.name,
+                  set: payload.setName,
+                  image: payload.imageUrl,
                   rarity: "Common",
-                  cardNumber: card.cardNumber,
+                  cardNumber: payload.cardNumber,
                 }}
-                alt={card.cardName}
+                alt={payload.name}
               />
             </div>
             <div className="min-w-0 flex-1">
-              <h2 className="text-xl font-bold text-foreground">{card.cardName}</h2>
+              <h2 className="text-xl font-bold text-foreground">{payload.name}</h2>
               <p className="text-sm text-muted-foreground">
-                {card.setName}
-                {card.cardNumber ? ` · #${card.cardNumber}` : ""}
+                {payload.setName}
+                {payload.cardNumber ? ` · #${payload.cardNumber}` : ""}
               </p>
               <p className="mt-3 text-[11px] text-muted-foreground">
                 Updated {formatUpdatedAt(payload.priceUpdatedAt)}
@@ -159,11 +157,9 @@ export function PokeMatchCardDetailPanel({
               Raw market price
             </p>
             <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-foreground">
-              {priced ? formatUsd(card.rawPrice) : "—"}
+              {priced ? formatUsd(payload.rawPrice) : "—"}
             </p>
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              Near Mint raw value from Scrydex — used for PokeMatch fair-trade matching.
-            </p>
+            <p className="mt-2 text-[11px] text-muted-foreground">{payload.marketInsight}</p>
           </div>
 
           <div className="mt-4 rounded-2xl border border-border bg-secondary/40 p-4">
@@ -186,19 +182,18 @@ export function PokeMatchCardDetailPanel({
               <h4 className="font-semibold text-foreground">Price history</h4>
             </div>
             <PriceHistoryChart
-              cardId={payload.catalogId ?? card.id}
-              grade={10}
-              currentRaw={card.rawPrice}
+              cardId={payload.catalogId ?? payload.id}
+              currentRaw={payload.rawPrice}
               historyEndpoint="/api/tcg-research/price-history"
               historyQuery={{
                 catalogId: payload.catalogId ?? undefined,
                 scrydexId: payload.scrydexId ?? undefined,
                 game: payload.game,
+                rawOnly: "true",
               }}
-              title="Price history · Scrydex raw"
-              subtitle="Full raw NM market history"
+              title="Price history · raw NM"
+              subtitle="Raw market history only"
               rawOnly
-              days={365}
             />
           </div>
 

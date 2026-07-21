@@ -80,7 +80,7 @@ async function persistHitPrices(hit: CatalogSearchHit): Promise<CatalogSearchHit
       tcgplayerId: meta?.tcgplayerId,
     })
 
-    if ((fetched.rawPrice ?? 0) <= 0 && fetched.psa10Price <= 0) {
+    if ((fetched.rawPrice ?? 0) <= 0) {
       throw new Error("No price returned")
     }
 

@@ -41,7 +41,7 @@ import { MatchesPanel } from "@/components/trade-binder/social/matches-panel"
 import { PokeMatchSetupBanner } from "@/components/trade-binder/social/pokematch-setup-banner"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { PokeMatchCardDetailPanel } from "@/components/trade-binder/binder/pokematch-card-detail-panel"
-import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
+import type { PokeMatchCardDetailPayload } from "@/lib/trade-binder/pokematch-card-full"
 import type { PokeMatchCardDetailInput } from "@/lib/trade-binder/pokematch-card-detail"
 import type { MatchCard } from "@/lib/trade-binder/users"
 
@@ -72,7 +72,7 @@ export function MyBinder() {
   const [query, setQuery] = useState("")
   const [activeTab, setActiveTab] = useState<BinderTab>("search")
   const [matchCount, setMatchCount] = useState(0)
-  const [detailPayload, setDetailPayload] = useState<TcgResearchCardFull | null>(null)
+  const [detailPayload, setDetailPayload] = useState<PokeMatchCardDetailPayload | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const loadIdRef = useRef(0)
@@ -136,9 +136,9 @@ export function MyBinder() {
     setDetailError(null)
     try {
       const params = new URLSearchParams({ id: card.id, game: "pokemon" })
-      const res = await fetch(`/api/tcg-research/card?${params.toString()}`)
-      const json = (await res.json()) as TcgResearchCardFull & { error?: string }
-      if (!res.ok || !json.card) throw new Error(json.error || "Could not load card details")
+      const res = await fetch(`/api/pokematch/card?${params.toString()}`)
+      const json = (await res.json()) as PokeMatchCardDetailPayload & { error?: string }
+      if (!res.ok || !json.id) throw new Error(json.error || "Could not load card details")
       setDetailPayload(json)
     } catch (error) {
       setDetailPayload(null)
