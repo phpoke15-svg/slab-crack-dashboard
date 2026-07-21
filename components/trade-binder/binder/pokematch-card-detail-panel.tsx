@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react"
 import { Activity, ExternalLink, Loader2, X } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { PriceHistoryChart } from "@/components/price-history-chart"
+import { PriceHistoryChart } from "@/components/PriceHistoryChart"
+import { PriceHistoryChart as LegacyPriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { CardImage } from "@/components/trade-binder/binder/card-image"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
@@ -181,20 +182,24 @@ export function PokeMatchCardDetailPanel({
               <Activity className="size-4 text-primary" />
               <h4 className="font-semibold text-foreground">Price history</h4>
             </div>
-            <PriceHistoryChart
-              cardId={payload.catalogId ?? payload.id}
-              currentRaw={payload.rawPrice}
-              historyEndpoint="/api/tcg-research/price-history"
-              historyQuery={{
-                catalogId: payload.catalogId ?? undefined,
-                scrydexId: payload.scrydexId ?? undefined,
-                game: payload.game,
-                rawOnly: "true",
-              }}
-              title="Price history · raw NM"
-              subtitle="Raw market history only"
-              rawOnly
-            />
+            {payload.scrydexId ? (
+              <PriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} days={90} />
+            ) : (
+              <LegacyPriceHistoryChart
+                cardId={payload.catalogId ?? payload.id}
+                currentRaw={payload.rawPrice}
+                historyEndpoint="/api/tcg-research/price-history"
+                historyQuery={{
+                  catalogId: payload.catalogId ?? undefined,
+                  scrydexId: payload.scrydexId ?? undefined,
+                  game: payload.game,
+                  rawOnly: "true",
+                }}
+                title="Price history · raw NM"
+                subtitle="Raw market history only"
+                rawOnly
+              />
+            )}
           </div>
 
           <a

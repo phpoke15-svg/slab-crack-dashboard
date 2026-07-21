@@ -1,9 +1,6 @@
 import { NextResponse } from "next/server"
-import { ensureCardDailyPriceHistory } from "@/lib/pricing/card-daily-price-history"
 import { parsePriceHistoryRange } from "@/lib/pricing/price-history-range"
-import { pivotHistoryRowsForChart } from "@/lib/scrydex/history-chart"
-import { isScrydexConfigured, toCatalogId } from "@/lib/scrydex/constants"
-import { loadDailyHistoryRows } from "@/lib/scrydex/db"
+import { loadScrydexPriceHistoryChart } from "@/lib/scrydex/history-loader"
 import { parseTcgResearchGame } from "@/lib/tcg-research/search"
 
 export const dynamic = "force-dynamic"
@@ -24,18 +21,13 @@ export async function GET(
   const game = parseTcgResearchGame(searchParams.get("game"))
   const rangeParam = searchParams.get("range") ?? searchParams.get("days")
   const { days } = parsePriceHistoryRange(rangeParam)
-  const catalogId = toCatalogId(game, scrydexId)
-  const legacyCardId = game === "pokemon" ? `poke-${scrydexId}` : catalogId
 
   try {
-    if (isScrydexConfigured()) {
-      await ensureCardDailyPriceHistory(legacyCardId).catch((error) => {
-        console.warn("[cards/history] Scrydex backfill failed:", catalogId, error)
-      })
-    }
-
-    const rows = await loadDailyHistoryRows(catalogId, days || 90)
-    const chartData = pivotHistoryRowsForChart(rows)
+    const { catalogId, rows } = await loadScrydexPriceHistoryChart({
+      scrydexId,
+      game,
+      days: days || 90,
+    })
 
     if (searchParams.get("meta") === "1") {
       return NextResponse.json({
@@ -43,12 +35,12 @@ export async function GET(
         catalogId,
         game,
         days: days || 90,
-        count: chartData.length,
-        data: chartData,
+        count: rows.length,
+        data: rows,
       })
     }
 
-    return NextResponse.json(chartData)
+    return NextResponse.json(rows)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load price history"
     return NextResponse.json({ error: message }, { status: 500 })
