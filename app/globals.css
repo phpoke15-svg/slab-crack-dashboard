@@ -80,6 +80,8 @@
   --wishlist-foreground: oklch(0.18 0.03 75);
 
   --radius: 0.85rem;
+
+  --bottom-nav-height: 4.75rem;
 }
 
 @keyframes shimmer {
@@ -180,8 +182,17 @@ html.native-app .seo-crawl-intro {
   display: none !important;
 }
 
-html.native-app .hub-shell {
+html.native-app .hub-shell,
+html.native-app .app-tab-shell {
   padding-top: 1rem;
+}
+
+.pb-bottom-nav {
+  padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+}
+
+.giveaway-toast-bottom {
+  bottom: calc(var(--bottom-nav-height) + 1rem + env(safe-area-inset-bottom, 0px));
 }
 
 /* App Store 2.3.10 — hide Google Play / Android-only copy inside the iOS app */

@@ -21,7 +21,7 @@ export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [
     href: SLABCRACK_HREF,
     name: "SlabCrack",
     tagline: "Graded slab arbitrage",
-    blurb: "Spot raw vs PSA slab gaps and buy-crack-sell opportunities.",
+    blurb: "Raw vs PSA gaps",
     icon: Layers,
   },
   {
@@ -29,7 +29,7 @@ export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [
     href: SLABIT_HREF,
     name: "SlabIt",
     tagline: "Spread · multiplier · ROI",
-    blurb: "Rank PSA 10 submission ROI across top modern cards.",
+    blurb: "PSA 10 ROI ranks",
     icon: Ratio,
   },
   {
@@ -37,7 +37,7 @@ export const SLABLABS_SUBTOOLS: SlabLabsSubTool[] = [
     href: SLABPOP_HREF,
     name: "SlabPop",
     tagline: "Pop report filters",
-    blurb: "Filter graded cards by PSA population, price band, and grade.",
+    blurb: "Pop · price filters",
     icon: BarChart3,
   },
 ]

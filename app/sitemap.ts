@@ -10,6 +10,10 @@ function staticSitemapEntries(): MetadataRoute.Sitemap {
 
   const entries: MetadataRoute.Sitemap = [
     { url: base, lastModified, changeFrequency: "weekly", priority: 1 },
+    { url: `${base}/alerts`, lastModified, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/community`, lastModified, changeFrequency: "weekly", priority: 0.88 },
+    { url: `${base}/labs`, lastModified, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${base}/profile`, lastModified, changeFrequency: "weekly", priority: 0.75 },
     { url: `${base}/slablabs`, lastModified, changeFrequency: "daily", priority: 0.95 },
     { url: `${base}/slablabs/slabcrack`, lastModified, changeFrequency: "daily", priority: 0.93 },
     { url: `${base}/slablabs/slabpop`, lastModified, changeFrequency: "weekly", priority: 0.88 },

@@ -2,6 +2,7 @@
 
 import { EntitlementsProvider } from "@/components/billing/entitlements-provider"
 import { GiveawayTracker } from "@/components/giveaway-tracker"
+import { AppShell } from "@/components/nav/app-shell"
 import { ProPushAlertsPrompt } from "@/components/pro-push-alerts-prompt"
 import { AuthProvider } from "@/components/trade-binder/auth/auth-provider"
 import { SignInModal } from "@/components/trade-binder/auth/sign-in-modal"
@@ -12,7 +13,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     <AuthProvider>
       <EntitlementsProvider>
         <SocialProvider>
-          {children}
+          <AppShell>{children}</AppShell>
           <SignInModal />
           <GiveawayTracker />
           <ProPushAlertsPrompt />

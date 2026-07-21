@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import { ArrowLeft, Camera, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
@@ -10,6 +10,11 @@ import { CardScanner } from "@/components/card-scanner"
 import { CardSearchResults } from "@/components/card-search-results"
 import { CatalogCardTile } from "@/components/catalog-card-tile"
 import { TcgResearchCardPanel } from "@/components/tcg-research-card-panel"
+import {
+  TCG_RESEARCH_GAME_TABS,
+  useTcgResearchPopular,
+  useTcgResearchSearch,
+} from "@/components/tcg-research/tcg-research-hooks"
 import type { CardSearchHit } from "@/lib/card-lookup"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
@@ -46,45 +51,7 @@ function scanResultFromTcgResearchPayload(payload: TcgResearchCardFull): ScanPip
   }
 }
 
-const GAME_TABS: { id: TcgGame; label: string }[] = [
-  { id: "pokemon", label: "Pokémon" },
-  { id: "lorcana", label: "Lorcana" },
-  { id: "mtg", label: "MTG" },
-]
-
-function useTcgResearchPopular(game: TcgGame) {
-  const [hits, setHits] = useState<CardSearchHit[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    setIsLoading(true)
-    setError(null)
-
-    void (async () => {
-      try {
-        const params = new URLSearchParams({ game, limit: "100" })
-        const res = await fetch(`/api/tcg-research/popular?${params.toString()}`, {
-          signal: controller.signal,
-        })
-        const json = (await res.json()) as { results?: CardSearchHit[]; error?: string }
-        if (!res.ok) throw new Error(json.error || "Could not load popular cards")
-        setHits(json.results ?? [])
-      } catch (err) {
-        if (controller.signal.aborted) return
-        setHits([])
-        setError(err instanceof Error ? err.message : "Could not load popular cards")
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false)
-      }
-    })()
-
-    return () => controller.abort()
-  }, [game])
-
-  return { hits, isLoading, error }
-}
+const GAME_TABS = TCG_RESEARCH_GAME_TABS
 
 function TcgResearchBrowseList({
   title,
@@ -144,49 +111,6 @@ function TcgResearchBrowseList({
       )}
     </section>
   )
-}
-
-function useTcgResearchSearch(query: string, game: TcgGame, enabled: boolean) {
-  const [hits, setHits] = useState<CardSearchHit[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!enabled || query.trim().length < 2) {
-      setHits([])
-      setError(null)
-      setIsLoading(false)
-      return
-    }
-
-    const controller = new AbortController()
-    const timer = window.setTimeout(async () => {
-      setIsLoading(true)
-      setError(null)
-      try {
-        const params = new URLSearchParams({ q: query.trim(), game })
-        const res = await fetch(`/api/tcg-research/search?${params.toString()}`, {
-          signal: controller.signal,
-        })
-        const json = (await res.json()) as { results?: CardSearchHit[]; error?: string }
-        if (!res.ok) throw new Error(json.error || "Search failed")
-        setHits(json.results ?? [])
-      } catch (err) {
-        if (controller.signal.aborted) return
-        setHits([])
-        setError(err instanceof Error ? err.message : "Search failed")
-      } finally {
-        if (!controller.signal.aborted) setIsLoading(false)
-      }
-    }, 350)
-
-    return () => {
-      controller.abort()
-      window.clearTimeout(timer)
-    }
-  }, [enabled, game, query])
-
-  return { hits, isLoading, error }
 }
 
 export function TcgResearchClient() {
@@ -251,14 +175,11 @@ export function TcgResearchClient() {
   }, [])
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="app-tab-shell mx-auto flex w-full max-w-lg flex-col gap-6 px-4 pt-5 pb-8 sm:px-5">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <CollecToolsBrand href="/" size="lg" subtitle="TCG Research · catalog + market analytics" />
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Unlimited hybrid search across Pokémon, Lorcana, and MTG with Scrydex prices,
-            sold comps, price history, and Scrydex Vision scanning.
-          </p>
+          <CollecToolsBrand href="/" size="md" subtitle="TCG Research · full search" />
+          <p className="mt-2 text-xs text-muted-foreground">Hybrid search · charts · Vision scan</p>
         </div>
         <SiteAuthButton className="shrink-0" />
       </header>
@@ -386,7 +307,7 @@ export function TcgResearchClient() {
         </div>
       ) : null}
 
-      <SiteFooter />
+      <SiteFooter className="mt-2" />
     </div>
   )
 }

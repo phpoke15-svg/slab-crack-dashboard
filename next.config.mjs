@@ -47,6 +47,7 @@ const nextConfig = {
       { source: "/slablab", destination: "/slablabs/slabit", permanent: true },
       { source: "/slablab/scan", destination: "/slablabs/slabit/scan", permanent: true },
       { source: "/slablab/multi-scan", destination: "/slablabs/slabit/multi-scan", permanent: true },
+      { source: "/tcg-research", destination: "/", permanent: false },
     ]
   },
   async rewrites() {

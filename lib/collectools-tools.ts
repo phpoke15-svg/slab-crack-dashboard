@@ -36,10 +36,10 @@ export type CollecTool = {
 const ALL_COLLECTOOLS: CollecTool[] = [
   {
     id: "tcg-research",
-    href: "/tcg-research",
+    href: "/",
     name: "TCG Research",
     tagline: "Search · charts · scan",
-    blurb: "Unlimited catalog search with local prices, history charts, and Vision scan.",
+    blurb: "Catalog search · charts · scan",
     description:
       "TCG Research is the full-market research hub — hybrid search across Pokémon, Lorcana, and MTG, grade spreads from your local Scrydex cache, price history charts, and camera identify via Scrydex Vision.",
     highlights: [
@@ -55,7 +55,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: SLABLABS_HREF,
     name: "SlabLabs",
     tagline: "Crack · Pop · Submit",
-    blurb: "Graded slab toolkit — arbitrage, pop filters, and submission ROI.",
+    blurb: "Crack · Pop · ROI",
     description:
       "SlabLabs groups SlabCrack arbitrage, SlabPop population filters, and SlabIt PSA 10 submission ROI in one graded slab toolkit.",
     highlights: [
@@ -71,7 +71,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/binder",
     name: "PokeMatch",
     tagline: "Collect & trade",
-    blurb: "Build your binder and trade with other collectors.",
+    blurb: "Binder · trades",
     description:
       "PokeMatch lets you build a digital binder, mark cards for trade or wishlist, and match with other collectors who need what you have.",
     icon: PokeMatchIcon,
@@ -81,7 +81,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/pokewatch",
     name: "PokeWatch",
     tagline: "Pro · Pokemon Center alerts",
-    blurb: "Get alerts when the Pokemon Center queue goes live.",
+    blurb: "PC queue alerts",
     description:
       "PokeWatch sends instant browser and phone alerts when the Pokemon Center virtual queue goes live so you can jump in faster. Included with CollecTools Pro.",
     icon: Bell,
@@ -91,7 +91,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/giveaway",
     name: "Monthly Giveaway",
     tagline: "Free entries · cash via PayPal",
-    blurb: "Earn entries by using CollecTools — win monthly cash prizes.",
+    blurb: "Monthly cash prizes",
     description:
       "The CollecTools Monthly Giveaway awards a cash prize (USD) via PayPal each month. Earn one free entry per day by staying active in the app — thresholds vary by plan (30 min Starter, 10 min Premium, 5 min Pro). Mail-in alternate entry available. No purchase necessary.",
     highlights: [
@@ -107,7 +107,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/feedback",
     name: "Feedback",
     tagline: "Ideas · votes · inbox",
-    blurb: "Send feedback and vote on tools we should build next.",
+    blurb: "Ideas · votes",
     description:
       "Share any product feedback privately with Supreme, then upvote or downvote potential tools so we know what collectors want most.",
     highlights: [
@@ -122,9 +122,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/restocks",
     name: "Restocks",
     tagline: RESTOCKS_ENABLED ? "Walmart sealed stock" : "Supreme · in development",
-    blurb: RESTOCKS_ENABLED
-      ? "Track Walmart sealed Pokémon TCG stock in one place."
-      : "Walmart sealed restock tracker — Supreme preview for now.",
+    blurb: RESTOCKS_ENABLED ? "Walmart stock tracker" : "Walmart · Supreme preview",
     description: RESTOCKS_ENABLED
       ? "Restocks auto-discovers Pokémon TCG sealed products at Walmart and tracks in-stock vs out-of-stock. Pokémon Center drops still use PokeWatch."
       : "Walmart sealed auto-discovery is in development and hidden from the public until Affiliate is live. Supreme accounts can preview the work in progress.",
@@ -136,7 +134,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/grade-check",
     name: "Grade Check",
     tagline: "Supreme · in development",
-    blurb: "Quick condition and centering help before you submit.",
+    blurb: "Pre-submit grading",
     description:
       "Grade Check is a condition and centering helper for submission decisions. It is still in development and available as a Supreme preview.",
     icon: ScanSearch,
@@ -147,7 +145,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/card-lounge",
     name: "CardLounge",
     tagline: "Collector social feed",
-    blurb: "Share posts, photos, and follows with other collectors.",
+    blurb: "Social collector feed",
     description:
       "CardLounge is a collector social feed for short posts, photos, videos, follows, likes, and replies — built for Pokémon TCG chatter and show-and-tell.",
     highlights: [
@@ -162,7 +160,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/buyout-radar",
     name: "Buyout Radar",
     tagline: "Supreme · in development",
-    blurb: "Spot buyout spikes before retail prices move.",
+    blurb: "Buyout spike alerts",
     description:
       "Buyout Radar detects high-volume buyout clusters and speculation spikes across the catalog so you can react before retail prices catch up. Supreme preview while the product is still in development.",
     highlights: [
@@ -178,7 +176,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/live-binder-hud",
     name: "Live Binder HUD",
     tagline: "Supreme · in development",
-    blurb: "Scan Feed sends one frame to Gemini for boxes, names, and prices.",
+    blurb: "Live scan HUD",
     description:
       "Live Binder HUD shows a raw camera feed and, on Scan Feed, sends one JPEG still to Gemini for box_2d detection and identity — no local outline tracking. PriceCharting comps fill each overlay. Supreme preview while the product is still in development.",
     highlights: [
@@ -194,7 +192,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     href: "/supreme",
     name: "Site Insights",
     tagline: "Owner metrics",
-    blurb: "Live product, billing, and ops metrics for owners.",
+    blurb: "Owner metrics",
     description:
       "Site Insights shows live product, billing, and ops metrics across CollecTools. Available to Supreme accounts only.",
     icon: Activity,

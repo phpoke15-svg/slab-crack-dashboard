@@ -1,11 +1,11 @@
-import { CollecToolsHub } from "@/components/collectools-hub"
+import { ResearchLandingClient } from "@/components/research-landing-client"
 import { HomeSeoIntro } from "@/components/seo/home-seo-intro"
 import { JsonLd } from "@/components/seo/json-ld"
 import { COLLECTOOLS } from "@/lib/collectools-tools"
 import { itemListJsonLd, pageMetadata, SEO_DEFAULT_DESCRIPTION, SEO_DEFAULT_TITLE } from "@/lib/seo"
 
 export const metadata = pageMetadata({
-  title: "Home",
+  title: "Research",
   absoluteTitle: SEO_DEFAULT_TITLE,
   description: SEO_DEFAULT_DESCRIPTION,
   path: "/",
@@ -26,7 +26,7 @@ export default function Page() {
         })}
       />
       <HomeSeoIntro />
-      <CollecToolsHub />
+      <ResearchLandingClient />
     </main>
   )
 }
