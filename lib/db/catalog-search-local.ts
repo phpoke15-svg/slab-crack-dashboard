@@ -120,6 +120,24 @@ function resolveCleanNamePrefix(query: string, sqlQuery?: string): string {
   return sanitizeCatalogSearchToken(fromText || normalized)
 }
 
+async function fetchByNameTokenFallback(
+  supabase: SupabaseClient,
+  prefix: string,
+  fetchLimit: number,
+): Promise<CatalogCardRow[]> {
+  const token = prefix.split(/\s+/).find((part) => part.length >= 2) ?? prefix.split(/\s+/)[0] ?? prefix
+  const safeToken = sanitizeCatalogSearchToken(token)
+  if (!safeToken) return []
+
+  const pattern = `%${safeToken}%`
+  const { data, error } = await orderSearchResults(
+    supabase.from("cards").select(CARD_SELECT).ilike("name", pattern),
+  ).limit(fetchLimit)
+
+  if (error) throw error
+  return (data ?? []) as CatalogCardRow[]
+}
+
 async function fetchByCleanNamePrefix(
   supabase: SupabaseClient,
   prefix: string,
@@ -132,8 +150,16 @@ async function fetchByCleanNamePrefix(
     supabase.from("cards").select(CARD_SELECT).like("clean_name", `${safePrefix}%`),
   ).limit(fetchLimit)
 
-  if (error) throw error
-  return (data ?? []) as CatalogCardRow[]
+  if (error) {
+    if (error.code === "42703") {
+      return fetchByNameTokenFallback(supabase, safePrefix, fetchLimit)
+    }
+    throw error
+  }
+
+  const rows = (data ?? []) as CatalogCardRow[]
+  if (rows.length > 0) return rows
+  return fetchByNameTokenFallback(supabase, safePrefix, fetchLimit)
 }
 
 async function fetchBySetHint(

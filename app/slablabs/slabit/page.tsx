@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, Camera } from "lucide-react"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
@@ -50,13 +50,22 @@ export default function SlabItPage() {
               Top 100 PSA 10 submission candidates from sets released in the past five years. The board
               refreshes daily after price sync. Tap a card for spread, multiplier, and grading-cost breakdown.
             </p>
-            <Link
-              href={SLABLABS_HREF}
-              className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <ArrowLeft className="size-3.5" aria-hidden />
-              Back to SlabLabs
-            </Link>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Link
+                href={SLABLABS_HREF}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <ArrowLeft className="size-3.5" aria-hidden />
+                Back to SlabLabs
+              </Link>
+              <Link
+                href={`${SLABIT_HREF}/scan`}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15"
+              >
+                <Camera className="size-3.5" aria-hidden />
+                Point & Scan
+              </Link>
+            </div>
           </div>
           <SiteAuthButton />
         </header>
