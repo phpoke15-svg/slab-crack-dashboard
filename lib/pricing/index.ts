@@ -44,6 +44,13 @@ export { lookupCatalogCardEntry } from "@/lib/pricing/catalog-card-lookup"
 export { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
 export { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
 export {
+  getLegacyMapByPcId,
+  listPendingLegacyMaps,
+  saveLegacyMapResolution,
+  upsertLegacyMapSeed,
+} from "@/lib/pricing/card-id-legacy-map"
+export { collectLegacyPcIdsFromCardIds, resolveLegacyPcCardId } from "@/lib/pricing/resolve-legacy-pc-id"
+export {
   getPriceHistorySeriesMap,
   priceHistorySeriesLabels,
 } from "@/lib/pricing/price-history-series"

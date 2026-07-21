@@ -8,12 +8,17 @@ create table if not exists public.card_prices (
   psa8_price numeric(10, 2),
   psa9_price numeric(10, 2),
   psa10_price numeric(10, 2),
-  price_source text not null default 'pricecharting',
+  price_source text not null default 'tcggo',
   synced_at timestamptz not null default now(),
   sync_error text,
   card_name text,
   card_set text,
-  card_number text
+  card_number text,
+  tcggo_id integer,
+  tcgplayer_id integer,
+  tcg_id text,
+  language text default 'en' check (language is null or language in ('en', 'ja')),
+  legacy_pricecharting_id text
 );
 
 create index if not exists card_prices_synced_at_idx
@@ -59,7 +64,8 @@ create policy "price_history_public_read"
   to anon, authenticated
   using (true);
 
--- Optional: seed card_prices from existing binder cache (safe to re-run).
+-- After running supabase/unified-card-prices.sql, run supabase/pokemon-api-migration.sql
+-- on existing projects for legacy pc-* mapping + binder re-key columns.
 insert into public.card_prices (
   card_id,
   raw_price,

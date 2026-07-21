@@ -19,6 +19,7 @@
     "enrich-images": "npx tsx scripts/enrich-images.ts",
     "seed-catalog": "node scripts/seed-catalog.mjs",
     "import-pokemon-catalog": "npx tsx scripts/import-pokemon-catalog.ts",
+    "migrate-pc-to-poke-ids": "npx tsx scripts/migrate-pc-to-poke-ids.ts",
     "backfill-card-slugs": "npx tsx scripts/backfill-card-slugs.ts",
     "seed-top-200": "node scripts/seed-top-200.mjs",
     "compute-catalog-phash": "node scripts/compute-catalog-phash.mjs",
