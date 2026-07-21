@@ -12,8 +12,8 @@ import {
 import { cn } from "@/lib/utils"
 import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
-import { ScrydexPriceHistoryChart } from "@/components/scrydex-price-history-chart"
-import { PriceHistoryChart } from "@/components/price-history-chart"
+import { PriceHistoryChart } from "@/components/PriceHistoryChart"
+import { PriceHistoryChart as LegacyPriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
@@ -279,9 +279,9 @@ export function TcgResearchCardPanel({
             {priced ? (
               <div className="mt-3">
                 {payload.scrydexId ? (
-                  <ScrydexPriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} days={90} />
+                  <PriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} days={90} />
                 ) : (
-                  <PriceHistoryChart
+                  <LegacyPriceHistoryChart
                     cardId={payload.catalogId ?? card.id}
                     {...chartGradeProps}
                     currentRaw={card.rawPrice}
