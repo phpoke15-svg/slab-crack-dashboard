@@ -9,6 +9,7 @@ import {
   scrydexCardToRow,
   scrydexExpansionToRow,
 } from "@/lib/scrydex/adapters"
+import { formatUnknownError } from "@/lib/scrydex/errors"
 import type { CatalogCardRow, ScrydexCard, ScrydexExpansionRef, TcgGame } from "@/lib/scrydex/types"
 
 const CHUNK = 100
@@ -103,6 +104,63 @@ export async function persistHistoryPoints(
   return persistHistoryPointsBatch(catalogId, points)
 }
 
+function applyNullableHistoryFilter<T extends { eq: (col: string, val: string) => T; is: (col: string, val: null) => T }>(
+  query: T,
+  column: string,
+  value: unknown,
+): T {
+  if (value == null) return query.is(column, null)
+  return query.eq(column, String(value))
+}
+
+/** Update or insert one daily history row (matches price_history_daily_unique_idx). */
+async function upsertSingleDailyHistoryPoint(point: Record<string, unknown>): Promise<void> {
+  const supabase = createAdminClient()
+  let selectQuery = supabase
+    .from("price_history_daily")
+    .select("id")
+    .eq("catalog_id", String(point.catalog_id))
+    .eq("snapshot_date", String(point.snapshot_date))
+    .eq("price_type", String(point.price_type))
+    .eq("variant", String(point.variant ?? "normal"))
+
+  selectQuery = applyNullableHistoryFilter(selectQuery, "condition", point.condition)
+  selectQuery = applyNullableHistoryFilter(selectQuery, "company", point.company)
+  selectQuery = applyNullableHistoryFilter(selectQuery, "grade", point.grade)
+
+  const { data: existing, error: selectError } = await selectQuery.maybeSingle()
+  if (selectError?.code === "42P01") return
+  if (selectError) {
+    throw new Error(formatUnknownError(selectError, "price_history_daily lookup failed"))
+  }
+
+  const payload = {
+    market_price: point.market_price,
+    low_price: point.low_price ?? null,
+    currency: point.currency ?? "USD",
+    source: point.source ?? "scrydex",
+    captured_at: point.captured_at ?? new Date().toISOString(),
+  }
+
+  if (existing?.id != null) {
+    const { error: updateError } = await supabase
+      .from("price_history_daily")
+      .update(payload)
+      .eq("id", existing.id)
+    if (updateError?.code === "42P01") return
+    if (updateError) {
+      throw new Error(formatUnknownError(updateError, "price_history_daily update failed"))
+    }
+    return
+  }
+
+  const { error: insertError } = await supabase.from("price_history_daily").insert(point)
+  if (insertError?.code === "42P01") return
+  if (insertError) {
+    throw new Error(formatUnknownError(insertError, "price_history_daily insert failed"))
+  }
+}
+
 /** Upsert all history rows in one database round-trip (atomic batch). */
 export async function persistHistoryPointsBatch(
   catalogId: string,
@@ -118,7 +176,15 @@ export async function persistHistoryPointsBatch(
   const supabase = createAdminClient()
   const { error } = await supabase.from("price_history_daily").upsert(normalized)
   if (error?.code === "42P01") return 0
-  if (error) throw error
+  if (error?.code === "23505") {
+    for (const point of normalized) {
+      await upsertSingleDailyHistoryPoint(point)
+    }
+    return normalized.length
+  }
+  if (error) {
+    throw new Error(formatUnknownError(error, "price_history_daily upsert failed"))
+  }
   return normalized.length
 }
 
@@ -131,7 +197,9 @@ export async function countDistinctDailyHistoryDays(catalogId: string): Promise<
     .eq("catalog_id", catalogId)
 
   if (error?.code === "42P01") return 0
-  if (error) throw error
+  if (error) {
+    throw new Error(formatUnknownError(error, "price_history_daily count failed"))
+  }
 
   const dates = new Set(
     (data ?? [])
