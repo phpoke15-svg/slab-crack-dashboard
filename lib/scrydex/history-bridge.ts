@@ -18,7 +18,7 @@ export async function loadScrydexHistoryFromDb(
 
   const { data, error } = await supabase
     .from("price_history_daily")
-    .select("snapshot_date, price, variant, condition, company, grade")
+    .select("snapshot_date, market_price, price_type, variant, condition, company, grade")
     .eq("catalog_id", catalogId)
     .gte("snapshot_date", since.toISOString().slice(0, 10))
     .order("snapshot_date", { ascending: true })
@@ -29,12 +29,16 @@ export async function loadScrydexHistoryFromDb(
   const points: PriceHistoryPoint[] = []
   for (const row of data ?? []) {
     const snapshotDate = String(row.snapshot_date)
-    const price = Number(row.price ?? 0)
+    const price = Number(row.market_price ?? 0)
     if (price <= 0) continue
 
-    if (row.company === "PSA" && String(row.grade) === "10") {
+    if (row.price_type === "graded" && row.company === "PSA" && String(row.grade) === "10") {
       points.push({ cardId, snapshotDate, grade: 10, price, source: "scrydex" })
-    } else if ((row.variant ?? "normal") === "normal" && (row.condition ?? "NM") === "NM") {
+    } else if (
+      row.price_type === "raw" &&
+      (row.variant ?? "normal") === "normal" &&
+      (row.condition ?? "NM") === "NM"
+    ) {
       points.push({ cardId, snapshotDate, grade: 0, price, source: "scrydex" })
     }
   }

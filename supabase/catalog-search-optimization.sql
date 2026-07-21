@@ -102,13 +102,15 @@ returns table (
 ) language sql stable as $$
   select
     h.snapshot_date,
-    max(case when h.variant = 'normal' and h.condition = 'NM' then h.price end) as raw_price,
-    max(case when h.company = 'PSA' and h.grade = '10' then h.price end) as psa10_price
+    max(case when h.price_type = 'raw' and h.variant = 'normal' and h.condition = 'NM' then h.market_price end) as raw_price,
+    max(case when h.price_type = 'graded' and h.company = 'PSA' and h.grade = '10' then h.market_price end) as psa10_price
   from public.price_history_daily h
   inner join public.catalog_cards cc on cc.catalog_id = h.catalog_id
-  where cc.catalog_id = replace(p_card_id, 'poke-', 'pokemon-')
-     or cc.scrydex_id = replace(replace(p_card_id, 'poke-', ''), 'pokemon-', '')
-  and h.snapshot_date >= current_date - (p_days || ' days')::interval
+  where (
+      cc.catalog_id = replace(p_card_id, 'poke-', 'pokemon-')
+      or cc.scrydex_id = replace(replace(p_card_id, 'poke-', ''), 'pokemon-', '')
+    )
+    and h.snapshot_date >= current_date - (p_days || ' days')::interval
   group by h.snapshot_date
   order by h.snapshot_date asc;
 $$;
