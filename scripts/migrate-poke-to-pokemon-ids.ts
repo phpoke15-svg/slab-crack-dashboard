@@ -1,5 +1,6 @@
 /**
  * Build catalog_id_legacy_map entries for poke-* → pokemon-* ids.
+ * Ensures matching catalog_cards rows exist first (FK-safe).
  * Optionally copies card_prices raw values into prices_raw when Scrydex prices are absent.
  *
  * Usage:
@@ -20,6 +21,40 @@ import { createClient } from "@supabase/supabase-js"
 import { legacyPokeIdToCatalogId } from "@/lib/scrydex/constants"
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
+
+type LegacyCardRow = {
+  id: string
+  name: string
+  set_name: string
+  set_id: string
+  number: string
+  rarity: string | null
+  image_url: string | null
+  language: string
+}
+
+function cardToCatalogRow(row: LegacyCardRow) {
+  const catalogId = legacyPokeIdToCatalogId(row.id)
+  if (!catalogId) return null
+
+  const scrydexId = catalogId.slice("pokemon-".length)
+  return {
+    catalog_id: catalogId,
+    game: "pokemon" as const,
+    scrydex_id: scrydexId,
+    name: row.name,
+    set_code: row.set_id || scrydexId.split("-")[0] || "unknown",
+    set_name: row.set_name,
+    number: row.number ?? "",
+    rarity: row.rarity,
+    language_code: row.language === "ja" ? "JA" : "EN",
+    image_small_url: row.image_url,
+    image_large_url: row.image_url,
+    variants: ["normal"],
+    metadata: { seeded_from: "public.cards", legacy_id: row.id },
+    catalog_synced_at: new Date().toISOString(),
+  }
+}
 
 function stripQuotes(value: string): string {
   const trimmed = value.trim()
@@ -80,19 +115,22 @@ async function main() {
 
   const { data: cards, error: cardsError } = await supabase
     .from("cards")
-    .select("id")
+    .select("id, name, set_name, set_id, number, rarity, image_url, language")
     .like("id", "poke-%")
+    .order("updated_at", { ascending: false })
     .limit(limit)
 
   if (cardsError) throw cardsError
 
-  const mappings = ((cards ?? []) as { id: string }[])
-    .map((row) => {
-      const catalogId = legacyPokeIdToCatalogId(row.id)
-      if (!catalogId) return null
-      return { legacy_id: row.id, catalog_id: catalogId, legacy_source: "poke-tcggo" }
-    })
+  const catalogRows = ((cards ?? []) as LegacyCardRow[])
+    .map(cardToCatalogRow)
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
+
+  const mappings = catalogRows.map((row) => ({
+    legacy_id: String(row.metadata.legacy_id),
+    catalog_id: row.catalog_id,
+    legacy_source: "poke-tcggo",
+  }))
 
   console.log(`[migrate-poke] ${mappings.length} legacy mappings (limit ${limit})`)
   console.log(`[migrate-poke] Mode: ${apply ? "APPLY" : "DRY-RUN"} copy-prices=${copyPrices}`)
@@ -105,6 +143,18 @@ async function main() {
   }
 
   const chunkSize = 100
+  for (let i = 0; i < catalogRows.length; i += chunkSize) {
+    const chunk = catalogRows.slice(i, i + chunkSize)
+    const { error: catalogError } = await supabase.from("catalog_cards").upsert(chunk)
+    if (catalogError?.code === "42P01") {
+      console.error("[migrate-poke] Run supabase/scrydex-multi-tcg.sql first")
+      process.exit(1)
+    }
+    if (catalogError) throw catalogError
+  }
+
+  console.log(`[migrate-poke] Upserted ${catalogRows.length} catalog_cards rows`)
+
   for (let i = 0; i < mappings.length; i += chunkSize) {
     const chunk = mappings.slice(i, i + chunkSize)
     const { error } = await supabase.from("catalog_id_legacy_map").upsert(chunk)
