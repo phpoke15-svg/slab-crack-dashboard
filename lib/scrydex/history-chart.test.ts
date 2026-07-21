@@ -1,0 +1,59 @@
+import { describe, expect, it } from "vitest"
+import { gradeTypeFromHistoryRow, pivotHistoryRowsForChart } from "@/lib/scrydex/history-chart"
+
+describe("history-chart", () => {
+  it("maps raw and PSA grades to chart keys", () => {
+    expect(
+      gradeTypeFromHistoryRow({
+        snapshot_date: "2026-07-01",
+        price_type: "raw",
+        variant: "normal",
+        condition: "NM",
+        market_price: 6.5,
+      }),
+    ).toBe("raw")
+
+    expect(
+      gradeTypeFromHistoryRow({
+        snapshot_date: "2026-07-01",
+        price_type: "graded",
+        variant: "normal",
+        company: "PSA",
+        grade: "10",
+        market_price: 45,
+      }),
+    ).toBe("psa10")
+  })
+
+  it("pivots rows by recorded_at for chart libraries", () => {
+    const chart = pivotHistoryRowsForChart([
+      {
+        snapshot_date: "2026-07-01",
+        price_type: "raw",
+        variant: "normal",
+        condition: "NM",
+        market_price: 6.5,
+      },
+      {
+        snapshot_date: "2026-07-01",
+        price_type: "graded",
+        variant: "normal",
+        company: "PSA",
+        grade: "10",
+        market_price: 45,
+      },
+      {
+        snapshot_date: "2026-07-02",
+        price_type: "raw",
+        variant: "normal",
+        condition: "NM",
+        market_price: 7,
+      },
+    ])
+
+    expect(chart).toEqual([
+      { recorded_at: "2026-07-01", raw: 6.5, psa10: 45 },
+      { recorded_at: "2026-07-02", raw: 7 },
+    ])
+  })
+})
