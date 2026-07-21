@@ -190,6 +190,8 @@ type PriceHistoryChartProps = {
   /** Override default `/api/card-price-history` endpoint (TCG Research uses Scrydex). */
   historyEndpoint?: string
   historyQuery?: Record<string, string | undefined>
+  /** Show only raw NM series — for PokeMatch. */
+  rawOnly?: boolean
 }
 
 export function PriceHistoryChart({
@@ -204,6 +206,7 @@ export function PriceHistoryChart({
   days: initialDays = 90,
   historyEndpoint = "/api/card-price-history",
   historyQuery,
+  rawOnly = false,
 }: PriceHistoryChartProps) {
   const rootRef = useRef<HTMLDivElement>(null)
   const [visible, setVisible] = useState(false)
@@ -271,6 +274,9 @@ export function PriceHistoryChart({
   }, [cardId])
 
   const activeKeys = useMemo(() => {
+    if (rawOnly) {
+      return (seriesMap.raw?.length ?? 0) >= 2 ? (["raw"] as PriceHistorySeriesKey[]) : []
+    }
     const keys: PriceHistorySeriesKey[] = ["raw", highlightKey]
     if (showAllGrades) {
       for (const k of ["psa7", "psa8", "psa9", "psa10"] as const) {
@@ -278,7 +284,7 @@ export function PriceHistoryChart({
       }
     }
     return keys.filter((key) => (seriesMap[key]?.length ?? 0) >= 2)
-  }, [seriesMap, highlightKey, showAllGrades])
+  }, [seriesMap, highlightKey, showAllGrades, rawOnly])
 
   const { dates, values } = useMemo(
     () => alignSeriesByDate(seriesMap, activeKeys),
@@ -344,35 +350,45 @@ export function PriceHistoryChart({
       </div>
 
       <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
-        {(["raw", "psa7", "psa8", "psa9", "psa10"] as const).map((key) => {
-          const count = seriesMap[key]?.length ?? 0
-          if (count < 1) return null
-          const active = activeKeys.includes(key)
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                if (key === "raw" || key === highlightKey) return
-                setShowAllGrades((v) => !v)
-              }}
-              className={cn(
-                "inline-flex items-center gap-1",
-                active ? "text-foreground" : "opacity-40",
-              )}
-            >
-              <span
-                className="inline-block h-0.5 w-3"
-                style={{
-                  backgroundColor: SERIES_COLORS[key],
-                  borderTop: key === "raw" ? "1px dashed" : undefined,
-                }}
-              />
-              {labels?.[key] ?? key}
-            </button>
-          )
-        })}
-        {!showAllGrades && (
+        {!rawOnly
+          ? (["raw", "psa7", "psa8", "psa9", "psa10"] as const).map((key) => {
+              const count = seriesMap[key]?.length ?? 0
+              if (count < 1) return null
+              const active = activeKeys.includes(key)
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    if (key === "raw" || key === highlightKey) return
+                    setShowAllGrades((v) => !v)
+                  }}
+                  className={cn(
+                    "inline-flex items-center gap-1",
+                    active ? "text-foreground" : "opacity-40",
+                  )}
+                >
+                  <span
+                    className="inline-block h-0.5 w-3"
+                    style={{
+                      backgroundColor: SERIES_COLORS[key],
+                      borderTop: key === "raw" ? "1px dashed" : undefined,
+                    }}
+                  />
+                  {labels?.[key] ?? key}
+                </button>
+              )
+            })
+          : seriesMap.raw && seriesMap.raw.length > 0 ? (
+              <span className="inline-flex items-center gap-1 text-foreground">
+                <span
+                  className="inline-block h-0.5 w-3 border-t border-dashed"
+                  style={{ borderColor: SERIES_COLORS.raw }}
+                />
+                {labels?.raw ?? "Raw NM"}
+              </span>
+            ) : null}
+        {!rawOnly && !showAllGrades && (
           <button
             type="button"
             className="text-[9px] text-primary hover:underline"
@@ -415,17 +431,19 @@ export function PriceHistoryChart({
           )}
         >
           {loading
-            ? "Loading full price history from pokemon-api…"
-            : latestRaw > 0 && latestSlab > 0
+            ? "Loading price history…"
+            : latestRaw > 0
               ? "Only one day of history so far — check back after the next sync."
               : "No price history yet for this card."}
         </div>
       )}
 
-      {(latestRaw > 0 || latestSlab > 0) && (
-        <div className={cn("mt-2 grid gap-1.5", compact ? "grid-cols-2" : "grid-cols-4")}>
+      {(latestRaw > 0 || (!rawOnly && latestSlab > 0)) && (
+        <div className={cn("mt-2 grid gap-1.5", rawOnly ? "grid-cols-1" : compact ? "grid-cols-2" : "grid-cols-4")}>
           <Stat label="Raw now" value={latestRaw > 0 ? `$${latestRaw.toFixed(0)}` : "—"} />
-          <Stat label={`PSA ${grade}`} value={latestSlab > 0 ? `$${latestSlab.toFixed(0)}` : "—"} tone="up" />
+          {!rawOnly ? (
+            <Stat label={`PSA ${grade}`} value={latestSlab > 0 ? `$${latestSlab.toFixed(0)}` : "—"} tone="up" />
+          ) : null}
         </div>
       )}
     </div>
