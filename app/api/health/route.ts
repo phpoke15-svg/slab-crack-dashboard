@@ -7,6 +7,7 @@ import { isWalmartAffiliateConfigured } from "@/lib/restocks/walmart"
 import { isWebPushConfigured, countProQueuePushSubscribers } from "@/lib/push/web-push"
 import { isAdsDisplayEnabled } from "@/lib/adsense-config"
 import { isStripeConfigured } from "@/lib/billing/stripe"
+import { checkScrydexHealth } from "@/lib/scrydex/health"
 import { LEGAL_SITE_NAME, LEGAL_SITE_URL } from "@/lib/legal/config"
 
 export const dynamic = "force-dynamic"
@@ -34,6 +35,7 @@ export async function GET() {
 
   let pokematchReady: boolean | null = null
   let queueWatchReportsReady: boolean | null = null
+  let scrydexHealth: Awaited<ReturnType<typeof checkScrydexHealth>> | null = null
   if (supabaseConfigured) {
     const supabase = createCrossUserReader()
     if (supabase) {
@@ -48,6 +50,18 @@ export async function GET() {
       queueWatchReportsReady = await isQueueWatchReportsTableReady()
     } catch {
       queueWatchReportsReady = false
+    }
+  }
+
+  try {
+    scrydexHealth = await checkScrydexHealth()
+  } catch {
+    scrydexHealth = {
+      configured: false,
+      apiReachable: false,
+      creditsUsedToday: null,
+      dailyBudget: 0,
+      error: "Scrydex health check failed",
     }
   }
 
@@ -85,6 +99,11 @@ export async function GET() {
         restockReportSecured,
         pokematchReady,
         queueWatchReportsReady,
+        scrydexConfigured: scrydexHealth?.configured ?? false,
+        scrydexReachable: scrydexHealth?.apiReachable ?? null,
+        scrydexCreditsUsedToday: scrydexHealth?.creditsUsedToday ?? null,
+        scrydexDailyBudget: scrydexHealth?.dailyBudget ?? null,
+        scrydexError: scrydexHealth?.error ?? null,
       },
       launchReady,
       time: new Date().toISOString(),

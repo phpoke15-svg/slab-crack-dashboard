@@ -5,6 +5,7 @@ import {
   parseBinderSearchTokens,
   resolveBinderSetIdHint,
 } from "@/lib/trade-binder/pokemon-tcg"
+import { catalogRowMatchesSetHint } from "@/lib/db/catalog-set-match"
 import { simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import type { CatalogCardRow, CatalogSearchHit } from "@/lib/db/cards-catalog"
 
@@ -109,20 +110,8 @@ async function fetchBySetAndNumber(
   number: string,
   fetchLimit: number,
 ): Promise<CatalogCardRow[]> {
-  const safeNumber = sanitizeCatalogSearchToken(number)
-  const { data, error } = await supabase
-    .from("cards")
-    .select(CARD_SELECT)
-    .or(buildSetHintOrFilter(setHint))
-    .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
-    .order("name", { ascending: true })
-    .limit(fetchLimit)
-
-  if (error) throw error
-
-  return ((data ?? []) as CatalogCardRow[]).filter((row) =>
-    collectorNumberMatches(row.number, number),
-  )
+  const byNumber = await fetchByNumber(supabase, number, fetchLimit)
+  return byNumber.filter((row) => catalogRowMatchesSetHint(row, setHint))
 }
 
 async function fetchByNameAndNumber(
@@ -192,25 +181,8 @@ async function fetchByNameAndSetHint(
   setHint: string,
   fetchLimit: number,
 ): Promise<CatalogCardRow[]> {
-  const simplified = simplifyCardName(name).trim()
-  const nameTokens = simplified.split(/\s+/).filter((token) => token.length > 0)
-  const primaryToken = nameTokens.find((token) => token.length > 1) ?? simplified
-  const safeToken = sanitizeCatalogSearchToken(primaryToken)
-
-  const { data, error } = await supabase
-    .from("cards")
-    .select(CARD_SELECT)
-    .or(buildSetHintOrFilter(setHint))
-    .or(`name.ilike.%${safeToken}%,japanese_name.ilike.%${safeToken}%`)
-    .order("name", { ascending: true })
-    .limit(fetchLimit)
-
-  if (error) throw error
-
-  return ((data ?? []) as CatalogCardRow[]).filter((row) => {
-    if (nameTokens.length <= 1) return true
-    return catalogRowMatchesQuery(row, name)
-  })
+  const byName = await fetchByText(supabase, name, fetchLimit)
+  return byName.filter((row) => catalogRowMatchesSetHint(row, setHint))
 }
 
 async function fetchByText(
