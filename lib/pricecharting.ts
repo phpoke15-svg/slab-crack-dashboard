@@ -34,12 +34,9 @@ export interface GradePrice {
   price: number
 }
 
-export interface ArbitrageResult {
-  slabGrade: number
-  slabPrice: number
-  deficit: number
-  percentageSavings: number
-}
+export type ArbitrageResult = import("@/lib/slab-data").ArbitrageResult
+
+export { findBestArbitrage, formatArbitrageAlert } from "@/lib/slab-data"
 
 /** Convert PriceCharting penny values to dollars. */
 export function parsePriceCents(value: unknown): number {
@@ -60,30 +57,6 @@ export function extractCardPrices(product: PriceChartingProduct) {
   ]
   return { rawPrice, grades, name: product["product-name"] ?? "Unknown card" }
 }
-
-/** Find the graded copy with the largest savings vs raw NM. */
-export function findBestArbitrage(
-  rawPrice: number,
-  grades: GradePrice[],
-): ArbitrageResult | null {
-  if (rawPrice <= 0) return null
-
-  let best: ArbitrageResult | null = null
-
-  for (const { grade, price } of grades) {
-    if (price <= 0 || price >= rawPrice) continue
-
-    const deficit = rawPrice - price
-    const percentageSavings = Math.round((deficit / rawPrice) * 100)
-
-    if (!best || deficit > best.deficit) {
-      best = { slabGrade: grade, slabPrice: price, deficit, percentageSavings }
-    }
-  }
-
-  return best
-}
-
 export function stripRarityFromName(name: string): string {
   return name.replace(/\s+\([^)]+\)/, "").trim()
 }
@@ -239,8 +212,4 @@ export async function resolvePriceChartingForCard(
   if (!fallbackQuery) throw new Error("No PriceCharting search query available")
   const product = await fetchPriceChartingProduct(apiKey, { query: fallbackQuery })
   return { product }
-}
-
-export function formatArbitrageAlert(cardName: string, result: ArbitrageResult): string {
-  return `[ALERT] Arbitrage found on ${cardName}! PSA ${result.slabGrade} is $${result.deficit.toFixed(2)} cheaper than Raw.`
 }

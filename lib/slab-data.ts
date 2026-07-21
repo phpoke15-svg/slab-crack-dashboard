@@ -109,6 +109,40 @@ export function getBestGradeQuote(quotes: GradeQuote[]): GradeQuote | null {
   )
 }
 
+export type ArbitrageResult = {
+  slabGrade: number
+  slabPrice: number
+  deficit: number
+  percentageSavings: number
+}
+
+/** Find the graded copy with the largest savings vs TCGPlayer raw market baseline. */
+export function findBestArbitrage(
+  rawPrice: number,
+  grades: { grade: number; price: number }[],
+): ArbitrageResult | null {
+  if (rawPrice <= 0) return null
+
+  let best: ArbitrageResult | null = null
+
+  for (const { grade, price } of grades) {
+    if (price <= 0 || price >= rawPrice) continue
+
+    const deficit = rawPrice - price
+    const percentageSavings = Math.round((deficit / rawPrice) * 100)
+
+    if (!best || deficit > best.deficit) {
+      best = { slabGrade: grade, slabPrice: price, deficit, percentageSavings }
+    }
+  }
+
+  return best
+}
+
+export function formatArbitrageAlert(cardName: string, result: ArbitrageResult): string {
+  return `[ALERT] Arbitrage found on ${cardName}! PSA ${result.slabGrade} is $${result.deficit.toFixed(2)} cheaper than raw market.`
+}
+
 export function getGradeQuotes(entry: MockCardEntry): GradeQuote[] {
   if (entry.gradeQuotes?.length) return entry.gradeQuotes
 

@@ -1,5 +1,5 @@
 /**
- * Scan PriceCharting's full Pokemon market for slab < raw arbitrage.
+ * Scan pokemon-api catalog pages for slab < raw arbitrage.
  *
  * Usage:
  *   npm run discover-arbitrage
@@ -42,6 +42,7 @@ async function main() {
   console.log(`  Arbitrage found:  ${result.arbitrageFound}`)
   console.log(`  Saved to DB:      ${result.saved}`)
   console.log(`  Top deficit:      $${result.topDeficit.toFixed(2)}`)
+  console.log(`  Catalog page:     ${result.catalogPage} → ${result.nextCatalogPage} / ${result.totalCatalogPages}`)
 }
 
 main().catch((err) => {

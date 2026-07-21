@@ -1,9 +1,5 @@
 import { fetchCardPricesForTarget } from "@/lib/pricing/fetch"
-import { getActivePriceProvider, getPriceChartingApiKey } from "@/lib/pricing/provider"
-import {
-  extractCardPrices,
-  resolvePriceChartingForCard,
-} from "@/lib/pricecharting"
+import { getActivePriceProvider } from "@/lib/pricing/provider"
 
 export type BinderPriceInput = {
   id: string
@@ -16,59 +12,27 @@ export function parseBinderCardNumber(name: string, cardNumber?: string): string
   return cardNumber || name.match(/#(\d+[a-zA-Z/-]*)/)?.[1] || ""
 }
 
-async function resolveBinderCardPriceLegacyPc(
-  apiKey: string,
-  input: BinderPriceInput,
-): Promise<number> {
-  const priceChartingId = input.id.startsWith("pc-") ? input.id.replace(/^pc-/, "") : undefined
-  const cardNumber = parseBinderCardNumber(input.name, input.cardNumber)
-
-  try {
-    const { product } = await Promise.race([
-      resolvePriceChartingForCard(apiKey, {
-        cardName: input.name,
-        setName: input.set,
-        cardNumber,
-        priceChartingId,
-      }),
-      new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Price lookup timed out")), 4500),
-      ),
-    ])
-    return extractCardPrices(product).rawPrice
-  } catch {
-    return 0
-  }
-}
-
 export async function resolveBinderCardPrice(
   input: BinderPriceInput,
   cachedPrice?: number,
 ): Promise<number> {
   if (cachedPrice && cachedPrice > 0) return cachedPrice
 
-  const provider = getActivePriceProvider()
-  if (!provider) return 0
+  if (getActivePriceProvider() !== "tcggo") return 0
 
   try {
-    if (provider === "tcggo") {
-      const fetched = await Promise.race([
-        fetchCardPricesForTarget({
-          cardId: input.id,
-          cardName: input.name,
-          setName: input.set,
-          cardNumber: input.cardNumber,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Price lookup timed out")), 4500),
-        ),
-      ])
-      return fetched.rawPrice
-    }
-
-    const apiKey = getPriceChartingApiKey()
-    if (!apiKey) return 0
-    return resolveBinderCardPriceLegacyPc(apiKey, input)
+    const fetched = await Promise.race([
+      fetchCardPricesForTarget({
+        cardId: input.id,
+        cardName: input.name,
+        setName: input.set,
+        cardNumber: input.cardNumber,
+      }),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Price lookup timed out")), 4500),
+      ),
+    ])
+    return fetched.rawPrice
   } catch {
     return 0
   }
@@ -84,9 +48,9 @@ export async function attachBinderCardPrices(
     cacheOnly?: boolean
   },
 ): Promise<Map<string, number>> {
-  const provider = getActivePriceProvider()
   const result = new Map<string, number>()
   const cacheOnly = options?.cacheOnly ?? false
+  const provider = getActivePriceProvider()
   if (!provider && !cacheOnly) return result
 
   const cached = options?.cachedPrices ?? new Map<string, number>()

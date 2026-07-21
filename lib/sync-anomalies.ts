@@ -2,28 +2,19 @@ import { readFile, writeFile } from "fs/promises"
 import path from "path"
 import watchlistConfig from "@/lib/watchlist-config.json"
 import fallbackData from "@/lib/mockData.json"
-import {
-  extractCardPrices,
-  findBestArbitrage,
-  formatArbitrageAlert,
-  resolvePriceChartingForCard,
-} from "@/lib/pricecharting"
+import { fetchCardPricesForTarget } from "@/lib/pricing/fetch"
+import { hasTcgGoApiKey } from "@/lib/pricing/provider"
 import {
   buildGradeQuotesFromPrices,
+  findBestArbitrage,
+  formatArbitrageAlert,
   getBestGradeQuote,
   normalizeCardEntry,
   type MockCardEntry,
 } from "@/lib/slab-data"
 import { upsertAnomaliesToDb, getAnomaliesFromDb, isSupabaseConfigured } from "@/lib/db/anomalies"
 import { appendPriceSnapshots } from "@/lib/db/price-snapshots"
-import { appendSaleEventsFromEntries } from "@/lib/db/sale-events"
-import { getWatchlistFromDb, updatePriceChartingId } from "@/lib/db/watchlist"
-import {
-  defaultEbayQueries,
-  fetchCardPricesFromEbaySold,
-  findArbitrageFromEbaySold,
-  formatArbitrageAlert as formatEbayAlert,
-} from "@/lib/ebay-sold"
+import { getWatchlistFromDb } from "@/lib/db/watchlist"
 
 export interface WatchlistCard {
   id: string
@@ -48,10 +39,19 @@ export interface SyncResult {
   anomalies: MockCardEntry[]
   alerts: string[]
   syncedAt: string
-  source: "pricecharting" | "ebay" | "cache" | "fallback"
+  source: "tcggo" | "cache" | "fallback"
 }
 
 const CACHE_PATH = path.join(process.cwd(), "data", "anomalies-cache.json")
+const TCGGO_RATE_LIMIT_MS = 2100
+
+function resolveWatchlistCardId(card: WatchlistCard): string {
+  if (card.id.startsWith("poke-") || card.id.startsWith("pc-")) return card.id
+  if (card.pokemonTcgId?.startsWith("poke-")) return card.pokemonTcgId
+  if (card.pokemonTcgId) return `poke-${card.pokemonTcgId.replace(/^poke-/, "")}`
+  if (card.priceChartingId) return `pc-${card.priceChartingId}`
+  return card.id
+}
 
 async function loadWatchlist(): Promise<WatchlistCard[]> {
   if (isSupabaseConfigured()) {
@@ -88,17 +88,17 @@ export async function writeAnomaliesCache(anomalies: MockCardEntry[]): Promise<v
     } catch (error) {
       console.error("[sync] Price snapshot upsert failed:", error)
     }
-    try {
-      await appendSaleEventsFromEntries(anomalies)
-    } catch (error) {
-      console.error("[sync] Sale event upsert failed:", error)
-    }
   }
 }
 
-export async function syncAnomaliesFromPriceCharting(apiKey: string): Promise<SyncResult> {
+/** SlabCrack / SlabIt feed sync — TCGPlayer raw market + eBay PSA medians from pokemon-api. */
+export async function syncAnomaliesFromTcgGo(): Promise<SyncResult> {
+  if (!hasTcgGoApiKey()) {
+    throw new Error("RAPIDAPI_POKEMON_TCG_KEY is not configured")
+  }
+
   const watchlist = await loadWatchlist()
-  console.log(`[sync] PriceCharting: processing ${watchlist.length} cards...`)
+  console.log(`[sync] pokemon-api: processing ${watchlist.length} watchlist cards...`)
   const anomalies: MockCardEntry[] = []
   const alerts: string[] = []
   let priced = 0
@@ -106,50 +106,56 @@ export async function syncAnomaliesFromPriceCharting(apiKey: string): Promise<Sy
 
   for (const card of watchlist) {
     try {
-      const { product, resolvedId } = await resolvePriceChartingForCard(apiKey, {
-        priceChartingId: card.priceChartingId,
-        searchQuery: card.searchQuery,
+      const cardId = resolveWatchlistCardId(card)
+      const fetched = await fetchCardPricesForTarget({
+        cardId,
         cardName: card.cardName,
         setName: card.setName,
         cardNumber: card.cardNumber,
+        legacyPriceChartingId: card.priceChartingId,
+        tcgplayerId: undefined,
       })
 
-      if (resolvedId && resolvedId !== card.priceChartingId && isSupabaseConfigured()) {
-        try {
-          await updatePriceChartingId(card.id, resolvedId)
-        } catch (error) {
-          console.warn(`[sync] Could not save PriceCharting id for ${card.cardName}:`, error)
-        }
-      }
-
-      const { rawPrice, grades } = extractCardPrices(product)
-      if (rawPrice <= 0) {
-        console.warn(`[sync] No raw price for ${card.cardName} (PC id ${resolvedId ?? product.id ?? "?"})`)
+      if (fetched.rawPrice <= 0) {
+        console.warn(`[sync] No TCGPlayer market price for ${card.cardName}`)
         skipped += 1
-        await new Promise((resolve) => setTimeout(resolve, 1100))
+        await new Promise((resolve) => setTimeout(resolve, TCGGO_RATE_LIMIT_MS))
         continue
       }
 
-      const gradeQuotes = buildGradeQuotesFromPrices(rawPrice, grades)
-      const arbitrage = findBestArbitrage(rawPrice, grades)
+      const grades = [
+        { grade: 7, price: fetched.psa7Price },
+        { grade: 8, price: fetched.psa8Price },
+        { grade: 9, price: fetched.psa9Price },
+        { grade: 10, price: fetched.psa10Price },
+      ].filter((g) => g.price > 0)
+
+      const gradeQuotes = buildGradeQuotesFromPrices(fetched.rawPrice, grades)
+      const arbitrage = findBestArbitrage(fetched.rawPrice, grades)
       if (arbitrage) alerts.push(formatArbitrageAlert(card.cardName, arbitrage))
 
       const best = getBestGradeQuote(gradeQuotes)
+      const imageUrl =
+        card.imageUrl && !card.imageUrl.includes("placehold.co")
+          ? card.imageUrl
+          : card.imageUrl
 
       anomalies.push(
         normalizeCardEntry({
           id: card.id,
+          pokemonTcgId: fetched.tcgId ? `poke-${fetched.tcgId.replace(/^poke-/, "")}` : card.pokemonTcgId,
           cardName: card.cardName,
           setName: card.setName,
           cardNumber: card.cardNumber,
-          imageUrl: card.imageUrl,
-          rawPrice,
+          imageUrl,
+          rawPrice: fetched.rawPrice,
           slabGrade: best?.grade ?? arbitrage?.slabGrade ?? 9,
           slabPrice: best?.slabPrice ?? arbitrage?.slabPrice ?? 0,
           deficit: best?.deficit ?? 0,
           percentageSavings: best?.percentageSavings ?? 0,
           gradeQuotes,
-          marketInsight: card.marketInsight,
+          marketInsight:
+            "TCGPlayer raw market + eBay PSA medians from pokemon-api.com. Recent sold comps load on demand.",
           hasPricing: true,
         }),
       )
@@ -160,11 +166,10 @@ export async function syncAnomaliesFromPriceCharting(apiKey: string): Promise<Sy
       console.warn(`[sync] Skipped ${card.cardName}: ${message}`)
     }
 
-    // PriceCharting rate limit: 1 req/sec
-    await new Promise((resolve) => setTimeout(resolve, 1100))
+    await new Promise((resolve) => setTimeout(resolve, TCGGO_RATE_LIMIT_MS))
   }
 
-  console.log(`[sync] PriceCharting done: ${priced} priced, ${skipped} skipped`)
+  console.log(`[sync] pokemon-api done: ${priced} priced, ${skipped} skipped`)
 
   if (anomalies.length > 0) {
     await writeAnomaliesCache(anomalies)
@@ -179,82 +184,10 @@ export async function syncAnomaliesFromPriceCharting(apiKey: string): Promise<Sy
           : await readAnomaliesCache(),
     alerts,
     syncedAt: new Date().toISOString(),
-    source: anomalies.length > 0 ? "pricecharting" : "cache",
-  }
-}
-
-export async function syncAnomaliesFromEbaySold(apiKey: string): Promise<SyncResult> {
-  const watchlist = await loadWatchlist()
-  console.log(`[sync] Processing ${watchlist.length} watchlist cards...`)
-  const anomalies: MockCardEntry[] = []
-  const alerts: string[] = []
-
-  for (const card of watchlist) {
-    const queries = card.ebayQueries ?? defaultEbayQueries(card)
-    const { rawPrice, grades, sampleCounts, recentRawSales, recentByGrade } =
-      await fetchCardPricesFromEbaySold(apiKey, queries)
-
-    if (rawPrice <= 0) {
-      console.warn(`[eBay] No raw sold comps for ${card.cardName} (${sampleCounts.raw} matches)`)
-      continue
-    }
-
-    const gradeQuotes = buildGradeQuotesFromPrices(rawPrice, grades, recentByGrade)
-    const arbitrage = findArbitrageFromEbaySold(rawPrice, grades)
-    if (arbitrage) alerts.push(formatEbayAlert(card.cardName, arbitrage))
-
-    const best = getBestGradeQuote(gradeQuotes)
-
-    anomalies.push(
-      normalizeCardEntry({
-        id: card.id,
-        cardName: card.cardName,
-        setName: card.setName,
-        cardNumber: card.cardNumber,
-        imageUrl: card.imageUrl,
-        rawPrice,
-        slabGrade: best?.grade ?? arbitrage?.slabGrade ?? 9,
-        slabPrice: best?.slabPrice ?? arbitrage?.slabPrice ?? 0,
-        deficit: best?.deficit ?? 0,
-        percentageSavings: best?.percentageSavings ?? 0,
-        gradeQuotes,
-        marketInsight: `${card.marketInsight} (Prices from eBay sold comps, last 30 days.)`,
-        recentRawSales,
-        recentSlabSales: best?.recentSlabSales ?? recentByGrade[best?.grade ?? 9] ?? [],
-        sampleCounts,
-        hasPricing: true,
-      }),
-    )
-
-    await new Promise((resolve) => setTimeout(resolve, 1100))
-  }
-
-  if (anomalies.length > 0) {
-    await writeAnomaliesCache(anomalies)
-  }
-
-  return {
-    anomalies:
-      anomalies.length > 0
-        ? anomalies
-        : isSupabaseConfigured()
-          ? await getAnomaliesFromDb().catch(() => readAnomaliesCache())
-          : await readAnomaliesCache(),
-    alerts,
-    syncedAt: new Date().toISOString(),
-    source: anomalies.length > 0 ? "ebay" : "cache",
+    source: anomalies.length > 0 ? "tcggo" : "cache",
   }
 }
 
 export async function syncAnomalies(): Promise<SyncResult> {
-  const source = process.env.PRICE_SOURCE ?? "ebay"
-  if (source === "ebay") {
-    const key = process.env.EBAY_SOLD_API_KEY
-    if (!key) throw new Error("EBAY_SOLD_API_KEY is not configured")
-    return syncAnomaliesFromEbaySold(key)
-  }
-
-  const key = process.env.PRICECHARTING_API_KEY
-  if (!key) throw new Error("PRICECHARTING_API_KEY is not configured")
-  return syncAnomaliesFromPriceCharting(key)
+  return syncAnomaliesFromTcgGo()
 }

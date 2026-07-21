@@ -157,10 +157,8 @@ describe("getActivePriceProvider", () => {
     process.env = { ...original }
   })
 
-  it("prefers tcggo when both keys are set in auto mode", () => {
-    process.env.PRICE_PROVIDER = "auto"
+  it("returns tcggo when RapidAPI key is configured", () => {
     process.env.RAPIDAPI_POKEMON_TCG_KEY = "rapid-key"
-    process.env.PRICECHARTING_API_KEY = "pc-key"
     expect(getActivePriceProvider()).toBe("tcggo")
   })
 })
