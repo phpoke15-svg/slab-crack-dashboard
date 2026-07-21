@@ -34,12 +34,12 @@ export function PanelShell({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-background/70 backdrop-blur-sm"
+      className="fixed inset-0 z-50 modal-backdrop bg-background/70 backdrop-blur-sm"
       onClick={onClose}
       role="presentation"
     >
       <div
-        className="mx-auto flex h-full w-full max-w-3xl flex-col border-x border-border bg-background shadow-xl"
+        className="modal-panel mx-auto flex h-full w-full max-w-3xl flex-col border-x border-border bg-background shadow-xl"
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
         role="dialog"

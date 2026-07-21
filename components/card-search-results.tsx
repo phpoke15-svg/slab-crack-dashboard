@@ -3,6 +3,7 @@
 import { Loader2, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CatalogCardTile } from "@/components/catalog-card-tile"
+import { StaggerGridItem } from "@/components/ui/micro-interactions"
 import type { CardSearchHit } from "@/lib/card-lookup"
 
 export type { CardSearchHit }
@@ -49,14 +50,14 @@ export function CardSearchResults({
           No cards found for &ldquo;{query}&rdquo;. Try a name, set (e.g. 151), or number (e.g. #173).
         </p>
       ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {hits.map((hit) => {
+        <ul key={query.trim().toLowerCase()} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {hits.map((hit, index) => {
             const watched = isHitWatched(hit)
             const loadingDetail = detailLoadingId === hit.id
             const hasPrice = hit.rawPrice != null && hit.rawPrice > 0
 
             return (
-              <li key={hit.id}>
+              <StaggerGridItem key={hit.id} index={index}>
                 <CatalogCardTile
                   cardId={hit.id}
                   cardName={hit.cardName}
@@ -93,7 +94,7 @@ export function CardSearchResults({
                     </button>
                   }
                 />
-              </li>
+              </StaggerGridItem>
             )
           })}
         </ul>

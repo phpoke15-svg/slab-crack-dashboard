@@ -157,13 +157,13 @@ export function ProPushAlertsPrompt() {
         type="button"
         aria-label="Dismiss"
         onClick={onRemindLater}
-        className="absolute inset-0 bg-background/85 backdrop-blur-sm"
+        className="absolute inset-0 modal-backdrop bg-background/85 backdrop-blur-sm"
       />
 
       <div
         role="dialog"
         aria-labelledby="pro-push-prompt-title"
-        className="relative z-10 w-full max-w-md rounded-2xl border border-primary/40 bg-card p-5 shadow-2xl sm:p-6"
+        className="relative z-10 w-full max-w-md modal-panel rounded-2xl border border-primary/40 bg-card p-5 shadow-2xl sm:p-6"
       >
         <button
           type="button"

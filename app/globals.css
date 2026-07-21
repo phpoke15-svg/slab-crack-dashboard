@@ -42,6 +42,8 @@
   --animate-slide-up: slide-up 0.32s cubic-bezier(0.22, 1, 0.36, 1);
   --animate-fade-in: fade-in 0.2s ease-out;
   --animate-pulse-glow: pulse-glow 2.4s ease-in-out infinite;
+  --animate-stagger-fade-in: stagger-fade-in 0.2s ease-out forwards;
+  --animate-modal-panel-in: modal-panel-in 0.2s ease-out forwards;
 }
 
 :root {
@@ -121,6 +123,41 @@
   }
 }
 
+@keyframes stagger-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (min-width: 640px) {
+  @keyframes modal-panel-in {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -197,6 +234,41 @@ html.native-app .app-tab-shell {
 
 .giveaway-toast-bottom {
   bottom: calc(var(--bottom-nav-height) + 1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.modal-backdrop {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+.modal-panel {
+  animation: modal-panel-in 0.2s ease-out forwards;
+  transform-origin: center bottom;
+}
+
+@media (min-width: 640px) {
+  .modal-panel {
+    transform-origin: center center;
+  }
+}
+
+.catalog-card-hover {
+  transition:
+    transform 0.2s ease-out,
+    box-shadow 0.2s ease-out,
+    border-color 0.2s ease-out,
+    background-color 0.2s ease-out;
+  will-change: transform;
+}
+
+.catalog-card-hover:hover {
+  transform: translateY(-0.25rem);
+  box-shadow:
+    0 10px 24px -12px oklch(0.78 0.17 155 / 0.35),
+    0 8px 16px -10px oklch(0 0 0 / 0.45);
+}
+
+.animate-stagger-fade-in {
+  animation: stagger-fade-in 0.2s ease-out forwards;
 }
 
 /* App Store 2.3.10 — hide Google Play / Android-only copy inside the iOS app */

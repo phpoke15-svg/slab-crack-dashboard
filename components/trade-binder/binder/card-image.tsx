@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Image from "next/image"
+import { cn } from "@/lib/utils"
 import { bestDisplayCardImageUrl } from "@/lib/card-image-url"
 import { useCardImage } from "@/hooks/trade-binder/use-card-image"
 
@@ -28,25 +29,43 @@ export function CardImage({
   const upgradedSrc = useCardImage(card, { upgrade })
   const preferredSrc = upgrade ? upgradedSrc : originalSrc
   const [useOriginal, setUseOriginal] = useState(false)
+  const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
     setUseOriginal(false)
+    setLoaded(false)
   }, [card.id, card.image, preferredSrc])
 
   const displaySrc = useOriginal ? originalSrc : preferredSrc
 
   return (
-    <Image
-      src={displaySrc || "/placeholder.svg"}
-      alt={alt}
-      fill
-      sizes={sizes}
-      className={className}
-      onError={() => {
-        if (!useOriginal && originalSrc !== preferredSrc && originalSrc !== "/placeholder.svg") {
-          setUseOriginal(true)
-        }
-      }}
-    />
+    <div className="relative h-full w-full">
+      {!loaded ? (
+        <div
+          className="absolute inset-0 animate-pulse bg-secondary/80"
+          aria-hidden
+        />
+      ) : null}
+      <Image
+        src={displaySrc || "/placeholder.svg"}
+        alt={alt}
+        fill
+        sizes={sizes}
+        className={cn(
+          className,
+          "transition-opacity duration-300",
+          loaded ? "opacity-100" : "opacity-0",
+        )}
+        onLoad={() => setLoaded(true)}
+        onError={() => {
+          if (!useOriginal && originalSrc !== preferredSrc && originalSrc !== "/placeholder.svg") {
+            setUseOriginal(true)
+            setLoaded(false)
+          } else {
+            setLoaded(true)
+          }
+        }}
+      />
+    </div>
   )
 }

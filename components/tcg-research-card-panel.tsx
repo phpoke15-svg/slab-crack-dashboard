@@ -13,6 +13,7 @@ import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { SlabCardImage } from "@/components/slab-card-image"
+import { AnimatedPrice, ConditionBadge } from "@/components/ui/micro-interactions"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 import { slabEbayAffiliateCampaign, slabEbaySearchKeyword } from "@/lib/grading/ebay-search"
 import {
@@ -146,7 +147,7 @@ export function TcgResearchCardPanel({
         type="button"
         aria-label="Close card details"
         onClick={onClose}
-        className="absolute inset-0 animate-fade-in bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 modal-backdrop bg-black/70 backdrop-blur-sm"
       />
 
       <div
@@ -154,7 +155,7 @@ export function TcgResearchCardPanel({
         aria-modal="true"
         aria-label={`${card.cardName} research details`}
         className={cn(
-          "relative flex max-h-[92vh] w-full max-w-2xl animate-slide-up flex-col overflow-hidden rounded-t-3xl border border-border bg-popover",
+          "relative flex max-h-[92vh] w-full max-w-2xl modal-panel flex-col overflow-hidden rounded-t-3xl border border-border bg-popover",
           "sm:rounded-3xl",
         )}
       >
@@ -197,10 +198,15 @@ export function TcgResearchCardPanel({
           <div className="mt-5 rounded-2xl border border-border bg-secondary/40 p-3">
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <div>
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
-                <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
-                  {priced && card.rawPrice > 0 ? `$${card.rawPrice.toFixed(2)}` : "—"}
-                </span>
+                <ConditionBadge label="Raw NM" className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Raw NM
+                </ConditionBadge>
+                <AnimatedPrice
+                  value={card.rawPrice}
+                  formatted={priced && card.rawPrice > 0 ? `$${card.rawPrice.toFixed(2)}` : "—"}
+                  refreshTrigger={payload.priceUpdatedAt}
+                  className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground"
+                />
               </div>
               <SlabGradeSelector
                 value={slabGrade}
