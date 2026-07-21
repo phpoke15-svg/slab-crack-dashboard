@@ -1,17 +1,50 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Camera, Loader2, Search } from "lucide-react"
+import { ArrowLeft, Camera, Loader2, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
+import { CardScanner } from "@/components/card-scanner"
 import { CardSearchResults } from "@/components/card-search-results"
 import { CatalogCardTile } from "@/components/catalog-card-tile"
 import { TcgResearchCardPanel } from "@/components/tcg-research-card-panel"
 import type { CardSearchHit } from "@/lib/card-lookup"
+import type { ScanPipelineResult } from "@/lib/scanner/types"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
+import { matchTcgResearchSnapshot } from "@/lib/tcg-research/vision-scan-client"
 import type { TcgGame } from "@/lib/scrydex/types"
+
+function scanResultFromTcgResearchPayload(payload: TcgResearchCardFull): ScanPipelineResult {
+  const card = payload.card
+  return {
+    ok: true,
+    detected: {
+      cardName: card.cardName,
+      setName: card.setName,
+      cardNumber: card.cardNumber,
+      confidence: 95,
+    },
+    query: `${card.cardName} ${card.cardNumber}`.trim(),
+    hit: {
+      id: card.id,
+      pokemonTcgId: card.pokemonTcgId,
+      cardName: card.cardName,
+      setName: card.setName,
+      cardNumber: card.cardNumber,
+      imageUrl: card.imageUrl,
+      rawPrice: card.rawPrice > 0 ? card.rawPrice : undefined,
+    },
+    candidates: [],
+    card,
+    source: "gemini",
+    matchScore: 100,
+    pricingSource: "local",
+    needsLiveRefresh: false,
+    matchMethod: "vision",
+  }
+}
 
 const GAME_TABS: { id: TcgGame; label: string }[] = [
   { id: "pokemon", label: "Pokémon" },
@@ -163,11 +196,7 @@ export function TcgResearchClient() {
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
-  const [scanBusy, setScanBusy] = useState(false)
-  const [scanError, setScanError] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const scanPayloadRef = useRef<TcgResearchCardFull | null>(null)
 
   const searchEnabled = query.trim().length >= 2
   const { hits, isLoading, error: searchError } = useTcgResearchSearch(query, game, searchEnabled)
@@ -196,99 +225,30 @@ export function TcgResearchClient() {
     }
   }, [game])
 
-  const loadFromVision = useCallback(async (imageBase64: string) => {
-    setScanBusy(true)
-    setScanError(null)
-    try {
-      const res = await fetch("/api/catalog/vision", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64, preferredGames: [game] }),
-      })
-      const json = (await res.json()) as {
-        card?: { catalog_id?: string; scrydex_id?: string; name?: string }
-        error?: string
-      }
-      if (!res.ok || !json.card?.scrydex_id) {
-        throw new Error(json.error || "No card match from vision scan")
-      }
+  const matchScrydexSnapshot = useCallback(
+    async (snapshot: string) => {
+      const outcome = await matchTcgResearchSnapshot(snapshot, game)
+      if (!outcome.ok) return { ok: false as const, error: outcome.error }
+      scanPayloadRef.current = outcome.payload
+      return { ok: true as const, result: scanResultFromTcgResearchPayload(outcome.payload) }
+    },
+    [game],
+  )
 
-      const lookupParams = new URLSearchParams({
-        scrydexId: json.card.scrydex_id,
-        game,
-      })
-      if (json.card.catalog_id) lookupParams.set("catalogId", json.card.catalog_id)
-
-      const lookupRes = await fetch(`/api/tcg-research/card?${lookupParams.toString()}`)
-      const lookupJson = (await lookupRes.json()) as TcgResearchCardFull & { error?: string }
-      if (!lookupRes.ok || !lookupJson.card) {
-        throw new Error(lookupJson.error || "Local card lookup failed")
-      }
-
-      setSelectedPayload(lookupJson)
-      setScanOpen(false)
-    } catch (err) {
-      setScanError(err instanceof Error ? err.message : "Vision scan failed")
-    } finally {
-      setScanBusy(false)
-    }
+  const handleScanMatch = useCallback((_result: ScanPipelineResult, _snapshot: string) => {
+    const payload = scanPayloadRef.current
+    if (!payload) return
+    setSelectedPayload(payload)
+    setDetailError(null)
+    if (payload.game !== game) setGame(payload.game)
+    setScanOpen(false)
+    scanPayloadRef.current = null
   }, [game])
 
-  const stopCamera = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop())
-    streamRef.current = null
+  const handleScanFail = useCallback((error: string) => {
+    setDetailError(error)
+    setScanOpen(false)
   }, [])
-
-  const startCamera = useCallback(async () => {
-    setScanError(null)
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" } },
-        audio: false,
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-    } catch {
-      setScanError("Camera access denied. Upload a photo instead.")
-    }
-  }, [])
-
-  useEffect(() => {
-    if (scanOpen) void startCamera()
-    return () => stopCamera()
-  }, [scanOpen, startCamera, stopCamera])
-
-  const captureAndScan = useCallback(async () => {
-    const video = videoRef.current
-    if (!video || video.videoWidth <= 0) return
-
-    const canvas = document.createElement("canvas")
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
-    ctx.drawImage(video, 0, 0)
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.88)
-    const base64 = dataUrl.split(",")[1]
-    if (base64) await loadFromVision(base64)
-  }, [loadFromVision])
-
-  const handleFileUpload = useCallback(
-    async (file: File | null) => {
-      if (!file) return
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = String(reader.result ?? "")
-        const base64 = result.includes(",") ? result.split(",")[1] : result
-        if (base64) void loadFromVision(base64)
-      }
-      reader.readAsDataURL(file)
-    },
-    [loadFromVision],
-  )
 
   return (
     <div className="flex flex-col gap-6">
@@ -401,58 +361,28 @@ export function TcgResearchClient() {
       ) : null}
 
       {scanOpen ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 sm:items-center">
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-background p-4 shadow-2xl">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-foreground">Scrydex Vision scan</h3>
-              <button
-                type="button"
-                onClick={() => setScanOpen(false)}
-                className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="relative mt-3 overflow-hidden rounded-xl bg-black">
-              <video ref={videoRef} className="aspect-[3/4] w-full object-cover" playsInline muted />
-              {scanBusy ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                  <Loader2 className="size-8 animate-spin text-primary" />
-                </div>
-              ) : null}
-            </div>
-
-            {scanError ? <p className="mt-3 text-sm text-destructive">{scanError}</p> : null}
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={scanBusy}
-                onClick={() => void captureAndScan()}
-                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-              >
-                {scanBusy ? <Loader2 className="size-4 animate-spin" /> : <Camera className="size-4" />}
-                Capture & identify
-              </button>
-              <button
-                type="button"
-                disabled={scanBusy}
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-foreground"
-              >
-                Upload photo
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => void handleFileUpload(e.target.files?.[0] ?? null)}
-              />
-            </div>
+        <div className="fixed inset-0 z-50 flex flex-col bg-black">
+          <div className="absolute left-0 right-0 top-0 z-10 flex items-center justify-between gap-3 p-4">
+            <button
+              type="button"
+              onClick={() => setScanOpen(false)}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-black/50 px-3 py-2 text-sm font-semibold text-white backdrop-blur"
+            >
+              <ArrowLeft className="size-4" />
+              Back
+            </button>
+            <span className="rounded-full border border-white/20 bg-black/50 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur">
+              Scrydex Vision · {gameLabel}
+            </span>
           </div>
+
+          <CardScanner
+            immersive
+            className="min-h-0 flex-1"
+            matchSnapshot={matchScrydexSnapshot}
+            onMatch={handleScanMatch}
+            onScanFail={handleScanFail}
+          />
         </div>
       ) : null}
 

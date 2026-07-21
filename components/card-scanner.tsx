@@ -11,7 +11,7 @@ import {
   SCAN_STABILITY_HOLD_MS,
 } from "@/lib/scanner/capture-settings"
 import { preloadOcrWorker, releaseOcrWorker } from "@/lib/scanner/ocr-client"
-import { matchPointScanSnapshot } from "@/lib/scanner/point-scan-match"
+import { matchPointScanSnapshot, type PointScanMatchOutcome } from "@/lib/scanner/point-scan-match"
 import { scanHapticMatch } from "@/lib/scanner/point-scan"
 import { StabilityGate } from "@/lib/scanner/stability"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
@@ -21,6 +21,9 @@ const SCAN_FAIL_NOTE_MS = 4000
 function friendlyScanError(message: string): string {
   if (/GEMINI_API_KEY|vision API key|not configured/i.test(message)) {
     return "Card vision is not configured on the server. Try manual search below."
+  }
+  if (/SCRYDEX|Scrydex Vision is not configured/i.test(message)) {
+    return "Scrydex Vision is not configured on the server. Try manual search below."
   }
   return message
 }
@@ -54,6 +57,8 @@ export type CardScannerProps = {
   paused?: boolean
   onMatch: (result: ScanPipelineResult, snapshot: string) => void
   onScanFail?: (error: string, snapshot: string | null) => void
+  /** Override default SlabCrack OCR/Gemini pipeline (e.g. Scrydex Vision for TCG Research). */
+  matchSnapshot?: (snapshot: string) => Promise<PointScanMatchOutcome>
   className?: string
   immersive?: boolean
 }
@@ -62,6 +67,7 @@ export function CardScanner({
   paused = false,
   onMatch,
   onScanFail,
+  matchSnapshot,
   className,
   immersive = false,
 }: CardScannerProps) {
@@ -92,11 +98,12 @@ export function CardScanner({
   }, [])
 
   useEffect(() => {
+    if (matchSnapshot) return
     void preloadOcrWorker()
     return () => {
       void releaseOcrWorker()
     }
-  }, [])
+  }, [matchSnapshot])
 
   const startCamera = useCallback(async () => {
     setCameraError(null)
@@ -200,7 +207,9 @@ export function CardScanner({
       try {
         const snapshot = await captureCardFromVideo(video, guide)
         setStatusNote("Matching card…")
-        const outcome = await matchPointScanSnapshot(snapshot)
+        const outcome = matchSnapshot
+          ? await matchSnapshot(snapshot)
+          : await matchPointScanSnapshot(snapshot)
 
         if (!outcome.ok) {
           if (source === "upload") {
@@ -241,7 +250,7 @@ export function CardScanner({
         setScanning(false)
       }
     },
-    [deliverMatch, guide, onScanFail, paused, showFailNote],
+    [deliverMatch, guide, matchSnapshot, onScanFail, paused, showFailNote],
   )
 
   const scanNow = useCallback(() => {
