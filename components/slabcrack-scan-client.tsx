@@ -8,7 +8,10 @@ import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { DeficitBadge } from "@/components/deficit-badge"
-import { GradePriceGrid } from "@/components/grade-price-grid"
+import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
+import { resolveGradedPricesForCard, getBestSlabQuote, buildSlabQuotesForCompany } from "@/lib/grading/quotes"
+import { DEFAULT_SLAB_GRADE, type SlabGradeRef } from "@/lib/grading/types"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { CardScanner } from "@/components/card-scanner"
 import { CardFoundSheet, type CardVariant } from "@/components/card-found-sheet"
@@ -20,7 +23,6 @@ import { enrichCatalogSearchHits } from "@/hooks/use-catalog-card-search"
 import { addCardToBinder } from "@/lib/trade-binder/binder"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import {
-  getBestGradeQuote,
   getGradeQuotes,
   normalizeCardEntry,
   resolvePsa10Price,
@@ -77,6 +79,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     matchMethod?: "visual_phash" | "vision" | "ocr"
     matchScore?: number
   } | null>(null)
+  const [slabCompany, setSlabCompany] = useState<SlabGradeRef["company"]>("PSA")
   const [foundPreview, setFoundPreview] = useState<MockCardEntry | null>(null)
   const [portfolioAdding, setPortfolioAdding] = useState(false)
   const [portfolioMessage, setPortfolioMessage] = useState<string | null>(null)
@@ -316,8 +319,9 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     setDrawerOpen(false)
   }
 
-  const best = card ? getBestGradeQuote(getGradeQuotes(card)) : null
-  const quotes = card ? getGradeQuotes(card) : []
+  const gradedPrices = card ? resolveGradedPricesForCard(undefined, card) : []
+  const companyQuotes = card ? buildSlabQuotesForCompany(card.rawPrice, gradedPrices, slabCompany) : []
+  const best = card ? getBestSlabQuote(companyQuotes.filter((quote) => quote.grade !== "10")) : null
   const labPsa10 = card ? resolvePsa10Price(card).price : 0
   const labPsa9 = card ? (getGradeQuotes(card).find((q) => q.grade === 9)?.slabPrice ?? 0) : 0
   const labGradingCost = DEFAULT_PSA_GRADING_FEE
@@ -452,10 +456,26 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
               </div>
 
               <div className="mt-3">
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-white/45">
-                  SlabCrack · PSA 7–9
-                </p>
-                <GradePriceGrid quotes={quotes} priced={card.hasPricing !== false} compact />
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-white/45">
+                    SlabCrack · graded comps
+                  </p>
+                  <SlabGradeSelector
+                    value={{ company: slabCompany, grade: "9" }}
+                    onChange={(value) => setSlabCompany(value.company)}
+                    available={gradedPrices}
+                    compact
+                    label=""
+                    className="[&_select]:border-white/15 [&_select]:bg-white/5 [&_select]:text-white"
+                  />
+                </div>
+                <CompanyGradePriceGrid
+                  company={slabCompany}
+                  gradedPrices={gradedPrices}
+                  rawPrice={card.rawPrice}
+                  priced={card.hasPricing !== false}
+                  compact
+                />
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2">

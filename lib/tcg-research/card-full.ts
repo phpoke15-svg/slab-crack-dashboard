@@ -11,6 +11,7 @@ import {
   type MockCardEntry,
   type RecentSale,
 } from "@/lib/slab-data"
+import { gradedRowsFromScrydexBundle, type ScrydexGradedPrice } from "@/lib/grading/quotes"
 import { resolveTcgResearchCard, type TcgResearchCardDetail } from "@/lib/tcg-research/card-detail"
 
 export type TcgResearchPopulationRow = {
@@ -28,6 +29,7 @@ export type TcgResearchCardFull = {
   priceUpdatedAt: string | null
   priceSource: string | null
   population: TcgResearchPopulationRow[]
+  gradedPrices: ScrydexGradedPrice[]
 }
 
 function mergeMockEntry(base: MockCardEntry, incoming: MockCardEntry): MockCardEntry {
@@ -99,6 +101,7 @@ export async function resolveTcgResearchCardFull(input: {
 
   let card = detailToMockEntry(detail)
   let population: TcgResearchPopulationRow[] = []
+  let gradedPrices: ScrydexGradedPrice[] = []
   let priceUpdatedAt = detail.priceUpdatedAt
   let priceSource: string | null = null
 
@@ -131,6 +134,7 @@ export async function resolveTcgResearchCardFull(input: {
       }
 
       population = bundlePopulation(bundle.population as never[])
+      gradedPrices = gradedRowsFromScrydexBundle(bundle.graded as never[])
     }
   }
 
@@ -146,6 +150,7 @@ export async function resolveTcgResearchCardFull(input: {
     priceUpdatedAt,
     priceSource,
     population,
+    gradedPrices,
   }
 }
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   X,
   ExternalLink,
@@ -10,27 +10,36 @@ import {
   Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import {
-  getBestGradeQuote,
-  getGradeQuotes,
-  resolvePsa10Price,
-  type MockCardEntry,
-  type PsaGradeNumber,
-  type RecentSale,
-} from "@/lib/slab-data"
+  buildSlabQuotesForCompany,
+  getBestSlabQuote,
+  pickGradedPrice,
+  resolveGradedPricesForCard,
+  type ScrydexGradedPrice,
+} from "@/lib/grading/quotes"
+import {
+  DEFAULT_SLAB_GRADE,
+  coerceSlabGradeRef,
+  formatSlabLabel,
+  type SlabGradeRef,
+} from "@/lib/grading/types"
+import { slabEbayAffiliateCampaign, slabEbaySearchKeyword } from "@/lib/grading/ebay-search"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { PriceHistoryChart } from "@/components/price-history-chart"
-import { GradePriceGrid } from "@/components/grade-price-grid"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
+import { resolvePsa10Price, type MockCardEntry, type RecentSale } from "@/lib/slab-data"
 
 interface SlabDrawerProps {
   selectedCard: MockCardEntry | null
   watched: boolean
   saved?: boolean
+  gradedPrices?: ScrydexGradedPrice[]
   onClose: () => void
   onToggleWatch: (card: MockCardEntry) => void
   onToggleSave?: (card: MockCardEntry) => void
@@ -51,16 +60,22 @@ export function SlabDrawer({
   selectedCard,
   watched,
   saved = false,
+  gradedPrices: gradedPricesProp,
   onClose,
   onToggleWatch,
   onToggleSave,
   focus = "slabcrack",
 }: SlabDrawerProps) {
-  const [salesGrade, setSalesGrade] = useState<PsaGradeNumber>(9)
+  const [slabGrade, setSlabGrade] = useState<SlabGradeRef>(DEFAULT_SLAB_GRADE)
   const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
   const [liveSlabSales, setLiveSlabSales] = useState<RecentSale[] | null>(null)
   const [salesLoading, setSalesLoading] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
+
+  const gradedPrices = useMemo(
+    () => (selectedCard ? resolveGradedPricesForCard(gradedPricesProp, selectedCard) : []),
+    [gradedPricesProp, selectedCard],
+  )
 
   useEffect(() => {
     if (selectedCard) {
@@ -78,11 +93,12 @@ export function SlabDrawer({
 
   useEffect(() => {
     if (!selectedCard) return
-
-    const gradeQuotes = getGradeQuotes(selectedCard).filter((q) => q.grade !== 10)
-    const best = getBestGradeQuote(gradeQuotes)
-    setSalesGrade(best?.grade === 10 ? 9 : (best?.grade ?? 9))
-  }, [selectedCard])
+    const quotes = buildSlabQuotesForCompany(selectedCard.rawPrice, gradedPrices, "PSA").filter(
+      (quote) => quote.grade !== "10",
+    )
+    const best = getBestSlabQuote(quotes)
+    setSlabGrade(coerceSlabGradeRef("PSA", best?.grade ?? "9", gradedPrices))
+  }, [selectedCard, gradedPrices])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -102,7 +118,12 @@ export function SlabDrawer({
 
     let cancelled = false
     setSalesLoading(true)
-    void fetch(`/api/card-sales?id=${encodeURIComponent(selectedCard.id)}&grade=${salesGrade}`)
+    const params = new URLSearchParams({
+      id: selectedCard.id,
+      grade: slabGrade.grade,
+      company: slabGrade.company,
+    })
+    void fetch(`/api/card-sales?${params.toString()}`)
       .then(async (res) => {
         const data = (await res.json().catch(() => null)) as CardSalesResponse | null
         if (cancelled) return
@@ -120,30 +141,43 @@ export function SlabDrawer({
     return () => {
       cancelled = true
     }
-  }, [selectedCard, salesGrade])
+  }, [selectedCard, slabGrade.company, slabGrade.grade])
 
   if (!selectedCard) return null
 
   const priced = selectedCard.hasPricing !== false
   const pricingLoading = selectedCard.marketInsight === "Loading PSA 7–10 comps…"
-  const gradeQuotes = getGradeQuotes(selectedCard)
-  const best = getBestGradeQuote(gradeQuotes)
-  const activeQuote = gradeQuotes.find((q) => q.grade === salesGrade) ?? best
+  const companyQuotes = buildSlabQuotesForCompany(selectedCard.rawPrice, gradedPrices, slabGrade.company)
+  const activeQuote =
+    companyQuotes.find(
+      (quote) => quote.company === slabGrade.company && quote.grade === slabGrade.grade,
+    ) ?? getBestSlabQuote(companyQuotes)
+  const activeSlabPrice =
+    activeQuote?.slabPrice ?? pickGradedPrice(gradedPrices, slabGrade) ?? 0
+
   const labPsa10 = resolvePsa10Price(selectedCard).price
   const labGross = labPsa10 - (selectedCard.rawPrice ?? 0)
   const labNet = labGross - DEFAULT_PSA_GRADING_FEE
   const labMult =
     selectedCard.rawPrice > 0 && labPsa10 > 0 ? labPsa10 / selectedCard.rawPrice : 0
 
-  const cachedSlabSales =
-    activeQuote?.recentSlabSales ?? selectedCard.recentSlabSales ?? []
   const rawSales = liveRawSales ?? selectedCard.recentRawSales ?? []
-  const slabSales = liveSlabSales ?? cachedSlabSales
+  const slabSales = liveSlabSales ?? selectedCard.recentSlabSales ?? []
 
   const ebayUrl = ebaySearchUrl(
-    `${selectedCard.cardName} ${selectedCard.cardNumber} PSA ${salesGrade}`,
-    `slabcrack-${selectedCard.id}-psa${salesGrade}`,
+    slabEbaySearchKeyword(
+      selectedCard.cardName,
+      selectedCard.cardNumber,
+      slabGrade,
+      selectedCard.setName,
+    ),
+    slabEbayAffiliateCampaign(selectedCard.id, slabGrade, "slabcrack"),
   )
+
+  const psaGradeForHistory =
+    slabGrade.company === "PSA" && /^\d+$/.test(slabGrade.grade)
+      ? (Number(slabGrade.grade) as 7 | 8 | 9 | 10)
+      : 9
 
   const formatSigned = (n: number) => {
     if (!Number.isFinite(n)) return "—"
@@ -221,7 +255,7 @@ export function SlabDrawer({
                     {(focus === "slabcrack" || focus === "both") && (
                       <div className="space-y-1">
                         <span className="text-[11px] font-medium text-muted-foreground">
-                          SlabCrack · PSA {salesGrade} vs raw NM
+                          SlabCrack · {formatSlabLabel(slabGrade)} vs raw NM
                         </span>
                         {priced && activeQuote?.isArbitrage ? (
                           <DeficitBadge
@@ -229,9 +263,9 @@ export function SlabDrawer({
                             pct={-activeQuote.percentageSavings}
                             size="lg"
                           />
-                        ) : priced && activeQuote && activeQuote.slabPrice > 0 ? (
+                        ) : priced && activeQuote && activeSlabPrice > 0 ? (
                           <p className="text-sm text-muted-foreground">
-                            PSA {salesGrade} slab is at or above raw — no arbitrage gap.
+                            {formatSlabLabel(slabGrade)} slab is at or above raw — no arbitrage gap.
                           </p>
                         ) : (
                           <p className="text-sm text-muted-foreground">
@@ -295,17 +329,27 @@ export function SlabDrawer({
           )}
 
           <div className="mt-5 rounded-2xl border border-border bg-secondary/40 p-3">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
-              <span className="font-mono text-lg font-semibold text-foreground tabular-nums">
-                {priced && selectedCard.rawPrice > 0 ? `$${selectedCard.rawPrice.toFixed(2)}` : "—"}
-              </span>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
+                <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
+                  {priced && selectedCard.rawPrice > 0 ? `$${selectedCard.rawPrice.toFixed(2)}` : "—"}
+                </span>
+              </div>
+              <SlabGradeSelector
+                value={slabGrade}
+                onChange={setSlabGrade}
+                available={gradedPrices}
+                compact
+              />
             </div>
-            <GradePriceGrid
-              quotes={gradeQuotes}
+            <CompanyGradePriceGrid
+              company={slabGrade.company}
+              gradedPrices={gradedPrices}
+              rawPrice={selectedCard.rawPrice}
               priced={priced && !pricingLoading}
-              selectedGrade={salesGrade}
-              onSelectGrade={setSalesGrade}
+              selected={slabGrade}
+              onSelectGrade={setSlabGrade}
               highlightBest={false}
             />
           </div>
@@ -317,7 +361,7 @@ export function SlabDrawer({
             className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
             <ExternalLink className="size-4" />
-            Search eBay Slabs
+            Search eBay {formatSlabLabel(slabGrade)}
           </a>
 
           {priced && (
@@ -333,15 +377,15 @@ export function SlabDrawer({
                   emptyMessage="No recent raw sold comps in cache yet."
                 />
                 <RecentSalesList
-                  title={`PSA ${salesGrade}`}
+                  title={formatSlabLabel(slabGrade)}
                   sales={slabSales}
-                  emptyMessage={`No recent PSA ${salesGrade} sold comps yet.`}
+                  emptyMessage={`No recent ${formatSlabLabel(slabGrade)} sold comps yet.`}
                 />
               </div>
             </div>
           )}
 
-          {priced && activeQuote && activeQuote.slabPrice > 0 && (
+          {priced && activeSlabPrice > 0 && (
             <div className="mt-4">
               <div className="mb-2 flex items-center gap-2 px-0.5">
                 <Activity className="size-4 text-primary" />
@@ -349,9 +393,10 @@ export function SlabDrawer({
               </div>
               <PriceHistoryChart
                 cardId={selectedCard.id}
-                grade={salesGrade}
+                grade={psaGradeForHistory}
+                slabSelection={slabGrade.company === "PSA" ? undefined : slabGrade}
                 currentRaw={selectedCard.rawPrice}
-                currentSlab={activeQuote.slabPrice}
+                currentSlab={activeSlabPrice}
               />
             </div>
           )}
