@@ -1,4 +1,5 @@
 import { cardPriceRowToMockEntry } from "@/lib/pricing/views"
+import { ensureCardDailyPriceHistory } from "@/lib/pricing/card-daily-price-history"
 import { ensureScrydexCardFresh } from "@/lib/scrydex/on-demand"
 import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import { loadCardBundle } from "@/lib/scrydex/db"
@@ -12,7 +13,12 @@ import {
   type MockCardEntry,
   type RecentSale,
 } from "@/lib/slab-data"
-import { gradedRowsFromScrydexBundle, type ScrydexGradedPrice } from "@/lib/grading/quotes"
+import {
+  gradedRowsFromScrydexBundle,
+  mergeGradedPriceRows,
+  gradedPricesFromMockCard,
+  type ScrydexGradedPrice,
+} from "@/lib/grading/quotes"
 import { catalogBundleToDetail, resolveTcgResearchCard, type TcgResearchCardDetail } from "@/lib/tcg-research/card-detail"
 
 export type TcgResearchPopulationRow = {
@@ -29,6 +35,7 @@ export type TcgResearchCardFull = {
   game: TcgGame
   priceUpdatedAt: string | null
   priceSource: string | null
+  priceTrend: TcgResearchCardDetail["priceTrend"]
   population: TcgResearchPopulationRow[]
   gradedPrices: ScrydexGradedPrice[]
 }
@@ -86,6 +93,23 @@ function bundlePopulation(
     .sort((a, b) => b.count - a.count)
 }
 
+function finalizeGradedPrices(
+  bundleGraded: ScrydexGradedPrice[],
+  card: MockCardEntry,
+): ScrydexGradedPrice[] {
+  return mergeGradedPriceRows(bundleGraded, gradedPricesFromMockCard(card))
+}
+
+function trendFromDetail(detail: TcgResearchCardDetail, card: MockCardEntry): TcgResearchCardDetail["priceTrend"] {
+  if (detail.priceTrend) return detail.priceTrend
+  const psa10 = card.gradeQuotes?.find((quote) => quote.grade === 10)?.slabPrice ?? card.slabPrice
+  if (!psa10 || psa10 <= 0 || card.rawPrice <= 0) return null
+  const spread = psa10 - card.rawPrice
+  if (spread > card.rawPrice * 0.15) return "up"
+  if (spread < card.rawPrice * 0.05) return "down"
+  return "flat"
+}
+
 /** Build a TCG Research panel payload directly from a Scrydex vision/catalog bundle. */
 export function tcgResearchCardFullFromBundle(bundle: CardPriceBundle): TcgResearchCardFull {
   const detail = catalogBundleToDetail(bundle)
@@ -115,6 +139,8 @@ export function tcgResearchCardFullFromBundle(bundle: CardPriceBundle): TcgResea
     priceUpdatedAt = priceRow.synced_at ?? priceUpdatedAt
   }
 
+  const gradedPrices = finalizeGradedPrices(gradedRowsFromScrydexBundle(bundle.graded as never[]), card)
+
   return {
     card,
     catalogId: bundle.card.catalog_id,
@@ -122,8 +148,9 @@ export function tcgResearchCardFullFromBundle(bundle: CardPriceBundle): TcgResea
     game: bundle.card.game,
     priceUpdatedAt,
     priceSource,
+    priceTrend: trendFromDetail(detail, card),
     population: bundlePopulation(bundle.population as never[]),
-    gradedPrices: gradedRowsFromScrydexBundle(bundle.graded as never[]),
+    gradedPrices,
   }
 }
 
@@ -159,9 +186,15 @@ export async function resolveTcgResearchCardFull(input: {
   let gradedPrices: ScrydexGradedPrice[] = []
   let priceUpdatedAt = detail.priceUpdatedAt
   let priceSource: string | null = null
+  let priceTrend = detail.priceTrend
 
   if (catalogId && isScrydexConfigured()) {
-    await ensureScrydexCardFresh(detail.id, { activity: "view" })
+    await Promise.all([
+      ensureScrydexCardFresh(detail.id, { activity: "view" }),
+      ensureCardDailyPriceHistory(detail.id).catch((error) => {
+        console.warn("[tcg-research/card-full] history backfill failed:", error)
+      }),
+    ])
   }
 
   if (catalogId) {
@@ -189,9 +222,11 @@ export async function resolveTcgResearchCardFull(input: {
       }
 
       population = bundlePopulation(bundle.population as never[])
-      gradedPrices = gradedRowsFromScrydexBundle(bundle.graded as never[])
+      gradedPrices = finalizeGradedPrices(gradedRowsFromScrydexBundle(bundle.graded as never[]), card)
     }
   }
+
+  priceTrend = trendFromDetail({ ...detail, priceTrend }, card)
 
   if (!priceSource && (card.rawPrice > 0 || (card.gradeQuotes?.length ?? 0) > 0)) {
     priceSource = "local"
@@ -204,6 +239,7 @@ export async function resolveTcgResearchCardFull(input: {
     game: detail.game ?? splitCatalogId(catalogId ?? "")?.game ?? input.game ?? "pokemon",
     priceUpdatedAt,
     priceSource,
+    priceTrend,
     population,
     gradedPrices,
   }

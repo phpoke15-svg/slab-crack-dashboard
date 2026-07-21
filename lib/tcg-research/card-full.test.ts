@@ -65,5 +65,6 @@ describe("tcgResearchCardFullFromBundle", () => {
     expect(full.gradedPrices.some((row) => row.company === "PSA" && row.grade === "10")).toBe(true)
     expect(full.population.some((row) => row.grade === "10")).toBe(true)
     expect(full.priceSource).toBe("scrydex")
+    expect(full.priceTrend).toBe("up")
   })
 })
