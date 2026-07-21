@@ -25,6 +25,7 @@
     "migrate-pc-to-poke-ids:reset-failed": "npx tsx scripts/migrate-pc-to-poke-ids.ts --reset-failed",
     "verify-pc-migration": "npx tsx scripts/verify-pc-migration.ts",
     "scrydex-hydrate": "npx tsx scripts/scrydex-hydrate-expansion.ts",
+    "scrydex-sync-expansions": "npx tsx scripts/scrydex-sync-expansions.ts",
     "scrydex-queue-seeded-expansions": "npx tsx scripts/scrydex-queue-seeded-expansions.ts",
     "scrydex-bootstrap": "npx tsx scripts/scrydex-bootstrap.ts",
     "seed-scrydex-from-cards": "npx tsx scripts/seed-scrydex-from-cards.ts",

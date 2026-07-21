@@ -3,7 +3,7 @@ export * from "@/lib/scrydex/constants"
 export { ScrydexClient } from "@/lib/scrydex/client"
 export { CatalogService, createCatalogService } from "@/lib/scrydex/catalog-service"
 export { CreditLedger, ScrydexCreditBudgetError, recordCardActivity, getCreditsUsedToday } from "@/lib/scrydex/credit-ledger"
-export { hydrateExpansionPage, syncRecentExpansions } from "@/lib/scrydex/hydrate"
+export { hydrateExpansionPage, syncRecentExpansions, syncAllExpansions } from "@/lib/scrydex/hydrate"
 export {
   pickNextHydrationJob,
   registerSeededExpansionJobs,
