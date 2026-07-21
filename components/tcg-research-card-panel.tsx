@@ -12,7 +12,6 @@ import {
 import { cn } from "@/lib/utils"
 import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
-import { PriceHistoryChart } from "@/components/PriceHistoryChart"
 import { PriceHistoryChart as LegacyPriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { SlabCardImage } from "@/components/slab-card-image"
@@ -23,6 +22,7 @@ import {
   getBestSlabQuote,
   pickGradedPrice,
   resolveGradedPricesForCard,
+  resolvePsa10DisplayPrice,
 } from "@/lib/grading/quotes"
 import {
   DEFAULT_SLAB_GRADE,
@@ -31,7 +31,6 @@ import {
   type SlabGradeRef,
 } from "@/lib/grading/types"
 import type { RecentSale } from "@/lib/slab-data"
-import { resolvePsa10Price } from "@/lib/slab-data"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
 
 type CardSalesResponse = {
@@ -167,11 +166,10 @@ export function TcgResearchCardPanel({
     pickGradedPrice(gradedPrices, slabGrade) ??
     0
 
-  const psa10Price = useMemo(() => {
-    const direct = pickGradedPrice(gradedPrices, { company: "PSA", grade: "10" })
-    if (direct && direct > 0) return { price: direct, estimated: false }
-    return resolvePsa10Price(card)
-  }, [card, gradedPrices])
+  const psa10Price = useMemo(
+    () => resolvePsa10DisplayPrice(gradedPrices, card),
+    [card, gradedPrices],
+  )
 
   const chartGradeProps = historyChartGradeProps(slabGrade)
 
@@ -278,26 +276,22 @@ export function TcgResearchCardPanel({
             />
             {priced ? (
               <div className="mt-3">
-                {payload.scrydexId ? (
-                  <PriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} days={90} />
-                ) : (
-                  <LegacyPriceHistoryChart
-                    cardId={payload.catalogId ?? card.id}
-                    {...chartGradeProps}
-                    currentRaw={card.rawPrice}
-                    currentSlab={activeSlabPrice}
-                    historyEndpoint="/api/tcg-research/price-history"
-                    historyQuery={{
-                      catalogId: payload.catalogId ?? undefined,
-                      scrydexId: payload.scrydexId ?? undefined,
-                      game: payload.game,
-                      company: slabGrade.company,
-                      grade: slabGrade.grade,
-                    }}
-                    title="Price history"
-                    subtitle="Scrydex"
-                  />
-                )}
+                <LegacyPriceHistoryChart
+                  cardId={payload.catalogId ?? card.id}
+                  {...chartGradeProps}
+                  currentRaw={card.rawPrice}
+                  currentSlab={activeSlabPrice}
+                  historyEndpoint="/api/tcg-research/price-history"
+                  historyQuery={{
+                    catalogId: payload.catalogId ?? undefined,
+                    scrydexId: payload.scrydexId ?? undefined,
+                    game: payload.game,
+                    company: slabGrade.company,
+                    grade: slabGrade.grade,
+                  }}
+                  title="Price history"
+                  subtitle="Scrydex"
+                />
               </div>
             ) : null}
             <p className="mt-3 text-[11px] text-muted-foreground">

@@ -4,7 +4,7 @@ import {
   normalizeGradingCompany,
   type SlabGradeRef,
 } from "@/lib/grading/types"
-import { getGradeQuotes, type MockCardEntry } from "@/lib/slab-data"
+import { getGradeQuotes, GRADE_MULTIPLIER, resolvePsa10Price, type MockCardEntry } from "@/lib/slab-data"
 
 export type ScrydexGradedPrice = {
   company: string
@@ -118,6 +118,29 @@ export function resolveGradedPricesForCard(
   card: MockCardEntry,
 ): ScrydexGradedPrice[] {
   return mergeGradedPriceRows(gradedPrices ?? [], gradedPricesFromMockCard(card))
+}
+
+/** PSA 10 for display: direct Scrydex row, implied from lower PSA grades, then card quotes. */
+export function resolvePsa10DisplayPrice(
+  gradedPrices: ScrydexGradedPrice[] | undefined,
+  card: MockCardEntry,
+): { price: number; estimated: boolean } {
+  const resolved = resolveGradedPricesForCard(gradedPrices, card)
+  const direct = pickGradedPrice(resolved, { company: "PSA", grade: "10" })
+  if (direct && direct > 0) return { price: direct, estimated: false }
+
+  const anchors = resolved
+    .filter((row) => row.company === "PSA" && row.grade !== "10" && row.marketPrice > 0)
+    .sort((a, b) => Number(b.grade) - Number(a.grade))
+
+  for (const row of anchors) {
+    const mult = GRADE_MULTIPLIER[Number(row.grade)]
+    if (!mult || mult <= 0) continue
+    const implied = row.marketPrice / mult
+    if (implied > 0) return { price: implied, estimated: true }
+  }
+
+  return resolvePsa10Price(card)
 }
 
 export function gradedRowsFromScrydexBundle(

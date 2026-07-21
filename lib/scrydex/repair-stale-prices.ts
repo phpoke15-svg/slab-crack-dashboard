@@ -10,7 +10,7 @@ import { formatUnknownError } from "@/lib/scrydex/errors"
 import { ScrydexCreditBudgetError } from "@/lib/scrydex/credit-ledger"
 import { getCatalogCard, loadCardBundle, persistCardPricingBundle } from "@/lib/scrydex/db"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
-import { upsertWebhookDailyHistory } from "@/lib/scrydex/webhook-history"
+import { upsertCatalogBundleDailyHistory, upsertWebhookDailyHistory } from "@/lib/scrydex/webhook-history"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { allPromoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 
@@ -94,23 +94,41 @@ async function syncPublicCardsRowFromCatalog(catalogId: string): Promise<boolean
 
   const now = new Date().toISOString()
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from("cards")
-    .update({
-      current_price_raw: priceRow.raw_price,
-      current_price_psa10: priceRow.psa10_price,
-      price_updated_at: now,
-      updated_at: now,
-    })
-    .eq("scrydex_id", bundle.card.scrydex_id)
-    .select("id")
-
-  if (error?.code === "42P01") return false
-  if (error) {
-    console.warn("[repair-scrydex-prices] cards sync failed:", catalogId, formatUnknownError(error))
-    return false
+  const legacyId = catalogIdToLegacyPokeId(catalogId)
+  const updates = {
+    current_price_raw: priceRow.raw_price,
+    current_price_psa10: priceRow.psa10_price,
+    price_updated_at: now,
+    updated_at: now,
+    ...(bundle.card.scrydex_id ? { scrydex_id: bundle.card.scrydex_id } : {}),
   }
-  return (data ?? []).length > 0
+
+  if (bundle.card.scrydex_id) {
+    const { data, error } = await supabase
+      .from("cards")
+      .update(updates)
+      .eq("scrydex_id", bundle.card.scrydex_id)
+      .select("id")
+
+    if (error?.code === "42P01") return false
+    if (error) {
+      console.warn("[repair-scrydex-prices] cards sync failed:", catalogId, formatUnknownError(error))
+      return false
+    }
+    if ((data ?? []).length > 0) return true
+  }
+
+  if (legacyId) {
+    const { data, error } = await supabase.from("cards").update(updates).eq("id", legacyId).select("id")
+    if (error?.code === "42P01") return false
+    if (error) {
+      console.warn("[repair-scrydex-prices] cards sync failed:", legacyId, formatUnknownError(error))
+      return false
+    }
+    return (data ?? []).length > 0
+  }
+
+  return false
 }
 
 export async function repairScrydexCatalogPrices(opts?: {
@@ -185,7 +203,20 @@ export async function repairScrydexCatalogPrices(opts?: {
       entry.raw = priceRow?.raw_price ?? null
       entry.psa10 = priceRow?.psa10_price ?? null
 
-      if (scrydexId && (entry.raw != null || entry.psa10 != null)) {
+      if (scrydexId && bundle) {
+        try {
+          const rowsWritten = await upsertCatalogBundleDailyHistory({
+            catalogId,
+            raw: (bundle.raw ?? []) as never[],
+            graded: (bundle.graded ?? []) as never[],
+          })
+          historyRows += rowsWritten
+        } catch (historyError) {
+          const message = formatUnknownError(historyError, "Daily history upsert failed")
+          entry.error = message
+          errors.push(`${catalogId}: ${message}`)
+        }
+      } else if (scrydexId && (entry.raw != null || entry.psa10 != null)) {
         try {
           const rowsWritten = await upsertWebhookDailyHistory({
             scrydexId,

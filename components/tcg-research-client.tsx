@@ -18,6 +18,7 @@ import {
 import type { CardSearchHit } from "@/lib/card-lookup"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
+import { fetchErrorMessage, readResponseJson } from "@/lib/fetch-json"
 import { matchTcgResearchSnapshot } from "@/lib/tcg-research/vision-scan-client"
 import type { TcgGame } from "@/lib/scrydex/types"
 
@@ -138,8 +139,10 @@ export function TcgResearchClient() {
     try {
       const params = new URLSearchParams({ id: hit.id, game })
       const res = await fetch(`/api/tcg-research/card?${params.toString()}`)
-      const json = (await res.json()) as TcgResearchCardFull & { error?: string }
-      if (!res.ok || !json.card) throw new Error(json.error || "Could not load card")
+      const json = await readResponseJson<TcgResearchCardFull & { error?: string }>(res)
+      if (!json || !res.ok || !json.card) {
+        throw new Error(fetchErrorMessage(res, json, "Could not load card"))
+      }
       setSelectedPayload(json)
     } catch (error) {
       setSelectedPayload(null)

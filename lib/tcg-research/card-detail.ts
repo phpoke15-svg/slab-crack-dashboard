@@ -148,8 +148,30 @@ export function mergeTcgResearchCardDetails(
   local: TcgResearchCardDetail,
   bundle: TcgResearchCardDetail,
 ): TcgResearchCardDetail {
-  const rawPrice = bundle.rawPrice ?? local.rawPrice
-  const psa10Price = bundle.psa10Price ?? local.psa10Price
+  const localGradeCount = [local.psa7Price, local.psa8Price, local.psa9Price, local.psa10Price].filter(
+    (price) => price != null && price > 0,
+  ).length
+  const bundleGradeCount = [bundle.psa7Price, bundle.psa8Price, bundle.psa9Price, bundle.psa10Price].filter(
+    (price) => price != null && price > 0,
+  ).length
+  const preferBundlePricing = bundleGradeCount > localGradeCount
+
+  const rawPrice =
+    preferBundlePricing && bundle.rawPrice != null && bundle.rawPrice > 0
+      ? bundle.rawPrice
+      : (bundle.rawPrice ?? local.rawPrice)
+  const psa7Price = preferBundlePricing
+    ? (bundle.psa7Price ?? local.psa7Price)
+    : (bundle.psa7Price ?? local.psa7Price)
+  const psa8Price = preferBundlePricing
+    ? (bundle.psa8Price ?? local.psa8Price)
+    : (bundle.psa8Price ?? local.psa8Price)
+  const psa9Price = preferBundlePricing
+    ? (bundle.psa9Price ?? local.psa9Price)
+    : (bundle.psa9Price ?? local.psa9Price)
+  const psa10Price = preferBundlePricing
+    ? (bundle.psa10Price ?? local.psa10Price)
+    : (bundle.psa10Price ?? local.psa10Price)
 
   return {
     ...bundle,
@@ -164,9 +186,9 @@ export function mergeTcgResearchCardDetails(
     rarity: bundle.rarity ?? local.rarity,
     imageUrl: bundle.imageUrl || local.imageUrl,
     rawPrice,
-    psa7Price: bundle.psa7Price ?? local.psa7Price,
-    psa8Price: bundle.psa8Price ?? local.psa8Price,
-    psa9Price: bundle.psa9Price ?? local.psa9Price,
+    psa7Price,
+    psa8Price,
+    psa9Price,
     psa10Price,
     priceUpdatedAt: bundle.priceUpdatedAt ?? local.priceUpdatedAt,
     priceTrend: trendFromPrices(rawPrice, psa10Price),

@@ -142,6 +142,7 @@ function PriceHistoryChartView({
   }
 
   const activeSeries = SERIES.filter((series) => seriesHasData(data, series.key))
+  const showDots = data.length < 2
 
   return (
     <div
@@ -174,7 +175,7 @@ function PriceHistoryChartView({
               dataKey={series.key}
               stroke={series.stroke}
               strokeWidth={series.width}
-              dot={false}
+              dot={showDots}
               name={series.name}
               connectNulls
             />

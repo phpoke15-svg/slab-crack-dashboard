@@ -6,7 +6,7 @@ import { parseTcgResearchGame } from "@/lib/tcg-research/search"
 import { resolveTcgResearchCardFull } from "@/lib/tcg-research/card-full"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 45
+export const maxDuration = 60
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)

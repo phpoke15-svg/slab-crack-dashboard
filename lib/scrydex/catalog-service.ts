@@ -6,6 +6,7 @@ import { splitCatalogId } from "@/lib/scrydex/constants"
 import {
   getCardsWithPricesBatch,
   getCatalogCard,
+  isGradedPricesMissing,
   isPriceStale,
   loadCardBundle,
   persistCardPricingBundle,
@@ -68,13 +69,14 @@ export class CatalogService {
   async ensureFreshCard(catalogId: string): Promise<{ source: "cache" | "scrydex"; creditsUsed: number }> {
     const existing = await getCatalogCard(catalogId)
     const stale = await isPriceStale(catalogId, SCRYDEX_CACHE.priceTtlMs)
+    const missingGraded = await isGradedPricesMissing(catalogId)
     const badImage =
       !existing ||
       (isPlaceholderCardImage(existing.image_small_url) &&
         isPlaceholderCardImage(existing.image_large_url)) ||
       isLowResCardImage(existing.image_large_url ?? existing.image_small_url)
 
-    if (!stale && !badImage) return { source: "cache", creditsUsed: 0 }
+    if (!stale && !badImage && !missingGraded) return { source: "cache", creditsUsed: 0 }
 
     const parts = splitCatalogId(catalogId)
     const game = existing?.game ?? parts?.game

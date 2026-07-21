@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import type { CardSearchHit } from "@/lib/card-lookup"
 import type { TcgGame } from "@/lib/scrydex/types"
+import { fetchErrorMessage, readResponseJson } from "@/lib/fetch-json"
 
 export function useTcgResearchPopular(game: TcgGame) {
   const [hits, setHits] = useState<CardSearchHit[]>([])
@@ -20,8 +21,8 @@ export function useTcgResearchPopular(game: TcgGame) {
         const res = await fetch(`/api/tcg-research/popular?${params.toString()}`, {
           signal: controller.signal,
         })
-        const json = (await res.json()) as { results?: CardSearchHit[]; error?: string }
-        if (!res.ok) throw new Error(json.error || "Could not load popular cards")
+        const json = await readResponseJson<{ results?: CardSearchHit[]; error?: string }>(res)
+        if (!json || !res.ok) throw new Error(fetchErrorMessage(res, json, "Could not load popular cards"))
         setHits(json.results ?? [])
       } catch (err) {
         if (controller.signal.aborted) return
@@ -60,8 +61,8 @@ export function useTcgResearchSearch(query: string, game: TcgGame, enabled: bool
         const res = await fetch(`/api/tcg-research/search?${params.toString()}`, {
           signal: controller.signal,
         })
-        const json = (await res.json()) as { results?: CardSearchHit[]; error?: string }
-        if (!res.ok) throw new Error(json.error || "Search failed")
+        const json = await readResponseJson<{ results?: CardSearchHit[]; error?: string }>(res)
+        if (!json || !res.ok) throw new Error(fetchErrorMessage(res, json, "Search failed"))
         setHits(json.results ?? [])
       } catch (err) {
         if (controller.signal.aborted) return

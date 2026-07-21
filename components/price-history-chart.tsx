@@ -79,9 +79,12 @@ function rangePeriodLabel(key: RangeKey): string {
 }
 
 function periodStats(points: SeriesPoint[] | undefined) {
-  if (!points || points.length < 2) return null
+  if (!points || points.length === 0) return null
   const first = points[0]!.price
   const latest = points[points.length - 1]!.price
+  if (points.length < 2) {
+    return { first: latest, latest, change: 0, pct: 0 }
+  }
   const change = latest - first
   const pct = first > 0 ? (change / first) * 100 : 0
   return { first, latest, change, pct }
@@ -140,7 +143,7 @@ function CollectrLineChart({
   const chartH = height - padY * 2
 
   const prices = values.filter((v): v is number => v != null && v > 0)
-  if (dates.length < 2 || prices.length < 2) return null
+  if (dates.length < 1 || prices.length < 1) return null
 
   const min = Math.min(...prices)
   const max = Math.max(...prices)
@@ -148,12 +151,31 @@ function CollectrLineChart({
   const color = colorForSeriesKey(seriesKey)
 
   const toY = (v: number) => padY + chartH - ((v - min) / range) * chartH
-  const toX = (i: number) => padX + (i / (dates.length - 1)) * chartW
+  const toX = (i: number) =>
+    dates.length <= 1 ? padX + chartW / 2 : padX + (i / (dates.length - 1)) * chartW
   const baselineY = padY + chartH
 
   const pts = values
     .map((v, i) => (v != null && v > 0 ? ([toX(i), toY(v)] as const) : null))
     .filter((p): p is readonly [number, number] => p != null)
+
+  if (pts.length < 1) return null
+
+  if (pts.length === 1) {
+    const [x, y] = pts[0]!
+    return (
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full"
+        role="img"
+        aria-label="Price history chart"
+        onMouseLeave={() => onHover(null)}
+      >
+        <line x1={padX} y1={baselineY} x2={width - padX} y2={baselineY} stroke="var(--border)" strokeWidth={1} />
+        <circle cx={x} cy={y} r={5} fill={color} stroke="var(--background)" strokeWidth={2} />
+      </svg>
+    )
+  }
 
   if (pts.length < 2) return null
 
@@ -342,7 +364,7 @@ export function PriceHistoryChart({
 
   const activeSeriesKey = viewMode === "raw" || rawOnly ? "raw" : highlightKey
   const activeSeries = seriesMap[activeSeriesKey]
-  const hasChart = (activeSeries?.length ?? 0) >= 2
+  const hasChart = (activeSeries?.length ?? 0) >= 1
 
   const { dates, values } = useMemo(
     () => alignSeriesByDate(seriesMap, hasChart ? [activeSeriesKey] : []),
