@@ -1,4 +1,4 @@
-import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
+import type { PokeMatchCardDetailPayload } from "@/lib/trade-binder/pokematch-card-full"
 
 export type PokeMatchCardDetailInput = {
   id: string
@@ -15,13 +15,13 @@ export function pokematchDetailQuery(card: PokeMatchCardDetailInput): URLSearchP
   return params
 }
 
-export function pokematchCardFromFull(payload: TcgResearchCardFull): PokeMatchCardDetailInput {
+export function pokematchCardFromDetail(payload: PokeMatchCardDetailPayload): PokeMatchCardDetailInput {
   return {
-    id: payload.card.id,
-    name: payload.card.cardName,
-    set: payload.card.setName,
-    image: payload.card.imageUrl,
-    cardNumber: payload.card.cardNumber,
-    rawPrice: payload.card.rawPrice > 0 ? payload.card.rawPrice : undefined,
+    id: payload.id,
+    name: payload.name,
+    set: payload.setName,
+    image: payload.imageUrl,
+    cardNumber: payload.cardNumber,
+    rawPrice: payload.rawPrice > 0 ? payload.rawPrice : undefined,
   }
 }

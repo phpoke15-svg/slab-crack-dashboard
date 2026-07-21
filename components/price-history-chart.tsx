@@ -190,7 +190,8 @@ function MultiSeriesChart({
 
 type PriceHistoryChartProps = {
   cardId: string
-  grade: PsaGradeNumber
+  /** Required unless `rawOnly` is set. */
+  grade?: PsaGradeNumber
   slabSelection?: SlabGradeRef
   currentRaw?: number
   currentSlab?: number
@@ -226,19 +227,27 @@ export function PriceHistoryChart({
   const [range, setRange] = useState<RangeKey>(priceHistoryRangeFromDays(initialDays) ?? DEFAULT_PRICE_HISTORY_RANGE)
   const [seriesMap, setSeriesMap] = useState<Partial<Record<SeriesKey, SeriesPoint[]>>>({})
   const [labels, setLabels] = useState<Record<SeriesKey, string> | null>(null)
-  const [highlightKey, setHighlightKey] = useState<SeriesKey>(GRADE_TO_SERIES[grade])
+  const [highlightKey, setHighlightKey] = useState<SeriesKey>(
+    rawOnly ? "raw" : GRADE_TO_SERIES[grade ?? 9],
+  )
   const [loading, setLoading] = useState(false)
   const [loadedKey, setLoadedKey] = useState("")
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [showAllGrades, setShowAllGrades] = useState(false)
 
   useEffect(() => {
+    if (rawOnly) {
+      setHighlightKey("raw")
+      return
+    }
     if (slabSelection) {
       setHighlightKey(`slab:${slabSelection.company}|${slabSelection.grade}`)
       return
     }
-    setHighlightKey(GRADE_TO_SERIES[grade])
-  }, [grade, slabSelection])
+    if (grade != null) {
+      setHighlightKey(GRADE_TO_SERIES[grade])
+    }
+  }, [grade, slabSelection, rawOnly])
 
   useEffect(() => {
     const el = rootRef.current
@@ -464,7 +473,7 @@ export function PriceHistoryChart({
       {(latestRaw > 0 || (!rawOnly && latestSlab > 0)) && (
         <div className={cn("mt-2 grid gap-1.5", rawOnly ? "grid-cols-1" : compact ? "grid-cols-2" : "grid-cols-4")}>
           <Stat label="Raw now" value={latestRaw > 0 ? `$${latestRaw.toFixed(0)}` : "—"} />
-          {!rawOnly ? (
+          {!rawOnly && grade != null ? (
             <Stat
               label={slabSelection ? formatSlabLabel(slabSelection) : `PSA ${grade}`}
               value={latestSlab > 0 ? `$${latestSlab.toFixed(0)}` : "—"}

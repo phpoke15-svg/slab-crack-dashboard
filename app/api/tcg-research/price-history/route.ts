@@ -21,6 +21,7 @@ export async function GET(request: Request) {
   const company = normalizeGradingCompany(searchParams.get("company"))
   const grade = searchParams.get("grade")?.trim() || undefined
   const rangeParam = searchParams.get("range") ?? searchParams.get("days")
+  const rawOnly = searchParams.get("rawOnly") === "1" || searchParams.get("rawOnly") === "true"
   const { days, full } = parsePriceHistoryRange(rangeParam)
 
   const catalogId =
@@ -46,16 +47,25 @@ export async function GET(request: Request) {
       Object.entries(series).map(([key, points]) => [key, points.length]),
     ) as Record<string, number>
 
+    const filteredSeries = rawOnly ? { raw: series.raw ?? [] } : series
+    const filteredLabels = rawOnly
+      ? { raw: (labels ?? SCRYDEX_PRICE_HISTORY_LABELS).raw }
+      : (labels ?? SCRYDEX_PRICE_HISTORY_LABELS)
+    const filteredCounts = rawOnly
+      ? ({ raw: counts.raw ?? 0 } as Record<string, number>)
+      : counts
+
     return NextResponse.json({
       catalogId,
       company,
       grade,
       days,
       full,
-      labels: labels ?? SCRYDEX_PRICE_HISTORY_LABELS,
-      highlightKey,
-      series,
-      counts,
+      rawOnly,
+      labels: filteredLabels,
+      highlightKey: rawOnly ? "raw" : highlightKey,
+      series: filteredSeries,
+      counts: filteredCounts,
       range,
       source,
     })
