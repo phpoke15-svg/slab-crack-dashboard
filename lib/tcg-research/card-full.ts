@@ -2,7 +2,7 @@ import { cardPriceRowToMockEntry } from "@/lib/pricing/views"
 import { ensureScrydexCardFresh } from "@/lib/scrydex/on-demand"
 import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import { loadCardBundle } from "@/lib/scrydex/db"
-import { resolveScanToCatalog } from "@/lib/scrydex/vision-pipeline"
+import { resolveScanToCatalog, ScrydexVisionNoMatchError, visionScanGameScope } from "@/lib/scrydex/vision-pipeline"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
 import { resolveCatalogId, splitCatalogId } from "@/lib/scrydex/constants"
 import type { CardPriceBundle, TcgGame } from "@/lib/scrydex/types"
@@ -14,8 +14,6 @@ import {
 } from "@/lib/slab-data"
 import { gradedRowsFromScrydexBundle, type ScrydexGradedPrice } from "@/lib/grading/quotes"
 import { catalogBundleToDetail, resolveTcgResearchCard, type TcgResearchCardDetail } from "@/lib/tcg-research/card-detail"
-
-const ALL_TCG_GAMES: TcgGame[] = ["pokemon", "lorcana", "mtg"]
 
 export type TcgResearchPopulationRow = {
   company: string
@@ -91,7 +89,7 @@ function bundlePopulation(
 /** Build a TCG Research panel payload directly from a Scrydex vision/catalog bundle. */
 export function tcgResearchCardFullFromBundle(bundle: CardPriceBundle): TcgResearchCardFull {
   const detail = catalogBundleToDetail(bundle)
-  if (!detail) throw new Error("Vision match could not be loaded")
+  if (!detail) throw new ScrydexVisionNoMatchError("Vision match could not be loaded")
 
   let card = detailToMockEntry(detail)
   let priceUpdatedAt = detail.priceUpdatedAt
@@ -135,10 +133,9 @@ export async function scanTcgResearchCardFromVision(input: {
   preferredGame?: TcgGame
 }): Promise<TcgResearchCardFull> {
   const preferred = input.preferredGame ?? "pokemon"
-  const preferredGames = [preferred, ...ALL_TCG_GAMES.filter((game) => game !== preferred)]
   const bundle = await resolveScanToCatalog({
     imageBase64: input.imageBase64,
-    preferredGames,
+    preferredGames: visionScanGameScope(preferred),
   })
   return tcgResearchCardFullFromBundle(bundle)
 }

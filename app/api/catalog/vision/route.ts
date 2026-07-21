@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server"
 import { isScrydexConfigured, resolveScanToCatalog } from "@/lib/scrydex"
+import { ScrydexCreditBudgetError } from "@/lib/scrydex/credit-ledger"
+import { ScrydexVisionNoMatchError, visionScanGameScope } from "@/lib/scrydex/vision-pipeline"
 import type { TcgGame } from "@/lib/scrydex/types"
 
+export const runtime = "nodejs"
 export const maxDuration = 60
 export const dynamic = "force-dynamic"
 
 const GAMES = new Set<TcgGame>(["pokemon", "lorcana", "mtg"])
+
+function visionErrorStatus(error: unknown): number {
+  if (error instanceof ScrydexCreditBudgetError) return 429
+  if (error instanceof ScrydexVisionNoMatchError) return 422
+  const message = error instanceof Error ? error.message : ""
+  if (/returned no match|could not be loaded/i.test(message)) return 422
+  return 500
+}
 
 export async function POST(request: Request) {
   if (!isScrydexConfigured()) {
@@ -24,13 +35,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "imageBase64 required" }, { status: 400 })
   }
 
-  const preferredGames = (body.preferredGames ?? ["pokemon", "lorcana", "mtg"]).filter((g) => GAMES.has(g))
+  const requested = (body.preferredGames ?? ["pokemon"]).filter((g) => GAMES.has(g))
+  const preferredGame = requested[0] ?? "pokemon"
 
   try {
-    const result = await resolveScanToCatalog({ imageBase64, preferredGames })
+    const result = await resolveScanToCatalog({
+      imageBase64,
+      preferredGames: visionScanGameScope(preferredGame),
+    })
     return NextResponse.json(result)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Vision scan failed"
-    return NextResponse.json({ error: message }, { status: 500 })
+    console.error("[catalog/vision]", message)
+    return NextResponse.json({ error: message }, { status: visionErrorStatus(error) })
   }
 }

@@ -15,6 +15,18 @@ export function hashScanImage(imageBase64: string): string {
   return createHash("sha256").update(imageBase64).digest("hex").slice(0, 40)
 }
 
+/** Scrydex Vision fails when multiple games are sent in one request — scope to one game. */
+export function visionScanGameScope(preferredGame: TcgGame): TcgGame[] {
+  return [preferredGame]
+}
+
+export class ScrydexVisionNoMatchError extends Error {
+  constructor(message = "Scrydex Vision returned no match") {
+    super(message)
+    this.name = "ScrydexVisionNoMatchError"
+  }
+}
+
 /** Vision scan → local bundle. Novel scan = 5 credits; repeat phash = 0 credits. */
 export async function resolveScanToCatalog(input: {
   imageBase64: string
@@ -42,7 +54,7 @@ export async function resolveScanToCatalog(input: {
   const response = await client.visionIdentify(input.imageBase64, input.preferredGames)
   const partial = visionResponseToCatalog(input.preferredGames?.[0], response)
   if (!partial?.catalog_id || !partial.game || !partial.scrydex_id) {
-    throw new Error("Scrydex Vision returned no match")
+    throw new ScrydexVisionNoMatchError()
   }
 
   let card = await getCatalogCard(partial.catalog_id)
@@ -102,7 +114,7 @@ export async function resolveScanToCatalog(input: {
   })
 
   const bundle = await loadCardBundle(card.catalog_id)
-  if (!bundle) throw new Error("Failed to load card bundle after vision match")
+  if (!bundle) throw new ScrydexVisionNoMatchError("Failed to load card bundle after vision match")
 
   const extraCredit = bundle.raw.length === 0 && bundle.graded.length === 0 ? 1 : 0
 
