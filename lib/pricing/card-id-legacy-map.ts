@@ -135,6 +135,54 @@ export async function saveLegacyMapResolution(input: {
   }
 }
 
+export async function getLegacyMapErrorSummary(limit = 5000): Promise<Map<string, number>> {
+  if (!isSupabaseConfigured()) return new Map()
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("card_id_legacy_map")
+    .select("resolution_status, resolution_error")
+    .in("resolution_status", ["failed", "pending"])
+    .limit(limit)
+
+  if (error) {
+    if (error.code === "42P01") return new Map()
+    throw error
+  }
+
+  const counts = new Map<string, number>()
+  for (const row of data ?? []) {
+    const status = String(row.resolution_status ?? "pending")
+    const key =
+      status === "pending"
+        ? "pending (not yet resolved)"
+        : String(row.resolution_error ?? "failed (no message)").slice(0, 200)
+    counts.set(key, (counts.get(key) ?? 0) + 1)
+  }
+  return counts
+}
+
+export async function resetFailedLegacyMaps(): Promise<number> {
+  if (!isSupabaseConfigured()) return 0
+  const supabase = createAdminClient()
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from("card_id_legacy_map")
+    .update({
+      resolution_status: "pending",
+      resolution_error: null,
+      resolved_at: null,
+      updated_at: now,
+    })
+    .eq("resolution_status", "failed")
+    .select("legacy_pc_id")
+
+  if (error) {
+    if (error.code === "42P01") return 0
+    throw error
+  }
+  return data?.length ?? 0
+}
+
 export async function markLegacyMapFailed(legacyPcId: string, message: string): Promise<void> {
   if (!isSupabaseConfigured()) return
   const supabase = createAdminClient()

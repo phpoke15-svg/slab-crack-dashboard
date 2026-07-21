@@ -5,7 +5,8 @@
  *   npm run migrate-pc-to-poke-ids              # dry-run (default)
  *   npm run migrate-pc-to-poke-ids:apply        # write changes
  *   npx tsx scripts/migrate-pc-to-poke-ids.ts --apply
- *   npx tsx scripts/migrate-pc-to-poke-ids.ts --limit 50
+ *   npx tsx scripts/migrate-pc-to-poke-ids.ts --diagnose
+ *   npx tsx scripts/migrate-pc-to-poke-ids.ts --reset-failed
  *
  * Prerequisites:
  *   1. Run supabase/pokemon-api-migration.sql in Supabase SQL Editor
@@ -25,6 +26,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 type CliOptions = {
   apply: boolean
   limit: number
+  diagnose: boolean
+  resetFailed: boolean
 }
 
 function stripQuotes(value: string): string {
@@ -64,6 +67,8 @@ async function loadEnv() {
 
 function parseCli(argv: string[]): CliOptions {
   const apply = argv.includes("--apply")
+  const diagnose = argv.includes("--diagnose")
+  const resetFailed = argv.includes("--reset-failed")
   const limitArg = argv.find((arg) => arg.startsWith("--limit="))
   const limitFlagIdx = argv.indexOf("--limit")
   const limitRaw =
@@ -71,7 +76,7 @@ function parseCli(argv: string[]): CliOptions {
     (limitFlagIdx >= 0 ? argv[limitFlagIdx + 1] : undefined) ??
     "100"
   const limit = Math.min(Math.max(Number(limitRaw) || 100, 1), 500)
-  return { apply, limit }
+  return { apply, limit, diagnose, resetFailed }
 }
 
 function requireEnv(): { supabaseUrl: string; serviceRoleKey: string; rapidApiKey: string } {
@@ -280,6 +285,19 @@ async function applyRekey(resolution: {
   }
 }
 
+async function printDiagnosis() {
+  const { getLegacyMapErrorSummary } = await import("../lib/pricing/card-id-legacy-map")
+  const summary = await getLegacyMapErrorSummary()
+  console.log("\n=== Migration error breakdown ===\n")
+  if (summary.size === 0) {
+    console.log("No pending/failed rows found.")
+    return
+  }
+  for (const [message, count] of [...summary.entries()].sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${count}\t${message}`)
+  }
+}
+
 async function main() {
   await loadEnv()
   const opts = parseCli(process.argv.slice(2))
@@ -287,6 +305,19 @@ async function main() {
   console.log(`[migrate-pc-to-poke] cwd=${process.cwd()}`)
   requireEnv()
   await assertMigrationTablesReady()
+
+  if (opts.diagnose) {
+    await printDiagnosis()
+    return
+  }
+
+  if (opts.resetFailed) {
+    const { resetFailedLegacyMaps } = await import("../lib/pricing/card-id-legacy-map")
+    const reset = await resetFailedLegacyMaps()
+    console.log(`[migrate-pc-to-poke] reset ${reset} failed rows back to pending`)
+    await printDiagnosis()
+    return
+  }
 
   const { upsertLegacyMapSeed, listPendingLegacyMaps } = await import("../lib/pricing/card-id-legacy-map")
   const { resolveLegacyPcCardId } = await import("../lib/pricing/resolve-legacy-pc-id")
@@ -314,6 +345,7 @@ async function main() {
   let resolved = 0
   let failed = 0
   let applied = 0
+  const errorCounts = new Map<string, number>()
 
   for (const row of pending) {
     try {
@@ -326,6 +358,7 @@ async function main() {
 
       if (!result.ok) {
         failed += 1
+        errorCounts.set(result.error, (errorCounts.get(result.error) ?? 0) + 1)
         console.warn(`  ✗ pc-${row.legacy_pc_id}: ${result.error}`)
         continue
       }
@@ -350,7 +383,15 @@ async function main() {
     } catch (error) {
       failed += 1
       const message = error instanceof Error ? error.message : String(error)
+      errorCounts.set(message, (errorCounts.get(message) ?? 0) + 1)
       console.warn(`  ✗ pc-${row.legacy_pc_id}: ${message}`)
+    }
+  }
+
+  if (errorCounts.size > 0) {
+    console.log("\n[migrate-pc-to-poke] error breakdown:")
+    for (const [message, count] of [...errorCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10)) {
+      console.log(`  ${count}\t${message}`)
     }
   }
 

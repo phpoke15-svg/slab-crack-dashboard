@@ -120,6 +120,15 @@ async function main() {
   const failed = byStatus.get("failed") ?? 0
   const resolved = byStatus.get("resolved") ?? 0
 
+  if (failed > 0 || pending > 0) {
+    const { getLegacyMapErrorSummary } = await import("../lib/pricing/card-id-legacy-map")
+    const errors = await getLegacyMapErrorSummary()
+    console.log("\nTop issues:")
+    for (const [message, count] of [...errors.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)) {
+      console.log(`  ${count}\t${message}`)
+    }
+  }
+
   checks.push({
     label: "Mapping table exists",
     ok: !mapError,

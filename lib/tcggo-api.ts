@@ -643,7 +643,8 @@ export async function resolveTcgGoCardForTarget(input: {
         const cardNumber = tcgGoCardNumber(card)
         return cardNumber === number || card.tcgid?.endsWith(`-${number}`)
       })
-      if (matched) return matched
+      const accepted = accepts(matched ?? null)
+      if (accepted) return accepted
     }
   }
 

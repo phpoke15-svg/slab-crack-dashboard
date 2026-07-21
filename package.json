@@ -21,6 +21,8 @@
     "import-pokemon-catalog": "npx tsx scripts/import-pokemon-catalog.ts",
     "migrate-pc-to-poke-ids": "npx tsx scripts/migrate-pc-to-poke-ids.ts",
     "migrate-pc-to-poke-ids:apply": "npx tsx scripts/migrate-pc-to-poke-ids.ts --apply",
+    "migrate-pc-to-poke-ids:diagnose": "npx tsx scripts/migrate-pc-to-poke-ids.ts --diagnose",
+    "migrate-pc-to-poke-ids:reset-failed": "npx tsx scripts/migrate-pc-to-poke-ids.ts --reset-failed",
     "verify-pc-migration": "npx tsx scripts/verify-pc-migration.ts",
     "backfill-card-slugs": "npx tsx scripts/backfill-card-slugs.ts",
     "seed-top-200": "node scripts/seed-top-200.mjs",
