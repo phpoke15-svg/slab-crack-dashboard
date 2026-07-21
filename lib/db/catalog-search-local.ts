@@ -6,7 +6,7 @@ import {
   resolveBinderSetIdHint,
 } from "@/lib/trade-binder/pokemon-tcg"
 import { catalogRowMatchesSetHint } from "@/lib/db/catalog-set-match"
-import { simplifyCardName } from "@/lib/slabcrack/identify-parse"
+import { cleanNumber, simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import type { CatalogCardRow, CatalogSearchHit } from "@/lib/db/cards-catalog"
 
 const CARD_SELECT =
@@ -288,6 +288,21 @@ async function fetchFullPattern(
   const prefix = sanitizeCatalogSearchToken(sqlQuery ?? normalizeSearchCleanName(query))
   if (!prefix) return []
   return fetchByCleanNamePrefix(supabase, prefix, fetchLimit)
+}
+
+/** Name + collector number lookup for scanner OCR / vision matching. */
+export async function queryCatalogRowsForDetected(
+  supabase: SupabaseClient,
+  detected: { cardName: string; cardNumber: string },
+  limit: number,
+): Promise<CatalogCardRow[]> {
+  const name = simplifyCardName(detected.cardName).trim()
+  const number = cleanNumber(detected.cardNumber)
+  if (!number) return []
+
+  const fetchLimit = Math.min(Math.max(limit, 1), 40)
+  if (!name) return fetchByNumber(supabase, number, fetchLimit)
+  return fetchByNameAndNumber(supabase, name, number, fetchLimit)
 }
 
 export async function queryCatalogSearchRows(

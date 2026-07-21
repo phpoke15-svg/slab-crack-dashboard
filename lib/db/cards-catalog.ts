@@ -1,14 +1,13 @@
 import type { CardSearchHit } from "@/lib/card-lookup"
 import {
   catalogSearchMinLength,
-  normalizeSearchCleanName,
+  queryCatalogRowsForDetected,
   queryCatalogSearchRows,
   rankCatalogSearchHits,
-  sanitizeCatalogSearchToken,
 } from "@/lib/db/catalog-search-local"
 import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import { lookupScrydexCatalogById } from "@/lib/scrydex/catalog-bridge"
-import { cleanNumber, simplifyCardName } from "@/lib/slabcrack/identify-parse"
+import { cleanNumber } from "@/lib/slabcrack/identify-parse"
 import { buildCardSlug, buildSetSlug } from "@/lib/seo/card-slugs"
 import { createAdminClient, createReadClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
@@ -192,11 +191,6 @@ export async function searchCatalogCardsLocal(
   }
 }
 
-function collectorNumberMatches(stored: string, detected: string): boolean {
-  const left = stored.split("/")[0] ?? stored
-  return left.trim().toLowerCase() === detected.trim().toLowerCase()
-}
-
 /** Fast name + collector number lookup on the local cards table (Collectr-style). */
 export async function findCatalogCandidatesForDetected(
   detected: { cardName: string; cardNumber: string },
@@ -204,63 +198,13 @@ export async function findCatalogCandidatesForDetected(
 ): Promise<CatalogSearchHit[]> {
   if (!isSupabaseConfigured()) return []
 
-  const name = simplifyCardName(detected.cardName).trim()
   const number = cleanNumber(detected.cardNumber)
   if (!number) return []
 
-  const safeNumber = number.replace(/[%_]/g, "")
-
   try {
     const supabase = createReadClient()
-
-    if (!name) {
-      const { data, error } = await supabase
-        .from("cards")
-        .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")
-        .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
-        .order("name", { ascending: true })
-        .limit(Math.min(Math.max(limit, 1), 24))
-
-      if (error) {
-        if (error.code === "42P01") return []
-        throw error
-      }
-
-      const hits = await attachCachedPrices((data ?? []) as CatalogCardRow[])
-      return hits.filter((hit) => collectorNumberMatches(hit.number, number))
-    }
-
-    const firstToken = name.split(/\s+/).find((t) => t.length > 2) ?? name
-    const cleanPrefix = sanitizeCatalogSearchToken(normalizeSearchCleanName(firstToken))
-    const safeToken = firstToken.replace(/[%_]/g, "")
-
-    let { data, error } = await supabase
-      .from("cards")
-      .select(CARD_SELECT)
-      .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
-      .like("clean_name", `${cleanPrefix}%`)
-      .order("current_price_raw", { ascending: false, nullsFirst: false })
-      .limit(Math.min(Math.max(limit, 1), 40))
-
-    if (error?.code === "42703" || (data?.length ?? 0) === 0) {
-      const fallback = await supabase
-        .from("cards")
-        .select(CARD_SELECT)
-        .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
-        .ilike("name", `%${safeToken}%`)
-        .order("current_price_raw", { ascending: false, nullsFirst: false })
-        .limit(Math.min(Math.max(limit, 1), 40))
-      data = fallback.data
-      error = fallback.error
-    }
-
-    if (error) {
-      if (error.code === "42P01") return []
-      throw error
-    }
-
-    const hits = await attachCachedPrices((data ?? []) as CatalogCardRow[])
-    return hits.filter((hit) => collectorNumberMatches(hit.number, number))
+    const rows = await queryCatalogRowsForDetected(supabase, detected, limit)
+    return attachCachedPrices(rows)
   } catch (error) {
     console.error("[cards-catalog] detected match failed:", error)
     return []
