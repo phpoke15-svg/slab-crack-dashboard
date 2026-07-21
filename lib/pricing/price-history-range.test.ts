@@ -13,6 +13,7 @@ describe("price history range", () => {
 
   it("parses preset keys", () => {
     expect(parsePriceHistoryRange("7")).toEqual({ key: "7", days: 7, full: false })
+    expect(parsePriceHistoryRange("90")).toEqual({ key: "90", days: 90, full: false })
     expect(parsePriceHistoryRange("180")).toEqual({ key: "180", days: 180, full: false })
     expect(parsePriceHistoryRange("365")).toEqual({ key: "365", days: 365, full: false })
     expect(parsePriceHistoryRange("all")).toEqual({ key: "all", days: 0, full: true })
@@ -20,6 +21,7 @@ describe("price history range", () => {
 
   it("maps day counts to nearest preset", () => {
     expect(priceHistoryRangeFromDays(30)).toBe("30")
+    expect(priceHistoryRangeFromDays(90)).toBe("90")
     expect(priceHistoryRangeFromDays(200)).toBe("180")
     expect(priceHistoryRangeFromDays(0)).toBe("all")
   })

@@ -1,6 +1,7 @@
 export const PRICE_HISTORY_RANGE_PRESETS = {
   "7": 7,
   "30": 30,
+  "90": 90,
   "180": 180,
   "365": 365,
   all: 0,
@@ -11,6 +12,7 @@ export type PriceHistoryRangeKey = keyof typeof PRICE_HISTORY_RANGE_PRESETS
 export const PRICE_HISTORY_RANGE_OPTIONS: Array<{ key: PriceHistoryRangeKey; label: string }> = [
   { key: "7", label: "7D" },
   { key: "30", label: "30D" },
+  { key: "90", label: "90D" },
   { key: "180", label: "6M" },
   { key: "365", label: "1Y" },
   { key: "all", label: "All" },
@@ -51,6 +53,7 @@ export function priceHistoryRangeFromDays(days: number): PriceHistoryRangeKey {
   if (days <= 0 || days >= 9999) return "all"
   if (days >= 365) return "365"
   if (days >= 180) return "180"
+  if (days >= 90) return "90"
   if (days >= 30) return "30"
   if (days >= 7) return "7"
   return DEFAULT_PRICE_HISTORY_RANGE
