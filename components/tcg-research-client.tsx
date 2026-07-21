@@ -252,7 +252,7 @@ export function TcgResearchClient() {
           </div>
         ) : (
           <TcgResearchBrowseList
-            title={`Top 100 popular ${gameLabel} cards`}
+            title={`Trending ${gameLabel} cards`}
             hits={popularHits}
             loading={popularLoading}
             emptyMessage={
