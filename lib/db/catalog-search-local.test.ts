@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   catalogRowMatchesQuery,
   catalogSearchMinLength,
+  normalizeSearchCleanName,
   rankCatalogSearchHits,
   sanitizeCatalogSearchToken,
 } from "@/lib/db/catalog-search-local"
@@ -16,8 +17,6 @@ const sampleRow: CatalogCardRow = {
   number: "4/102",
   rarity: "Rare Holo",
   image_url: "",
-  language: "en",
-  updated_at: "2026-01-01T00:00:00.000Z",
 }
 
 describe("catalogSearchMinLength", () => {
@@ -83,5 +82,16 @@ describe("rankCatalogSearchHits", () => {
 describe("sanitizeCatalogSearchToken", () => {
   it("strips wildcard characters", () => {
     expect(sanitizeCatalogSearchToken("char%izard_")).toBe("charizard")
+  })
+})
+
+describe("normalizeSearchCleanName", () => {
+  it("lowercases and strips special characters", () => {
+    expect(normalizeSearchCleanName("Charizard (Holo)!")).toBe("charizard holo")
+    expect(normalizeSearchCleanName("  Pikachu-VMAX  ")).toBe("pikachu vmax")
+  })
+
+  it("preserves digits and spaces for set-style queries", () => {
+    expect(normalizeSearchCleanName("151 173")).toBe("151 173")
   })
 })

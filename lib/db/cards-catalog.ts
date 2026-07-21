@@ -17,14 +17,19 @@ import type { Rarity } from "@/lib/trade-binder/cards"
 export type CatalogCardRow = {
   id: string
   name: string
-  japanese_name: string | null
+  japanese_name?: string | null
   set_name: string
   set_id: string
   number: string
   rarity: string | null
   image_url: string | null
-  language: string
-  updated_at: string
+  language?: string
+  updated_at?: string
+  scrydex_id?: string | null
+  current_price_raw?: number | null
+  current_price_psa10?: number | null
+  card_slug?: string | null
+  set_slug?: string | null
 }
 
 export type CatalogSearchHit = {
@@ -77,9 +82,15 @@ export function catalogHitToBinderCard(hit: CatalogSearchHit): CatalogCard & {
 export async function attachCachedPrices(rows: CatalogCardRow[]): Promise<CatalogSearchHit[]> {
   if (rows.length === 0) return []
 
-  const rawPrices = await getRawPricesForCardIds(rows.map((row) => row.id))
+  const needsLookup = rows.filter((row) => row.current_price_raw == null)
+  const rawPrices =
+    needsLookup.length > 0
+      ? await getRawPricesForCardIds(needsLookup.map((row) => row.id))
+      : new Map<string, number>()
+
   return rows.map((row) => {
-    const rawPrice = rawPrices.get(row.id)
+    const rawPrice =
+      row.current_price_raw != null ? Number(row.current_price_raw) : rawPrices.get(row.id)
     return rowToHit({
       ...row,
       raw_price: rawPrice ?? null,
@@ -104,8 +115,8 @@ function rowToHit(
     number: row.number,
     rarity: row.rarity ? mapPokemonRarity(row.rarity) : null,
     imageUrl: row.image_url ?? "/placeholder.svg",
-    language: row.language,
-    japaneseName: row.japanese_name,
+    language: row.language ?? "en",
+    japaneseName: row.japanese_name ?? null,
     rawPrice: rawPrice && rawPrice > 0 ? rawPrice : undefined,
     priceSyncedAt: syncedAt,
     priceUnavailable: unavailable && syncedAt ? true : undefined,
@@ -160,6 +171,7 @@ export async function getCatalogCardById(cardId: string): Promise<CatalogSearchH
 export async function searchCatalogCardsLocal(
   query: string,
   limit = 20,
+  options?: { sqlQuery?: string },
 ): Promise<CatalogSearchHit[]> {
   if (!isSupabaseConfigured()) return []
 
@@ -169,7 +181,7 @@ export async function searchCatalogCardsLocal(
   try {
     const supabase = createReadClient()
     const fetchLimit = Math.min(Math.max(limit * 4, 80), 200)
-    const rows = await queryCatalogSearchRows(supabase, q, fetchLimit)
+    const rows = await queryCatalogSearchRows(supabase, q, fetchLimit, options)
     const hits = await attachCachedPrices(rows)
     return rankCatalogSearchHits(hits, q, Math.min(Math.max(limit, 1), 80))
   } catch (error) {
