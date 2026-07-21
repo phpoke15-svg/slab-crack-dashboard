@@ -8,7 +8,8 @@ import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
 import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import { refreshScrydexPricesForSearchHits } from "@/lib/scrydex/on-demand"
-import { searchScrydexCatalogLocal } from "@/lib/scrydex/catalog-bridge"
+import { catalogRowToSearchHit, searchScrydexCatalogLocal } from "@/lib/scrydex/catalog-bridge"
+import { createCatalogService } from "@/lib/scrydex/catalog-service"
 import { cardIdsEquivalent } from "@/lib/trade-binder/card-id-match"
 import { enrichCatalogHitWithScrydex } from "@/lib/trade-binder/enrich-catalog-hit"
 import { mergeBinderSearchResults } from "@/lib/trade-binder/binder-search"
@@ -228,6 +229,21 @@ function mergeCatalogHits(
   return { hits: deduped.slice(0, limit), source: "hybrid" }
 }
 
+async function fetchScrydexRemoteSearchHits(query: string, limit: number): Promise<CatalogSearchHit[]> {
+  if (!isScrydexConfigured()) return []
+
+  try {
+    const service = createCatalogService()
+    const remote = await service.search({ game: "pokemon", q: query, pageSize: limit })
+    if (remote.cards.length === 0) return []
+
+    return remote.cards.map((row) => catalogRowToSearchHit(row)).slice(0, limit)
+  } catch (error) {
+    console.warn("[catalog-search] Scrydex remote search failed:", error)
+    return []
+  }
+}
+
 export async function searchCatalogHybrid(
   query: string,
   options?: { limit?: number; rawPriceByCardId?: Map<string, number> },
@@ -254,6 +270,14 @@ export async function searchCatalogHybrid(
   }
 
   let { hits, source } = mergeCatalogHits(mergedLocal, liveHits, supplementalHits, query, limit)
+
+  if (hits.length === 0 && isScrydexConfigured()) {
+    const remoteHits = await fetchScrydexRemoteSearchHits(query, limit)
+    if (remoteHits.length > 0) {
+      hits = remoteHits
+      source = "scrydex"
+    }
+  }
 
   if (scrydexHits.length > 0 && source === "local") {
     source = "scrydex"
