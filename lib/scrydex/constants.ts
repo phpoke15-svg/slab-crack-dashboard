@@ -82,6 +82,18 @@ export function scrydexPriceSyncMaxCards(): number {
   return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 500) : 400
 }
 
+/** When true, skip bulk expansion hydration cron — rely on search/view backfill instead. */
+export function scrydexOnDemandOnly(): boolean {
+  const raw = process.env.SCRYDEX_ON_DEMAND_ONLY?.trim().toLowerCase()
+  return raw === "1" || raw === "true" || raw === "yes"
+}
+
+/** Max cards to refresh from Scrydex per search request (missing prices only). */
+export function scrydexOnDemandSearchRefreshLimit(): number {
+  const raw = Number(process.env.SCRYDEX_ON_DEMAND_SEARCH_REFRESH ?? 8)
+  return Number.isFinite(raw) && raw > 0 ? Math.min(Math.floor(raw), 20) : 8
+}
+
 export function proxiedScrydexImageUrl(url: string | null | undefined): string | null {
   const trimmed = url?.trim()
   if (!trimmed) return null

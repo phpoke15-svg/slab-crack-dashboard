@@ -6,6 +6,7 @@ import {
 import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
+import { refreshScrydexPricesForSearchHits } from "@/lib/scrydex/on-demand"
 import { searchScrydexCatalogLocal } from "@/lib/scrydex/catalog-bridge"
 import { cardIdsEquivalent } from "@/lib/trade-binder/card-id-match"
 import { mergeBinderSearchResults } from "@/lib/trade-binder/binder-search"
@@ -256,13 +257,19 @@ export async function searchCatalogHybrid(
     }
   }
 
-  const enriched = hits.map((hit) => {
+  let enriched = hits.map((hit) => {
     if ((hit.rawPrice ?? 0) > 0) return hit
     const cached =
       rawPriceByCardId.get(hit.id) ?? rawPriceByCardId.get(hit.id.replace(/^poke-/, ""))
     if (cached && cached > 0) return { ...hit, rawPrice: cached }
     return hit
   })
+
+  try {
+    enriched = await refreshScrydexPricesForSearchHits(enriched)
+  } catch (error) {
+    console.warn("[catalog-search] scrydex on-demand refresh failed:", error)
+  }
 
   return { hits: enriched, source }
 }

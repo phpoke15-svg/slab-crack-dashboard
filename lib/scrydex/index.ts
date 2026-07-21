@@ -32,6 +32,10 @@ export {
   lookupScrydexCatalogCardsByIds,
 } from "@/lib/scrydex/catalog-bridge"
 export {
+  ensureScrydexCardFresh,
+  refreshScrydexPricesForSearchHits,
+} from "@/lib/scrydex/on-demand"
+export {
   scrydexBundleToCardPriceRow,
   getScrydexRawPricesForIds,
   getScrydexCardPriceRowsForIds,

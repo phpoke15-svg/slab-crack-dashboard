@@ -1,4 +1,5 @@
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
+import { scrydexOnDemandOnly } from "@/lib/scrydex/constants"
 import { SCRYDEX_CACHE } from "@/lib/scrydex/types"
 import { CatalogService } from "@/lib/scrydex/catalog-service"
 import { scrydexPriceSyncMaxCards } from "@/lib/scrydex/constants"
@@ -29,27 +30,62 @@ export async function syncScrydexPrices(opts?: {
   const staleBefore = new Date(Date.now() - SCRYDEX_CACHE.priceTtlMs).toISOString()
 
   const supabase = createAdminClient()
-  const { data: queue, error } = await supabase.rpc("get_price_refresh_queue", {
-    stale_before: staleBefore,
-    row_limit: maxCards,
-  })
+  let queue: Array<{ catalog_id: string; game?: string; scrydex_id?: string }> = []
 
-  if (error?.code === "42883") {
-    return {
-      refreshed: 0,
-      historyPoints: 0,
-      creditsUsed: 0,
-      errors: ["Run supabase/scrydex-batch-rpc.sql to enable refresh queue"],
+  if (scrydexOnDemandOnly()) {
+    const onDemand = await supabase.rpc("get_on_demand_price_refresh_queue", {
+      stale_before: staleBefore,
+      row_limit: maxCards,
+    })
+
+    if (!onDemand.error) {
+      queue = (onDemand.data ?? []) as typeof queue
+    } else if (onDemand.error.code === "42883") {
+      const fallback = await supabase.rpc("get_price_refresh_queue", {
+        stale_before: staleBefore,
+        row_limit: maxCards * 3,
+      })
+      if (fallback.error?.code === "42883") {
+        return {
+          refreshed: 0,
+          historyPoints: 0,
+          creditsUsed: 0,
+          errors: ["Run supabase/scrydex-batch-rpc.sql to enable refresh queue"],
+        }
+      }
+      if (fallback.error) throw fallback.error
+
+      const activeIds = await loadActiveCatalogIds(supabase)
+      queue = ((fallback.data ?? []) as typeof queue).filter((row) =>
+        activeIds.has(String(row.catalog_id)),
+      ).slice(0, maxCards)
+    } else {
+      throw onDemand.error
     }
+  } else {
+    const { data, error } = await supabase.rpc("get_price_refresh_queue", {
+      stale_before: staleBefore,
+      row_limit: maxCards,
+    })
+
+    if (error?.code === "42883") {
+      return {
+        refreshed: 0,
+        historyPoints: 0,
+        creditsUsed: 0,
+        errors: ["Run supabase/scrydex-batch-rpc.sql to enable refresh queue"],
+      }
+    }
+    if (error) throw error
+    queue = (data ?? []) as typeof queue
   }
-  if (error) throw error
 
   let refreshed = 0
   let historyPoints = 0
   let creditsUsed = 0
   const errors: string[] = []
 
-  for (const row of queue ?? []) {
+  for (const row of queue) {
     const catalogId = String(row.catalog_id)
     try {
       const result = await service.ensureFreshPrices(catalogId)
@@ -92,6 +128,18 @@ export async function syncScrydexPrices(opts?: {
   }
 
   return { refreshed, historyPoints, creditsUsed, errors }
+}
+
+async function loadActiveCatalogIds(supabase: ReturnType<typeof createAdminClient>) {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from("card_activity")
+    .select("catalog_id")
+    .gte("last_seen_at", since)
+
+  if (error?.code === "42P01") return new Set<string>()
+  if (error) throw error
+  return new Set((data ?? []).map((row) => String(row.catalog_id)))
 }
 
 export async function probeScrydexSync(): Promise<{ ok: boolean; message: string }> {

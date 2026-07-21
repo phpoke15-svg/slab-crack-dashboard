@@ -157,3 +157,31 @@ $$;
 
 grant execute on function public.get_seeded_expansion_codes(public.tcg_game) to service_role;
 grant execute on function public.get_next_hydration_job(public.tcg_game) to service_role;
+
+create or replace function public.get_on_demand_price_refresh_queue(
+  stale_before timestamptz,
+  row_limit integer default 500
+)
+returns table (
+  catalog_id text,
+  game public.tcg_game,
+  scrydex_id text,
+  priority_score bigint
+) language sql stable as $$
+  select
+    c.catalog_id,
+    c.game,
+    c.scrydex_id,
+    coalesce(sum(a.hit_count), 0) + 1000 as priority_score
+  from public.catalog_cards c
+  inner join public.card_activity a on a.catalog_id = c.catalog_id
+  left join public.prices_raw r
+    on r.catalog_id = c.catalog_id and r.variant = 'normal' and r.condition = 'NM'
+  where a.last_seen_at >= now() - interval '30 days'
+    and (r.synced_at is null or r.synced_at < stale_before)
+  group by c.catalog_id, c.game, c.scrydex_id
+  order by priority_score desc, c.catalog_id
+  limit greatest(row_limit, 1);
+$$;
+
+grant execute on function public.get_on_demand_price_refresh_queue(timestamptz, integer) to service_role;

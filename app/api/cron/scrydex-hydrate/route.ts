@@ -4,6 +4,7 @@ import {
   hydrateExpansionPage,
   isScrydexConfigured,
   pickNextHydrationJob,
+  scrydexOnDemandOnly,
   syncRecentExpansions,
 } from "@/lib/scrydex"
 import type { TcgGame } from "@/lib/scrydex/types"
@@ -28,6 +29,14 @@ export async function GET(request: Request) {
   const games = gameParam ? [gameParam] : GAMES
 
   try {
+    if (scrydexOnDemandOnly()) {
+      return NextResponse.json({
+        skipped: true,
+        mode: "on-demand",
+        message: "Bulk hydration disabled — cards backfill on search/view instead.",
+      })
+    }
+
     if (gameParam && expansionId) {
       const result = await hydrateExpansionPage({ game: gameParam, expansionId, includePrices })
       return NextResponse.json(result)

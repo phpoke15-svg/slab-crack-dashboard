@@ -67,7 +67,7 @@ export class CreditLedger {
 
 export async function recordCardActivity(
   catalogId: string,
-  activityType: "view" | "binder" | "portfolio" | "scan",
+  activityType: "view" | "binder" | "portfolio" | "scan" | "search",
 ): Promise<void> {
   if (!isSupabaseConfigured()) return
 
