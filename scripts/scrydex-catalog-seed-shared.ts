@@ -6,6 +6,16 @@ export const POKE_CARD_SELECT =
 
 export const READ_PAGE_SIZE = 1000
 export const UPSERT_CHUNK_SIZE = 100
+/** Keep PostgREST .in() filter URLs under the ~16KB header limit. */
+export const QUERY_IN_CHUNK_SIZE = 100
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
 
 export type LegacyCardRow = {
   id: string
@@ -154,21 +164,38 @@ export async function copyTcggoPricesForLegacyIds(
 ): Promise<number> {
   if (legacyIds.length === 0) return 0
 
+  let copied = 0
+  for (const legacyChunk of chunk(legacyIds, QUERY_IN_CHUNK_SIZE)) {
+    copied += await copyTcggoPricesForLegacyIdChunk(supabase, legacyChunk)
+  }
+  return copied
+}
+
+async function copyTcggoPricesForLegacyIdChunk(
+  supabase: SupabaseClient,
+  legacyIds: string[],
+): Promise<number> {
   const catalogIds = legacyIds
     .map((id) => legacyPokeIdToCatalogId(id))
     .filter((id): id is string => Boolean(id))
 
   if (catalogIds.length === 0) return 0
 
-  const { data: existingPrices, error: existingError } = await supabase
-    .from("prices_raw")
-    .select("catalog_id")
-    .in("catalog_id", catalogIds)
+  const pricedCatalogIds = new Set<string>()
+  for (const catalogChunk of chunk(catalogIds, QUERY_IN_CHUNK_SIZE)) {
+    const { data: existingPrices, error: existingError } = await supabase
+      .from("prices_raw")
+      .select("catalog_id")
+      .in("catalog_id", catalogChunk)
 
-  if (existingError?.code === "42P01") return 0
-  if (existingError) throw existingError
+    if (existingError?.code === "42P01") return 0
+    if (existingError) throw existingError
 
-  const pricedCatalogIds = new Set((existingPrices ?? []).map((row) => String(row.catalog_id)))
+    for (const row of existingPrices ?? []) {
+      pricedCatalogIds.add(String(row.catalog_id))
+    }
+  }
+
   const unresolvedLegacyIds = legacyIds.filter((legacyId) => {
     const catalogId = legacyPokeIdToCatalogId(legacyId)
     return catalogId != null && !pricedCatalogIds.has(catalogId)
@@ -176,15 +203,19 @@ export async function copyTcggoPricesForLegacyIds(
 
   if (unresolvedLegacyIds.length === 0) return 0
 
-  const { data: cardPrices, error: priceError } = await supabase
-    .from("card_prices")
-    .select("card_id, raw_price, synced_at")
-    .in("card_id", unresolvedLegacyIds)
-    .gt("raw_price", 0)
+  const cardPrices: Array<{ card_id: string; raw_price: number; synced_at: string }> = []
+  for (const legacyChunk of chunk(unresolvedLegacyIds, QUERY_IN_CHUNK_SIZE)) {
+    const { data, error: priceError } = await supabase
+      .from("card_prices")
+      .select("card_id, raw_price, synced_at")
+      .in("card_id", legacyChunk)
+      .gt("raw_price", 0)
 
-  if (priceError) throw priceError
+    if (priceError) throw priceError
+    if (data?.length) cardPrices.push(...(data as typeof cardPrices))
+  }
 
-  const priceRows = ((cardPrices ?? []) as Array<{ card_id: string; raw_price: number; synced_at: string }>)
+  const priceRows = cardPrices
     .map((row) => {
       const catalogId = legacyPokeIdToCatalogId(row.card_id)
       if (!catalogId) return null
@@ -201,8 +232,8 @@ export async function copyTcggoPricesForLegacyIds(
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
 
   for (let i = 0; i < priceRows.length; i += UPSERT_CHUNK_SIZE) {
-    const chunk = priceRows.slice(i, i + UPSERT_CHUNK_SIZE)
-    const { error } = await supabase.from("prices_raw").upsert(chunk)
+    const chunkRows = priceRows.slice(i, i + UPSERT_CHUNK_SIZE)
+    const { error } = await supabase.from("prices_raw").upsert(chunkRows)
     if (error) throw error
   }
 
