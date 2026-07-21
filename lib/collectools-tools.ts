@@ -10,6 +10,7 @@ import {
   Radar,
   ScanEye,
   ScanSearch,
+  Search,
 } from "lucide-react"
 import { PokeMatchIcon } from "@/components/icons/collec-tools-icons"
 import { SLABLABS_HREF } from "@/lib/slabs-labs-routes"
@@ -34,6 +35,22 @@ export type CollecTool = {
 
 const ALL_COLLECTOOLS: CollecTool[] = [
   {
+    id: "tcg-research",
+    href: "/tcg-research",
+    name: "TCG Research",
+    tagline: "Search · charts · scan",
+    blurb: "Unlimited catalog search with local prices, history charts, and Vision scan.",
+    description:
+      "TCG Research is the full-market research hub — hybrid search across Pokémon, Lorcana, and MTG, grade spreads from your local Scrydex cache, price history charts, and camera identify via Scrydex Vision.",
+    highlights: [
+      "Hybrid local + Scrydex catalog search",
+      "Raw and PSA grade spreads from cached prices",
+      "Price history charts with one-time Scrydex backfill",
+      "Camera Vision scan with $0 local resolution",
+    ],
+    icon: Search,
+  },
+  {
     id: "slablabs",
     href: SLABLABS_HREF,
     name: "SlabLabs",
@@ -42,8 +59,8 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     description:
       "SlabLabs groups SlabCrack arbitrage, SlabPop population filters, and SlabIt PSA 10 submission ROI in one graded slab toolkit.",
     highlights: [
-      "SlabCrack — raw vs PSA slab gap hunting",
-      "SlabIt — top 200 PSA 10 submission ROI rankings",
+      "SlabCrack — top 100 graded arbitrage board",
+      "SlabIt — top 100 PSA 10 submission ROI rankings",
       "SlabPop — population and price band filters",
       "Camera scan on SlabCrack and SlabIt",
     ],

@@ -3,7 +3,7 @@ import { catalogSearchMinLength, rankCatalogSearchHits } from "@/lib/db/catalog-
 import { catalogHitIdForUi, resolveCatalogId } from "@/lib/scrydex/constants"
 import { getCatalogCard, loadCardBundle, searchLocalCatalog } from "@/lib/scrydex/db"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
-import type { CatalogCardRow } from "@/lib/scrydex/types"
+import type { CatalogCardRow, TcgGame } from "@/lib/scrydex/types"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import type { CatalogCard } from "@/lib/trade-binder/cards"
@@ -52,6 +52,7 @@ function batchRowToSearchHit(row: Record<string, unknown>): CatalogSearchHit {
 export async function searchScrydexCatalogLocal(
   query: string,
   limit = 20,
+  game: TcgGame = "pokemon",
 ): Promise<CatalogSearchHit[]> {
   if (!isSupabaseConfigured()) return []
 
@@ -60,7 +61,7 @@ export async function searchScrydexCatalogLocal(
 
   try {
     const { cards } = await searchLocalCatalog({
-      game: "pokemon",
+      game,
       q,
       page: 1,
       pageSize: Math.min(Math.max(limit, 1), 80),

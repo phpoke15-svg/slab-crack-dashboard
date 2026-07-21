@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
-  Search,
   Zap,
   TrendingDown,
   TrendingUp,
@@ -13,10 +12,9 @@ import {
   Gem,
   BarChart3,
   Crown,
-  Camera,
 } from "lucide-react"
 import Link from "next/link"
-import { SLABCRACK_HREF, SLABLABS_HREF } from "@/lib/slabs-labs-routes"
+import { SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
@@ -34,13 +32,8 @@ import { AdSlot } from "@/components/ad-slot"
 import { interleaveFeedAds } from "@/lib/feed-ads"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
-import { CardSearchResults } from "@/components/card-search-results"
-import { searchHitToPlaceholder, type CardSearchHit } from "@/lib/card-lookup"
-import { useCatalogCardSearch } from "@/hooks/use-catalog-card-search"
 import { FREE_SLABCRACK_LIMIT, pickMidDeficitCards } from "@/lib/slab-free-tier"
 import {
-  findWatchedIdForHit,
-  isSearchHitWatched,
   loadWatchlistStore,
   resolveWatchedCards,
   saveWatchlistStore,
@@ -83,7 +76,6 @@ export function SlabDashboard() {
   const { user } = useAuth()
   const [arbitrageFeed, setArbitrageFeed] = useState<MockCardEntry[]>(FALLBACK_FEED)
   const [feedLoading, setFeedLoading] = useState(true)
-  const [query, setQuery] = useState("")
   const [feed, setFeed] = useState<Feed>("top")
   const [selectedCard, setSelectedCard] = useState<MockCardEntry | null>(null)
   const [watchlistStore, setWatchlistStore] = useState<WatchlistStore>({
@@ -95,13 +87,6 @@ export function SlabDashboard() {
     items: [],
   })
   const [sortMode, setSortMode] = useState<"dollar" | "percent">("dollar")
-  const catalogSearchEnabled = query.trim().length >= 2 && feed === "top"
-  const {
-    hits: searchHits,
-    isLoading: searchLoading,
-    isPricing: searchPricing,
-  } = useCatalogCardSearch(query, catalogSearchEnabled)
-  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null)
 
   useEffect(() => {
     setWatchlistStore(loadWatchlistStore())
@@ -120,7 +105,7 @@ export function SlabDashboard() {
   const handleCloseDrawer = () => setSelectedCard(null)
 
   useEffect(() => {
-    fetch("/api/anomalies")
+    fetch("/api/slabcrack/top")
       .then((res) => (res.ok ? res.json() : null))
       .then((data: MockCardEntry[] | null) => {
         if (Array.isArray(data) && data.length > 0) {
@@ -160,23 +145,6 @@ export function SlabDashboard() {
     [saveStore, feedById],
   )
 
-  const lookupCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry | null> => {
-    const params = hit.id.startsWith("pc-")
-      ? new URLSearchParams({ id: hit.id })
-      : new URLSearchParams({
-          pokemonTcgId: hit.pokemonTcgId,
-          cardName: hit.cardName,
-          setName: hit.setName,
-          cardNumber: hit.cardNumber,
-        })
-    if (!hit.id.startsWith("pc-") && hit.imageUrl) params.set("imageUrl", hit.imageUrl)
-
-    const res = await fetch(`/api/cards/lookup?${params.toString()}`)
-    if (!res.ok) return null
-    const data = (await res.json()) as MockCardEntry
-    return normalizeCardEntry(data)
-  }, [])
-
   const toggleWatch = useCallback((card: MockCardEntry) => {
     setWatchlistStore((prev) => toggleWatchlistCard(prev, normalizeCardEntry(card)))
   }, [])
@@ -193,51 +161,9 @@ export function SlabDashboard() {
     [saveStore],
   )
 
-  const handleSearchSelect = useCallback(
-    async (hit: CardSearchHit) => {
-      setSelectedCard(searchHitToPlaceholder(hit))
-      setDetailLoadingId(hit.id)
-      try {
-        const card = await lookupCard(hit)
-        if (card) setSelectedCard(card)
-      } finally {
-        setDetailLoadingId(null)
-      }
-    },
-    [lookupCard],
-  )
-
-  const handleSearchWatch = useCallback(
-    async (hit: CardSearchHit) => {
-      const watchedId = findWatchedIdForHit(watchlistStore, hit, feedById)
-      if (watchedId) {
-        const existing = watchlistStore.cards[watchedId] ?? feedById.get(watchedId)
-        if (existing) {
-          toggleWatch(existing)
-          return
-        }
-      }
-
-      setDetailLoadingId(hit.id)
-      try {
-        const card = await lookupCard(hit)
-        if (card) toggleWatch(card)
-      } finally {
-        setDetailLoadingId(null)
-      }
-    },
-    [feedById, lookupCard, toggleWatch, watchlistStore],
-  )
-
-  const checkHitWatched = useCallback(
-    (hit: CardSearchHit) => isSearchHitWatched(watchlistStore, hit, feedById),
-    [watchlistStore, feedById],
-  )
-
   const fullSlabCrack = Boolean(entitlements?.fullSlabCrack)
 
   const results = useMemo(() => {
-    // Free tier (and pre-auth default): mid-deficit preview only (not the top chase deals).
     const baseFeed =
       feed === "watchlist"
         ? watchedCards
@@ -249,36 +175,20 @@ export function SlabDashboard() {
 
     return baseFeed
       .filter((card) => {
-        const matchesFeed =
-          feed === "watchlist" || feed === "saved"
-            ? true
-            : feed === "top"
-              ? card.hasPricing !== false && card.deficit > 0
-              : true
-        const q = query.trim().toLowerCase()
-        const matchesQuery =
-          (feed === "watchlist" || feed === "saved") && q.length >= 2
-            ? true
-            : q === "" ||
-              card.cardName.toLowerCase().includes(q) ||
-              card.setName.toLowerCase().includes(q) ||
-              card.cardNumber.toLowerCase().includes(q)
-        return matchesFeed && matchesQuery
+        if (feed === "watchlist" || feed === "saved") return true
+        if (feed === "top") return card.hasPricing !== false
+        return true
       })
       .sort((a, b) => {
         if (a.hasPricing !== b.hasPricing) return a.hasPricing ? -1 : 1
-        return sortMode === "dollar" ? b.deficit - a.deficit : b.percentageSavings - a.percentageSavings
+        if (sortMode === "dollar") {
+          return b.slabPrice - a.slabPrice || b.deficit - a.deficit
+        }
+        return b.percentageSavings - a.percentageSavings || b.slabPrice - a.slabPrice
       })
-  }, [arbitrageFeed, feed, fullSlabCrack, query, sortMode, savedCards, watchedCards])
+  }, [arbitrageFeed, feed, fullSlabCrack, sortMode, savedCards, watchedCards])
 
   const showFreePreviewBanner = !fullSlabCrack && !entitlements?.isLoading && feed === "top"
-  const catalogSearchActive = catalogSearchEnabled
-  const freeSearchBlocked =
-    !fullSlabCrack &&
-    catalogSearchActive &&
-    results.length === 0 &&
-    searchHits.length === 0 &&
-    !searchLoading
 
   const pricedCount = useMemo(
     () => arbitrageFeed.filter((card) => card.hasPricing !== false).length,
@@ -294,7 +204,6 @@ export function SlabDashboard() {
     () => interleaveFeedAds(results, entitlements?.adFree ? 0 : undefined),
     [results, entitlements?.adFree],
   )
-  const showCatalogSearch = catalogSearchActive
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
@@ -323,28 +232,6 @@ export function SlabDashboard() {
             <ArrowLeft className="size-3.5" aria-hidden />
             Back to SlabLabs
           </Link>
-
-          {/* Search + Scan */}
-          <div className="relative mt-4">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search all cards — name, set, or number…"
-              className={cn(
-                "h-11 w-full rounded-xl border border-border bg-secondary/60 pl-10 pr-[4.75rem] text-sm text-foreground placeholder:text-muted-foreground",
-                "outline-none transition-colors focus:border-primary/50 focus:bg-secondary",
-              )}
-            />
-            <Link
-              href={`${SLABCRACK_HREF}/scan`}
-              className="absolute right-1.5 top-1/2 inline-flex h-8 -translate-y-1/2 items-center gap-1 rounded-lg border border-primary/40 bg-primary/15 px-2.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/25"
-              aria-label="Scan a card"
-            >
-              <Camera className="size-3.5" aria-hidden />
-              Scan
-            </Link>
-          </div>
         </div>
 
         {/* Feed tabs */}
@@ -413,20 +300,6 @@ export function SlabDashboard() {
           </ol>
         </section>
 
-        {showCatalogSearch && (
-          <CardSearchResults
-            hits={searchHits}
-            loading={searchLoading}
-            pricing={searchPricing}
-            query={query}
-            watchedIds={watchlistStore.ids}
-            isHitWatched={checkHitWatched}
-            onSelect={handleSearchSelect}
-            onToggleWatch={handleSearchWatch}
-            detailLoadingId={detailLoadingId}
-          />
-        )}
-
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <TrendingDown className="size-3.5 text-primary" />
@@ -443,8 +316,8 @@ export function SlabDashboard() {
               {feed !== "watchlist" && feed !== "saved" && !showFreePreviewBanner && pricedCount > 0 && (
                 <>
                   {" "}
-                  · {pricedCount} with live pricing · by{" "}
-                  {sortMode === "dollar" ? "dollar deficit" : "% discount"}
+              · {pricedCount} with live pricing · by{" "}
+              {sortMode === "dollar" ? "PSA 10 value" : "% spread"}
                 </>
               )}
             </span>
@@ -499,8 +372,8 @@ export function SlabDashboard() {
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-foreground">Free SlabCrack preview</p>
                 <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-                  Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards (not the top opportunities). Search any
-                  card above; the full deficit feed needs Premium.
+                  Showing {FREE_SLABCRACK_LIMIT} mid-deficit cards from the top 100 board. Upgrade for
+                  the full live deficit feed — or use TCG Research for unlimited search.
                 </p>
                 <Link
                   href="/pricing"
@@ -520,34 +393,26 @@ export function SlabDashboard() {
         ) : results.length === 0 ? (
           <div className="mt-16 flex flex-col items-center justify-center text-center">
             <span className="flex size-14 items-center justify-center rounded-2xl border border-border bg-secondary/40 text-muted-foreground">
-              <Search className="size-6" />
+              <TrendingDown className="size-6" />
             </span>
-            {freeSearchBlocked ? (
-              <>
-                <p className="mt-4 font-medium text-foreground">No preview matches</p>
-                <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                  No matches in the free preview feed. Try a catalog result above, or upgrade for the
-                  full live deficit board.
-                </p>
-                <Link
-                  href="/pricing"
-                  className="mt-4 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
-                >
-                  Start Premium trial
-                </Link>
-              </>
-            ) : (
-              <>
-                <p className="mt-4 font-medium text-foreground">No slabs match your filters</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {feed === "watchlist"
-                    ? "Search any card above and tap the star to add it here."
-                    : feed === "saved"
-                      ? "Tap Save for later on any card to build your folder."
-                      : "Try a card name, set (151), number (#173), or both (151 173)."}
-                </p>
-              </>
-            )}
+            <p className="mt-4 font-medium text-foreground">No slabs in this feed</p>
+            <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+              {feed === "watchlist"
+                ? "Tap the star on any card in the Top 100 board to add it here."
+                : feed === "saved"
+                  ? "Tap Save for later on any card to build your folder."
+                  : showFreePreviewBanner
+                    ? "Upgrade for the full top 100 deficit board, or open TCG Research to search any card."
+                    : "Top 100 cards load from your local catalog. Run price sync if this list is empty."}
+            </p>
+            {showFreePreviewBanner ? (
+              <Link
+                href="/pricing"
+                className="mt-4 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"
+              >
+                Start Premium trial
+              </Link>
+            ) : null}
             <AdSlot variant="banner" slotIndex={0} className="mt-8 max-w-md" compact />
           </div>
         ) : (
@@ -571,23 +436,18 @@ export function SlabDashboard() {
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-muted-foreground">
           {feed === "watchlist"
-            ? "Watchlist is saved on this device. Search any card for PSA 7–10 comps from PriceCharting."
+            ? "Watchlist is saved on this device."
             : feed === "saved"
               ? "Saved for later is stored on this device in your SlabCrack folder."
               : pricedCount > 0
-                ? "Top Deficits shows EN/JP slab < raw opportunities across all set ages."
-                : "Search any card for PSA 7–10 pricing, or run discover-arbitrage to refresh the feed."}
+                ? "Top 100 graded cards by PSA 10 market value from your local catalog."
+                : "Run Scrydex price sync to populate the top 100 board."}
         </p>
       </main>
 
       <SlabDrawer
         selectedCard={selectedCard}
-        watched={
-          selectedCard
-            ? isSearchHitWatched(watchlistStore, selectedCard, feedById) ||
-              watchlistStore.ids.includes(selectedCard.id)
-            : false
-        }
+        watched={selectedCard ? watchlistStore.ids.includes(selectedCard.id) : false}
         saved={selectedCard ? isCardSaved(selectedCard) : false}
         onClose={handleCloseDrawer}
         onToggleWatch={toggleWatch}
