@@ -82,8 +82,12 @@ export function extractScrydexWebhookPrices(data: Record<string, unknown>): {
   raw: number | null
   psa10: number | null
 } {
-  const directRaw = readNestedField<number | null>(data, "current_price_raw", "current_price_raw")
-  const directPsa10 = readNestedField<number | null>(data, "current_price_psa10", "current_price_psa10")
+  const directRaw =
+    readNestedField<number | null>(data, "current_price_raw", "current_price_raw") ??
+    readNestedField<number | null>(data, "price_raw", "price_raw")
+  const directPsa10 =
+    readNestedField<number | null>(data, "current_price_psa10", "current_price_psa10") ??
+    readNestedField<number | null>(data, "price_psa10", "price_psa10")
 
   if (directRaw != null || directPsa10 != null) {
     return {

@@ -9,7 +9,9 @@ import {
   readScrydexWebhookCardField,
   readScrydexWebhookId,
 } from "@/lib/scrydex/webhook-payload"
+import { upsertWebhookDailyHistory } from "@/lib/scrydex/webhook-history"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
+import type { TcgGame } from "@/lib/scrydex/types"
 
 export type ScrydexWebhookEvent = {
   id: string
@@ -37,6 +39,21 @@ function pickFrontImageUrl(data: Record<string, unknown>): string | null {
   return url?.trim() || null
 }
 
+function readWebhookGame(data: Record<string, unknown>): TcgGame {
+  const raw = String(
+    readScrydexWebhookCardField<string>(data, "game", "game") ??
+      readScrydexWebhookCardField<string>(data, "game_id", "game_id") ??
+      "pokemon",
+  )
+    .trim()
+    .toLowerCase()
+
+  if (raw === "lorcana" || raw === "mtg" || raw === "magicthegathering" || raw === "magic") {
+    return raw === "lorcana" ? "lorcana" : "mtg"
+  }
+  return "pokemon"
+}
+
 async function handleCardPriceUpdated(data: Record<string, unknown>): Promise<void> {
   const scrydexId = readScrydexWebhookId(data)
   if (!scrydexId) {
@@ -60,6 +77,13 @@ async function handleCardPriceUpdated(data: Record<string, unknown>): Promise<vo
     .select("clean_name, name")
 
   if (error) throw error
+
+  await upsertWebhookDailyHistory({
+    scrydexId,
+    game: readWebhookGame(data),
+    raw,
+    psa10,
+  })
 
   for (const row of rows ?? []) {
     await invalidateSearchCaches(

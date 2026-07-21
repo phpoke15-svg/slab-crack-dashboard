@@ -30,6 +30,15 @@ describe("extractScrydexWebhookPrices", () => {
     ).toEqual({ raw: 12.5, psa10: 99 })
   })
 
+  it("reads price_raw and price_psa10 aliases", () => {
+    expect(
+      extractScrydexWebhookPrices({
+        price_raw: 6.5,
+        price_psa10: 45,
+      }),
+    ).toEqual({ raw: 6.5, psa10: 45 })
+  })
+
   it("extracts raw and PSA 10 prices from variants", () => {
     expect(
       extractScrydexWebhookPrices({
