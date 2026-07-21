@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server"
+import {
+  ensureCardDailyPriceHistory,
+  getCardDailyPriceHistorySeries,
+} from "@/lib/pricing/card-daily-price-history"
 import { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
 import {
   getPriceHistorySeriesMap,
   priceHistorySeriesLabels,
 } from "@/lib/pricing/price-history-series"
+import { isScrydexConfigured, resolveCatalogId } from "@/lib/scrydex/constants"
+import { SCRYDEX_PRICE_HISTORY_LABELS } from "@/lib/tcg-research/scrydex-price-history"
 import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
 
 export const dynamic = "force-dynamic"
@@ -40,7 +46,7 @@ function filterSeriesByDays<T extends { date: string }>(points: T[], days: numbe
   return points.filter((point) => point.date >= sinceDate)
 }
 
-/** Full pokemon-api.com price history — raw TCGPlayer + eBay PSA grades as separate series. */
+/** Price history for Slab Labs charts — Scrydex daily cache with TCGGO fallback. */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")?.trim()
@@ -52,14 +58,42 @@ export async function GET(request: Request) {
   }
 
   try {
+    const catalogId = resolveCatalogId(id)
+
+    if (catalogId && isScrydexConfigured()) {
+      const ensure = await ensureCardDailyPriceHistory(id)
+      const { series, range } = await getCardDailyPriceHistorySeries(id, days)
+      const filtered = Object.fromEntries(
+        Object.entries(series).map(([key, points]) => [key, filterSeriesByDays(points, days)]),
+      ) as Record<PriceHistorySeriesKey, (typeof series)[PriceHistorySeriesKey]>
+
+      const counts = Object.fromEntries(
+        Object.entries(filtered).map(([key, points]) => [key, points.length]),
+      ) as Record<PriceHistorySeriesKey, number>
+
+      const hasChartableSeries = Object.values(filtered).some((points) => points.length >= 2)
+      if (hasChartableSeries) {
+        return NextResponse.json({
+          cardId: id,
+          catalogId: ensure.catalogId,
+          days,
+          full,
+          labels: SCRYDEX_PRICE_HISTORY_LABELS,
+          highlightKey: "psa9",
+          series: filtered,
+          counts,
+          range,
+          source: "scrydex",
+          backfill: ensure,
+        })
+      }
+    }
+
     await ensureCardPriceHistory(id, { days: days || 30, full, force: full })
 
     const { series, range } = await getPriceHistorySeriesMap(id, 0)
     const filtered = Object.fromEntries(
-      Object.entries(series).map(([key, points]) => [
-        key,
-        filterSeriesByDays(points, days),
-      ]),
+      Object.entries(series).map(([key, points]) => [key, filterSeriesByDays(points, days)]),
     ) as Record<PriceHistorySeriesKey, (typeof series)[PriceHistorySeriesKey]>
 
     const counts = Object.fromEntries(
