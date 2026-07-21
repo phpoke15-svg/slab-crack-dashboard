@@ -11,6 +11,10 @@
       "schedule": "30 2 * * *"
     },
     {
+      "path": "/api/cron/repair-scrydex-prices",
+      "schedule": "45 2 * * *"
+    },
+    {
       "path": "/api/cron/sync-card-prices",
       "schedule": "0 3 * * *"
     },
