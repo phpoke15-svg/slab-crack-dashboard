@@ -100,10 +100,70 @@ export async function persistHistoryPoints(
   points: Array<Record<string, unknown>>,
 ): Promise<number> {
   if (points.length === 0) return 0
-  for (let i = 0; i < points.length; i += CHUNK) {
-    await upsertChunk("price_history_daily", points.slice(i, i + CHUNK))
+  return persistHistoryPointsBatch(catalogId, points)
+}
+
+/** Upsert all history rows in one database round-trip (atomic batch). */
+export async function persistHistoryPointsBatch(
+  catalogId: string,
+  points: Array<Record<string, unknown>>,
+): Promise<number> {
+  if (!isSupabaseConfigured() || points.length === 0) return 0
+
+  const normalized = points.map((point) => ({
+    ...point,
+    catalog_id: catalogId,
+  }))
+
+  const supabase = createAdminClient()
+  const { error } = await supabase.from("price_history_daily").upsert(normalized)
+  if (error?.code === "42P01") return 0
+  if (error) throw error
+  return normalized.length
+}
+
+export async function countDistinctDailyHistoryDays(catalogId: string): Promise<number> {
+  if (!isSupabaseConfigured()) return 0
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from("price_history_daily")
+    .select("snapshot_date")
+    .eq("catalog_id", catalogId)
+
+  if (error?.code === "42P01") return 0
+  if (error) throw error
+
+  const dates = new Set(
+    (data ?? [])
+      .map((row) => String((row as { snapshot_date?: string }).snapshot_date ?? "").slice(0, 10))
+      .filter(Boolean),
+  )
+  return dates.size
+}
+
+export async function loadDailyHistoryRows(
+  catalogId: string,
+  days = 0,
+): Promise<Array<Record<string, unknown>>> {
+  if (!isSupabaseConfigured()) return []
+  const supabase = createAdminClient()
+
+  let query = supabase
+    .from("price_history_daily")
+    .select("*")
+    .eq("catalog_id", catalogId)
+    .order("snapshot_date", { ascending: true })
+
+  if (days > 0) {
+    const since = new Date()
+    since.setUTCDate(since.getUTCDate() - days)
+    query = query.gte("snapshot_date", since.toISOString().slice(0, 10))
   }
-  return points.length
+
+  const { data, error } = await query
+  if (error?.code === "42P01") return []
+  if (error) throw error
+  return (data ?? []) as Array<Record<string, unknown>>
 }
 
 export async function getCatalogCard(catalogId: string): Promise<CatalogCardRow | null> {

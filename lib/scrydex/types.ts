@@ -104,8 +104,14 @@ export type ScrydexHistoryResponse = {
   data?: ScrydexHistoryPoint[] | Array<{ date?: string; prices?: ScrydexHistoryPoint[] }>
   page?: number
   page_size?: number
+  pageSize?: number
+  count?: number
   total_count?: number
+  totalCount?: number
 }
+
+/** Scrydex price history duration query (camelCase on API). */
+export type ScrydexPriceHistoryDuration = "7d" | "30d" | "90d" | "180d" | "1y" | "full"
 
 export type ScrydexVisionResult = {
   type?: string
