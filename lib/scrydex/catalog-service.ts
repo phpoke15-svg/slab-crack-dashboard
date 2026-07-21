@@ -1,6 +1,8 @@
 import { flattenHistoryPoints, parseRemoteCardList } from "@/lib/scrydex/adapters"
+import { isLowResCardImage, isPlaceholderCardImage } from "@/lib/card-image-url"
 import { ScrydexClient } from "@/lib/scrydex/client"
 import { recordCardActivity } from "@/lib/scrydex/credit-ledger"
+import { splitCatalogId } from "@/lib/scrydex/constants"
 import {
   getCardsWithPricesBatch,
   getCatalogCard,
@@ -62,15 +64,24 @@ export class CatalogService {
     }
   }
 
-  /** Refresh prices only when stale (>24h). */
-  async ensureFreshPrices(catalogId: string): Promise<{ source: "cache" | "scrydex"; creditsUsed: number }> {
-    const stale = await isPriceStale(catalogId, SCRYDEX_CACHE.priceTtlMs)
-    if (!stale) return { source: "cache", creditsUsed: 0 }
-
+  /** Refresh card metadata/prices from Scrydex when stale or missing artwork. */
+  async ensureFreshCard(catalogId: string): Promise<{ source: "cache" | "scrydex"; creditsUsed: number }> {
     const existing = await getCatalogCard(catalogId)
-    if (!existing) return { source: "cache", creditsUsed: 0 }
+    const stale = await isPriceStale(catalogId, SCRYDEX_CACHE.priceTtlMs)
+    const badImage =
+      !existing ||
+      (isPlaceholderCardImage(existing.image_small_url) &&
+        isPlaceholderCardImage(existing.image_large_url)) ||
+      isLowResCardImage(existing.image_large_url ?? existing.image_small_url)
 
-    const remote = await this.scrydex.getCard(existing.game, existing.scrydex_id, {
+    if (!stale && !badImage) return { source: "cache", creditsUsed: 0 }
+
+    const parts = splitCatalogId(catalogId)
+    const game = existing?.game ?? parts?.game
+    const scrydexId = existing?.scrydex_id ?? parts?.scrydexId
+    if (!game || !scrydexId) return { source: "cache", creditsUsed: 0 }
+
+    const remote = await this.scrydex.getCard(game, scrydexId, {
       includePrices: true,
       catalogId,
     })
@@ -78,8 +89,13 @@ export class CatalogService {
     const card = remote.data
     if (!card) return { source: "cache", creditsUsed: 0 }
 
-    await persistCardPricingBundle(existing.game, card)
+    await persistCardPricingBundle(game, card)
     return { source: "scrydex", creditsUsed: 1 }
+  }
+
+  /** Refresh prices only when stale (>24h). */
+  async ensureFreshPrices(catalogId: string): Promise<{ source: "cache" | "scrydex"; creditsUsed: number }> {
+    return this.ensureFreshCard(catalogId)
   }
 
   /** Backfill history for a card — 3 credits, cached locally. */

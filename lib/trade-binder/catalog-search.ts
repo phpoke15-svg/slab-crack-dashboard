@@ -9,6 +9,7 @@ import { hasTcgGoApiKey } from "@/lib/pricing/provider"
 import { refreshScrydexPricesForSearchHits } from "@/lib/scrydex/on-demand"
 import { searchScrydexCatalogLocal } from "@/lib/scrydex/catalog-bridge"
 import { cardIdsEquivalent } from "@/lib/trade-binder/card-id-match"
+import { enrichCatalogHitWithScrydex } from "@/lib/trade-binder/enrich-catalog-hit"
 import { mergeBinderSearchResults } from "@/lib/trade-binder/binder-search"
 import { persistDiscoveredCatalogHits } from "@/lib/trade-binder/persist-discovered-cards"
 import { searchTcgGoBinderCards, type PricedCatalogCard } from "@/lib/trade-binder/pokemon-catalog"
@@ -84,8 +85,11 @@ function mergeScrydexHits(localHits: CatalogSearchHit[], scrydexHits: CatalogSea
 
   const merged = [...localHits]
   for (const hit of scrydexHits) {
-    const duplicate = merged.some((existing) => cardIdsEquivalent(existing.id, hit.id))
-    if (duplicate) continue
+    const existingIndex = merged.findIndex((existing) => cardIdsEquivalent(existing.id, hit.id))
+    if (existingIndex >= 0) {
+      merged[existingIndex] = enrichCatalogHitWithScrydex(merged[existingIndex]!, hit)
+      continue
+    }
     merged.push(hit)
   }
   return merged
