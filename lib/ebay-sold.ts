@@ -69,12 +69,29 @@ function matchesPsaGrade(title: string, grade: number): boolean {
   return new RegExp(`\\bPSA\\s*${grade}\\b`, "i").test(title)
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+function matchesSlabGrade(title: string, company: string, grade: number | string): boolean {
+  const companyUpper = company.toUpperCase()
+  const gradeStr = String(grade)
+  if (companyUpper === "PSA" && /^\d+$/.test(gradeStr)) {
+    return matchesPsaGrade(title, Number(gradeStr))
+  }
+  return new RegExp(`\\b${escapeRegExp(companyUpper)}\\s*${escapeRegExp(gradeStr)}\\b`, "i").test(title)
+}
+
 /** Keep recent sold rows that match the intended grade bucket. */
-export function filterSoldItems(items: EbaySoldItem[], grade: "raw" | number): EbaySoldItem[] {
+export function filterSoldItems(
+  items: EbaySoldItem[],
+  grade: "raw" | number | string,
+  company = "PSA",
+): EbaySoldItem[] {
   if (grade === "raw") {
     return items.filter((item) => !isGraded(item.title))
   }
-  return items.filter((item) => matchesPsaGrade(item.title, grade))
+  return items.filter((item) => matchesSlabGrade(item.title, company, grade))
 }
 
 /** Median sold price (item + shipping) from the most recent matching comps. */
@@ -106,10 +123,11 @@ interface GradeCompResult {
 async function fetchGradeComps(
   apiKey: string,
   keyword: string,
-  grade: "raw" | number,
+  grade: "raw" | number | string,
+  company = "PSA",
 ): Promise<GradeCompResult> {
   const data = await fetchEbaySoldComps(apiKey, keyword)
-  const filtered = filterSoldItems(data.items ?? [], grade)
+  const filtered = filterSoldItems(data.items ?? [], grade, company)
   return {
     price: medianSoldPrice(filtered),
     count: filtered.length,
@@ -151,12 +169,19 @@ export interface EbayCardPrices {
   recentByGrade: Record<number, RecentSale[]>
 }
 
-function slabQuery(queries: EbayGradeQueries, grade: number): string {
-  if (grade === 7 && queries.psa7) return queries.psa7
-  if (grade === 8 && queries.psa8) return queries.psa8
-  if (grade === 9 && queries.psa9) return queries.psa9
-  if (grade === 10 && queries.psa10) return queries.psa10
-  return `${queries.raw} PSA ${grade}`
+function slabQuery(
+  queries: EbayGradeQueries,
+  grade: number | string,
+  company = "PSA",
+): string {
+  const gradeNum = typeof grade === "number" ? grade : Number.parseFloat(String(grade))
+  if (company.toUpperCase() === "PSA") {
+    if (gradeNum === 7 && queries.psa7) return queries.psa7
+    if (gradeNum === 8 && queries.psa8) return queries.psa8
+    if (gradeNum === 9 && queries.psa9) return queries.psa9
+    if (gradeNum === 10 && queries.psa10) return queries.psa10
+  }
+  return `${queries.raw} ${company} ${grade}`
 }
 
 /** Pull median recent sold prices for raw + PSA 7–10 search queries. */
@@ -204,12 +229,13 @@ export async function fetchCardPricesFromEbaySold(
 export async function fetchRecentSalesForCard(
   apiKey: string,
   card: { ebayQueries?: EbayGradeQueries; searchQuery?: string; cardName: string; cardNumber: string },
-  slabGrade: number,
+  slabGrade: number | string,
+  company = "PSA",
 ): Promise<{ recentRawSales: RecentSale[]; recentSlabSales: RecentSale[] }> {
   const queries = card.ebayQueries ?? defaultEbayQueries(card)
   const raw = await fetchGradeComps(apiKey, queries.raw, "raw")
   await delay(1100)
-  const slab = await fetchGradeComps(apiKey, slabQuery(queries, slabGrade), slabGrade)
+  const slab = await fetchGradeComps(apiKey, slabQuery(queries, slabGrade, company), slabGrade, company)
   return { recentRawSales: raw.recentSales, recentSlabSales: slab.recentSales }
 }
 

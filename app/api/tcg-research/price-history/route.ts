@@ -3,6 +3,7 @@ import {
   loadTcgResearchScrydexPriceHistory,
   SCRYDEX_PRICE_HISTORY_LABELS,
 } from "@/lib/tcg-research/scrydex-price-history"
+import { normalizeGradingCompany } from "@/lib/grading/types"
 import { parseTcgResearchGame } from "@/lib/tcg-research/search"
 import { resolveCatalogId } from "@/lib/scrydex/constants"
 import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
@@ -39,6 +40,8 @@ export async function GET(request: Request) {
   const scrydexId = searchParams.get("scrydexId")?.trim() || undefined
   const catalogIdParam = searchParams.get("catalogId")?.trim() || undefined
   const game = parseTcgResearchGame(searchParams.get("game"))
+  const company = normalizeGradingCompany(searchParams.get("company"))
+  const grade = searchParams.get("grade")?.trim() || undefined
   const rangeParam = searchParams.get("range") ?? searchParams.get("days")
   const { days, full } = parseRange(rangeParam)
 
@@ -52,22 +55,27 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { series, range, source } = await loadTcgResearchScrydexPriceHistory({
+    const { series, range, source, labels, highlightKey } = await loadTcgResearchScrydexPriceHistory({
       catalogId,
       scrydexId,
       game,
       days: days || 90,
+      company,
+      grade,
     })
 
     const counts = Object.fromEntries(
       Object.entries(series).map(([key, points]) => [key, points.length]),
-    ) as Record<PriceHistorySeriesKey, number>
+    ) as Record<string, number>
 
     return NextResponse.json({
       catalogId,
+      company,
+      grade,
       days,
       full,
-      labels: SCRYDEX_PRICE_HISTORY_LABELS,
+      labels: labels ?? SCRYDEX_PRICE_HISTORY_LABELS,
+      highlightKey,
       series,
       counts,
       range,

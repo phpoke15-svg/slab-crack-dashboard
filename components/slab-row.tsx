@@ -1,20 +1,29 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Sparkles, ExternalLink } from "lucide-react"
 import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
 import { cn } from "@/lib/utils"
+import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import {
-  getBestGradeQuote,
-  getGradeQuotes,
-  type MockCardEntry,
-  type PsaGradeNumber,
-} from "@/lib/slab-data"
-import { GradePriceGrid } from "@/components/grade-price-grid"
+  buildSlabQuotesForCompany,
+  getBestSlabQuote,
+  pickGradedPrice,
+  resolveGradedPricesForCard,
+} from "@/lib/grading/quotes"
+import {
+  DEFAULT_SLAB_GRADE,
+  coerceSlabGradeRef,
+  formatSlabLabel,
+  type SlabGradeRef,
+} from "@/lib/grading/types"
+import { slabEbayAffiliateCampaign, slabEbaySearchKeyword } from "@/lib/grading/ebay-search"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
+import type { MockCardEntry } from "@/lib/slab-data"
 
 interface SlabRowProps {
   card: MockCardEntry
@@ -26,21 +35,37 @@ interface SlabRowProps {
 
 export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }: SlabRowProps) {
   const priced = card.hasPricing !== false
-  const gradeQuotes = getGradeQuotes(card).filter((q) => q.grade !== 10)
-  const best = getBestGradeQuote(gradeQuotes)
-  const [selectedGrade, setSelectedGrade] = useState<PsaGradeNumber | null>(null)
+  const gradedPrices = useMemo(() => resolveGradedPricesForCard(undefined, card), [card])
+  const [slabGrade, setSlabGrade] = useState<SlabGradeRef>(DEFAULT_SLAB_GRADE)
+  const [selectedGrade, setSelectedGrade] = useState<SlabGradeRef | null>(null)
 
   useEffect(() => {
+    const quotes = buildSlabQuotesForCompany(card.rawPrice, gradedPrices, "PSA").filter(
+      (quote) => quote.grade !== "10",
+    )
+    const best = getBestSlabQuote(quotes)
+    setSlabGrade(coerceSlabGradeRef("PSA", best?.grade ?? "9", gradedPrices))
     setSelectedGrade(null)
-  }, [card.id])
+  }, [card.id, card.rawPrice, gradedPrices])
 
-  const activeGrade = selectedGrade ?? (best?.grade === 10 ? 9 : best?.grade) ?? 9
-  const activeQuote = gradeQuotes.find((q) => q.grade === activeGrade) ?? best
-  const ebayGrade = activeGrade
+  const activeGrade = selectedGrade ?? slabGrade
+  const companyQuotes = buildSlabQuotesForCompany(card.rawPrice, gradedPrices, activeGrade.company)
+  const activeQuote =
+    companyQuotes.find(
+      (quote) => quote.company === activeGrade.company && quote.grade === activeGrade.grade,
+    ) ?? getBestSlabQuote(companyQuotes)
+  const activeSlabPrice =
+    activeQuote?.slabPrice ?? pickGradedPrice(gradedPrices, activeGrade) ?? 0
+
   const ebayUrl = ebaySearchUrl(
-    `${card.cardName} ${card.cardNumber} PSA ${ebayGrade}`,
-    `slabcrack-${card.id}-psa${ebayGrade}`,
+    slabEbaySearchKeyword(card.cardName, card.cardNumber, activeGrade, card.setName),
+    slabEbayAffiliateCampaign(card.id, activeGrade, "slabcrack"),
   )
+
+  const psaGradeForHistory =
+    activeGrade.company === "PSA" && /^\d+$/.test(activeGrade.grade)
+      ? (Number(activeGrade.grade) as 7 | 8 | 9 | 10)
+      : 9
 
   return (
     <div
@@ -87,12 +112,16 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
               ) : null}
               {priced && activeQuote?.isArbitrage ? (
                 <div className="flex flex-col items-end gap-0.5">
-                  <span className="text-[10px] font-medium text-muted-foreground">PSA {activeGrade}</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">
+                    {formatSlabLabel(activeGrade)}
+                  </span>
                   <DeficitBadge diff={-activeQuote.deficit} pct={-activeQuote.percentageSavings} />
                 </div>
-              ) : priced && activeQuote && activeQuote.slabPrice > 0 ? (
+              ) : priced && activeSlabPrice > 0 ? (
                 <div className="rounded-xl border border-border bg-secondary/40 px-3 py-1.5 text-right">
-                  <span className="block text-[10px] font-medium text-muted-foreground">PSA {activeGrade}</span>
+                  <span className="block text-[10px] font-medium text-muted-foreground">
+                    {formatSlabLabel(activeGrade)}
+                  </span>
                   <span className="font-mono text-[10px] font-semibold text-muted-foreground">No arbitrage</span>
                 </div>
               ) : (
@@ -118,37 +147,51 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
             </div>
           </div>
 
-          <div className="mt-2 flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
-          <span
-            className={cn(
-              "font-mono text-sm font-medium tabular-nums",
-              card.rawPrice > 0 ? "text-foreground/90" : "text-muted-foreground",
-            )}
-          >
-            {card.rawPrice > 0 ? `$${card.rawPrice.toFixed(0)}` : "—"}
-          </span>
-          <span className="text-[10px] text-muted-foreground">·</span>
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Slab comps</span>
-        </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
+            <span
+              className={cn(
+                "font-mono text-sm font-medium tabular-nums",
+                card.rawPrice > 0 ? "text-foreground/90" : "text-muted-foreground",
+              )}
+            >
+              {card.rawPrice > 0 ? `$${card.rawPrice.toFixed(0)}` : "—"}
+            </span>
+            <SlabGradeSelector
+              value={activeGrade}
+              onChange={(value) => {
+                setSlabGrade(value)
+                setSelectedGrade(value)
+              }}
+              available={gradedPrices}
+              compact
+              className="ml-auto"
+            />
+          </div>
         </div>
       </div>
 
-      <GradePriceGrid
-        quotes={gradeQuotes}
-        priced={priced || gradeQuotes.some((q) => q.slabPrice > 0)}
+      <CompanyGradePriceGrid
+        company={activeGrade.company}
+        gradedPrices={gradedPrices}
+        rawPrice={card.rawPrice}
+        priced={priced || companyQuotes.some((quote) => quote.slabPrice > 0)}
         compact
-        selectedGrade={activeGrade}
-        onSelectGrade={setSelectedGrade}
+        selected={activeGrade}
+        onSelectGrade={(value) => {
+          setSelectedGrade(value)
+          setSlabGrade(value)
+        }}
         highlightBest={selectedGrade == null}
       />
 
-      {priced && activeQuote && activeQuote.slabPrice > 0 && (
+      {priced && activeSlabPrice > 0 && (
         <PriceHistoryChart
           cardId={card.id}
-          grade={activeGrade}
+          grade={psaGradeForHistory}
+          slabSelection={activeGrade.company === "PSA" ? undefined : activeGrade}
           currentRaw={card.rawPrice}
-          currentSlab={activeQuote.slabPrice}
+          currentSlab={activeSlabPrice}
           compact
         />
       )}

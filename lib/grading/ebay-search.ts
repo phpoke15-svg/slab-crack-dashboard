@@ -1,0 +1,17 @@
+import { formatSlabLabel, type SlabGradeRef } from "@/lib/grading/types"
+
+/** Build an eBay keyword for a graded slab search. */
+export function slabEbaySearchKeyword(
+  cardName: string,
+  cardNumber: string,
+  ref: SlabGradeRef,
+  setName?: string,
+): string {
+  const base = `${cardName} ${cardNumber}`.trim()
+  return `${base} ${formatSlabLabel(ref)}`.replace(/\s+/g, " ").trim()
+}
+
+export function slabEbayAffiliateCampaign(cardId: string, ref: SlabGradeRef, prefix: string): string {
+  const slug = `${ref.company.toLowerCase()}${ref.grade.replace(/[^\d.a-z]/gi, "")}`
+  return `${prefix}-${cardId}-${slug}`
+}

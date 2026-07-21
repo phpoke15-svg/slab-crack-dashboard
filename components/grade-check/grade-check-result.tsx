@@ -1,13 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import Image from "next/image"
 import { ShieldCheck, TrendingDown, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { GradePriceGrid } from "@/components/grade-price-grid"
+import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
+import { resolveGradedPricesForCard } from "@/lib/grading/quotes"
+import { DEFAULT_SLAB_GRADE, type SlabGradeRef } from "@/lib/grading/types"
 import {
   computeRegradeROI,
-  getGradeQuotes,
   mockEntryToSlabCard,
   PSA_GRADE_NUMBERS,
   type MockCardEntry,
@@ -34,13 +36,14 @@ type GradeCheckResultProps = {
 
 export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResultProps) {
   const [tierId, setTierId] = useState(DEFAULT_PSA_GRADING_TIER_ID)
+  const [slabGrade, setSlabGrade] = useState<SlabGradeRef>(DEFAULT_SLAB_GRADE)
   const tier = findPsaGradingTier(tierId) ?? PSA_GRADING_TIERS.find((t) => t.id === "regular")!
 
   const effective = effectiveGradeCondition(condition)
   const band = estimateGradeBand(effective)
   const slabCard = mockEntryToSlabCard(card)
   const roi = computeRegradeROI(slabCard, band.point, tier.fee)
-  const gradeQuotes = getGradeQuotes(card)
+  const gradedPrices = useMemo(() => resolveGradedPricesForCard(undefined, card), [card])
   const priced = card.hasPricing !== false
 
   const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`
@@ -89,17 +92,24 @@ export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResu
 
       {priced && (
         <div className="rounded-2xl border border-border bg-secondary/30 p-4">
-          <h3 className="mb-3 font-semibold text-foreground">Live PSA comps</h3>
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+            <h3 className="font-semibold text-foreground">Live graded comps</h3>
+            <SlabGradeSelector value={slabGrade} onChange={setSlabGrade} available={gradedPrices} compact />
+          </div>
           <div className="mb-3 flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Raw NM reference</span>
             <span className="font-mono font-semibold text-foreground">
               {card.rawPrice > 0 ? money(card.rawPrice) : "—"}
             </span>
           </div>
-          <GradePriceGrid
-            quotes={gradeQuotes}
+          <CompanyGradePriceGrid
+            company={slabGrade.company}
+            gradedPrices={gradedPrices}
+            rawPrice={card.rawPrice}
             priced={priced}
-            selectedGrade={band.point}
+            selected={
+              slabGrade.company === "PSA" ? { company: "PSA", grade: String(band.point) } : slabGrade
+            }
             highlightBest={false}
           />
           <p className="mt-2 text-[11px] text-muted-foreground">

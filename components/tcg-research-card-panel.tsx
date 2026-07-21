@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Activity,
   ExternalLink,
@@ -9,18 +9,25 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { GradePriceGrid } from "@/components/grade-price-grid"
+import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
+import { slabEbayAffiliateCampaign, slabEbaySearchKeyword } from "@/lib/grading/ebay-search"
 import {
-  getBestGradeQuote,
-  getGradeQuotes,
-  type MockCardEntry,
-  type PsaGradeNumber,
-  type RecentSale,
-} from "@/lib/slab-data"
+  buildSlabQuotesForCompany,
+  getBestSlabQuote,
+  pickGradedPrice,
+} from "@/lib/grading/quotes"
+import {
+  DEFAULT_SLAB_GRADE,
+  coerceSlabGradeRef,
+  formatSlabLabel,
+  type SlabGradeRef,
+} from "@/lib/grading/types"
+import type { RecentSale } from "@/lib/slab-data"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
 
 type CardSalesResponse = {
@@ -44,7 +51,8 @@ export function TcgResearchCardPanel({
   onClose: () => void
 }) {
   const card = payload.card
-  const [salesGrade, setSalesGrade] = useState<PsaGradeNumber>(9)
+  const gradedPrices = payload.gradedPrices
+  const [slabGrade, setSlabGrade] = useState<SlabGradeRef>(DEFAULT_SLAB_GRADE)
   const [liveRawSales, setLiveRawSales] = useState<RecentSale[] | null>(null)
   const [liveSlabSales, setLiveSlabSales] = useState<RecentSale[] | null>(null)
   const [salesLoading, setSalesLoading] = useState(false)
@@ -58,13 +66,15 @@ export function TcgResearchCardPanel({
   }, [])
 
   useEffect(() => {
-    const gradeQuotes = getGradeQuotes(card).filter((quote) => quote.grade !== 10)
-    const best = getBestGradeQuote(gradeQuotes)
-    setSalesGrade(best?.grade === 10 ? 9 : (best?.grade ?? 9))
+    const quotes = buildSlabQuotesForCompany(card.rawPrice, gradedPrices, "PSA").filter(
+      (quote) => quote.grade !== "10" && quote.grade !== "10 BL" && quote.grade !== "10 Pristine",
+    )
+    const best = getBestSlabQuote(quotes)
+    setSlabGrade(coerceSlabGradeRef("PSA", best?.grade ?? "9", gradedPrices))
     setLiveRawSales(null)
     setLiveSlabSales(null)
     setSalesError(null)
-  }, [card])
+  }, [card.id, gradedPrices])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -81,7 +91,8 @@ export function TcgResearchCardPanel({
 
     const params = new URLSearchParams({
       id: card.id,
-      grade: String(salesGrade),
+      grade: slabGrade.grade,
+      company: slabGrade.company,
       game: payload.game,
     })
     if (payload.catalogId) params.set("catalogId", payload.catalogId)
@@ -108,18 +119,28 @@ export function TcgResearchCardPanel({
     return () => {
       cancelled = true
     }
-  }, [card.id, payload.catalogId, payload.game, payload.scrydexId, salesGrade])
+  }, [card.id, payload.catalogId, payload.game, payload.scrydexId, slabGrade.company, slabGrade.grade])
 
   const priced = card.hasPricing !== false
-  const gradeQuotes = getGradeQuotes(card)
-  const activeQuote = gradeQuotes.find((quote) => quote.grade === salesGrade) ?? getBestGradeQuote(gradeQuotes)
+  const companyQuotes = useMemo(
+    () => buildSlabQuotesForCompany(card.rawPrice, gradedPrices, slabGrade.company),
+    [card.rawPrice, gradedPrices, slabGrade.company],
+  )
+  const activeQuote =
+    companyQuotes.find(
+      (quote) => quote.company === slabGrade.company && quote.grade === slabGrade.grade,
+    ) ?? getBestSlabQuote(companyQuotes)
+  const activeSlabPrice =
+    activeQuote?.slabPrice ??
+    pickGradedPrice(gradedPrices, slabGrade) ??
+    0
+
   const rawSales = liveRawSales ?? card.recentRawSales ?? []
-  const slabSales =
-    liveSlabSales ?? activeQuote?.recentSlabSales ?? card.recentSlabSales ?? []
+  const slabSales = liveSlabSales ?? card.recentSlabSales ?? []
 
   const ebayUrl = ebaySearchUrl(
-    `${card.cardName} ${card.cardNumber} PSA ${salesGrade}`,
-    `tcg-research-${card.id}-psa${salesGrade}`,
+    slabEbaySearchKeyword(card.cardName, card.cardNumber, slabGrade, card.setName),
+    slabEbayAffiliateCampaign(card.id, slabGrade, "tcg-research"),
   )
 
   return (
@@ -177,17 +198,27 @@ export function TcgResearchCardPanel({
           </div>
 
           <div className="mt-5 rounded-2xl border border-border bg-secondary/40 p-3">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
-              <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
-                {priced && card.rawPrice > 0 ? `$${card.rawPrice.toFixed(2)}` : "—"}
-              </span>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
+                <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
+                  {priced && card.rawPrice > 0 ? `$${card.rawPrice.toFixed(2)}` : "—"}
+                </span>
+              </div>
+              <SlabGradeSelector
+                value={slabGrade}
+                onChange={setSlabGrade}
+                available={gradedPrices}
+                compact
+              />
             </div>
-            <GradePriceGrid
-              quotes={gradeQuotes}
+            <CompanyGradePriceGrid
+              company={slabGrade.company}
+              gradedPrices={gradedPrices}
+              rawPrice={card.rawPrice}
               priced={priced}
-              selectedGrade={salesGrade}
-              onSelectGrade={setSalesGrade}
+              selected={slabGrade}
+              onSelectGrade={setSlabGrade}
               highlightBest={false}
             />
             <p className="mt-3 text-[11px] text-muted-foreground">
@@ -213,9 +244,9 @@ export function TcgResearchCardPanel({
                 defaultOpen
               />
               <RecentSalesList
-                title={`PSA ${salesGrade}`}
+                title={formatSlabLabel(slabGrade)}
                 sales={slabSales}
-                emptyMessage={`No recent PSA ${salesGrade} sold comps found.`}
+                emptyMessage={`No recent ${formatSlabLabel(slabGrade)} sold comps found.`}
                 defaultOpen
               />
             </div>
@@ -228,17 +259,20 @@ export function TcgResearchCardPanel({
             </div>
             <PriceHistoryChart
               cardId={payload.catalogId ?? card.id}
-              grade={salesGrade}
+              grade={9}
+              slabSelection={slabGrade}
               currentRaw={card.rawPrice}
-              currentSlab={activeQuote?.slabPrice}
+              currentSlab={activeSlabPrice}
               historyEndpoint="/api/tcg-research/price-history"
               historyQuery={{
                 catalogId: payload.catalogId ?? undefined,
                 scrydexId: payload.scrydexId ?? undefined,
                 game: payload.game,
+                company: slabGrade.company,
+                grade: slabGrade.grade,
               }}
               title="Price history · Scrydex"
-              subtitle="Scrydex daily market history · raw + PSA grades"
+              subtitle={`Scrydex daily market history · raw + ${formatSlabLabel(slabGrade)}`}
             />
           </div>
 
@@ -278,7 +312,7 @@ export function TcgResearchCardPanel({
             className="mt-5 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
             <ExternalLink className="size-4" />
-            Search eBay PSA {salesGrade}
+            Search eBay {formatSlabLabel(slabGrade)}
           </a>
         </div>
       </div>

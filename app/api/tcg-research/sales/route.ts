@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { fetchScrydexSoldComps } from "@/lib/scrydex/listings"
 import { isScrydexConfigured, resolveCatalogId } from "@/lib/scrydex/constants"
+import { normalizeGradingCompany } from "@/lib/grading/types"
 import { parseTcgResearchGame } from "@/lib/tcg-research/search"
 import { resolveTcgResearchCardFull } from "@/lib/tcg-research/card-full"
 
@@ -13,16 +14,16 @@ export async function GET(request: Request) {
   const scrydexId = searchParams.get("scrydexId")?.trim() || undefined
   const catalogId = searchParams.get("catalogId")?.trim() || undefined
   const game = parseTcgResearchGame(searchParams.get("game"))
+  const company = normalizeGradingCompany(searchParams.get("company"))
   const gradeParam = searchParams.get("grade") ?? "9"
   const rawOnly = searchParams.get("rawOnly") === "1" || searchParams.get("rawOnly") === "true"
-  const slabGrade = Number(gradeParam)
 
   if (!id && !scrydexId && !catalogId) {
     return NextResponse.json({ error: "id, scrydexId, or catalogId required" }, { status: 400 })
   }
 
-  if (!rawOnly && (!Number.isFinite(slabGrade) || slabGrade < 7 || slabGrade > 10)) {
-    return NextResponse.json({ error: "grade must be 7–10" }, { status: 400 })
+  if (!rawOnly && !gradeParam.trim()) {
+    return NextResponse.json({ error: "grade is required" }, { status: 400 })
   }
 
   if (!isScrydexConfigured()) {
@@ -45,11 +46,12 @@ export async function GET(request: Request) {
       catalogId: full.catalogId,
       scrydexId: full.scrydexId,
       game: full.game,
-      slabGrade: rawOnly ? 9 : slabGrade,
+      slabGrade: rawOnly ? "9" : gradeParam,
+      company,
       rawOnly,
     })
 
-    return NextResponse.json({ ...sales, source: "scrydex" })
+    return NextResponse.json({ ...sales, company, grade: gradeParam, source: "scrydex" })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to fetch sold comps"
     return NextResponse.json({ error: message }, { status: 500 })

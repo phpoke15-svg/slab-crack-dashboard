@@ -1,16 +1,19 @@
 "use client"
 
-import { useEffect, useId, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
+import { formatSlabLabel, type SlabGradeRef } from "@/lib/grading/types"
 import type { PsaGradeNumber } from "@/lib/slab-data"
 import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
 
 type SeriesPoint = { date: string; price: number; saleCount?: number }
+type SeriesKey = string
 
 type HistoryApiResponse = {
-  series?: Partial<Record<PriceHistorySeriesKey, SeriesPoint[]>>
-  labels?: Record<PriceHistorySeriesKey, string>
-  counts?: Partial<Record<PriceHistorySeriesKey, number>>
+  series?: Partial<Record<SeriesKey, SeriesPoint[]>>
+  labels?: Record<SeriesKey, string>
+  counts?: Partial<Record<SeriesKey, number>>
+  highlightKey?: SeriesKey
   range?: { from: string | null; to: string | null }
   error?: string
 }
@@ -24,12 +27,19 @@ const RANGE_OPTIONS: Array<{ key: RangeKey; label: string }> = [
   { key: "all", label: "All" },
 ]
 
-const SERIES_COLORS: Record<PriceHistorySeriesKey, string> = {
+const SERIES_COLORS: Record<string, string> = {
   raw: "var(--muted-foreground)",
   psa7: "#94a3b8",
   psa8: "#64748b",
   psa9: "#38bdf8",
   psa10: "var(--primary)",
+}
+
+const EXTRA_SERIES_COLORS = ["#a78bfa", "#f472b6", "#34d399", "#fb923c", "#60a5fa", "#fbbf24"]
+
+function colorForSeriesKey(key: SeriesKey, index: number): string {
+  if (SERIES_COLORS[key]) return SERIES_COLORS[key]!
+  return EXTRA_SERIES_COLORS[index % EXTRA_SERIES_COLORS.length]!
 }
 
 const GRADE_TO_SERIES: Record<PsaGradeNumber, PriceHistorySeriesKey> = {
@@ -45,9 +55,9 @@ function formatShortDate(iso: string): string {
 }
 
 function alignSeriesByDate(
-  seriesMap: Partial<Record<PriceHistorySeriesKey, SeriesPoint[]>>,
-  keys: PriceHistorySeriesKey[],
-): { dates: string[]; values: Record<PriceHistorySeriesKey, (number | null)[]> } {
+  seriesMap: Partial<Record<SeriesKey, SeriesPoint[]>>,
+  keys: SeriesKey[],
+): { dates: string[]; values: Record<SeriesKey, (number | null)[]> } {
   const dateSet = new Set<string>()
   for (const key of keys) {
     for (const point of seriesMap[key] ?? []) {
@@ -60,7 +70,7 @@ function alignSeriesByDate(
       const byDate = new Map((seriesMap[key] ?? []).map((p) => [p.date, p.price]))
       return [key, dates.map((date) => byDate.get(date) ?? null)]
     }),
-  ) as Record<PriceHistorySeriesKey, (number | null)[]>
+  ) as Record<SeriesKey, (number | null)[]>
   return { dates, values }
 }
 
@@ -74,9 +84,9 @@ function MultiSeriesChart({
   onHover,
 }: {
   dates: string[]
-  values: Record<PriceHistorySeriesKey, (number | null)[]>
-  activeKeys: PriceHistorySeriesKey[]
-  highlightKey: PriceHistorySeriesKey
+  values: Record<SeriesKey, (number | null)[]>
+  activeKeys: SeriesKey[]
+  highlightKey: SeriesKey
   width: number
   height: number
   onHover: (index: number | null) => void
@@ -131,7 +141,7 @@ function MultiSeriesChart({
         )
       })}
 
-      {activeKeys.map((key) => {
+      {activeKeys.map((key, index) => {
         const pts = (values[key] ?? [])
           .map((v, i) => (v != null && v > 0 ? ([toX(i), toY(v)] as const) : null))
           .filter((p): p is readonly [number, number] => p != null)
@@ -144,7 +154,7 @@ function MultiSeriesChart({
             key={key}
             points={line}
             fill="none"
-            stroke={SERIES_COLORS[key]}
+            stroke={colorForSeriesKey(key, index)}
             strokeWidth={isHighlight ? 2 : 1.25}
             strokeLinecap="round"
             strokeLinejoin="round"
@@ -180,6 +190,7 @@ function MultiSeriesChart({
 type PriceHistoryChartProps = {
   cardId: string
   grade: PsaGradeNumber
+  slabSelection?: SlabGradeRef
   currentRaw?: number
   currentSlab?: number
   className?: string
@@ -197,6 +208,7 @@ type PriceHistoryChartProps = {
 export function PriceHistoryChart({
   cardId,
   grade,
+  slabSelection,
   currentRaw,
   currentSlab,
   className,
@@ -213,14 +225,21 @@ export function PriceHistoryChart({
   const [range, setRange] = useState<RangeKey>(
     initialDays >= 365 ? "365" : initialDays <= 30 ? "30" : initialDays >= 9999 ? "all" : "90",
   )
-  const [seriesMap, setSeriesMap] = useState<Partial<Record<PriceHistorySeriesKey, SeriesPoint[]>>>({})
-  const [labels, setLabels] = useState<Record<PriceHistorySeriesKey, string> | null>(null)
+  const [seriesMap, setSeriesMap] = useState<Partial<Record<SeriesKey, SeriesPoint[]>>>({})
+  const [labels, setLabels] = useState<Record<SeriesKey, string> | null>(null)
+  const [highlightKey, setHighlightKey] = useState<SeriesKey>(GRADE_TO_SERIES[grade])
   const [loading, setLoading] = useState(false)
   const [loadedKey, setLoadedKey] = useState("")
   const [hoverIndex, setHoverIndex] = useState<number | null>(null)
   const [showAllGrades, setShowAllGrades] = useState(false)
 
-  const highlightKey = GRADE_TO_SERIES[grade]
+  useEffect(() => {
+    if (slabSelection) {
+      setHighlightKey(`slab:${slabSelection.company}|${slabSelection.grade}`)
+      return
+    }
+    setHighlightKey(GRADE_TO_SERIES[grade])
+  }, [grade, slabSelection])
 
   useEffect(() => {
     const el = rootRef.current
@@ -235,7 +254,7 @@ export function PriceHistoryChart({
     return () => observer.disconnect()
   }, [])
 
-  const fetchKey = `${historyEndpoint}|${cardId}|${range}|${JSON.stringify(historyQuery ?? {})}`
+  const fetchKey = `${historyEndpoint}|${cardId}|${range}|${JSON.stringify(historyQuery ?? {})}|${JSON.stringify(slabSelection ?? {})}`
 
   useEffect(() => {
     if (!visible || loadedKey === fetchKey || !cardId) return
@@ -251,6 +270,7 @@ export function PriceHistoryChart({
         if (cancelled) return
         setSeriesMap(data?.series ?? {})
         setLabels(data?.labels ?? null)
+        if (data?.highlightKey) setHighlightKey(data.highlightKey)
         setLoadedKey(fetchKey)
       })
       .catch(() => {
@@ -265,26 +285,30 @@ export function PriceHistoryChart({
     return () => {
       cancelled = true
     }
-  }, [visible, loadedKey, fetchKey, cardId, range, historyEndpoint, historyQuery])
+  }, [visible, loadedKey, fetchKey, cardId, range, historyEndpoint, historyQuery, slabSelection])
 
   useEffect(() => {
     setLoadedKey("")
     setSeriesMap({})
     setHoverIndex(null)
-  }, [cardId])
+  }, [cardId, slabSelection?.company, slabSelection?.grade])
 
   const activeKeys = useMemo(() => {
     if (rawOnly) {
-      return (seriesMap.raw?.length ?? 0) >= 2 ? (["raw"] as PriceHistorySeriesKey[]) : []
+      return (seriesMap.raw?.length ?? 0) >= 2 ? (["raw"] as SeriesKey[]) : []
     }
-    const keys: PriceHistorySeriesKey[] = ["raw", highlightKey]
+    const keys: SeriesKey[] = ["raw", highlightKey]
     if (showAllGrades) {
-      for (const k of ["psa7", "psa8", "psa9", "psa10"] as const) {
-        if (k !== highlightKey) keys.push(k)
+      for (const key of Object.keys(seriesMap)) {
+        if (key !== "raw" && key !== highlightKey) keys.push(key)
       }
     }
     return keys.filter((key) => (seriesMap[key]?.length ?? 0) >= 2)
   }, [seriesMap, highlightKey, showAllGrades, rawOnly])
+
+  const legendKeys = useMemo(() => {
+    return Object.keys(seriesMap).filter((key) => (seriesMap[key]?.length ?? 0) >= 1)
+  }, [seriesMap])
 
   const { dates, values } = useMemo(
     () => alignSeriesByDate(seriesMap, activeKeys),
@@ -298,7 +322,7 @@ export function PriceHistoryChart({
           const point = seriesMap[key]?.find((p) => p.date === hoverDate)
           return point ? { key, ...point } : null
         })
-        .filter((p): p is { key: PriceHistorySeriesKey } & SeriesPoint => p != null)
+        .filter((p): p is { key: SeriesKey } & SeriesPoint => p != null)
     : []
 
   const latestRaw = seriesMap.raw?.[seriesMap.raw.length - 1]?.price ?? currentRaw ?? 0
@@ -351,7 +375,7 @@ export function PriceHistoryChart({
 
       <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground">
         {!rawOnly
-          ? (["raw", "psa7", "psa8", "psa9", "psa10"] as const).map((key) => {
+          ? legendKeys.map((key, index) => {
               const count = seriesMap[key]?.length ?? 0
               if (count < 1) return null
               const active = activeKeys.includes(key)
@@ -371,7 +395,7 @@ export function PriceHistoryChart({
                   <span
                     className="inline-block h-0.5 w-3"
                     style={{
-                      backgroundColor: SERIES_COLORS[key],
+                      backgroundColor: colorForSeriesKey(key, index),
                       borderTop: key === "raw" ? "1px dashed" : undefined,
                     }}
                   />
@@ -442,7 +466,11 @@ export function PriceHistoryChart({
         <div className={cn("mt-2 grid gap-1.5", rawOnly ? "grid-cols-1" : compact ? "grid-cols-2" : "grid-cols-4")}>
           <Stat label="Raw now" value={latestRaw > 0 ? `$${latestRaw.toFixed(0)}` : "—"} />
           {!rawOnly ? (
-            <Stat label={`PSA ${grade}`} value={latestSlab > 0 ? `$${latestSlab.toFixed(0)}` : "—"} tone="up" />
+            <Stat
+              label={slabSelection ? formatSlabLabel(slabSelection) : `PSA ${grade}`}
+              value={latestSlab > 0 ? `$${latestSlab.toFixed(0)}` : "—"}
+              tone="up"
+            />
           ) : null}
         </div>
       )}

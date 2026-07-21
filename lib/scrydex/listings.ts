@@ -28,26 +28,29 @@ export function scrydexListingToRecentSale(listing: ScrydexListing): RecentSale 
 
 export function partitionScrydexListings(
   listings: ScrydexListing[],
-  slabGrade: number,
+  slabGrade: number | string,
+  company = "PSA",
 ): { recentRawSales: RecentSale[]; recentSlabSales: RecentSale[] } {
   const recentRawSales: RecentSale[] = []
   const recentSlabSales: RecentSale[] = []
+  const companyUpper = company.toUpperCase()
+  const gradeStr = String(slabGrade)
 
   for (const listing of listings) {
     const sale = scrydexListingToRecentSale(listing)
     if (!sale) continue
 
-    const company = String(listing.company ?? "").trim().toUpperCase()
+    const listingCompany = String(listing.company ?? "").trim().toUpperCase()
     const grade = String(listing.grade ?? "").trim()
 
-    if (company && grade) {
-      if (company === "PSA" && Number(grade) === slabGrade) {
+    if (listingCompany && grade) {
+      if (listingCompany === companyUpper && grade === gradeStr) {
         recentSlabSales.push(sale)
       }
       continue
     }
 
-    if (!company && !grade) {
+    if (!listingCompany && !grade) {
       recentRawSales.push(sale)
     }
   }
@@ -80,9 +83,10 @@ export async function fetchScrydexSoldComps(input: {
   catalogId?: string | null
   scrydexId?: string | null
   game?: TcgGame
-  slabGrade: number
+  slabGrade: number | string
   days?: number
   rawOnly?: boolean
+  company?: string
 }): Promise<{ recentRawSales: RecentSale[]; recentSlabSales: RecentSale[] }> {
   if (!isScrydexConfigured()) {
     throw new Error("SCRYDEX_API_KEY and SCRYDEX_TEAM_ID must be configured")
@@ -114,7 +118,7 @@ export async function fetchScrydexSoldComps(input: {
     if (rawSales.length > 0) {
       return { recentRawSales: rawSales, recentSlabSales: [] }
     }
-    return partitionScrydexListings(rawListings, input.slabGrade)
+    return partitionScrydexListings(rawListings, input.slabGrade, input.company ?? "PSA")
   }
 
   const slabResponse = await client.getListings(
@@ -122,7 +126,7 @@ export async function fetchScrydexSoldComps(input: {
     target.scrydexId,
     {
       days: input.days ?? 30,
-      company: "PSA",
+      company: input.company ?? "PSA",
       grade: String(input.slabGrade),
       pageSize: 40,
     },
@@ -142,5 +146,5 @@ export async function fetchScrydexSoldComps(input: {
   }
 
   const combined = [...rawListings, ...slabListings]
-  return partitionScrydexListings(combined, input.slabGrade)
+  return partitionScrydexListings(combined, input.slabGrade, input.company ?? "PSA")
 }
