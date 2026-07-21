@@ -14,7 +14,6 @@ import {
 } from "@/lib/grading/quotes"
 import {
   DEFAULT_SLAB_GRADE,
-  coerceSlabGradeRef,
   formatSlabLabel,
   type SlabGradeRef,
 } from "@/lib/grading/types"
@@ -37,18 +36,12 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
   const priced = card.hasPricing !== false
   const gradedPrices = useMemo(() => resolveGradedPricesForCard(undefined, card), [card])
   const [slabGrade, setSlabGrade] = useState<SlabGradeRef>(DEFAULT_SLAB_GRADE)
-  const [selectedGrade, setSelectedGrade] = useState<SlabGradeRef | null>(null)
 
   useEffect(() => {
-    const quotes = buildSlabQuotesForCompany(card.rawPrice, gradedPrices, "PSA").filter(
-      (quote) => quote.grade !== "10",
-    )
-    const best = getBestSlabQuote(quotes)
-    setSlabGrade(coerceSlabGradeRef("PSA", best?.grade ?? "9", gradedPrices))
-    setSelectedGrade(null)
+    setSlabGrade(DEFAULT_SLAB_GRADE)
   }, [card.id, card.rawPrice, gradedPrices])
 
-  const activeGrade = selectedGrade ?? slabGrade
+  const activeGrade = slabGrade
   const companyQuotes = buildSlabQuotesForCompany(card.rawPrice, gradedPrices, activeGrade.company)
   const activeQuote =
     companyQuotes.find(
@@ -159,10 +152,7 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
             </span>
             <SlabGradeSelector
               value={activeGrade}
-              onChange={(value) => {
-                setSlabGrade(value)
-                setSelectedGrade(value)
-              }}
+              onChange={setSlabGrade}
               available={gradedPrices}
               compact
               className="ml-auto"
@@ -178,11 +168,6 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
         priced={priced || companyQuotes.some((quote) => quote.slabPrice > 0)}
         compact
         selected={activeGrade}
-        onSelectGrade={(value) => {
-          setSelectedGrade(value)
-          setSlabGrade(value)
-        }}
-        highlightBest={selectedGrade == null}
       />
 
       {priced && activeSlabPrice > 0 && (

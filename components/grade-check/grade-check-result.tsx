@@ -110,7 +110,6 @@ export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResu
             selected={
               slabGrade.company === "PSA" ? { company: "PSA", grade: String(band.point) } : slabGrade
             }
-            highlightBest={false}
           />
           <p className="mt-2 text-[11px] text-muted-foreground">
             Highlighted grade is your midpoint estimate (PSA {band.point}).

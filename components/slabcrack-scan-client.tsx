@@ -10,7 +10,7 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
-import { resolveGradedPricesForCard, getBestSlabQuote, buildSlabQuotesForCompany } from "@/lib/grading/quotes"
+import { resolveGradedPricesForCard, buildSlabQuotesForCompany } from "@/lib/grading/quotes"
 import { DEFAULT_SLAB_GRADE, type SlabGradeRef } from "@/lib/grading/types"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { CardScanner } from "@/components/card-scanner"
@@ -79,7 +79,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     matchMethod?: "visual_phash" | "vision" | "ocr"
     matchScore?: number
   } | null>(null)
-  const [slabCompany, setSlabCompany] = useState<SlabGradeRef["company"]>("PSA")
+  const [slabGrade, setSlabGrade] = useState<SlabGradeRef>(DEFAULT_SLAB_GRADE)
   const [foundPreview, setFoundPreview] = useState<MockCardEntry | null>(null)
   const [portfolioAdding, setPortfolioAdding] = useState(false)
   const [portfolioMessage, setPortfolioMessage] = useState<string | null>(null)
@@ -165,6 +165,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     const normalized = normalizeCardEntry(entry)
     presentedCardIdRef.current = normalized.id
     setCard(normalized)
+    setSlabGrade(DEFAULT_SLAB_GRADE)
     setPhase("hud")
     setDrawerOpen(opts?.openDrawer !== false)
   }, [])
@@ -320,8 +321,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   }
 
   const gradedPrices = card ? resolveGradedPricesForCard(undefined, card) : []
-  const companyQuotes = card ? buildSlabQuotesForCompany(card.rawPrice, gradedPrices, slabCompany) : []
-  const best = card ? getBestSlabQuote(companyQuotes.filter((quote) => quote.grade !== "10")) : null
+  const companyQuotes = card ? buildSlabQuotesForCompany(card.rawPrice, gradedPrices, slabGrade.company) : []
+  const selectedQuote = companyQuotes.find((quote) => quote.grade === slabGrade.grade) ?? null
   const labPsa10 = card ? resolvePsa10Price(card).price : 0
   const labPsa9 = card ? (getGradeQuotes(card).find((q) => q.grade === 9)?.slabPrice ?? 0) : 0
   const labGradingCost = DEFAULT_PSA_GRADING_FEE
@@ -445,8 +446,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                     <span className="rounded-md border border-white/15 bg-white/5 px-2 py-1 font-mono text-xs text-white">
                       Raw {formatMoney(card.rawPrice)}
                     </span>
-                    {best?.isArbitrage ? (
-                      <DeficitBadge diff={best.deficit} pct={best.percentageSavings} size="sm" />
+                    {selectedQuote?.isArbitrage ? (
+                      <DeficitBadge diff={selectedQuote.deficit} pct={selectedQuote.percentageSavings} size="sm" />
                     ) : null}
                     <span className="rounded-md border border-primary/40 bg-primary/15 px-2 py-1 font-mono text-xs text-primary">
                       PSA 10 {formatMoney(labPsa10)}
@@ -461,8 +462,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                     SlabCrack · graded comps
                   </p>
                   <SlabGradeSelector
-                    value={{ company: slabCompany, grade: "9" }}
-                    onChange={(value) => setSlabCompany(value.company)}
+                    value={slabGrade}
+                    onChange={setSlabGrade}
                     available={gradedPrices}
                     compact
                     label=""
@@ -470,11 +471,12 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   />
                 </div>
                 <CompanyGradePriceGrid
-                  company={slabCompany}
+                  company={slabGrade.company}
                   gradedPrices={gradedPrices}
                   rawPrice={card.rawPrice}
                   priced={card.hasPricing !== false}
                   compact
+                  selected={slabGrade}
                 />
               </div>
 

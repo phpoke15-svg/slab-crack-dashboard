@@ -6,7 +6,7 @@ export type SlabGradeRef = {
   grade: string
 }
 
-export const DEFAULT_SLAB_GRADE: SlabGradeRef = { company: "PSA", grade: "9" }
+export const DEFAULT_SLAB_GRADE: SlabGradeRef = { company: "PSA", grade: "10" }
 
 /** Common grade scales per company (Scrydex may return additional grades). */
 export const GRADES_BY_COMPANY: Record<GradingCompany, string[]> = {
@@ -84,5 +84,5 @@ export function coerceSlabGradeRef(
   if (normalizedGrade && gradeList.includes(normalizedGrade)) {
     return { company: normalizedCompany, grade: normalizedGrade }
   }
-  return { company: normalizedCompany, grade: gradeList.includes("9") ? "9" : gradeList[0] ?? "10" }
+  return { company: normalizedCompany, grade: gradeList.includes("10") ? "10" : gradeList[0] ?? "10" }
 }
