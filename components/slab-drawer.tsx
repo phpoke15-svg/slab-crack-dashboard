@@ -6,7 +6,6 @@ import {
   ExternalLink,
   Star,
   Lightbulb,
-  Activity,
   Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -172,7 +171,7 @@ export function SlabDrawer({
   const psaGradeForHistory =
     slabGrade.company === "PSA" && /^\d+$/.test(slabGrade.grade)
       ? (Number(slabGrade.grade) as 7 | 8 | 9 | 10)
-      : 9
+      : 10
 
   const formatSigned = (n: number) => {
     if (!Number.isFinite(n)) return "—"
@@ -345,6 +344,17 @@ export function SlabDrawer({
               priced={priced && !pricingLoading}
               selected={slabGrade}
             />
+            {priced ? (
+              <div className="mt-3">
+                <PriceHistoryChart
+                  cardId={selectedCard.id}
+                  grade={psaGradeForHistory}
+                  slabSelection={slabGrade.company === "PSA" ? undefined : slabGrade}
+                  currentRaw={selectedCard.rawPrice}
+                  currentSlab={activeSlabPrice}
+                />
+              </div>
+            ) : null}
           </div>
 
           <a
@@ -375,22 +385,6 @@ export function SlabDrawer({
                   emptyMessage={`No recent ${formatSlabLabel(slabGrade)} sold comps yet.`}
                 />
               </div>
-            </div>
-          )}
-
-          {priced && activeSlabPrice > 0 && (
-            <div className="mt-4">
-              <div className="mb-2 flex items-center gap-2 px-0.5">
-                <Activity className="size-4 text-primary" />
-                <h4 className="font-semibold text-foreground">Price History</h4>
-              </div>
-              <PriceHistoryChart
-                cardId={selectedCard.id}
-                grade={psaGradeForHistory}
-                slabSelection={slabGrade.company === "PSA" ? undefined : slabGrade}
-                currentRaw={selectedCard.rawPrice}
-                currentSlab={activeSlabPrice}
-              />
             </div>
           )}
 

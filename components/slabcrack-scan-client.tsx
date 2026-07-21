@@ -10,7 +10,8 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
-import { resolveGradedPricesForCard, buildSlabQuotesForCompany } from "@/lib/grading/quotes"
+import { PriceHistoryChart } from "@/components/price-history-chart"
+import { resolveGradedPricesForCard, buildSlabQuotesForCompany, pickGradedPrice } from "@/lib/grading/quotes"
 import { DEFAULT_SLAB_GRADE, type SlabGradeRef } from "@/lib/grading/types"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { CardScanner } from "@/components/card-scanner"
@@ -323,6 +324,12 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const gradedPrices = card ? resolveGradedPricesForCard(undefined, card) : []
   const companyQuotes = card ? buildSlabQuotesForCompany(card.rawPrice, gradedPrices, slabGrade.company) : []
   const selectedQuote = companyQuotes.find((quote) => quote.grade === slabGrade.grade) ?? null
+  const selectedSlabPrice =
+    selectedQuote?.slabPrice ?? (card ? pickGradedPrice(gradedPrices, slabGrade) ?? 0 : 0)
+  const psaGradeForHistory =
+    slabGrade.company === "PSA" && /^\d+$/.test(slabGrade.grade)
+      ? (Number(slabGrade.grade) as 7 | 8 | 9 | 10)
+      : 10
   const labPsa10 = card ? resolvePsa10Price(card).price : 0
   const labPsa9 = card ? (getGradeQuotes(card).find((q) => q.grade === 9)?.slabPrice ?? 0) : 0
   const labGradingCost = DEFAULT_PSA_GRADING_FEE
@@ -478,6 +485,19 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   compact
                   selected={slabGrade}
                 />
+                {card.hasPricing !== false ? (
+                  <div className="mt-2">
+                    <PriceHistoryChart
+                      cardId={card.id}
+                      grade={psaGradeForHistory}
+                      slabSelection={slabGrade.company === "PSA" ? undefined : slabGrade}
+                      currentRaw={card.rawPrice}
+                      currentSlab={selectedSlabPrice}
+                      compact
+                      className="border-white/10 bg-white/5"
+                    />
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2">

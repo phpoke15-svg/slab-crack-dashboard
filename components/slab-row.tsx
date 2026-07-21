@@ -58,7 +58,7 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
   const psaGradeForHistory =
     activeGrade.company === "PSA" && /^\d+$/.test(activeGrade.grade)
       ? (Number(activeGrade.grade) as 7 | 8 | 9 | 10)
-      : 9
+      : 10
 
   return (
     <div
@@ -170,7 +170,7 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
         selected={activeGrade}
       />
 
-      {priced && activeSlabPrice > 0 && (
+      {priced ? (
         <PriceHistoryChart
           cardId={card.id}
           grade={psaGradeForHistory}
@@ -179,7 +179,7 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
           currentSlab={activeSlabPrice}
           compact
         />
-      )}
+      ) : null}
     </div>
   )
 }
