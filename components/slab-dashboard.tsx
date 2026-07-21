@@ -18,7 +18,6 @@ import { SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
-import mockData from "@/lib/mockData.json"
 import {
   FEEDS,
   normalizeCardEntry,
@@ -105,19 +104,31 @@ export function SlabDashboard() {
   const handleCloseDrawer = () => setSelectedCard(null)
 
   useEffect(() => {
+    let cancelled = false
+    setFeedLoading(true)
     fetch("/api/slabcrack/top")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: MockCardEntry[] | null) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setArbitrageFeed(data.map(normalizeCardEntry))
+      .then(async (res) => {
+        if (!res.ok) return null
+        const json = (await res.json().catch(() => null)) as { cards?: MockCardEntry[] } | null
+        return Array.isArray(json?.cards) ? json.cards : null
+      })
+      .then((cards) => {
+        if (cancelled) return
+        if (cards && cards.length > 0) {
+          setArbitrageFeed(cards.map(normalizeCardEntry))
         } else {
-          setArbitrageFeed((mockData as MockCardEntry[]).map(normalizeCardEntry))
+          setArbitrageFeed([])
         }
       })
       .catch(() => {
-        setArbitrageFeed((mockData as MockCardEntry[]).map(normalizeCardEntry))
+        if (!cancelled) setArbitrageFeed([])
       })
-      .finally(() => setFeedLoading(false))
+      .finally(() => {
+        if (!cancelled) setFeedLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const feedById = useMemo(() => {
@@ -182,9 +193,9 @@ export function SlabDashboard() {
       .sort((a, b) => {
         if (a.hasPricing !== b.hasPricing) return a.hasPricing ? -1 : 1
         if (sortMode === "dollar") {
-          return b.slabPrice - a.slabPrice || b.deficit - a.deficit
+          return b.deficit - a.deficit || b.percentageSavings - a.percentageSavings
         }
-        return b.percentageSavings - a.percentageSavings || b.slabPrice - a.slabPrice
+        return b.percentageSavings - a.percentageSavings || b.deficit - a.deficit
       })
   }, [arbitrageFeed, feed, fullSlabCrack, sortMode, savedCards, watchedCards])
 

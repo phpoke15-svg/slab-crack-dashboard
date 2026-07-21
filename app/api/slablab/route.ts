@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
-import { getSlabLabOpportunities } from "@/lib/slablab"
+import { getTopSlabItCards } from "@/lib/db/top-ranked-cards"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    const cards = await getSlabLabOpportunities(TOP_CARDS_LIMIT)
+    const cards = await getTopSlabItCards(TOP_CARDS_LIMIT)
     return NextResponse.json({
       ok: true,
       limit: TOP_CARDS_LIMIT,

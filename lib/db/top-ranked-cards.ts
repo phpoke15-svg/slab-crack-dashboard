@@ -25,18 +25,51 @@ type RankedCardRow = {
   price_updated_at: string | null
 }
 
+const MARKET_SCAN_PAGE_SIZE = 1000
+const MARKET_SCAN_MAX_PAGES = 100
+const MARKET_SCAN_TTL_MS = 5 * 60 * 1000
+
+let pricedMarketCache: { rows: RankedCardRow[]; fetchedAt: number } | null = null
+
 function pokemonTcgIdFromRow(row: RankedCardRow): string {
   if (row.id.startsWith("poke-")) return row.id.slice("poke-".length)
   if (row.scrydex_id) return row.scrydex_id
   return row.id
 }
 
-export function rankedCardRowToMockEntry(row: RankedCardRow): MockCardEntry | null {
+export function crackDeficitForRow(row: RankedCardRow): number {
   const raw = Number(row.current_price_raw) || 0
   const psa10 = Number(row.current_price_psa10) || 0
-  if (raw <= 0 || psa10 <= 0) return null
+  return raw > psa10 ? raw - psa10 : 0
+}
 
-  const deficit = Math.max(0, psa10 - raw)
+export function gradeSpreadForRow(row: RankedCardRow): number {
+  const raw = Number(row.current_price_raw) || 0
+  const psa10 = Number(row.current_price_psa10) || 0
+  return psa10 > raw ? psa10 - raw : 0
+}
+
+export function rankCrackArbitrageRows(rows: RankedCardRow[], limit: number): RankedCardRow[] {
+  return rows
+    .filter((row) => crackDeficitForRow(row) > 0)
+    .sort((a, b) => crackDeficitForRow(b) - crackDeficitForRow(a))
+    .slice(0, limit)
+}
+
+export function rankSlabItSpreadRows(rows: RankedCardRow[], limit: number): RankedCardRow[] {
+  return rows
+    .filter((row) => gradeSpreadForRow(row) > 0)
+    .sort((a, b) => gradeSpreadForRow(b) - gradeSpreadForRow(a))
+    .slice(0, limit)
+}
+
+/** SlabCrack: slab cheaper than raw — deficit = raw − PSA 10. */
+export function rankedCardRowToCrackEntry(row: RankedCardRow): MockCardEntry | null {
+  const raw = Number(row.current_price_raw) || 0
+  const psa10 = Number(row.current_price_psa10) || 0
+  if (raw <= 0 || psa10 <= 0 || raw <= psa10) return null
+
+  const deficit = raw - psa10
   const gradeQuotes = buildGradeQuotes(raw, {
     10: { slabPrice: psa10, recentSlabSales: [] },
   })
@@ -52,52 +85,81 @@ export function rankedCardRowToMockEntry(row: RankedCardRow): MockCardEntry | nu
     slabGrade: 10,
     slabPrice: psa10,
     deficit,
-    percentageSavings: psa10 > 0 ? (deficit / psa10) * 100 : 0,
+    percentageSavings: Math.round((deficit / raw) * 100),
     gradeQuotes,
     hasPricing: true,
-    marketInsight: "Top-ranked card from local catalog (Scrydex denormalized prices).",
+    marketInsight: "Crack arbitrage ranked from whole-market Scrydex prices (raw NM vs PSA 10).",
   })
 }
 
-async function queryRankedCardsFromDb(
-  mode: "graded_value" | "roi_spread",
-  limit: number,
-): Promise<RankedCardRow[]> {
+/** SlabIt feed mapper — spread ranking happens before mapping. */
+export function rankedCardRowToMockEntry(row: RankedCardRow): MockCardEntry | null {
+  const raw = Number(row.current_price_raw) || 0
+  const psa10 = Number(row.current_price_psa10) || 0
+  if (raw <= 0 || psa10 <= 0) return null
+
+  const gradeQuotes = buildGradeQuotes(raw, {
+    10: { slabPrice: psa10, recentSlabSales: [] },
+  })
+
+  return normalizeCardEntry({
+    id: row.id.startsWith("poke-") ? row.id : `poke-${pokemonTcgIdFromRow(row)}`,
+    pokemonTcgId: pokemonTcgIdFromRow(row),
+    cardName: row.name,
+    setName: row.set_name,
+    cardNumber: row.number,
+    imageUrl: row.image_url ?? "/placeholder.svg",
+    rawPrice: raw,
+    slabGrade: 10,
+    slabPrice: psa10,
+    deficit: Math.max(0, raw - psa10),
+    percentageSavings: raw > psa10 ? Math.round(((raw - psa10) / raw) * 100) : 0,
+    gradeQuotes,
+    hasPricing: true,
+    marketInsight: "Grading spread ranked from whole-market Scrydex prices (PSA 10 vs raw NM).",
+  })
+}
+
+async function fetchAllPricedCardRows(forceRefresh = false): Promise<RankedCardRow[]> {
+  if (
+    !forceRefresh &&
+    pricedMarketCache &&
+    Date.now() - pricedMarketCache.fetchedAt < MARKET_SCAN_TTL_MS
+  ) {
+    return pricedMarketCache.rows
+  }
+
   if (!isSupabaseConfigured()) return []
 
   const supabase = createAdminClient()
-  const fetchLimit = Math.min(Math.max(limit * 3, limit), 300)
+  const rows: RankedCardRow[] = []
 
-  const { data, error } = await supabase
-    .from("cards")
-    .select(
-      "id, name, set_name, set_id, number, rarity, image_url, scrydex_id, current_price_raw, current_price_psa10, price_updated_at",
-    )
-    .not("current_price_psa10", "is", null)
-    .gt("current_price_psa10", 0)
-    .order("current_price_psa10", { ascending: false, nullsFirst: false })
-    .limit(fetchLimit)
+  for (let page = 0; page < MARKET_SCAN_MAX_PAGES; page++) {
+    const from = page * MARKET_SCAN_PAGE_SIZE
+    const to = from + MARKET_SCAN_PAGE_SIZE - 1
 
-  if (error?.code === "42703" || error?.code === "42P01") return []
-  if (error) throw error
+    const { data, error } = await supabase
+      .from("cards")
+      .select(
+        "id, name, set_name, set_id, number, rarity, image_url, scrydex_id, current_price_raw, current_price_psa10, price_updated_at",
+      )
+      .not("current_price_raw", "is", null)
+      .gt("current_price_raw", 0)
+      .not("current_price_psa10", "is", null)
+      .gt("current_price_psa10", 0)
+      .order("id", { ascending: true })
+      .range(from, to)
 
-  let rows = (data ?? []) as RankedCardRow[]
+    if (error?.code === "42703" || error?.code === "42P01") return []
+    if (error) throw error
 
-  if (mode === "roi_spread") {
-    rows = rows
-      .filter((row) => {
-        const raw = Number(row.current_price_raw) || 0
-        const psa10 = Number(row.current_price_psa10) || 0
-        return raw > 0 && psa10 > raw
-      })
-      .sort((a, b) => {
-        const spreadA = Number(a.current_price_psa10) - Number(a.current_price_raw)
-        const spreadB = Number(b.current_price_psa10) - Number(b.current_price_raw)
-        return spreadB - spreadA
-      })
+    const batch = (data ?? []) as RankedCardRow[]
+    rows.push(...batch)
+    if (batch.length < MARKET_SCAN_PAGE_SIZE) break
   }
 
-  return rows.slice(0, limit)
+  pricedMarketCache = { rows, fetchedAt: Date.now() }
+  return rows
 }
 
 async function loadLegacyFeed(limit: number): Promise<MockCardEntry[]> {
@@ -116,43 +178,43 @@ async function loadLegacyFeed(limit: number): Promise<MockCardEntry[]> {
   return (mockData as MockCardEntry[]).map(normalizeCardEntry).slice(0, limit)
 }
 
-/** Top SlabCrack cards ranked by PSA 10 market value (local `public.cards`). */
+/** Top SlabCrack cards: whole-market scan, ranked by raw − PSA 10 deficit. */
 export async function getTopSlabCrackCards(limit = TOP_CARDS_LIMIT): Promise<MockCardEntry[]> {
   try {
-    const rows = await queryRankedCardsFromDb("graded_value", limit)
+    const market = await fetchAllPricedCardRows()
+    const rows = rankCrackArbitrageRows(market, limit)
     const entries = rows
-      .map(rankedCardRowToMockEntry)
+      .map(rankedCardRowToCrackEntry)
       .filter((entry): entry is MockCardEntry => entry != null)
-      .sort((a, b) => b.slabPrice - a.slabPrice)
+      .sort((a, b) => b.deficit - a.deficit)
 
-    if (entries.length >= Math.min(limit, 10)) return entries.slice(0, limit)
+    if (entries.length > 0) return entries.slice(0, limit)
   } catch (error) {
-    console.warn("[top-ranked-cards] SlabCrack DB query failed:", error)
+    console.warn("[top-ranked-cards] SlabCrack market scan failed:", error)
   }
 
-  const legacy = await loadLegacyFeed(limit * 2)
+  const legacy = await loadLegacyFeed(limit * 3)
   return legacy
     .filter((card) => card.hasPricing !== false && card.deficit > 0)
-    .sort((a, b) => b.slabPrice - a.slabPrice)
+    .sort((a, b) => b.deficit - a.deficit)
     .slice(0, limit)
 }
 
-/** Top SlabIt cards ranked by PSA 10 minus raw spread (local `public.cards`). */
+/** Top SlabIt cards: whole-market scan, ranked by PSA 10 − raw spread. */
 export async function getTopSlabItCards(limit = TOP_CARDS_LIMIT): Promise<SlabLabCard[]> {
   try {
-    const rows = await queryRankedCardsFromDb("roi_spread", limit)
-    const entries = rows
+    const market = await fetchAllPricedCardRows()
+    const rows = rankSlabItSpreadRows(market, limit)
+    const cards = rows
       .map(rankedCardRowToMockEntry)
       .filter((entry): entry is MockCardEntry => entry != null)
+      .map(toSlabLabCard)
+      .filter((card): card is SlabLabCard => card != null)
+      .sort((a, b) => b.psa10Price - b.rawPrice - (a.psa10Price - a.rawPrice))
 
-    const cards = entries.map(toSlabLabCard).filter((card): card is SlabLabCard => card != null)
-    if (cards.length >= Math.min(limit, 10)) {
-      return cards
-        .sort((a, b) => b.psa10Price - b.rawPrice - (a.psa10Price - a.rawPrice))
-        .slice(0, limit)
-    }
+    if (cards.length > 0) return cards.slice(0, limit)
   } catch (error) {
-    console.warn("[top-ranked-cards] SlabIt DB query failed:", error)
+    console.warn("[top-ranked-cards] SlabIt market scan failed:", error)
   }
 
   return getSlabLabOpportunities(limit)
