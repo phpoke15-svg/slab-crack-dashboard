@@ -1,7 +1,7 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
-import { ArrowLeft, Camera, Loader2, Search, TrendingUp } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { ArrowLeft, Camera, Clock3, Loader2, Search, TrendingUp } from "lucide-react"
 import { CardScanner } from "@/components/card-scanner"
 import { CardSearchResults } from "@/components/card-search-results"
 import { CatalogCardTile } from "@/components/catalog-card-tile"
@@ -16,6 +16,7 @@ import type { CardSearchHit } from "@/lib/card-lookup"
 import type { ScanPipelineResult } from "@/lib/scanner/types"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
 import { matchTcgResearchSnapshot } from "@/lib/tcg-research/vision-scan-client"
+import { pushRecentSearch, readRecentSearches, type RecentSearchHit } from "@/lib/tcg-research/recent-searches"
 import type { TcgGame } from "@/lib/scrydex/types"
 import { cn } from "@/lib/utils"
 
@@ -63,6 +64,7 @@ export function ResearchLandingClient() {
   const [detailError, setDetailError] = useState<string | null>(null)
   const [scanOpen, setScanOpen] = useState(false)
   const [showTrending, setShowTrending] = useState(true)
+  const [recentHits, setRecentHits] = useState<RecentSearchHit[]>([])
   const scanPayloadRef = useRef<TcgResearchCardFull | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -76,15 +78,26 @@ export function ResearchLandingClient() {
 
   const gameLabel = TCG_RESEARCH_GAME_TABS.find((tab) => tab.id === game)?.label ?? "TCG"
   const trendingHits = popularHits.slice(0, 12)
+  const recentForGame = recentHits.filter((hit) => hit.game === game).slice(0, 8)
 
-  const loadDetail = useCallback(async (hit: CardSearchHit) => {
+  useEffect(() => {
+    setRecentHits(readRecentSearches())
+  }, [])
+
+  const rememberHit = useCallback((hit: CardSearchHit, hitGame: TcgGame) => {
+    pushRecentSearch(hit, hitGame)
+    setRecentHits(readRecentSearches())
+  }, [])
+
+  const loadDetail = useCallback(async (hit: CardSearchHit, hitGame: TcgGame = game) => {
     setDetailLoadingId(hit.id)
     setDetailError(null)
     try {
-      const params = new URLSearchParams({ id: hit.id, game })
+      const params = new URLSearchParams({ id: hit.id, game: hitGame })
       const res = await fetch(`/api/tcg-research/card?${params.toString()}`)
       const json = (await res.json()) as TcgResearchCardFull & { error?: string }
       if (!res.ok || !json.card) throw new Error(json.error || "Could not load card")
+      rememberHit(hit, hitGame)
       setSelectedPayload(json)
     } catch (error) {
       setSelectedPayload(null)
@@ -92,7 +105,7 @@ export function ResearchLandingClient() {
     } finally {
       setDetailLoadingId(null)
     }
-  }, [game])
+  }, [game, rememberHit])
 
   const matchScrydexSnapshot = useCallback(
     async (snapshot: string) => {
@@ -107,12 +120,25 @@ export function ResearchLandingClient() {
   const handleScanMatch = useCallback((_result: ScanPipelineResult, _snapshot: string) => {
     const payload = scanPayloadRef.current
     if (!payload) return
+    const card = payload.card
+    rememberHit(
+      {
+        id: card.id,
+        pokemonTcgId: card.pokemonTcgId,
+        cardName: card.cardName,
+        setName: card.setName,
+        cardNumber: card.cardNumber,
+        imageUrl: card.imageUrl,
+        rawPrice: card.rawPrice > 0 ? card.rawPrice : undefined,
+      },
+      payload.game,
+    )
     setSelectedPayload(payload)
     setDetailError(null)
     if (payload.game !== game) setGame(payload.game)
     setScanOpen(false)
     scanPayloadRef.current = null
-  }, [game])
+  }, [game, rememberHit])
 
   const handleScanFail = useCallback((error: string) => {
     setDetailError(error)
@@ -216,7 +242,39 @@ export function ResearchLandingClient() {
           />
         </div>
       ) : showTrending ? (
-        <section className="mt-6">
+        <>
+          {recentForGame.length > 0 ? (
+            <section className="mt-6">
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                  <Clock3 className="size-4 text-primary" />
+                  Recent
+                </h2>
+              </div>
+              <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5">
+                <ul className="flex w-max gap-3">
+                  {recentForGame.map((hit) => (
+                    <li key={hit.id} className="w-[8.5rem] shrink-0">
+                      <CatalogCardTile
+                        cardId={hit.id}
+                        cardName={hit.cardName}
+                        setName={hit.setName}
+                        cardNumber={hit.cardNumber}
+                        imageUrl={hit.imageUrl}
+                        rawPrice={hit.rawPrice ?? 0}
+                        rawLabel="Market"
+                        secondaryHint={detailLoadingId === hit.id ? "Loading…" : undefined}
+                        onClick={() => void loadDetail(hit, hit.game)}
+                        disabled={detailLoadingId === hit.id}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </section>
+          ) : null}
+
+          <section className={cn("mt-6", recentForGame.length > 0 && "mt-8")}>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
               <TrendingUp className="size-4 text-primary" />
@@ -257,6 +315,7 @@ export function ResearchLandingClient() {
             </div>
           )}
         </section>
+        </>
       ) : null}
 
       {detailError ? (

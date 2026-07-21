@@ -191,6 +191,10 @@ html.native-app .app-tab-shell {
   padding-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
 }
 
+.pb-safe {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+}
+
 .giveaway-toast-bottom {
   bottom: calc(var(--bottom-nav-height) + 1rem + env(safe-area-inset-bottom, 0px));
 }
