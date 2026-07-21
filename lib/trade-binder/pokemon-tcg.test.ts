@@ -7,6 +7,7 @@ describe("parseBinderSearchTokens", () => {
       name: "",
       setHint: "sv4",
       number: "198",
+      pokedexNumber: 198,
     })
     expect(parseBinderSearchTokens("sv4")).toEqual({
       name: "",
@@ -24,6 +25,7 @@ describe("parseBinderSearchTokens", () => {
       name: "",
       setHint: "151",
       number: "173",
+      pokedexNumber: 173,
     })
   })
 
@@ -58,6 +60,7 @@ describe("parseBinderSearchTokens", () => {
       name: "",
       setHint: "mep",
       number: "41",
+      pokedexNumber: 41,
     })
   })
 

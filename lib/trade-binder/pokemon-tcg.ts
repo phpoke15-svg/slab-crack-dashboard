@@ -52,6 +52,8 @@ export type BinderSearchTokens = {
   number?: string
   /** Set shorthand when query is like "151 173" or "sv151 173". */
   setHint?: string
+  /** When set+number query may mean Pokédex # instead of collector # (e.g. prismatic 196 → Espeon). */
+  pokedexNumber?: number
 }
 
 /** User-facing set nicknames → catalog set_id (e.g. 151 → sv3pt5). */
@@ -125,7 +127,12 @@ export function parseBinderSearchTokens(q: string): BinderSearchTokens {
     if (/^#?\d{1,4}$/.test(right)) {
       const number = rightNumber
       if (looksLikeSetHint(left)) {
-        return { name: "", setHint: normalizeSetHintToken(left), number }
+        return {
+          name: "",
+          setHint: normalizeSetHintToken(left),
+          number,
+          pokedexNumber: Number(number),
+        }
       }
       if (/^sv\d{1,4}[a-z]?$/i.test(left) || /^\d{2,4}$/.test(left)) {
         return { name: "", setHint: normalizeSetHintToken(left), number }

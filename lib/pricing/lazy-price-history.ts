@@ -1,6 +1,8 @@
 import { getCatalogCardById, type CatalogSearchHit } from "@/lib/db/cards-catalog"
 import { appendPriceHistory, getCardPriceById, getPriceHistoryForCard } from "@/lib/pricing/db"
 import { getActivePriceProvider } from "@/lib/pricing/provider"
+import { isScrydexConfigured } from "@/lib/scrydex/constants"
+import { ensureScrydexHistoryCached } from "@/lib/scrydex/history-bridge"
 import type { PriceHistoryPoint } from "@/lib/pricing/types"
 import {
   fetchAllTcgGoHistoryPrices,
@@ -116,7 +118,19 @@ export async function ensureCardPriceHistory(
   options?: { days?: number; force?: boolean; full?: boolean },
 ): Promise<EnsureCardPriceHistoryResult> {
   const full = options?.full ?? false
-  const days = full ? 0 : (options?.days ?? DEFAULT_HISTORY_DAYS)
+  const days = full ? 365 : (options?.days ?? DEFAULT_HISTORY_DAYS)
+
+  if (isScrydexConfigured()) {
+    const scrydex = await ensureScrydexHistoryCached(cardId, days)
+    if (scrydex.points.length >= MIN_HISTORY_POINTS) {
+      await appendPriceHistory(scrydex.points)
+      return {
+        fetched: scrydex.fetched,
+        points: scrydex.points.length,
+        reason: scrydex.fetched ? "fetched" : "fresh",
+      }
+    }
+  }
 
   if (getActivePriceProvider() !== "tcggo") {
     return { fetched: false, points: 0, reason: "no_provider" }

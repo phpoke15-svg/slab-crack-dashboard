@@ -7,6 +7,7 @@ import {
 } from "@/lib/card-lookup"
 import { catalogHitToCardSearchHit, findCatalogCandidatesForDetected, searchCatalogCardsLocal } from "@/lib/db/cards-catalog"
 import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
+import { searchCatalogHybrid } from "@/lib/trade-binder/catalog-search"
 import {
   geminiVisionModelCandidates,
   isGeminiModelUnavailable,
@@ -496,6 +497,7 @@ export async function matchDetectedCard(
   const candidates = mergeSearchHits(
     await searchWithFallbacks(detected, query),
     (await findCatalogCandidatesForDetected(detected)).map(catalogHitToCardSearchHit),
+    (await searchCatalogHybrid(query, { limit: 12 })).hits.map(catalogHitToCardSearchHit),
   )
   const afterSearch = Date.now()
   const ranked = [...candidates].sort(

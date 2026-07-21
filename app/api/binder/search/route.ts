@@ -1,17 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getCatalogCardCount } from "@/lib/db/cards-catalog"
-import {
-  applySearchPricesToCards,
-  enrichSearchCardPrices,
-  SEARCH_SERVER_LIVE_PRICE_LIMIT,
-} from "@/lib/pricing/persist-search-prices"
 import { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
 import { mergeBinderSearchResults, type BinderSearchResultCard } from "@/lib/trade-binder/binder-search"
 import { searchBinderCatalogWithSource } from "@/lib/trade-binder/catalog-search"
 import { fetchPopularBinderCards } from "@/lib/trade-binder/popular-binder-cards"
-import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
-import { enrichHitsWithTcgGoImages } from "@/lib/tcggo-api"
 
 export const maxDuration = 60
 
@@ -41,29 +34,6 @@ function catalogUnavailableResponse() {
   )
 }
 
-async function attachLiveSearchPrices(cards: BinderSearchResultCard[]): Promise<BinderSearchResultCard[]> {
-  if (cards.length === 0) return cards
-
-  const inputs = cards.map((card) => ({
-    id: card.id,
-    name: card.name,
-    set: card.set,
-    cardNumber: card.cardNumber,
-    rawPrice: card.rawPrice,
-  }))
-  const prices = await enrichSearchCardPrices(inputs, {
-    liveLimit: SEARCH_SERVER_LIVE_PRICE_LIMIT,
-    timeBudgetMs: 25_000,
-  })
-  const priced = applySearchPricesToCards(cards, prices)
-  return priced.map((card) => {
-    if (promoCardMeta(card.id) && !prices.has(card.id)) {
-      return { ...card, rawPrice: undefined }
-    }
-    return card
-  })
-}
-
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim() ?? ""
   const page = Math.max(Number(request.nextUrl.searchParams.get("page") ?? 1), 1)
@@ -77,23 +47,15 @@ export async function GET(request: NextRequest) {
 
     if (q.length >= 2) {
       const { cards: catalogCards, source } = await searchBinderCatalogWithSource(q, { limit: pageSize })
-      const merged = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
-      const cards = await attachLiveSearchPrices(merged)
-      const withImages = await enrichHitsWithTcgGoImages(
-        cards.map((card) => ({ ...card, imageUrl: card.image, setName: card.set })),
-      )
-      const pricedCards = withImages.map((card) => ({
-        ...card,
-        image: card.imageUrl ?? card.image,
-      }))
+      const cards = mergeBinderSearchResults(mapCatalogCardsToBinder(catalogCards), q).slice(0, pageSize)
 
       void Promise.all(
-        pricedCards.slice(0, 3).map((card) => ensureCardPriceHistory(card.id).catch(() => null)),
+        cards.slice(0, 3).map((card) => ensureCardPriceHistory(card.id).catch(() => null)),
       )
 
       return NextResponse.json({
-        cards: pricedCards,
-        totalCount: pricedCards.length,
+        cards,
+        totalCount: cards.length,
         page: 1,
         hasMore: false,
         languageFilter: "english",
@@ -104,10 +66,9 @@ export async function GET(request: NextRequest) {
 
     if (page === 1) {
       const popular = await fetchPopularBinderCards(Math.min(pageSize, 30))
-      const cards = await attachLiveSearchPrices(popular)
       return NextResponse.json({
-        cards,
-        totalCount: cards.length,
+        cards: popular,
+        totalCount: popular.length,
         page: 1,
         hasMore: false,
         featured: true,
