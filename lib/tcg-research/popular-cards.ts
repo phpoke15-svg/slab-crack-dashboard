@@ -177,8 +177,8 @@ async function loadSlabItTrendingFallback(limit: number): Promise<CardSearchHit[
   try {
     const cards = await getTopSlabItCards(Math.min(limit, TOP_CARDS_LIMIT))
     return cards.map((card) => ({
-      id: card.id.startsWith("poke-") ? card.id : `poke-${card.id}`,
-      pokemonTcgId: card.id.replace(/^poke-/, ""),
+      id: card.watchlistId.startsWith("poke-") ? card.watchlistId : `poke-${card.id}`,
+      pokemonTcgId: card.id,
       cardName: card.name,
       setName: card.set,
       cardNumber: card.cardNumber,
