@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { CardImage } from "@/components/trade-binder/binder/card-image"
+import { AnimatedPrice } from "@/components/ui/micro-interactions"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 import type { PokeMatchCardDetailPayload, PokeMatchRecentSale } from "@/lib/trade-binder/pokematch-card-full"
 
@@ -100,7 +101,7 @@ export function PokeMatchCardDetailPanel({
         type="button"
         aria-label="Close card details"
         onClick={onClose}
-        className="absolute inset-0 animate-fade-in bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 modal-backdrop bg-black/70 backdrop-blur-sm"
       />
 
       <div
@@ -108,7 +109,7 @@ export function PokeMatchCardDetailPanel({
         aria-modal="true"
         aria-label={`${payload.name} market details`}
         className={cn(
-          "relative flex max-h-[92vh] w-full max-w-2xl animate-slide-up flex-col overflow-hidden rounded-t-3xl border border-border bg-popover",
+          "relative flex max-h-[92vh] w-full max-w-2xl modal-panel flex-col overflow-hidden rounded-t-3xl border border-border bg-popover",
           "sm:rounded-3xl",
         )}
       >

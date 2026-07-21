@@ -3,6 +3,7 @@
 import type { ReactNode } from "react"
 import { cn } from "@/lib/utils"
 import { SlabCardImage } from "@/components/slab-card-image"
+import { AnimatedPrice, ConditionBadge } from "@/components/ui/micro-interactions"
 
 export type CatalogCardTileProps = {
   cardId: string
@@ -24,6 +25,8 @@ export type CatalogCardTileProps = {
   onClick?: () => void
   disabled?: boolean
   className?: string
+  /** Bumps price flash when webhook/cache refresh timestamp changes. */
+  priceRefreshTrigger?: string | null
 }
 
 function formatPrice(value: number): string {
@@ -50,15 +53,17 @@ export function CatalogCardTile({
   onClick,
   disabled = false,
   className,
+  priceRefreshTrigger,
 }: CatalogCardTileProps) {
   const hasRaw = rawPrice > 0
   const hasSecondary = (secondaryPrice ?? 0) > 0
+  const interactive = Boolean(onClick && !disabled)
 
   return (
     <article
       className={cn(
-        "group flex flex-col overflow-hidden rounded-xl border border-border bg-card transition-colors",
-        onClick && !disabled && "hover:border-primary/40 hover:bg-card/90",
+        "group flex flex-col overflow-hidden rounded-xl border border-border bg-card",
+        interactive && "catalog-card-hover hover:border-primary/40 hover:bg-card/90",
         disabled && "opacity-60",
         className,
       )}
@@ -79,7 +84,7 @@ export function CatalogCardTile({
           }}
           alt={`${cardName} card artwork`}
           sizes="(max-width: 640px) 45vw, 220px"
-          className="object-contain p-1.5 transition-transform duration-300 group-hover:scale-[1.02]"
+          className="object-contain p-1.5 transition-transform duration-200 ease-out group-hover:scale-[1.02]"
         />
         {rank != null ? (
           <span className="absolute left-1.5 top-1.5 rounded-md border border-border/80 bg-background/90 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
@@ -104,8 +109,16 @@ export function CatalogCardTile({
           </p>
           <div className="mt-1.5 space-y-0.5">
             {hasRaw ? (
-              <p className="font-mono text-[11px] font-medium text-primary tabular-nums">
-                {rawLabel} {formatPrice(rawPrice)}
+              <p className="font-mono text-[11px] font-medium tabular-nums">
+                <ConditionBadge label={rawLabel} className="text-muted-foreground">
+                  {rawLabel}
+                </ConditionBadge>{" "}
+                <AnimatedPrice
+                  value={rawPrice}
+                  formatted={formatPrice(rawPrice)}
+                  refreshTrigger={priceRefreshTrigger}
+                  className="text-primary"
+                />
               </p>
             ) : pricingPending ? (
               <p className="text-[11px] text-muted-foreground">Pricing…</p>
@@ -116,7 +129,12 @@ export function CatalogCardTile({
             )}
             {secondaryLabel && hasSecondary ? (
               <p className="font-mono text-[11px] tabular-nums text-foreground/90">
-                {secondaryLabel} {formatPrice(secondaryPrice!)}
+                <ConditionBadge label={secondaryLabel}>{secondaryLabel}</ConditionBadge>{" "}
+                <AnimatedPrice
+                  value={secondaryPrice!}
+                  formatted={formatPrice(secondaryPrice!)}
+                  refreshTrigger={priceRefreshTrigger}
+                />
               </p>
             ) : secondaryHint ? (
               <p className="text-[10px] text-muted-foreground">{secondaryHint}</p>

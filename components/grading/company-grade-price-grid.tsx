@@ -1,6 +1,7 @@
 "use client"
 
 import { cn } from "@/lib/utils"
+import { ConditionBadge } from "@/components/ui/micro-interactions"
 import {
   buildSlabQuotesForCompany,
   pickGradedPrice,
@@ -91,14 +92,16 @@ export function CompanyGradePriceGrid({
 
         const content = (
           <>
-            <span
+            <ConditionBadge
+              label={`${company} ${grade}`}
+              tip={`${company} grade ${grade} slab market price`}
               className={cn(
                 "inline-block rounded border px-1 py-0.5 font-mono text-[9px] font-semibold sm:text-[10px]",
                 GRID_GRADE_COLORS[index % GRID_GRADE_COLORS.length],
               )}
             >
               {company} {grade}
-            </span>
+            </ConditionBadge>
             <p
               className={cn(
                 "mt-1 font-mono font-semibold tabular-nums",

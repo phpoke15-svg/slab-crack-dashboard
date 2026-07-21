@@ -2,6 +2,7 @@
 
 import { Check } from "lucide-react"
 import type { CardStatus, CatalogCard } from "@/lib/trade-binder/cards"
+import { AnimatedPrice } from "@/components/ui/micro-interactions"
 import { FolderSwitcher } from "./folder-switcher"
 import { CardImage } from "./card-image"
 
@@ -25,7 +26,7 @@ export function SearchResultTile({
   const owned = ownedStatus != null
 
   return (
-    <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
+    <article className="group catalog-card-hover flex flex-col overflow-hidden rounded-xl border border-border bg-card hover:border-primary/40">
       <button
         type="button"
         onClick={() => onOpenDetail?.(card)}
@@ -54,8 +55,13 @@ export function SearchResultTile({
           <h3 className="truncate text-sm font-semibold leading-tight text-foreground">{card.name}</h3>
           <p className="truncate text-[11px] text-muted-foreground">{card.set}</p>
           {card.rawPrice != null && card.rawPrice > 0 ? (
-            <p className="mt-0.5 font-mono text-[11px] font-medium text-primary tabular-nums">
-              Raw ${card.rawPrice.toFixed(0)}
+            <p className="mt-0.5 font-mono text-[11px] font-medium tabular-nums">
+              Raw{" "}
+              <AnimatedPrice
+                value={card.rawPrice}
+                formatted={`$${card.rawPrice.toFixed(0)}`}
+                className="text-primary"
+              />
             </p>
           ) : pricePending ? (
             <p className="mt-0.5 text-[11px] text-muted-foreground">Pricing…</p>

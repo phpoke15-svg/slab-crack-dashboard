@@ -428,13 +428,13 @@ export function CollecToolsHub() {
             type="button"
             aria-label="Close tool details"
             onClick={() => setSelected(null)}
-            className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+            className="absolute inset-0 modal-backdrop bg-black/70 backdrop-blur-sm"
           />
           <div
             role="dialog"
             aria-modal="true"
             aria-label={`${selected.name} details`}
-            className="relative z-10 flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl border border-border bg-popover sm:rounded-3xl"
+            className="relative z-10 flex max-h-[85vh] w-full max-w-lg modal-panel flex-col overflow-hidden rounded-t-3xl border border-border bg-popover sm:rounded-3xl"
           >
             <div className="relative flex items-center justify-center pt-3">
               <span className="h-1.5 w-10 rounded-full bg-border sm:hidden" />

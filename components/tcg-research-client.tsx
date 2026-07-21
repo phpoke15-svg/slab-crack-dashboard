@@ -9,6 +9,7 @@ import { SiteFooter } from "@/components/legal/site-footer"
 import { CardScanner } from "@/components/card-scanner"
 import { CardSearchResults } from "@/components/card-search-results"
 import { CatalogCardTile } from "@/components/catalog-card-tile"
+import { StaggerGridItem } from "@/components/ui/micro-interactions"
 import { TcgResearchCardPanel } from "@/components/tcg-research-card-panel"
 import {
   TCG_RESEARCH_GAME_TABS,
@@ -84,13 +85,13 @@ function TcgResearchBrowseList({
           {emptyMessage}
         </p>
       ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <ul key={title} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {hits.map((hit, index) => {
             const loadingDetail = detailLoadingId === hit.id
             const hasPrice = hit.rawPrice != null && hit.rawPrice > 0
 
             return (
-              <li key={hit.id}>
+              <StaggerGridItem key={hit.id} index={index}>
                 <CatalogCardTile
                   cardId={hit.id}
                   cardName={hit.cardName}
@@ -104,7 +105,7 @@ function TcgResearchBrowseList({
                   onClick={() => onSelect(hit)}
                   disabled={loadingDetail}
                 />
-              </li>
+              </StaggerGridItem>
             )
           })}
         </ul>

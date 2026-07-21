@@ -5,6 +5,7 @@ import { ArrowLeft, Camera, Clock3, Loader2, Search, TrendingUp } from "lucide-r
 import { CardScanner } from "@/components/card-scanner"
 import { CardSearchResults } from "@/components/card-search-results"
 import { CatalogCardTile } from "@/components/catalog-card-tile"
+import { StaggerGridItem } from "@/components/ui/micro-interactions"
 import { TabShellHeader } from "@/components/nav/tab-shell-header"
 import { TcgResearchCardPanel } from "@/components/tcg-research-card-panel"
 import {
@@ -254,8 +255,8 @@ export function ResearchLandingClient() {
               </div>
               <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5">
                 <ul className="flex w-max gap-3">
-                  {recentForGame.map((hit) => (
-                    <li key={hit.id} className="w-[8.5rem] shrink-0">
+                  {recentForGame.map((hit, index) => (
+                    <StaggerGridItem key={hit.id} index={index} as="div" className="w-[8.5rem] shrink-0">
                       <CatalogCardTile
                         cardId={hit.id}
                         cardName={hit.cardName}
@@ -268,7 +269,7 @@ export function ResearchLandingClient() {
                         onClick={() => void loadDetail(hit, hit.game)}
                         disabled={detailLoadingId === hit.id}
                       />
-                    </li>
+                    </StaggerGridItem>
                   ))}
                 </ul>
               </div>
@@ -294,9 +295,9 @@ export function ResearchLandingClient() {
             </p>
           ) : (
             <div className="-mx-4 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5">
-              <ul className="flex w-max gap-3">
+              <ul key={`trending-${game}`} className="flex w-max gap-3">
                 {trendingHits.map((hit, index) => (
-                  <li key={hit.id} className="w-[8.5rem] shrink-0">
+                  <StaggerGridItem key={hit.id} index={index} as="div" className="w-[8.5rem] shrink-0">
                     <CatalogCardTile
                       cardId={hit.id}
                       cardName={hit.cardName}
@@ -310,7 +311,7 @@ export function ResearchLandingClient() {
                       onClick={() => void loadDetail(hit)}
                       disabled={detailLoadingId === hit.id}
                     />
-                  </li>
+                  </StaggerGridItem>
                 ))}
               </ul>
             </div>

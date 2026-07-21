@@ -14,10 +14,10 @@ export function SignInModal() {
         type="button"
         aria-label="Close sign in"
         onClick={closeAuthModal}
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+        className="absolute inset-0 modal-backdrop bg-background/80 backdrop-blur-sm"
       />
 
-      <div className="relative z-10 w-full max-w-sm">
+      <div className="relative z-10 w-full max-w-sm modal-panel">
         <SignInForm onSuccess={closeAuthModal} onClose={closeAuthModal} />
       </div>
     </div>

@@ -184,7 +184,7 @@ export function SlabDrawer({
         type="button"
         aria-label="Close details"
         onClick={onClose}
-        className="absolute inset-0 animate-fade-in bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 modal-backdrop bg-black/70 backdrop-blur-sm"
       />
 
       <div
@@ -192,7 +192,7 @@ export function SlabDrawer({
         aria-modal="true"
         aria-label={`${selectedCard.cardName} details`}
         className={cn(
-          "relative flex max-h-[92vh] w-full max-w-lg animate-slide-up flex-col overflow-hidden rounded-t-3xl border border-border bg-popover",
+          "relative flex max-h-[92vh] w-full max-w-lg modal-panel flex-col overflow-hidden rounded-t-3xl border border-border bg-popover",
           "sm:rounded-3xl",
         )}
       >
