@@ -1,6 +1,8 @@
 export * from "@/lib/scrydex/types"
 export * from "@/lib/scrydex/constants"
 export { ScrydexClient } from "@/lib/scrydex/client"
+export { ScrydexApiError } from "@/lib/scrydex/errors"
+export { mapVisionScanErrorStatus } from "@/lib/scrydex/scan-errors"
 export { CatalogService, createCatalogService } from "@/lib/scrydex/catalog-service"
 export { CreditLedger, ScrydexCreditBudgetError, recordCardActivity, getCreditsUsedToday } from "@/lib/scrydex/credit-ledger"
 export { hydrateExpansionPage, syncRecentExpansions, syncAllExpansions } from "@/lib/scrydex/hydrate"

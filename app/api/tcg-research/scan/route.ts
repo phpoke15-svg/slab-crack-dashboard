@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { isScrydexConfigured } from "@/lib/scrydex"
-import { ScrydexCreditBudgetError } from "@/lib/scrydex/credit-ledger"
-import { ScrydexVisionNoMatchError } from "@/lib/scrydex/vision-pipeline"
+import { mapVisionScanErrorStatus } from "@/lib/scrydex/scan-errors"
 import { scanTcgResearchCardFromVision } from "@/lib/tcg-research/card-full"
 import { parseTcgResearchGame } from "@/lib/tcg-research/search"
 import type { TcgGame } from "@/lib/scrydex/types"
@@ -9,15 +8,6 @@ import type { TcgGame } from "@/lib/scrydex/types"
 export const runtime = "nodejs"
 export const maxDuration = 60
 export const dynamic = "force-dynamic"
-
-function scanErrorStatus(error: unknown): number {
-  if (error instanceof ScrydexCreditBudgetError) return 429
-  if (error instanceof ScrydexVisionNoMatchError) return 422
-  const message = error instanceof Error ? error.message : ""
-  if (/returned no match|could not be loaded|could not identify/i.test(message)) return 422
-  if (/not configured/i.test(message)) return 503
-  return 500
-}
 
 export async function POST(request: Request) {
   if (!isScrydexConfigured()) {
@@ -43,7 +33,7 @@ export async function POST(request: Request) {
     return NextResponse.json(payload)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Vision scan failed"
-    const status = scanErrorStatus(error)
+    const status = mapVisionScanErrorStatus(error)
     console.error("[tcg-research/scan]", message)
     return NextResponse.json({ error: message }, { status })
   }

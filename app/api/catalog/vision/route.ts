@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { isScrydexConfigured, resolveScanToCatalog } from "@/lib/scrydex"
-import { ScrydexCreditBudgetError } from "@/lib/scrydex/credit-ledger"
-import { ScrydexVisionNoMatchError, visionScanGameScope } from "@/lib/scrydex/vision-pipeline"
+import { mapVisionScanErrorStatus } from "@/lib/scrydex/scan-errors"
+import { visionScanGameScope } from "@/lib/scrydex/vision-pipeline"
 import type { TcgGame } from "@/lib/scrydex/types"
 
 export const runtime = "nodejs"
@@ -9,14 +9,6 @@ export const maxDuration = 60
 export const dynamic = "force-dynamic"
 
 const GAMES = new Set<TcgGame>(["pokemon", "lorcana", "mtg"])
-
-function visionErrorStatus(error: unknown): number {
-  if (error instanceof ScrydexCreditBudgetError) return 429
-  if (error instanceof ScrydexVisionNoMatchError) return 422
-  const message = error instanceof Error ? error.message : ""
-  if (/returned no match|could not be loaded/i.test(message)) return 422
-  return 500
-}
 
 export async function POST(request: Request) {
   if (!isScrydexConfigured()) {
@@ -47,6 +39,6 @@ export async function POST(request: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Vision scan failed"
     console.error("[catalog/vision]", message)
-    return NextResponse.json({ error: message }, { status: visionErrorStatus(error) })
+    return NextResponse.json({ error: message }, { status: mapVisionScanErrorStatus(error) })
   }
 }
