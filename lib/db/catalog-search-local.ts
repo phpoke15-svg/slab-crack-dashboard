@@ -10,10 +10,25 @@ import { simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import type { CatalogCardRow, CatalogSearchHit } from "@/lib/db/cards-catalog"
 
 const CARD_SELECT =
-  "id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at"
+  "id, name, set_name, set_id, number, rarity, image_url, current_price_raw, current_price_psa10, scrydex_id, card_slug, set_slug"
+
+const SEARCH_PRICE_ORDER = {
+  column: "current_price_raw",
+  ascending: false,
+  nullsFirst: false,
+} as const
 
 export function sanitizeCatalogSearchToken(value: string): string {
   return value.replace(/[%_]/g, "")
+}
+
+/** Lowercase and strip special characters to align with indexed `clean_name`. */
+export function normalizeSearchCleanName(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 export function catalogSearchMinLength(query: string): boolean {
@@ -88,17 +103,47 @@ function buildSetHintOrFilter(setHint: string): string {
   return parts.join(",")
 }
 
+function orderSearchResults<T extends { order: (...args: never[]) => T }>(query: T): T {
+  return query.order(SEARCH_PRICE_ORDER.column, {
+    ascending: SEARCH_PRICE_ORDER.ascending,
+    nullsFirst: SEARCH_PRICE_ORDER.nullsFirst,
+  })
+}
+
+function resolveCleanNamePrefix(query: string, sqlQuery?: string): string {
+  const normalized = sqlQuery ?? normalizeSearchCleanName(query)
+  const tokens = parseBinderSearchTokens(query)
+  const text = tokens.name || query.trim()
+  const parts = text.split(/\s+/).filter((part) => part.length >= 2 || /^\d+$/.test(part))
+  const primary = parts.sort((a, b) => b.length - a.length)[0] ?? text
+  const fromText = normalizeSearchCleanName(primary)
+  return sanitizeCatalogSearchToken(fromText || normalized)
+}
+
+async function fetchByCleanNamePrefix(
+  supabase: SupabaseClient,
+  prefix: string,
+  fetchLimit: number,
+): Promise<CatalogCardRow[]> {
+  const safePrefix = sanitizeCatalogSearchToken(prefix)
+  if (!safePrefix) return []
+
+  const { data, error } = await orderSearchResults(
+    supabase.from("cards").select(CARD_SELECT).like("clean_name", `${safePrefix}%`),
+  ).limit(fetchLimit)
+
+  if (error) throw error
+  return (data ?? []) as CatalogCardRow[]
+}
+
 async function fetchBySetHint(
   supabase: SupabaseClient,
   setHint: string,
   fetchLimit: number,
 ): Promise<CatalogCardRow[]> {
-  const { data, error } = await supabase
-    .from("cards")
-    .select(CARD_SELECT)
-    .or(buildSetHintOrFilter(setHint))
-    .order("name", { ascending: true })
-    .limit(fetchLimit)
+  const { data, error } = await orderSearchResults(
+    supabase.from("cards").select(CARD_SELECT).or(buildSetHintOrFilter(setHint)),
+  ).limit(fetchLimit)
 
   if (error) throw error
   return (data ?? []) as CatalogCardRow[]
@@ -119,11 +164,12 @@ async function fetchByNameAndNumber(
   name: string,
   number: string,
   fetchLimit: number,
+  sqlQuery?: string,
 ): Promise<CatalogCardRow[]> {
   const simplified = simplifyCardName(name).trim()
   const nameTokens = simplified.split(/\s+/).filter((token) => token.length > 0)
 
-  const byName = await fetchByText(supabase, name, fetchLimit)
+  const byName = await fetchByText(supabase, name, fetchLimit, sqlQuery)
   let rows = byName.filter((row) => collectorNumberMatches(row.number, number))
   if (rows.length > 0) return rows
 
@@ -135,16 +181,16 @@ async function fetchByNameAndNumber(
   if (rows.length > 0) return rows
 
   const safeNumber = sanitizeCatalogSearchToken(number)
-  const primaryToken = nameTokens.find((token) => token.length > 1) ?? simplified
-  const safeToken = sanitizeCatalogSearchToken(primaryToken)
+  const prefix = resolveCleanNamePrefix(name, sqlQuery)
+  if (!prefix) return []
 
-  const { data, error } = await supabase
-    .from("cards")
-    .select(CARD_SELECT)
-    .ilike("name", `%${safeToken}%`)
-    .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
-    .order("name", { ascending: true })
-    .limit(fetchLimit)
+  const { data, error } = await orderSearchResults(
+    supabase
+      .from("cards")
+      .select(CARD_SELECT)
+      .like("clean_name", `${prefix}%`)
+      .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`),
+  ).limit(fetchLimit)
 
   if (error) throw error
 
@@ -161,12 +207,12 @@ async function fetchByNumber(
   fetchLimit: number,
 ): Promise<CatalogCardRow[]> {
   const safeNumber = sanitizeCatalogSearchToken(number)
-  const { data, error } = await supabase
-    .from("cards")
-    .select(CARD_SELECT)
-    .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
-    .order("name", { ascending: true })
-    .limit(fetchLimit)
+  const { data, error } = await orderSearchResults(
+    supabase
+      .from("cards")
+      .select(CARD_SELECT)
+      .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`),
+  ).limit(fetchLimit)
 
   if (error) throw error
 
@@ -180,8 +226,9 @@ async function fetchByNameAndSetHint(
   name: string,
   setHint: string,
   fetchLimit: number,
+  sqlQuery?: string,
 ): Promise<CatalogCardRow[]> {
-  const byName = await fetchByText(supabase, name, fetchLimit)
+  const byName = await fetchByText(supabase, name, fetchLimit, sqlQuery)
   return byName.filter((row) => catalogRowMatchesSetHint(row, setHint))
 }
 
@@ -189,39 +236,20 @@ async function fetchByText(
   supabase: SupabaseClient,
   query: string,
   fetchLimit: number,
+  sqlQuery?: string,
 ): Promise<CatalogCardRow[]> {
+  const prefix = resolveCleanNamePrefix(query, sqlQuery)
+  if (!prefix) return []
+
+  const rows = await fetchByCleanNamePrefix(supabase, prefix, fetchLimit)
   const tokens = parseBinderSearchTokens(query)
   const text = tokens.name || query.trim()
   const parts = text.split(/\s+/).filter((part) => part.length >= 2 || /^\d+$/.test(part))
 
   if (parts.length > 1) {
-    const fullPatternRows = await fetchFullPattern(supabase, text, fetchLimit)
-    if (fullPatternRows.length > 0) {
-      return fullPatternRows.filter((row) => catalogRowMatchesQuery(row, query))
-    }
+    return rows.filter((row) => catalogRowMatchesQuery(row, query))
   }
 
-  const primary = sanitizeCatalogSearchToken(
-    parts.sort((a, b) => b.length - a.length)[0] ?? text,
-  )
-  if (!primary) return []
-
-  const pattern = `%${primary}%`
-  const { data, error } = await supabase
-    .from("cards")
-    .select(CARD_SELECT)
-    .or(
-      `name.ilike.${pattern},japanese_name.ilike.${pattern},set_name.ilike.${pattern},number.ilike.${pattern}`,
-    )
-    .order("name", { ascending: true })
-    .limit(fetchLimit)
-
-  if (error) throw error
-
-  let rows = (data ?? []) as CatalogCardRow[]
-  if (parts.length > 1) {
-    rows = rows.filter((row) => catalogRowMatchesQuery(row, query))
-  }
   return rows
 }
 
@@ -229,27 +257,21 @@ async function fetchFullPattern(
   supabase: SupabaseClient,
   query: string,
   fetchLimit: number,
+  sqlQuery?: string,
 ): Promise<CatalogCardRow[]> {
-  const pattern = `%${sanitizeCatalogSearchToken(query)}%`
-  const { data, error } = await supabase
-    .from("cards")
-    .select(CARD_SELECT)
-    .or(
-      `name.ilike.${pattern},japanese_name.ilike.${pattern},set_name.ilike.${pattern},number.ilike.${pattern}`,
-    )
-    .order("name", { ascending: true })
-    .limit(fetchLimit)
-
-  if (error) throw error
-  return (data ?? []) as CatalogCardRow[]
+  const prefix = sanitizeCatalogSearchToken(sqlQuery ?? normalizeSearchCleanName(query))
+  if (!prefix) return []
+  return fetchByCleanNamePrefix(supabase, prefix, fetchLimit)
 }
 
 export async function queryCatalogSearchRows(
   supabase: SupabaseClient,
   query: string,
   fetchLimit: number,
+  options?: { sqlQuery?: string },
 ): Promise<CatalogCardRow[]> {
   const q = query.trim()
+  const sqlQuery = options?.sqlQuery
   const tokens = parseBinderSearchTokens(q)
   let rows: CatalogCardRow[] = []
 
@@ -258,21 +280,21 @@ export async function queryCatalogSearchRows(
   } else if (tokens.setHint && !tokens.number) {
     rows = await fetchBySetHint(supabase, tokens.setHint, fetchLimit)
   } else if (tokens.name && tokens.setHint) {
-    rows = await fetchByNameAndSetHint(supabase, tokens.name, tokens.setHint, fetchLimit)
+    rows = await fetchByNameAndSetHint(supabase, tokens.name, tokens.setHint, fetchLimit, sqlQuery)
   } else if (tokens.name && tokens.number) {
-    rows = await fetchByNameAndNumber(supabase, tokens.name, tokens.number, fetchLimit)
+    rows = await fetchByNameAndNumber(supabase, tokens.name, tokens.number, fetchLimit, sqlQuery)
     if (rows.length === 0) {
-      const byName = await fetchByText(supabase, tokens.name, fetchLimit)
+      const byName = await fetchByText(supabase, tokens.name, fetchLimit, sqlQuery)
       rows = byName.filter((row) => cardNumberMatches(row.number, tokens.number!))
     }
   } else if (tokens.number && !tokens.name) {
     rows = await fetchByNumber(supabase, tokens.number, fetchLimit)
   } else {
-    rows = await fetchByText(supabase, q, fetchLimit)
+    rows = await fetchByText(supabase, q, fetchLimit, sqlQuery)
   }
 
   if (rows.length === 0) {
-    rows = await fetchFullPattern(supabase, q, fetchLimit)
+    rows = await fetchFullPattern(supabase, q, fetchLimit, sqlQuery)
   }
 
   return rows

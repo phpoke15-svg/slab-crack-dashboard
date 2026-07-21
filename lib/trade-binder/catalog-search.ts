@@ -246,7 +246,7 @@ async function fetchScrydexRemoteSearchHits(query: string, limit: number): Promi
 
 export async function searchCatalogHybrid(
   query: string,
-  options?: { limit?: number; rawPriceByCardId?: Map<string, number> },
+  options?: { limit?: number; rawPriceByCardId?: Map<string, number>; sqlQuery?: string },
 ): Promise<{ hits: CatalogSearchHit[]; source: CatalogSearchSource }> {
   const limit = options?.limit ?? 40
   const rawPriceByCardId = options?.rawPriceByCardId ?? new Map<string, number>()
@@ -255,7 +255,9 @@ export async function searchCatalogHybrid(
     return { hits: [], source: "local" }
   }
 
-  const localHits = await searchCatalogCardsLocal(query, Math.min(limit * 2, 80))
+  const localHits = await searchCatalogCardsLocal(query, Math.min(limit * 2, 80), {
+    sqlQuery: options?.sqlQuery,
+  })
   const scrydexHits = await searchScrydexCatalogLocal(query, Math.min(limit * 2, 80))
   const mergedLocal = mergeScrydexHits(localHits, scrydexHits)
   const supplementalHits = searchSupplementalCatalog(query, limit)

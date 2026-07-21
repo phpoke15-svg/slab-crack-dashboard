@@ -3,7 +3,7 @@ import {
   catalogHitToCardSearchHit,
   getCatalogCardCount,
 } from "@/lib/db/cards-catalog"
-import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
+import { catalogSearchMinLength, normalizeSearchCleanName } from "@/lib/db/catalog-search-local"
 import type { CardSearchHit } from "@/lib/card-lookup"
 import { enrichCardSearchHitsWithPrices, SEARCH_SERVER_LIVE_PRICE_LIMIT } from "@/lib/pricing/persist-search-prices"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
@@ -19,10 +19,11 @@ const searchCache = new Map<string, { results: CardSearchHit[]; expiresAt: numbe
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
-  const q = searchParams.get("q")?.trim() ?? ""
+  const rawQuery = searchParams.get("q")?.trim() ?? ""
+  const sqlQuery = normalizeSearchCleanName(rawQuery)
   const catalogReady = (await getCatalogCardCount()) > 0
 
-  if (!catalogSearchMinLength(q)) {
+  if (!catalogSearchMinLength(rawQuery)) {
     return NextResponse.json({ results: [], catalogReady })
   }
 
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
     )
   }
 
-  const cacheKey = q.toLowerCase()
+  const cacheKey = sqlQuery || rawQuery.toLowerCase()
   const cached = searchCache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(
@@ -43,7 +44,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { hits, source } = await searchCatalogHybrid(q, { limit: SEARCH_LIMIT })
+    const { hits, source } = await searchCatalogHybrid(rawQuery, {
+      limit: SEARCH_LIMIT,
+      sqlQuery,
+    })
     const mapped = hits.map(catalogHitToCardSearchHit)
     const priced = await enrichCardSearchHitsWithPrices(mapped, {
       liveLimit: SEARCH_SERVER_LIVE_PRICE_LIMIT,
