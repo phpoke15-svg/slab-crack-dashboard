@@ -6,6 +6,7 @@ import {
 import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
+import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import { refreshScrydexPricesForSearchHits } from "@/lib/scrydex/on-demand"
 import { searchScrydexCatalogLocal } from "@/lib/scrydex/catalog-bridge"
 import { cardIdsEquivalent } from "@/lib/trade-binder/card-id-match"
@@ -103,6 +104,9 @@ function shouldFetchLiveCatalog(
   if (!hasTcgGoApiKey()) return false
 
   const tokens = parseBinderSearchTokens(query)
+  if (tokens.setHint && tokens.number && isScrydexConfigured()) {
+    return false
+  }
   if (tokens.name && tokens.number && localResultsMatchNameAndNumber(localHits, tokens.name, tokens.number)) {
     return false
   }
@@ -212,9 +216,16 @@ function mergeCatalogHits(
   const hits = merged
     .map((card) => byId.get(card.id))
     .filter((hit): hit is CatalogSearchHit => hit != null)
-    .slice(0, limit)
 
-  return { hits, source: "hybrid" }
+  const deduped: CatalogSearchHit[] = []
+  const seenIds = new Set<string>()
+  for (const hit of hits) {
+    if (seenIds.has(hit.id)) continue
+    seenIds.add(hit.id)
+    deduped.push(hit)
+  }
+
+  return { hits: deduped.slice(0, limit), source: "hybrid" }
 }
 
 export async function searchCatalogHybrid(
