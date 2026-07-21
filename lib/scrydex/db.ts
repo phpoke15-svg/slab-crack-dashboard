@@ -11,6 +11,17 @@ import type { CatalogCardRow, ScrydexCard, ScrydexExpansionRef, TcgGame } from "
 
 const CHUNK = 100
 
+function dedupeByKey(
+  rows: Record<string, unknown>[],
+  keyFn: (row: Record<string, unknown>) => string,
+): Record<string, unknown>[] {
+  const byKey = new Map<string, Record<string, unknown>>()
+  for (const row of rows) {
+    byKey.set(keyFn(row), row)
+  }
+  return [...byKey.values()]
+}
+
 async function upsertChunk(table: string, rows: Record<string, unknown>[]) {
   if (!isSupabaseConfigured() || rows.length === 0) return
   const supabase = createAdminClient()
@@ -41,10 +52,12 @@ export async function upsertCatalogCards(rows: CatalogCardRow[]): Promise<number
     catalog_synced_at: new Date().toISOString(),
   }))
 
-  for (let i = 0; i < payload.length; i += CHUNK) {
-    await upsertChunk("catalog_cards", payload.slice(i, i + CHUNK))
+  const deduped = dedupeByKey(payload, (row) => String(row.catalog_id))
+
+  for (let i = 0; i < deduped.length; i += CHUNK) {
+    await upsertChunk("catalog_cards", deduped.slice(i, i + CHUNK))
   }
-  return payload.length
+  return deduped.length
 }
 
 export async function upsertExpansions(

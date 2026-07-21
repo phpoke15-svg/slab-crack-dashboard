@@ -74,6 +74,14 @@ export function scrydexExpansionToRow(game: TcgGame, expansion: ScrydexExpansion
   }
 }
 
+function dedupeRows<T extends Record<string, unknown>>(rows: T[], keyFn: (row: T) => string): T[] {
+  const byKey = new Map<string, T>()
+  for (const row of rows) {
+    byKey.set(keyFn(row), row)
+  }
+  return [...byKey.values()]
+}
+
 export function extractRawPrices(catalogId: string, variants: ScrydexVariant[] | undefined) {
   const rows: Array<Record<string, unknown>> = []
   const now = new Date().toISOString()
@@ -96,7 +104,7 @@ export function extractRawPrices(catalogId: string, variants: ScrydexVariant[] |
     }
   }
 
-  return rows
+  return dedupeRows(rows, (row) => `${row.catalog_id}|${row.variant}|${row.condition}`)
 }
 
 export function extractGradedPrices(catalogId: string, variants: ScrydexVariant[] | undefined) {
@@ -122,7 +130,7 @@ export function extractGradedPrices(catalogId: string, variants: ScrydexVariant[
     }
   }
 
-  return rows
+  return dedupeRows(rows, (row) => `${row.catalog_id}|${row.variant}|${row.company}|${row.grade}`)
 }
 
 export function extractPopulationReports(catalogId: string, variants: ScrydexVariant[] | undefined) {
@@ -149,7 +157,7 @@ export function extractPopulationReports(catalogId: string, variants: ScrydexVar
     }
   }
 
-  return rows
+  return dedupeRows(rows, (row) => `${row.catalog_id}|${row.variant}|${row.company}|${row.grade}`)
 }
 
 export function flattenHistoryPoints(

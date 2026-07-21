@@ -40,6 +40,7 @@ describe("scrydex adapters", () => {
         name: "normal",
         prices: [
           { type: "raw", condition: "NM", market: 10, currency: "USD" },
+          { type: "raw", condition: "NM", market: 11, currency: "USD" },
           { type: "graded", company: "PSA", grade: "10", market: 250, currency: "USD" },
         ],
       },
