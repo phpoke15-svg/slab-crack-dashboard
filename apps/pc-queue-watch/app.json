@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.collectools.app",
-      "buildNumber": "26",
+      "buildNumber": "27",
       "infoPlist": {
         "UIBackgroundModes": [
           "fetch",
@@ -25,8 +25,7 @@
         ],
         "ITSAppUsesNonExemptEncryption": false,
         "NSCameraUsageDescription": "CollecTools uses the camera to photograph cards for SlabCrack Scan, SlabLab Scan, and Grade Check.",
-        "NSPhotoLibraryUsageDescription": "CollecTools lets you pick card photos for SlabCrack Scan, SlabLab Scan, and Grade Check.",
-        "NSUserTrackingUsageDescription": "CollecTools does not track you across apps. This permission is unused."
+        "NSPhotoLibraryUsageDescription": "CollecTools lets you pick card photos for SlabCrack Scan, SlabLab Scan, and Grade Check."
       }
     },
     "android": {

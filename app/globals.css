@@ -183,3 +183,10 @@ html.native-app .seo-crawl-intro {
 html.native-app .hub-shell {
   padding-top: 1rem;
 }
+
+/* App Store 2.3.10 — hide Google Play / Android-only copy inside the iOS app */
+html.native-app .app-store-badge--android,
+html.native-app .android-only-copy,
+html.native-app .mobile-store-badges {
+  display: none !important;
+}

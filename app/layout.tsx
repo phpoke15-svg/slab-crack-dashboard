@@ -1,8 +1,7 @@
-import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
-import { AdSenseScript } from '@/components/adsense-script'
 import { AppProviders } from '@/components/app-providers'
+import { WebExtras } from '@/components/web-extras'
 import { JsonLd } from '@/components/seo/json-ld'
 import { getSiteUrl } from '@/lib/site-url'
 import {
@@ -98,12 +97,11 @@ export default function RootLayout({
   return (
     <html lang="en" className={`dark ${geistSans.variable} ${geistMono.variable}`}>
       <head>
-        <AdSenseScript />
         <JsonLd data={[organizationJsonLd(), websiteJsonLd(), mobileApplicationJsonLd()]} />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
         <AppProviders>{children}</AppProviders>
-        {process.env.NODE_ENV === 'production' && <Analytics />}
+        <WebExtras />
       </body>
     </html>
   )

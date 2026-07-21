@@ -19,6 +19,7 @@ import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
 import { PLAN_TIERS, FREE_PLAN_FEATURES, STARTER_PLAN, displayPlanFeatures, type PriceKey } from "@/lib/billing/plans"
 import { LEGAL_CONTACT_EMAIL } from "@/lib/legal/config"
+import { isNativeAppShell } from "@/lib/native-app"
 import { cn } from "@/lib/utils"
 
 const HIGHLIGHTS = [
@@ -180,7 +181,8 @@ export function PricingClient() {
   const premium = PLAN_TIERS.find((t) => t.id === "premium")!
   const pro = PLAN_TIERS.find((t) => t.id === "pro")!
   const stillBooting = entitlements.isLoading && !entitlements.stripeConfigured
-  const billingReady = entitlements.stripeConfigured
+  const billingReady = isNativeAppShell() || entitlements.stripeConfigured
+  const nativeBilling = isNativeAppShell()
 
   return (
     <div className="relative min-h-dvh overflow-x-hidden bg-background">
@@ -289,6 +291,13 @@ export function PricingClient() {
             className="mt-6 rounded-xl border border-destructive/50 bg-destructive/15 px-4 py-3 text-sm font-medium text-destructive"
           >
             {error}
+          </p>
+        )}
+
+        {nativeBilling && (
+          <p className="mt-6 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">
+            Subscriptions in the iOS app use Apple In-App Purchase. Tap a plan below to subscribe through
+            the App Store. Manage renewals in Settings → Apple ID → Subscriptions.
           </p>
         )}
 
