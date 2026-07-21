@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { gradeTypeFromHistoryRow, pivotHistoryRowsForChart } from "@/lib/scrydex/history-chart"
+import { gradeTypeFromHistoryRow, pivotHistoryRowsForChart, toRechartsHistoryRows } from "@/lib/scrydex/history-chart"
 
 describe("history-chart", () => {
   it("maps raw and PSA grades to chart keys", () => {
@@ -55,5 +55,13 @@ describe("history-chart", () => {
       { recorded_at: "2026-07-01", raw: 6.5, psa10: 45 },
       { recorded_at: "2026-07-02", raw: 7 },
     ])
+  })
+
+  it("maps pivot rows to Recharts series keys", () => {
+    expect(
+      toRechartsHistoryRows([
+        { recorded_at: "2026-07-01", raw: 6.5, psa10: 45, psa9: 28 },
+      ]),
+    ).toEqual([{ recorded_at: "2026-07-01", RAW: 6.5, PSA_10: 45, PSA_9: 28 }])
   })
 })

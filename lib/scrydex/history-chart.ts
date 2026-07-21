@@ -13,6 +13,23 @@ export type ScrydexHistoryChartRow = {
   [gradeType: string]: string | number
 }
 
+export type RechartsHistoryRow = {
+  recorded_at: string
+  RAW?: number
+  PSA_10?: number
+  PSA_9?: number
+  PSA_8?: number
+  PSA_7?: number
+}
+
+const RECHARTS_GRADE_KEYS: Record<string, keyof RechartsHistoryRow> = {
+  raw: "RAW",
+  psa10: "PSA_10",
+  psa9: "PSA_9",
+  psa8: "PSA_8",
+  psa7: "PSA_7",
+}
+
 /** Map a price_history_daily row to a chart column key (raw, psa10, slab:BGS|9.5, …). */
 export function gradeTypeFromHistoryRow(row: DailyHistoryRow): string | null {
   if ((row.variant ?? "normal") !== "normal") return null
@@ -59,4 +76,19 @@ export function pivotHistoryRowsForChart(rows: DailyHistoryRow[]): ScrydexHistor
   return [...chartDataMap.values()].sort((a, b) =>
     String(a.recorded_at).localeCompare(String(b.recorded_at)),
   )
+}
+
+/** Map pivot rows to Recharts dataKeys (RAW, PSA_10, PSA_9, …). */
+export function toRechartsHistoryRows(rows: ScrydexHistoryChartRow[]): RechartsHistoryRow[] {
+  return rows.map((row) => {
+    const mapped: RechartsHistoryRow = { recorded_at: String(row.recorded_at) }
+    for (const [key, value] of Object.entries(row)) {
+      if (key === "recorded_at") continue
+      const rechartsKey = RECHARTS_GRADE_KEYS[key]
+      if (rechartsKey && typeof value === "number" && value > 0) {
+        mapped[rechartsKey] = value
+      }
+    }
+    return mapped
+  })
 }
