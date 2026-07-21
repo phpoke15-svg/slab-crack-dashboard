@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   crackDeficitForRow,
+  filterSlabItEligibleRows,
   gradeSpreadForRow,
   rankCrackArbitrageRows,
   rankSlabItSpreadRows,
@@ -47,6 +48,34 @@ describe("market ranking helpers", () => {
 
     expect(rows.map((row) => row.id)).toEqual(["poke-sv3pt5-173", "poke-a"])
     expect(gradeSpreadForRow(rows[0]!)).toBe(238)
+  })
+
+  it("filters SlabIt rows to recent set releases only", () => {
+    const rows = filterSlabItEligibleRows([
+      {
+        ...baseRow,
+        id: "poke-new",
+        release_date: "2024-03-22",
+        current_price_raw: 10,
+        current_price_psa10: 40,
+      },
+      {
+        ...baseRow,
+        id: "poke-old",
+        release_date: "2018-02-02",
+        current_price_raw: 10,
+        current_price_psa10: 40,
+      },
+      {
+        ...baseRow,
+        id: "poke-unknown",
+        release_date: null,
+        current_price_raw: 10,
+        current_price_psa10: 40,
+      },
+    ])
+
+    expect(rows.map((row) => row.id)).toEqual(["poke-new"])
   })
 })
 

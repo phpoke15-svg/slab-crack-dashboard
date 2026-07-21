@@ -5,6 +5,7 @@ import { normalizeCardEntry, type MockCardEntry } from "@/lib/slab-data"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { toSlabLabCard, type SlabLabCard } from "@/lib/slablab-card"
+import { isSlabItEligibleRelease } from "@/lib/slabit-config"
 
 export type { SlabLabCard }
 export { toSlabLabCard }
@@ -41,6 +42,7 @@ export async function getSlabLabOpportunities(
 ): Promise<SlabLabCard[]> {
   const feed = await loadNormalizedFeed()
   const cards = feed
+    .filter((entry) => isSlabItEligibleRelease(entry.releaseDate))
     .map(toSlabLabCard)
     .filter((c): c is SlabLabCard => c != null)
 

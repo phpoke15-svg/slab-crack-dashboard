@@ -1,4 +1,5 @@
 import { getCatalogFeedFromDb, isSupabaseConfigured } from "@/lib/db/catalog-feed"
+import { readSlabItTopCache, writeSlabItTopCache } from "@/lib/db/slabit-top-cache"
 import { readAnomaliesCache } from "@/lib/sync-anomalies"
 import mockData from "@/lib/mockData.json"
 import {
@@ -8,6 +9,7 @@ import {
 } from "@/lib/slab-data"
 import { getSlabLabOpportunities } from "@/lib/slablab"
 import { toSlabLabCard, type SlabLabCard } from "@/lib/slablab-card"
+import { isSlabItCacheFresh, isSlabItEligibleRelease } from "@/lib/slabit-config"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 import { createAdminClient } from "@/lib/supabase/server"
 
@@ -23,13 +25,16 @@ type RankedCardRow = {
   current_price_raw: number | null
   current_price_psa10: number | null
   price_updated_at: string | null
+  release_date?: string | null
 }
 
 const MARKET_SCAN_PAGE_SIZE = 1000
 const MARKET_SCAN_MAX_PAGES = 100
 const MARKET_SCAN_TTL_MS = 5 * 60 * 1000
+const EXPANSION_CACHE_TTL_MS = 24 * 60 * 60 * 1000
 
 let pricedMarketCache: { rows: RankedCardRow[]; fetchedAt: number } | null = null
+let expansionReleaseCache: { map: Map<string, string | null>; fetchedAt: number } | null = null
 
 function pokemonTcgIdFromRow(row: RankedCardRow): string {
   if (row.id.startsWith("poke-")) return row.id.slice("poke-".length)
@@ -47,6 +52,10 @@ export function gradeSpreadForRow(row: RankedCardRow): number {
   const raw = Number(row.current_price_raw) || 0
   const psa10 = Number(row.current_price_psa10) || 0
   return psa10 > raw ? psa10 - raw : 0
+}
+
+export function filterSlabItEligibleRows(rows: RankedCardRow[]): RankedCardRow[] {
+  return rows.filter((row) => isSlabItEligibleRelease(row.release_date))
 }
 
 export function rankCrackArbitrageRows(rows: RankedCardRow[], limit: number): RankedCardRow[] {
@@ -109,6 +118,7 @@ export function rankedCardRowToMockEntry(row: RankedCardRow): MockCardEntry | nu
     setName: row.set_name,
     cardNumber: row.number,
     imageUrl: row.image_url ?? "/placeholder.svg",
+    releaseDate: row.release_date ?? undefined,
     rawPrice: raw,
     slabGrade: 10,
     slabPrice: psa10,
@@ -118,6 +128,46 @@ export function rankedCardRowToMockEntry(row: RankedCardRow): MockCardEntry | nu
     hasPricing: true,
     marketInsight: "Grading spread ranked from whole-market Scrydex prices (PSA 10 vs raw NM).",
   })
+}
+
+async function loadExpansionReleaseMap(forceRefresh = false): Promise<Map<string, string | null>> {
+  if (
+    !forceRefresh &&
+    expansionReleaseCache &&
+    Date.now() - expansionReleaseCache.fetchedAt < EXPANSION_CACHE_TTL_MS
+  ) {
+    return expansionReleaseCache.map
+  }
+
+  const map = new Map<string, string | null>()
+  if (!isSupabaseConfigured()) {
+    expansionReleaseCache = { map, fetchedAt: Date.now() }
+    return map
+  }
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase.from("expansions").select("id, release_date").eq("game", "pokemon")
+
+  if (error?.code === "42P01") {
+    expansionReleaseCache = { map, fetchedAt: Date.now() }
+    return map
+  }
+  if (error) throw error
+
+  for (const row of data ?? []) {
+    map.set(String(row.id), row.release_date ? String(row.release_date) : null)
+  }
+
+  expansionReleaseCache = { map, fetchedAt: Date.now() }
+  return map
+}
+
+async function attachExpansionReleaseDates(rows: RankedCardRow[]): Promise<RankedCardRow[]> {
+  const releaseBySetId = await loadExpansionReleaseMap()
+  return rows.map((row) => ({
+    ...row,
+    release_date: releaseBySetId.get(row.set_id) ?? null,
+  }))
 }
 
 async function fetchAllPricedCardRows(forceRefresh = false): Promise<RankedCardRow[]> {
@@ -200,11 +250,11 @@ export async function getTopSlabCrackCards(limit = TOP_CARDS_LIMIT): Promise<Moc
     .slice(0, limit)
 }
 
-/** Top SlabIt cards: whole-market scan, ranked by PSA 10 − raw spread. */
-export async function getTopSlabItCards(limit = TOP_CARDS_LIMIT): Promise<SlabLabCard[]> {
+async function computeTopSlabItCards(limit = TOP_CARDS_LIMIT): Promise<SlabLabCard[]> {
   try {
-    const market = await fetchAllPricedCardRows()
-    const rows = rankSlabItSpreadRows(market, limit)
+    const market = await attachExpansionReleaseDates(await fetchAllPricedCardRows())
+    const eligible = filterSlabItEligibleRows(market)
+    const rows = rankSlabItSpreadRows(eligible, limit)
     const cards = rows
       .map(rankedCardRowToMockEntry)
       .filter((entry): entry is MockCardEntry => entry != null)
@@ -218,4 +268,36 @@ export async function getTopSlabItCards(limit = TOP_CARDS_LIMIT): Promise<SlabLa
   }
 
   return getSlabLabOpportunities(limit)
+}
+
+/** Rebuild and persist the daily SlabIt top-100 cache (cron). */
+export async function refreshSlabItTopCache(limit = TOP_CARDS_LIMIT) {
+  pricedMarketCache = null
+  expansionReleaseCache = null
+  const cards = await computeTopSlabItCards(limit)
+  return writeSlabItTopCache(cards)
+}
+
+/** Top SlabIt cards: recent sets only, refreshed daily from live market prices. */
+export async function getTopSlabItCards(
+  limit = TOP_CARDS_LIMIT,
+  options?: { forceRefresh?: boolean },
+): Promise<SlabLabCard[]> {
+  if (!options?.forceRefresh) {
+    const cache = await readSlabItTopCache()
+    if (cache && isSlabItCacheFresh(cache.syncedAt)) {
+      return cache.cards.slice(0, limit)
+    }
+  }
+
+  const cards = await computeTopSlabItCards(limit)
+  if (cards.length > 0) {
+    await writeSlabItTopCache(cards)
+  }
+  return cards.slice(0, limit)
+}
+
+export async function getSlabItTopSyncedAt(): Promise<string | null> {
+  const cache = await readSlabItTopCache()
+  return cache?.syncedAt ?? null
 }

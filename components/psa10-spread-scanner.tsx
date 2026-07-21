@@ -23,7 +23,11 @@ import {
   PSA_GRADING_TIERS,
 } from "@/lib/psa-grading-tiers"
 import type { SlabLabCard } from "@/lib/slablab-card"
+import { gradeQuotesForSlabLabCard } from "@/lib/slablab-card"
 import { PriceHistoryChart } from "@/components/price-history-chart"
+import { GradePriceGrid } from "@/components/grade-price-grid"
+import { DeficitBadge } from "@/components/deficit-badge"
+import { getBestGradeQuote, type PsaGradeNumber } from "@/lib/slab-data"
 import { TOP_CARDS_LIMIT } from "@/lib/top-cards"
 import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
 import { WatchlistButton } from "@/components/save-for-later/watchlist-button"
@@ -116,6 +120,12 @@ function cardEbayUrl(row: Pick<ScannerCard, "id" | "name" | "cardNumber">): stri
   )
 }
 
+function formatBoardSync(iso: string): string {
+  const date = new Date(iso)
+  if (!Number.isFinite(date.getTime())) return ""
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+}
+
 export function Psa10SpreadScanner() {
   const { user } = useAuth()
   const [cards, setCards] = useState<ScannerCard[]>([])
@@ -125,6 +135,7 @@ export function Psa10SpreadScanner() {
   const [sortMode, setSortMode] = useState<SortMode>("roi")
   const [view, setView] = useState<SlabLabView>("board")
   const [selectedRow, setSelectedRow] = useState<ComputedRow | null>(null)
+  const [boardSyncedAt, setBoardSyncedAt] = useState<string | null>(null)
   const [saveStore, setSaveStore] = useState<SaveForLaterStore>({ folders: [], items: [] })
   const [watchlistStore, setWatchlistStore] = useState<SlabLabWatchlistStore>({
     ids: [],
@@ -152,12 +163,15 @@ export function Psa10SpreadScanner() {
       try {
         const res = await fetch("/api/slabit/top", { credentials: "same-origin" })
         const json = (await res.json().catch(() => null)) as
-          | { ok?: boolean; cards?: ScannerCard[]; error?: string }
+          | { ok?: boolean; cards?: ScannerCard[]; error?: string; syncedAt?: string }
           | null
         if (!res.ok || !json?.cards) {
           throw new Error(json?.error || "Could not load grading opportunities")
         }
-        if (!cancelled) setCards(json.cards)
+        if (!cancelled) {
+          setCards(json.cards)
+          setBoardSyncedAt(typeof json.syncedAt === "string" ? json.syncedAt : null)
+        }
       } catch (err) {
         if (!cancelled) {
           setCards([])
@@ -391,10 +405,12 @@ export function Psa10SpreadScanner() {
               ? "Your watchlist is empty. Tap the star on any card to track it here."
               : `${rows.length} card${rows.length === 1 ? "" : "s"} on your watchlist`
           : loading
-            ? "Loading top grading opportunities…"
+            ? "Loading top grading opportunities from the past 5 years…"
             : error
               ? error
-              : `Top ${rows.length} of ${TOP_CARDS_LIMIT} · tap a card for full breakdown`}
+              : `Top ${rows.length} of ${TOP_CARDS_LIMIT} · sets from the past 5 years · refreshed daily${
+                  boardSyncedAt ? ` · board ${formatBoardSync(boardSyncedAt)}` : ""
+                } · tap a card for full breakdown`}
       </p>
 
       {/* Simplified feed */}
@@ -422,123 +438,20 @@ export function Psa10SpreadScanner() {
             )}
           </div>
         ) : (
-          rows.map((row, index) => {
-            const metric = primaryMetric(row, sortMode)
-            return (
-              <div
-                key={row.watchlistId || row.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => setSelectedRow(row)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    e.preventDefault()
-                    setSelectedRow(row)
-                  }
-                }}
-                className={cn(
-                  "group flex w-full cursor-pointer flex-col gap-2.5 rounded-2xl border border-border bg-card p-3 text-left transition-all",
-                  "hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
-                  row.primeSlot && "border-primary/25",
-                )}
-              >
-                <div className="flex w-full items-center gap-3">
-                  <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground">
-                    {view === "board" ? index + 1 : "·"}
-                  </span>
-                  <div className="relative aspect-[3/4] w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-muted/40 sm:w-16">
-                    <CardImage
-                      card={{
-                        id: row.id,
-                        name: row.name,
-                        set: row.set,
-                        image: row.image,
-                        cardNumber: row.cardNumber,
-                      }}
-                      alt={`${row.name} card`}
-                      sizes="64px"
-                      className="object-contain p-0.5 transition-transform duration-300 group-hover:scale-105"
-                      upgrade={false}
-                    />
-                    {isRowWatched(row) ? (
-                      <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                        <Sparkles className="size-2.5" />
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="truncate font-semibold text-foreground">{row.name}</h3>
-                      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">
-                        #{row.cardNumber}
-                      </span>
-                    </div>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {row.set} · {row.era}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {row.primeSlot && (
-                        <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
-                          Prime
-                        </span>
-                      )}
-                      {row.dangerZone && (
-                        <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
-                          10-or-bust
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <div className="flex items-center gap-1">
-                      <WatchlistButton
-                        watched={isRowWatched(row)}
-                        onToggle={() => toggleWatch(row)}
-                        compact
-                      />
-                      <SaveForLaterButton
-                        saved={isRowSaved(row)}
-                        onToggle={() => toggleSave(row)}
-                        compact
-                      />
-                    </div>
-                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {metric.label}
-                    </span>
-                    <span
-                      className={cn(
-                        "font-mono text-sm font-bold tabular-nums",
-                        sortMode === "roi" && row.trueRoiScore < 0
-                          ? "text-destructive"
-                          : "text-primary",
-                      )}
-                    >
-                      {metric.value}
-                    </span>
-                    <a
-                      href={cardEbayUrl(row)}
-                      target="_blank"
-                      rel="noopener noreferrer sponsored"
-                      onClick={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1 rounded-lg border border-border bg-secondary/50 px-2 py-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
-                    >
-                      eBay
-                      <ExternalLink className="size-3" aria-hidden="true" />
-                    </a>
-                  </div>
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
-                </div>
-                <PriceHistoryChart
-                  cardId={row.watchlistId || row.id}
-                  grade={10}
-                  currentRaw={row.rawPrice}
-                  currentSlab={row.psa10Price}
-                  compact
-                  title="30-day sales · PSA 10"
-                />
-              </div>
-            )
-          })
+          rows.map((row, index) => (
+            <SlabItFeedRow
+              key={row.watchlistId || row.id}
+              row={row}
+              index={index}
+              view={view}
+              sortMode={sortMode}
+              watched={isRowWatched(row)}
+              saved={isRowSaved(row)}
+              onOpen={() => setSelectedRow(row)}
+              onToggleWatch={() => toggleWatch(row)}
+              onToggleSave={() => toggleSave(row)}
+            />
+          ))
         )}
       </div>
 
@@ -552,6 +465,191 @@ export function Psa10SpreadScanner() {
           onClose={() => setSelectedRow(null)}
         />
       )}
+    </div>
+  )
+}
+
+function SlabItFeedRow({
+  row,
+  index,
+  view,
+  sortMode,
+  watched,
+  saved,
+  onOpen,
+  onToggleWatch,
+  onToggleSave,
+}: {
+  row: ComputedRow
+  index: number
+  view: SlabLabView
+  sortMode: SortMode
+  watched: boolean
+  saved: boolean
+  onOpen: () => void
+  onToggleWatch: () => void
+  onToggleSave: () => void
+}) {
+  const metric = primaryMetric(row, sortMode)
+  const gradeQuotes = gradeQuotesForSlabLabCard(row)
+  const bestLowerGrade = getBestGradeQuote(gradeQuotes.filter((quote) => quote.grade !== 10))
+  const [selectedGrade, setSelectedGrade] = useState<PsaGradeNumber | null>(null)
+
+  useEffect(() => {
+    setSelectedGrade(null)
+  }, [row.watchlistId, row.id])
+
+  const activeGrade = selectedGrade ?? bestLowerGrade?.grade ?? 9
+  const activeQuote = gradeQuotes.find((quote) => quote.grade === activeGrade) ?? bestLowerGrade
+  const chartGrade = activeGrade >= 7 && activeGrade <= 10 ? (activeGrade as 7 | 8 | 9 | 10) : 10
+  const chartSlab =
+    activeGrade === 10
+      ? row.psa10Price
+      : activeQuote?.slabPrice ?? gradeQuotes.find((quote) => quote.grade === 10)?.slabPrice ?? row.psa10Price
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      className={cn(
+        "group flex w-full cursor-pointer flex-col gap-3 rounded-2xl border border-border bg-card p-3 text-left transition-all sm:p-4",
+        "hover:border-primary/40 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+        row.primeSlot && "border-primary/25",
+      )}
+    >
+      <div className="flex w-full items-start gap-3 sm:gap-4">
+        <span className="mt-1 w-5 shrink-0 font-mono text-[11px] text-muted-foreground">
+          {view === "board" ? index + 1 : "·"}
+        </span>
+        <div className="relative aspect-[3/4] w-14 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-muted/40 sm:w-16">
+          <CardImage
+            card={{
+              id: row.id,
+              name: row.name,
+              set: row.set,
+              image: row.image,
+              cardNumber: row.cardNumber,
+            }}
+            alt={`${row.name} card`}
+            sizes="64px"
+            className="object-contain p-0.5 transition-transform duration-300 group-hover:scale-105"
+            upgrade={false}
+          />
+          {watched ? (
+            <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <Sparkles className="size-2.5" />
+            </span>
+          ) : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className="truncate font-semibold text-foreground">{row.name}</h3>
+                <span className="shrink-0 font-mono text-[11px] text-muted-foreground">#{row.cardNumber}</span>
+              </div>
+              <p className="truncate text-xs text-muted-foreground">
+                {row.set} · {row.era}
+              </p>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {row.primeSlot ? (
+                  <span className="rounded-md bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                    Prime
+                  </span>
+                ) : null}
+                {row.dangerZone ? (
+                  <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 text-[10px] font-semibold text-destructive">
+                    10-or-bust
+                  </span>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <div className="flex items-center gap-1">
+                <WatchlistButton watched={watched} onToggle={onToggleWatch} compact />
+                <SaveForLaterButton saved={saved} onToggle={onToggleSave} compact />
+              </div>
+              {activeQuote?.isArbitrage ? (
+                <div className="flex flex-col items-end gap-1">
+                  <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
+                    PSA {activeGrade}
+                  </span>
+                  <DeficitBadge diff={-activeQuote.deficit} pct={-activeQuote.percentageSavings} size="lg" />
+                </div>
+              ) : activeQuote && activeQuote.slabPrice > 0 ? (
+                <div className="rounded-xl border border-border bg-secondary/40 px-3 py-2 text-right">
+                  <span className="block text-[11px] font-semibold text-muted-foreground">PSA {activeGrade}</span>
+                  <span className="font-mono text-xs font-semibold text-muted-foreground">No gap</span>
+                </div>
+              ) : null}
+              <div className="rounded-xl border border-border bg-secondary/40 px-2.5 py-1.5 text-right">
+                <span className="block text-[10px] uppercase tracking-wide text-muted-foreground">{metric.label}</span>
+                <span
+                  className={cn(
+                    "font-mono text-sm font-bold tabular-nums",
+                    sortMode === "roi" && row.trueRoiScore < 0 ? "text-destructive" : "text-primary",
+                  )}
+                >
+                  {metric.value}
+                </span>
+              </div>
+              <a
+                href={cardEbayUrl(row)}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 rounded-lg border border-border bg-secondary/50 px-2 py-1 text-[10px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                eBay
+                <ExternalLink className="size-3" aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Raw NM</span>
+              <span className="font-mono text-base font-semibold tabular-nums text-foreground">
+                {money(row.rawPrice)}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {row.psa10Estimated ? "PSA 10 est." : "PSA 10"}
+              </span>
+              <span className="font-mono text-sm font-semibold tabular-nums text-foreground">{money(row.psa10Price)}</span>
+            </div>
+          </div>
+        </div>
+        <ChevronRight className="mt-2 size-4 shrink-0 text-muted-foreground/60" aria-hidden="true" />
+      </div>
+
+      {gradeQuotes.length > 0 ? (
+        <GradePriceGrid
+          quotes={gradeQuotes}
+          priced
+          compact
+          selectedGrade={activeGrade}
+          onSelectGrade={setSelectedGrade}
+          highlightBest={selectedGrade == null}
+        />
+      ) : null}
+
+      <PriceHistoryChart
+        cardId={row.watchlistId || row.id}
+        grade={chartGrade}
+        currentRaw={row.rawPrice}
+        currentSlab={chartSlab}
+        compact
+        title={`30-day sales · PSA ${chartGrade}`}
+      />
     </div>
   )
 }

@@ -2,6 +2,7 @@ import { parseRemoteCardList } from "@/lib/scrydex/adapters"
 import { ScrydexClient } from "@/lib/scrydex/client"
 import { scrydexHydrationPagesPerRun } from "@/lib/scrydex/constants"
 import { persistCardPricingBundle, upsertCatalogCards, upsertExpansions } from "@/lib/scrydex/db"
+import { getSetAgeCutoff } from "@/lib/pokemon-tcg-filter"
 import { deltaExpansionJobId, hydrationJobId, readSyncState, writeSyncState } from "@/lib/scrydex/sync-state"
 import type { TcgGame } from "@/lib/scrydex/types"
 
@@ -125,5 +126,67 @@ export async function syncRecentExpansions(game: TcgGame, pageSize = 10) {
     expansions: count,
     creditsUsed: 1,
     ids: (response.data ?? []).map((row) => String((row as Record<string, unknown>).id ?? "")).filter(Boolean),
+  }
+}
+
+/** Paginate Scrydex expansions and upsert until sets are older than maxAgeYears. */
+export async function syncAllExpansions(
+  game: TcgGame,
+  options?: { maxAgeYears?: number; pageSize?: number; maxPages?: number },
+) {
+  const client = ScrydexClient.fromEnv()
+  const maxAgeYears = options?.maxAgeYears ?? 5
+  const pageSize = options?.pageSize ?? 100
+  const maxPages = options?.maxPages ?? 20
+  const cutoff = getSetAgeCutoff(maxAgeYears).getTime()
+
+  let page = 1
+  let creditsUsed = 0
+  let upserted = 0
+  let stoppedEarly = false
+  const ids: string[] = []
+
+  while (page <= maxPages) {
+    const response = await client.listExpansions(game, page, pageSize, {
+      jobId: `${deltaExpansionJobId(game)}:all:${page}`,
+    })
+    creditsUsed += 1
+
+    const batch = response.data ?? []
+    if (batch.length === 0) break
+
+    upserted += await upsertExpansions(game, batch)
+    for (const row of batch) {
+      const id = String((row as Record<string, unknown>).id ?? "").trim()
+      if (id) ids.push(id)
+    }
+
+    const oldestRelease = batch
+      .map((row) => String((row as Record<string, unknown>).release_date ?? "").replace(/\//g, "-"))
+      .filter(Boolean)
+      .map((value) => Date.parse(value))
+      .filter(Number.isFinite)
+      .sort((a, b) => a - b)[0]
+
+    if (oldestRelease != null && oldestRelease < cutoff) {
+      stoppedEarly = true
+      break
+    }
+
+    const totalCount = Number(response.totalCount ?? response.total_count ?? 0)
+    const totalPages =
+      totalCount > 0 ? Math.ceil(totalCount / pageSize) : page + (batch.length < pageSize ? 0 : 1)
+    if (page >= totalPages || batch.length < pageSize) break
+    page += 1
+    await sleep(150)
+  }
+
+  return {
+    game,
+    pages: page,
+    expansions: upserted,
+    creditsUsed,
+    stoppedEarly,
+    ids,
   }
 }
