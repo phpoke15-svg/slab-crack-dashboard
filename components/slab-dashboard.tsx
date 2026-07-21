@@ -206,7 +206,7 @@ export function SlabDashboard() {
   )
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col">
+    <div className="mx-auto flex min-h-dvh w-full max-w-6xl flex-col">
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
         <div className="px-4 pt-5 pb-3 sm:px-6">
@@ -416,7 +416,7 @@ export function SlabDashboard() {
             <AdSlot variant="banner" slotIndex={0} className="mt-8 max-w-md" compact />
           </div>
         ) : (
-          <div className="flex flex-col gap-2.5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {feedItems.map((item) =>
               item.kind === "card" ? (
                 <SlabRow

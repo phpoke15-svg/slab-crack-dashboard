@@ -2,7 +2,7 @@
 
 import { Loader2, Star } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { SlabCardImage } from "@/components/slab-card-image"
+import { CatalogCardTile } from "@/components/catalog-card-tile"
 import type { CardSearchHit } from "@/lib/card-lookup"
 
 export type { CardSearchHit }
@@ -24,7 +24,6 @@ export function CardSearchResults({
   loading,
   pricing = false,
   query,
-  watchedIds,
   isHitWatched,
   onSelect,
   onToggleWatch,
@@ -50,71 +49,50 @@ export function CardSearchResults({
           No cards found for &ldquo;{query}&rdquo;. Try a name, set (e.g. 151), or number (e.g. #173).
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {hits.map((hit) => {
             const watched = isHitWatched(hit)
             const loadingDetail = detailLoadingId === hit.id
             const hasPrice = hit.rawPrice != null && hit.rawPrice > 0
 
             return (
-              <li
-                key={hit.id}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card/60 p-2.5"
-              >
-                <button
-                  type="button"
+              <li key={hit.id}>
+                <CatalogCardTile
+                  cardId={hit.id}
+                  cardName={hit.cardName}
+                  setName={hit.setName}
+                  cardNumber={hit.cardNumber}
+                  imageUrl={hit.imageUrl}
+                  rawPrice={hit.rawPrice ?? 0}
+                  pricingPending={pricing && !hasPrice}
+                  secondaryHint={
+                    loadingDetail
+                      ? "Loading comps…"
+                      : hasPrice
+                        ? undefined
+                        : "Tap for slab comps"
+                  }
                   onClick={() => onSelect(hit)}
                   disabled={loadingDetail}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
-                >
-                  <div className="relative aspect-[3/4] w-11 shrink-0 overflow-hidden rounded-md border border-white/10">
-                    <SlabCardImage
-                      card={{
-                        id: hit.id,
-                        cardName: hit.cardName,
-                        setName: hit.setName,
-                        imageUrl: hit.imageUrl,
-                        cardNumber: hit.cardNumber,
+                  topRight={
+                    <button
+                      type="button"
+                      aria-label={watched ? "Remove from watchlist" : "Add to watchlist"}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onToggleWatch(hit)
                       }}
-                      alt=""
-                      sizes="44px"
-                      className="object-contain p-0.5"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium text-foreground">{hit.cardName}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {hit.setName}
-                      {hit.cardNumber ? ` · ${hit.cardNumber}` : ""}
-                    </p>
-                    {hasPrice ? (
-                      <p className="mt-0.5 font-mono text-[10px] font-medium text-primary tabular-nums">
-                        Raw ${hit.rawPrice!.toFixed(0)}
-                        {loadingDetail ? " · Loading PSA 7–10…" : ""}
-                      </p>
-                    ) : pricing ? (
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">Pricing…</p>
-                    ) : (
-                      <p className="mt-0.5 text-[10px] text-primary">
-                        {loadingDetail ? "Loading PSA 7–10…" : "Tap for slab comps"}
-                      </p>
-                    )}
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  aria-label={watched ? "Remove from watchlist" : "Add to watchlist"}
-                  onClick={() => onToggleWatch(hit)}
-                  className={cn(
-                    "flex size-9 shrink-0 items-center justify-center rounded-lg border transition-colors",
-                    watched
-                      ? "border-primary/50 bg-primary/15 text-primary"
-                      : "border-border bg-secondary/40 text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Star className={cn("size-4", watched && "fill-current")} />
-                </button>
+                      className={cn(
+                        "flex size-7 items-center justify-center rounded-lg border bg-background/90 transition-colors",
+                        watched
+                          ? "border-primary/50 bg-primary/15 text-primary"
+                          : "border-border text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Star className={cn("size-3.5", watched && "fill-current")} />
+                    </button>
+                  }
+                />
               </li>
             )
           })}

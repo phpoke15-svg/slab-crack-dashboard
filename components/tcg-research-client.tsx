@@ -7,8 +7,8 @@ import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { CardSearchResults } from "@/components/card-search-results"
+import { CatalogCardTile } from "@/components/catalog-card-tile"
 import { TcgResearchCardPanel } from "@/components/tcg-research-card-panel"
-import { SlabCardImage } from "@/components/slab-card-image"
 import type { CardSearchHit } from "@/lib/card-lookup"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
 import type { TcgGame } from "@/lib/scrydex/types"
@@ -18,11 +18,6 @@ const GAME_TABS: { id: TcgGame; label: string }[] = [
   { id: "lorcana", label: "Lorcana" },
   { id: "mtg", label: "MTG" },
 ]
-
-function money(value: number | null | undefined): string {
-  if (value == null || value <= 0) return "—"
-  return value >= 100 ? `$${value.toFixed(0)}` : `$${value.toFixed(2)}`
-}
 
 function useTcgResearchPopular(game: TcgGame) {
   const [hits, setHits] = useState<CardSearchHit[]>([])
@@ -89,53 +84,26 @@ function TcgResearchBrowseList({
           {emptyMessage}
         </p>
       ) : (
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {hits.map((hit, index) => {
             const loadingDetail = detailLoadingId === hit.id
             const hasPrice = hit.rawPrice != null && hit.rawPrice > 0
 
             return (
               <li key={hit.id}>
-                <button
-                  type="button"
+                <CatalogCardTile
+                  cardId={hit.id}
+                  cardName={hit.cardName}
+                  setName={hit.setName}
+                  cardNumber={hit.cardNumber}
+                  imageUrl={hit.imageUrl}
+                  rawPrice={hit.rawPrice ?? 0}
+                  rawLabel="Market"
+                  rank={index + 1}
+                  secondaryHint={loadingDetail ? "Loading…" : hasPrice ? undefined : "Tap for details"}
                   onClick={() => onSelect(hit)}
                   disabled={loadingDetail}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl border border-border bg-card/60 p-2.5 text-left transition-colors",
-                    "hover:border-primary/40 hover:bg-card disabled:opacity-60",
-                  )}
-                >
-                  <span className="w-6 shrink-0 text-center font-mono text-[11px] text-muted-foreground">
-                    {index + 1}
-                  </span>
-                  <div className="relative aspect-[3/4] w-11 shrink-0 overflow-hidden rounded-md border border-white/10">
-                    <SlabCardImage
-                      card={{
-                        id: hit.id,
-                        cardName: hit.cardName,
-                        setName: hit.setName,
-                        imageUrl: hit.imageUrl,
-                        cardNumber: hit.cardNumber,
-                      }}
-                      alt=""
-                      sizes="44px"
-                      className="object-contain p-0.5"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-foreground">{hit.cardName}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {hit.setName}
-                      {hit.cardNumber ? ` · #${hit.cardNumber}` : ""}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="font-mono text-sm font-semibold tabular-nums text-foreground">
-                      {hasPrice ? money(hit.rawPrice) : "—"}
-                    </p>
-                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Market</p>
-                  </div>
-                </button>
+                />
               </li>
             )
           })}
