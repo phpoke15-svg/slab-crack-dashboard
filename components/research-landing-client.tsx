@@ -129,6 +129,7 @@ export function ResearchLandingClient() {
         setName: card.setName,
         cardNumber: card.cardNumber,
         imageUrl: card.imageUrl,
+        rarity: null,
         rawPrice: card.rawPrice > 0 ? card.rawPrice : undefined,
       },
       payload.game,
