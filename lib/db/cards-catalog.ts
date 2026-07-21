@@ -1,8 +1,10 @@
 import type { CardSearchHit } from "@/lib/card-lookup"
 import {
   catalogSearchMinLength,
+  normalizeSearchCleanName,
   queryCatalogSearchRows,
   rankCatalogSearchHits,
+  sanitizeCatalogSearchToken,
 } from "@/lib/db/catalog-search-local"
 import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import { lookupScrydexCatalogById } from "@/lib/scrydex/catalog-bridge"
@@ -229,14 +231,28 @@ export async function findCatalogCandidatesForDetected(
     }
 
     const firstToken = name.split(/\s+/).find((t) => t.length > 2) ?? name
+    const cleanPrefix = sanitizeCatalogSearchToken(normalizeSearchCleanName(firstToken))
     const safeToken = firstToken.replace(/[%_]/g, "")
-    const { data, error } = await supabase
+
+    let { data, error } = await supabase
       .from("cards")
-      .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")
+      .select(CARD_SELECT)
       .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
-      .ilike("name", `%${safeToken}%`)
-      .order("name", { ascending: true })
+      .like("clean_name", `${cleanPrefix}%`)
+      .order("current_price_raw", { ascending: false, nullsFirst: false })
       .limit(Math.min(Math.max(limit, 1), 40))
+
+    if (error?.code === "42703" || (data?.length ?? 0) === 0) {
+      const fallback = await supabase
+        .from("cards")
+        .select(CARD_SELECT)
+        .or(`number.eq.${safeNumber},number.ilike.${safeNumber}/%`)
+        .ilike("name", `%${safeToken}%`)
+        .order("current_price_raw", { ascending: false, nullsFirst: false })
+        .limit(Math.min(Math.max(limit, 1), 40))
+      data = fallback.data
+      error = fallback.error
+    }
 
     if (error) {
       if (error.code === "42P01") return []

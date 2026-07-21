@@ -29,7 +29,8 @@ import {
   resolvePsa10Price,
   type MockCardEntry,
 } from "@/lib/slab-data"
-
+import { cleanNumber } from "@/lib/slabcrack/identify-parse"
+import { cardNumberMatches } from "@/lib/trade-binder/pokemon-tcg"
 import {
   isSlabItTool,
   slabLabsMultiScanHref,
@@ -167,8 +168,8 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
     presentedCardIdRef.current = normalized.id
     setCard(normalized)
     setSlabGrade(DEFAULT_SLAB_GRADE)
-    setPhase("hud")
-    setDrawerOpen(opts?.openDrawer !== false)
+    setPhase("camera")
+    setDrawerOpen(opts?.openDrawer === true)
   }, [])
 
   const fetchPricedCard = useCallback(async (hit: CardSearchHit): Promise<MockCardEntry> => {
@@ -201,26 +202,46 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
       })
       setLookupError(null)
       setPortfolioMessage(null)
+      setFoundPreview(null)
 
       if (!json.card) {
-        enterManualHandoff({
-          query: json.query || label,
-          candidates: json.candidates,
-          error: "Could not match this card. Search manually below.",
-          label: label || null,
-        })
+        if (json.candidates?.length) {
+          const detNum = cleanNumber(json.detected?.cardNumber ?? "")
+          const top =
+            json.candidates.find((candidate) => cardNumberMatches(candidate.cardNumber, detNum)) ??
+            json.candidates[0]!
+          setLookupLoading(true)
+          try {
+            const priced = await fetchPricedCard(top)
+            presentMatch(priced, { openDrawer: false })
+          } catch {
+            presentMatch(normalizeCardEntry(searchHitToPlaceholder(top)), { openDrawer: false })
+            setLookupError("Price lookup failed — showing catalog match without live comps.")
+          } finally {
+            setLookupLoading(false)
+          }
+          return
+        }
+
+        setLookupError("Could not match this card. Keep scanning or tap Scan now.")
         return
       }
 
       const localCard = normalizeCardEntry(json.card)
-      setFoundPreview(localCard)
-      setPhase("camera")
+      const showFoundSheet = json.matchMethod === "ocr" || json.matchMethod === "visual_phash"
+
+      if (showFoundSheet) {
+        setFoundPreview(localCard)
+      } else {
+        presentMatch(localCard, { openDrawer: false })
+      }
 
       if (json.needsLiveRefresh && json.hit) {
         setLookupLoading(true)
         try {
           const priced = await fetchPricedCard(json.hit)
-          setFoundPreview(priced)
+          if (showFoundSheet) setFoundPreview(priced)
+          else presentMatch(priced, { openDrawer: false })
         } catch {
           setLookupError("Matched the card, but live prices didn’t load.")
         } finally {
@@ -228,7 +249,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         }
       }
     },
-    [enterManualHandoff, fetchPricedCard],
+    [fetchPricedCard, presentMatch],
   )
 
   const dismissFoundSheet = useCallback(() => {
@@ -370,11 +391,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
             }}
             onScanFail={(error, snap) => {
               if (snap) setSnapshot(snap)
-              enterManualHandoff({
-                query: "",
-                candidates: [],
-                error,
-              })
+              setLookupError(error)
             }}
             className="absolute inset-0 size-full rounded-none border-0"
             immersive
@@ -386,6 +403,14 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-white/60">No snapshot</div>
         )}
+
+        {lookupError && phase === "camera" && !foundPreview && !card ? (
+          <div className="absolute inset-x-0 top-20 z-20 flex justify-center px-4">
+            <p className="max-w-sm rounded-xl border border-amber-400/30 bg-black/80 px-3 py-2 text-center text-[11px] text-amber-100">
+              {lookupError}
+            </p>
+          </div>
+        ) : null}
 
         {foundPreview && phase === "camera" ? (
           <CardFoundSheet
@@ -404,7 +429,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
           </div>
         ) : null}
 
-        {phase === "hud" && card ? (
+        {phase === "camera" && card && !foundPreview ? (
           <div className="absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black via-black/95 to-transparent px-4 pb-5 pt-14">
             <div className="rounded-2xl border border-white/15 bg-black/70 p-3 backdrop-blur-md">
               {detectedLabel ? (

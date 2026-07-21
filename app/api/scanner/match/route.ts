@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   try {
     const result = await matchCatalogFromOcr(body.detected)
     if (!result) {
-      return NextResponse.json({ ok: false, error: "No catalog match" }, { status: 404 })
+      return NextResponse.json({ ok: false, error: "No catalog match" })
     }
     return NextResponse.json(result)
   } catch (error) {

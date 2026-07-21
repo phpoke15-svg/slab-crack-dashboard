@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
+  Camera,
   Zap,
   TrendingDown,
   TrendingUp,
@@ -14,7 +15,7 @@ import {
   Crown,
 } from "lucide-react"
 import Link from "next/link"
-import { SLABLABS_HREF } from "@/lib/slabs-labs-routes"
+import { SLABCRACK_HREF, SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
@@ -243,6 +244,15 @@ export function SlabDashboard() {
             <ArrowLeft className="size-3.5" aria-hidden />
             Back to SlabLabs
           </Link>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href={`${SLABCRACK_HREF}/scan`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/15"
+            >
+              <Camera className="size-3.5" aria-hidden />
+              Point & Scan
+            </Link>
+          </div>
         </div>
 
         {/* Feed tabs */}
