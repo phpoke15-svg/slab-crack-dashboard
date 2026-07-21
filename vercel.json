@@ -3,6 +3,14 @@
   "buildCommand": "npm run build",
   "crons": [
     {
+      "path": "/api/cron/scrydex-hydrate",
+      "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/scrydex-sync-prices",
+      "schedule": "30 2 * * *"
+    },
+    {
       "path": "/api/cron/sync-card-prices",
       "schedule": "0 3 * * *"
     },
