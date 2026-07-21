@@ -6,6 +6,7 @@ import {
   resolveBinderSetIdHint,
 } from "@/lib/trade-binder/pokemon-tcg"
 import { catalogRowMatchesSetHint } from "@/lib/db/catalog-set-match"
+import { pokedexSpeciesName } from "@/lib/trade-binder/pokedex-search"
 import { simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import type { CatalogCardRow, CatalogSearchHit } from "@/lib/db/cards-catalog"
 
@@ -109,9 +110,31 @@ async function fetchBySetAndNumber(
   setHint: string,
   number: string,
   fetchLimit: number,
+  pokedexNumber?: number,
 ): Promise<CatalogCardRow[]> {
   const byNumber = await fetchByNumber(supabase, number, fetchLimit)
-  return byNumber.filter((row) => catalogRowMatchesSetHint(row, setHint))
+  let rows = byNumber.filter((row) => catalogRowMatchesSetHint(row, setHint))
+  if (rows.length > 0) return rows
+
+  if (pokedexNumber != null) {
+    const { data, error } = await supabase
+      .from("cards")
+      .select(CARD_SELECT)
+      .eq("pokedex_number", pokedexNumber)
+      .limit(fetchLimit)
+
+    if (!error && data?.length) {
+      rows = (data as CatalogCardRow[]).filter((row) => catalogRowMatchesSetHint(row, setHint))
+      if (rows.length > 0) return rows
+    }
+
+    const species = pokedexSpeciesName(pokedexNumber)
+    if (species) {
+      return fetchByNameAndSetHint(supabase, species, setHint, fetchLimit)
+    }
+  }
+
+  return rows
 }
 
 async function fetchByNameAndNumber(
@@ -254,7 +277,13 @@ export async function queryCatalogSearchRows(
   let rows: CatalogCardRow[] = []
 
   if (tokens.setHint && tokens.number) {
-    rows = await fetchBySetAndNumber(supabase, tokens.setHint, tokens.number, fetchLimit)
+    rows = await fetchBySetAndNumber(
+      supabase,
+      tokens.setHint,
+      tokens.number,
+      fetchLimit,
+      tokens.pokedexNumber,
+    )
   } else if (tokens.setHint && !tokens.number) {
     rows = await fetchBySetHint(supabase, tokens.setHint, fetchLimit)
   } else if (tokens.name && tokens.setHint) {

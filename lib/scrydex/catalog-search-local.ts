@@ -11,6 +11,7 @@ import {
   resolveBinderSetIdHint,
 } from "@/lib/trade-binder/pokemon-tcg"
 import { catalogRowMatchesSetHint } from "@/lib/db/catalog-set-match"
+import { pokedexSpeciesName } from "@/lib/trade-binder/pokedex-search"
 import { simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import type { CatalogCardRow as ScrydexCatalogCardRow } from "@/lib/scrydex/types"
 
@@ -72,14 +73,23 @@ async function fetchBySetAndNumber(
   setHint: string,
   number: string,
   fetchLimit: number,
+  pokedexNumber?: number,
 ): Promise<ScrydexCatalogCardRow[]> {
   const byNumber = await fetchByNumber(supabase, number, fetchLimit)
-  return byNumber.filter((row) =>
+  let rows = byNumber.filter((row) =>
     catalogRowMatchesSetHint(
       { set_name: row.set_name, set_code: row.set_code, catalog_id: row.catalog_id },
       setHint,
     ),
   )
+  if (rows.length > 0) return rows
+
+  const species = pokedexNumber != null ? pokedexSpeciesName(pokedexNumber) : null
+  if (species) {
+    return fetchByNameAndSetHint(supabase, species, setHint, fetchLimit)
+  }
+
+  return rows
 }
 
 async function fetchByNumber(
@@ -230,7 +240,13 @@ export async function queryScrydexCatalogSearchRows(
   let rows: ScrydexCatalogCardRow[] = []
 
   if (tokens.setHint && tokens.number) {
-    rows = await fetchBySetAndNumber(supabase, tokens.setHint, tokens.number, fetchLimit)
+    rows = await fetchBySetAndNumber(
+      supabase,
+      tokens.setHint,
+      tokens.number,
+      fetchLimit,
+      tokens.pokedexNumber,
+    )
   } else if (tokens.setHint && !tokens.number) {
     rows = await fetchBySetHint(supabase, tokens.setHint, fetchLimit)
   } else if (tokens.name && tokens.setHint) {

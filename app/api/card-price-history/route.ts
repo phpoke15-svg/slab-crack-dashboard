@@ -4,6 +4,7 @@ import {
   getPriceHistorySeriesMap,
   priceHistorySeriesLabels,
 } from "@/lib/pricing/price-history-series"
+import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
 
 export const dynamic = "force-dynamic"
@@ -74,7 +75,7 @@ export async function GET(request: Request) {
       series: filtered,
       counts,
       range,
-      source: "tcggo",
+      source: isScrydexConfigured() ? "scrydex" : "tcggo",
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to load price history"
