@@ -21,6 +21,7 @@ import {
 import {
   DEFAULT_SLAB_GRADE,
   formatSlabLabel,
+  historyChartGradeProps,
   type SlabGradeRef,
 } from "@/lib/grading/types"
 import { slabEbayAffiliateCampaign, slabEbaySearchKeyword } from "@/lib/grading/ebay-search"
@@ -168,10 +169,7 @@ export function SlabDrawer({
     slabEbayAffiliateCampaign(selectedCard.id, slabGrade, "slabcrack"),
   )
 
-  const psaGradeForHistory =
-    slabGrade.company === "PSA" && /^\d+$/.test(slabGrade.grade)
-      ? (Number(slabGrade.grade) as 7 | 8 | 9 | 10)
-      : 10
+  const chartGradeProps = historyChartGradeProps(slabGrade)
 
   const formatSigned = (n: number) => {
     if (!Number.isFinite(n)) return "—"
@@ -348,8 +346,7 @@ export function SlabDrawer({
               <div className="mt-3">
                 <PriceHistoryChart
                   cardId={selectedCard.id}
-                  grade={psaGradeForHistory}
-                  slabSelection={slabGrade.company === "PSA" ? undefined : slabGrade}
+                  {...chartGradeProps}
                   currentRaw={selectedCard.rawPrice}
                   currentSlab={activeSlabPrice}
                 />
