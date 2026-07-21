@@ -76,7 +76,9 @@ function rowToDetail(row: CardsRow): TcgResearchCardDetail {
   }
 }
 
-function bundleToDetail(bundle: Awaited<ReturnType<typeof loadCardBundle>>): TcgResearchCardDetail | null {
+export function catalogBundleToDetail(
+  bundle: Awaited<ReturnType<typeof loadCardBundle>>,
+): TcgResearchCardDetail | null {
   if (!bundle?.card) return null
 
   const priceRow = scrydexBundleToCardPriceRow({
@@ -172,7 +174,7 @@ export async function resolveTcgResearchCard(input: {
 
   if (catalogId) {
     const bundle = await loadCardBundle(catalogId)
-    const fromBundle = bundleToDetail(bundle)
+    const fromBundle = catalogBundleToDetail(bundle)
     if (fromBundle) return fromBundle
   }
 

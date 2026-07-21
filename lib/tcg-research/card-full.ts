@@ -2,9 +2,10 @@ import { cardPriceRowToMockEntry } from "@/lib/pricing/views"
 import { ensureScrydexCardFresh } from "@/lib/scrydex/on-demand"
 import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import { loadCardBundle } from "@/lib/scrydex/db"
+import { resolveScanToCatalog } from "@/lib/scrydex/vision-pipeline"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
 import { resolveCatalogId, splitCatalogId } from "@/lib/scrydex/constants"
-import type { TcgGame } from "@/lib/scrydex/types"
+import type { CardPriceBundle, TcgGame } from "@/lib/scrydex/types"
 import {
   buildGradeQuotes,
   normalizeCardEntry,
@@ -12,7 +13,9 @@ import {
   type RecentSale,
 } from "@/lib/slab-data"
 import { gradedRowsFromScrydexBundle, type ScrydexGradedPrice } from "@/lib/grading/quotes"
-import { resolveTcgResearchCard, type TcgResearchCardDetail } from "@/lib/tcg-research/card-detail"
+import { catalogBundleToDetail, resolveTcgResearchCard, type TcgResearchCardDetail } from "@/lib/tcg-research/card-detail"
+
+const ALL_TCG_GAMES: TcgGame[] = ["pokemon", "lorcana", "mtg"]
 
 export type TcgResearchPopulationRow = {
   company: string
@@ -83,6 +86,61 @@ function bundlePopulation(
     }))
     .filter((row) => row.company && row.grade && row.count > 0)
     .sort((a, b) => b.count - a.count)
+}
+
+/** Build a TCG Research panel payload directly from a Scrydex vision/catalog bundle. */
+export function tcgResearchCardFullFromBundle(bundle: CardPriceBundle): TcgResearchCardFull {
+  const detail = catalogBundleToDetail(bundle)
+  if (!detail) throw new Error("Vision match could not be loaded")
+
+  let card = detailToMockEntry(detail)
+  let priceUpdatedAt = detail.priceUpdatedAt
+  let priceSource: string | null = "scrydex"
+
+  const priceRow = scrydexBundleToCardPriceRow({
+    card: bundle.card,
+    raw: bundle.raw as never[],
+    graded: bundle.graded as never[],
+    legacyCardId: detail.id,
+  })
+
+  if (priceRow) {
+    const fromBundle = cardPriceRowToMockEntry(priceRow, {
+      id: card.id,
+      cardName: bundle.card.name,
+      setName: bundle.card.set_name,
+      cardNumber: bundle.card.number,
+      imageUrl: bundle.card.image_large_url ?? bundle.card.image_small_url ?? card.imageUrl,
+      marketInsight: "Scrydex market prices, population, and sold listing history.",
+    })
+    card = mergeMockEntry(card, fromBundle)
+    priceUpdatedAt = priceRow.synced_at ?? priceUpdatedAt
+  }
+
+  return {
+    card,
+    catalogId: bundle.card.catalog_id,
+    scrydexId: bundle.card.scrydex_id,
+    game: bundle.card.game,
+    priceUpdatedAt,
+    priceSource,
+    population: bundlePopulation(bundle.population as never[]),
+    gradedPrices: gradedRowsFromScrydexBundle(bundle.graded as never[]),
+  }
+}
+
+/** Scrydex Vision identify → full TCG Research card payload (Pokémon, Lorcana, MTG). */
+export async function scanTcgResearchCardFromVision(input: {
+  imageBase64: string
+  preferredGame?: TcgGame
+}): Promise<TcgResearchCardFull> {
+  const preferred = input.preferredGame ?? "pokemon"
+  const preferredGames = [preferred, ...ALL_TCG_GAMES.filter((game) => game !== preferred)]
+  const bundle = await resolveScanToCatalog({
+    imageBase64: input.imageBase64,
+    preferredGames,
+  })
+  return tcgResearchCardFullFromBundle(bundle)
 }
 
 export async function resolveTcgResearchCardFull(input: {
