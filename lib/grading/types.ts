@@ -8,9 +8,11 @@ export type SlabGradeRef = {
 
 export const DEFAULT_SLAB_GRADE: SlabGradeRef = { company: "PSA", grade: "10" }
 
+export const PSA_NUMERIC_GRADES = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"] as const
+
 /** Common grade scales per company (Scrydex may return additional grades). */
 export const GRADES_BY_COMPANY: Record<GradingCompany, string[]> = {
-  PSA: ["7", "8", "9", "10"],
+  PSA: [...PSA_NUMERIC_GRADES],
   BGS: ["7", "7.5", "8", "8.5", "9", "9.5", "10", "10 BL"],
   CGC: ["7", "8", "9", "9.5", "10", "10 Pristine"],
   TAG: ["8", "9", "10"],
@@ -43,6 +45,27 @@ export function formatSlabLabel(ref: SlabGradeRef): string {
   return `${ref.company} ${ref.grade}`
 }
 
+export function sortGradesDescending(a: string, b: string): number {
+  const na = Number.parseFloat(a)
+  const nb = Number.parseFloat(b)
+  if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return nb - na
+  return b.localeCompare(a)
+}
+
+/** PSA 7–10 use legacy chart series keys; PSA 1–6 and other companies use slabSelection. */
+export function historyChartGradeProps(ref: SlabGradeRef): {
+  grade?: 7 | 8 | 9 | 10
+  slabSelection?: SlabGradeRef
+} {
+  if (ref.company === "PSA" && /^\d+$/.test(ref.grade)) {
+    const grade = Number(ref.grade)
+    if (grade >= 7 && grade <= 10) return { grade: grade as 7 | 8 | 9 | 10 }
+    return { slabSelection: ref }
+  }
+  if (ref.company === "PSA") return { grade: 10 }
+  return { slabSelection: ref }
+}
+
 export function gradesForCompany(
   company: GradingCompany,
   available?: Array<{ company: string; grade: string }>,
@@ -53,12 +76,7 @@ export function gradesForCompany(
     .filter(Boolean)
 
   const merged = [...new Set([...GRADES_BY_COMPANY[company], ...fromAvailable])]
-  return merged.sort((a, b) => {
-    const na = Number.parseFloat(a)
-    const nb = Number.parseFloat(b)
-    if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb
-    return a.localeCompare(b)
-  })
+  return merged.sort(sortGradesDescending)
 }
 
 export function companiesFromGradedRows(

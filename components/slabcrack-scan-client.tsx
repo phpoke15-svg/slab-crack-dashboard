@@ -12,7 +12,7 @@ import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { resolveGradedPricesForCard, buildSlabQuotesForCompany, pickGradedPrice } from "@/lib/grading/quotes"
-import { DEFAULT_SLAB_GRADE, type SlabGradeRef } from "@/lib/grading/types"
+import { DEFAULT_SLAB_GRADE, historyChartGradeProps, type SlabGradeRef } from "@/lib/grading/types"
 import { SlabDrawer } from "@/components/slab-drawer"
 import { CardScanner } from "@/components/card-scanner"
 import { CardFoundSheet, type CardVariant } from "@/components/card-found-sheet"
@@ -326,10 +326,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const selectedQuote = companyQuotes.find((quote) => quote.grade === slabGrade.grade) ?? null
   const selectedSlabPrice =
     selectedQuote?.slabPrice ?? (card ? pickGradedPrice(gradedPrices, slabGrade) ?? 0 : 0)
-  const psaGradeForHistory =
-    slabGrade.company === "PSA" && /^\d+$/.test(slabGrade.grade)
-      ? (Number(slabGrade.grade) as 7 | 8 | 9 | 10)
-      : 10
+  const chartGradeProps = card ? historyChartGradeProps(slabGrade) : {}
   const labPsa10 = card ? resolvePsa10Price(card).price : 0
   const labPsa9 = card ? (getGradeQuotes(card).find((q) => q.grade === 9)?.slabPrice ?? 0) : 0
   const labGradingCost = DEFAULT_PSA_GRADING_FEE
@@ -489,8 +486,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                   <div className="mt-2">
                     <PriceHistoryChart
                       cardId={card.id}
-                      grade={psaGradeForHistory}
-                      slabSelection={slabGrade.company === "PSA" ? undefined : slabGrade}
+                      {...chartGradeProps}
                       currentRaw={card.rawPrice}
                       currentSlab={selectedSlabPrice}
                       compact

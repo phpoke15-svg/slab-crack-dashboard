@@ -8,7 +8,7 @@ import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { pickGradedPrice, resolveGradedPricesForCard } from "@/lib/grading/quotes"
-import { DEFAULT_SLAB_GRADE, type SlabGradeRef } from "@/lib/grading/types"
+import { DEFAULT_SLAB_GRADE, historyChartGradeProps, type SlabGradeRef } from "@/lib/grading/types"
 import {
   computeRegradeROI,
   mockEntryToSlabCard,
@@ -49,10 +49,7 @@ export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResu
   const displayGrade =
     slabGrade.company === "PSA" ? { company: "PSA" as const, grade: String(band.point) } : slabGrade
   const displaySlabPrice = pickGradedPrice(gradedPrices, displayGrade) ?? 0
-  const psaGradeForHistory =
-    displayGrade.company === "PSA" && /^\d+$/.test(displayGrade.grade)
-      ? (Number(displayGrade.grade) as 7 | 8 | 9 | 10)
-      : 10
+  const chartGradeProps = historyChartGradeProps(displayGrade)
 
   const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(n).toFixed(2)}`
 
@@ -120,8 +117,7 @@ export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResu
           <div className="mt-3">
             <PriceHistoryChart
               cardId={card.id}
-              grade={psaGradeForHistory}
-              slabSelection={displayGrade.company === "PSA" ? undefined : displayGrade}
+              {...chartGradeProps}
               currentRaw={card.rawPrice}
               currentSlab={displaySlabPrice}
               compact

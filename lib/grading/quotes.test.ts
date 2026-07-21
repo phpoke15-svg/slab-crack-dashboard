@@ -36,6 +36,27 @@ describe("grading types", () => {
   it("formats slab labels", () => {
     expect(formatSlabLabel({ company: "TAG", grade: "10" })).toBe("TAG 10")
   })
+
+  it("lists PSA grades from 10 down to 1", () => {
+    expect(gradesForCompany("PSA")).toEqual([
+      "10",
+      "9",
+      "8",
+      "7",
+      "6",
+      "5",
+      "4",
+      "3",
+      "2",
+      "1",
+    ])
+  })
+
+  it("sorts BGS grades highest first", () => {
+    const grades = gradesForCompany("BGS")
+    expect(grades.indexOf("10")).toBeLessThan(grades.indexOf("9"))
+    expect(grades.indexOf("9")).toBeLessThan(grades.indexOf("7"))
+  })
 })
 
 describe("grading quotes", () => {

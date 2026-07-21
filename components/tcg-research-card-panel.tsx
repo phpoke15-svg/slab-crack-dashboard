@@ -23,6 +23,7 @@ import {
 import {
   DEFAULT_SLAB_GRADE,
   formatSlabLabel,
+  historyChartGradeProps,
   type SlabGradeRef,
 } from "@/lib/grading/types"
 import type { RecentSale } from "@/lib/slab-data"
@@ -129,10 +130,7 @@ export function TcgResearchCardPanel({
     pickGradedPrice(gradedPrices, slabGrade) ??
     0
 
-  const psaGradeForHistory =
-    slabGrade.company === "PSA" && /^\d+$/.test(slabGrade.grade)
-      ? (Number(slabGrade.grade) as 7 | 8 | 9 | 10)
-      : 10
+  const chartGradeProps = historyChartGradeProps(slabGrade)
 
   const rawSales = liveRawSales ?? card.recentRawSales ?? []
   const slabSales = liveSlabSales ?? card.recentSlabSales ?? []
@@ -222,8 +220,7 @@ export function TcgResearchCardPanel({
               <div className="mt-3">
                 <PriceHistoryChart
                   cardId={payload.catalogId ?? card.id}
-                  grade={psaGradeForHistory}
-                  slabSelection={slabGrade.company === "PSA" ? undefined : slabGrade}
+                  {...chartGradeProps}
                   currentRaw={card.rawPrice}
                   currentSlab={activeSlabPrice}
                   historyEndpoint="/api/tcg-research/price-history"
