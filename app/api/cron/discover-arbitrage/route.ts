@@ -2,9 +2,10 @@ import { NextResponse } from "next/server"
 import { requireCronAuth } from "@/lib/cron-auth"
 import { discoverArbitrageFromMarket } from "@/lib/discover-arbitrage"
 
-export const maxDuration = 10
+export const maxDuration = 300
 export const dynamic = "force-dynamic"
 
+/** Walk pokemon-api catalog pages and persist slab < raw arbitrage discoveries. */
 export async function GET(request: Request) {
   const denied = requireCronAuth(request)
   if (denied) return denied

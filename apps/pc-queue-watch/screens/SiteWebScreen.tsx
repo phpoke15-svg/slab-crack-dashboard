@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import {
-  ActivityIndicator,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native"
+import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native"
 import { useNavigation, useRoute } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import type { RouteProp } from "@react-navigation/native"
@@ -52,6 +45,15 @@ function scanToolFromUrl(url: string): "slabcrack" | "slablab" | null {
   return null
 }
 
+function isExternalPaymentUrl(url: string) {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return host.includes("stripe.com") || host.includes("billing.stripe.com")
+  } catch {
+    return false
+  }
+}
+
 export default function SiteWebScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>()
   const route = useRoute<RouteProp<RootStackParamList, "Home">>()
@@ -94,6 +96,14 @@ export default function SiteWebScreen() {
         return false
       }
 
+      if (isExternalPaymentUrl(request.url)) {
+        Alert.alert(
+          "Subscribe in the App Store",
+          "CollecTools subscriptions on iPhone use Apple In-App Purchase. Return to Pricing in the app and tap a plan.",
+        )
+        return false
+      }
+
       if (isAllowedInApp(request.url)) return true
       Linking.openURL(request.url).catch(() => {})
       setLoading(false)
@@ -109,6 +119,13 @@ export default function SiteWebScreen() {
           type?: string
           sessionId?: string
           token?: string
+        }
+        if (data?.type === "collectools-iap-purchase") {
+          Alert.alert(
+            "In-App Purchase required",
+            "Create Premium/Pro subscription products in App Store Connect, then wire StoreKit in the native shell before resubmitting.",
+          )
+          return
         }
         if (data?.type === "open-native-queue") {
           navigation.navigate("PokeWatch")

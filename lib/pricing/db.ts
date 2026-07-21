@@ -13,12 +13,19 @@ function rowToCardPrice(row: Record<string, unknown>): CardPriceRow {
     psa8_price: row.psa8_price == null ? null : Number(row.psa8_price),
     psa9_price: row.psa9_price == null ? null : Number(row.psa9_price),
     psa10_price: row.psa10_price == null ? null : Number(row.psa10_price),
-    price_source: String(row.price_source ?? "pricecharting"),
+    price_source: String(row.price_source ?? "tcggo"),
     synced_at: String(row.synced_at),
     sync_error: row.sync_error == null ? null : String(row.sync_error),
     card_name: row.card_name == null ? null : String(row.card_name),
     card_set: row.card_set == null ? null : String(row.card_set),
     card_number: row.card_number == null ? null : String(row.card_number),
+    tcggo_id: row.tcggo_id == null ? null : Number(row.tcggo_id),
+    tcgplayer_id: row.tcgplayer_id == null ? null : Number(row.tcgplayer_id),
+    tcg_id: row.tcg_id == null ? null : String(row.tcg_id),
+    language:
+      row.language === "ja" ? "ja" : row.language === "en" ? "en" : null,
+    legacy_pricecharting_id:
+      row.legacy_pricecharting_id == null ? null : String(row.legacy_pricecharting_id),
   }
 }
 

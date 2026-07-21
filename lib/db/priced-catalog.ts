@@ -3,6 +3,7 @@ import { getFeaturedCatalogCards } from "@/lib/db/cards-catalog"
 import { getBinderCardPriceById, getBinderCardPricesForIds } from "@/lib/db/binder-card-prices"
 import { getCardPricesForIds, getRawPriceMapFromCardPrices } from "@/lib/pricing/db"
 import { mergeCachedRawPrices } from "@/lib/pricing/views"
+import { getScrydexRawPricesForIds } from "@/lib/scrydex/price-adapter"
 import { expandCardIdList } from "@/lib/trade-binder/card-id-match"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { cache } from "react"
@@ -120,17 +121,22 @@ export async function getRawPricesForCardIds(cardIds: string[]): Promise<Map<str
   if (uniqueIds.length === 0) return new Map()
 
   const expandedIds = expandCardIdList(uniqueIds)
-  const [priceRows, binderPrices] = await Promise.all([
+  const [priceRows, binderPrices, scrydexPrices] = await Promise.all([
     getCardPricesForIds(expandedIds),
     getBinderCardPricesForIds(expandedIds),
+    getScrydexRawPricesForIds(uniqueIds),
   ])
 
-  const unified = new Map<string, number>()
-  for (const [cardId, row] of priceRows) {
-    if ((row.raw_price ?? 0) > 0) unified.set(cardId, row.raw_price!)
+  const merged = new Map<string, number>()
+  for (const [cardId, price] of scrydexPrices) {
+    if (price > 0) merged.set(cardId, price)
   }
 
-  const merged = mergeCachedRawPrices(unified, binderPrices)
+  for (const [cardId, row] of priceRows) {
+    if ((row.raw_price ?? 0) > 0 && !merged.has(cardId)) merged.set(cardId, row.raw_price!)
+  }
+
+  mergeCachedRawPrices(merged, binderPrices)
   const result = new Map<string, number>()
   for (const id of uniqueIds) {
     for (const variant of expandCardIdList([id])) {

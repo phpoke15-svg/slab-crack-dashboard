@@ -1,6 +1,8 @@
 import { getCatalogCardById } from "@/lib/db/cards-catalog"
 import { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
 import { cardPriceRowToMockEntry } from "@/lib/pricing/views"
+import { isScrydexConfigured } from "@/lib/scrydex/constants"
+import { ensureScrydexCardFresh } from "@/lib/scrydex/on-demand"
 import type { LazyCardPriceResult } from "@/lib/pricing/lazy-card-price"
 import type { MockCardEntry } from "@/lib/slab-data"
 import type { CardPriceRow } from "@/lib/pricing/types"
@@ -30,6 +32,40 @@ function lazyToPriceRow(lazy: LazyCardPriceResult): CardPriceRow {
 
 export async function lookupCatalogCardEntry(cardId: string): Promise<MockCardEntry | null> {
   const normalizedId = cardId.startsWith("poke-") ? cardId : `poke-${cardId}`
+
+  if (isScrydexConfigured()) {
+    const scrydexHit = await ensureScrydexCardFresh(normalizedId, { activity: "view" })
+    if (scrydexHit) {
+      const scrydexRow = scrydexHit.rawPrice
+        ? {
+            card_id: scrydexHit.id,
+            raw_price: scrydexHit.rawPrice,
+            psa7_price: null,
+            psa8_price: null,
+            psa9_price: null,
+            psa10_price: null,
+            price_source: "scrydex" as const,
+            synced_at: scrydexHit.priceSyncedAt ?? new Date().toISOString(),
+            sync_error: null,
+            card_name: scrydexHit.name,
+            card_set: scrydexHit.setName,
+            card_number: scrydexHit.number,
+          }
+        : null
+
+      if (scrydexRow && (scrydexRow.raw_price ?? 0) > 0) {
+        return cardPriceRowToMockEntry(scrydexRow, {
+          id: scrydexHit.id,
+          cardName: scrydexHit.name,
+          setName: scrydexHit.setName,
+          cardNumber: scrydexHit.number,
+          imageUrl: scrydexHit.imageUrl,
+          marketInsight: "Live Scrydex market prices loaded on demand.",
+        })
+      }
+    }
+  }
+
   const card = await getCatalogCardById(normalizedId)
   if (!card) return null
 

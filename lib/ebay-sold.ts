@@ -10,7 +10,11 @@
  * public completed-sale data legally.
  */
 
-import { findBestArbitrage, formatArbitrageAlert, type ArbitrageResult } from "@/lib/pricecharting"
+import {
+  findBestArbitrage,
+  formatArbitrageAlert,
+  type ArbitrageResult,
+} from "@/lib/slab-data"
 import { buildCatalogPriceSearchQuery } from "@/lib/pricing/catalog-search-query"
 import type { RecentSale } from "@/lib/slab-data"
 

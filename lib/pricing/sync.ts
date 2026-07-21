@@ -5,7 +5,6 @@ import { getWatchlistFromDb } from "@/lib/db/watchlist"
 import { fetchCardPricesBatch } from "@/lib/pricing/fetch"
 import {
   getActivePriceProvider,
-  hasPriceChartingApiKey,
   hasTcgGoApiKey,
 } from "@/lib/pricing/provider"
 import {
@@ -126,7 +125,6 @@ export async function probeUnifiedPriceSync(): Promise<{
     serviceRoleKey: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
     priceProvider: getActivePriceProvider() ?? "none",
     tcgGoKey: hasTcgGoApiKey(),
-    priceChartingKey: hasPriceChartingApiKey(),
     cronSecret: Boolean(process.env.CRON_SECRET),
   }
 
@@ -167,7 +165,7 @@ export async function syncUnifiedCardPrices(options?: {
       processed: 0,
       remaining: 0,
       stoppedEarly: false,
-      errors: ["No pricing provider configured (set RAPIDAPI_POKEMON_TCG_KEY or PRICECHARTING_API_KEY)"],
+      errors: ["No pricing provider configured (set RAPIDAPI_POKEMON_TCG_KEY)"],
       source: "skipped",
     }
   }

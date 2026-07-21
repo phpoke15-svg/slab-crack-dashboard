@@ -646,7 +646,7 @@ export function QueueWatchClient() {
                 )}
               </p>
             )}
-            <p className="mt-2 text-xs text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground android-only-copy">
               Prefer an app?{" "}
               <Link href="/pokewatch/mobile" className="text-primary hover:underline">
                 Android setup guide
@@ -664,7 +664,7 @@ export function QueueWatchClient() {
             </p>
           </section>
 
-          <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5">
+          <section className="mt-6 rounded-2xl border border-border bg-card/60 p-5 android-only-copy">
             <h2 className="text-base font-semibold text-foreground">Want a phone app?</h2>
             <p className="mt-2 text-sm text-muted-foreground">
               The Android app opens CollecTools full-screen. From PokeWatch, tap{" "}

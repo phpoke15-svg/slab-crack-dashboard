@@ -1,6 +1,7 @@
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { lookupCardById } from "@/lib/card-lookup"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
+import { lookupScrydexCatalogCardsByIds } from "@/lib/scrydex/catalog-bridge"
 import {
   fetchTcgGoCardsByTcgIds,
   tcgGoCardToCatalogCard,
@@ -84,8 +85,12 @@ export async function lookupCatalogCardsByIds(ids: string[]): Promise<CatalogCar
   const unique = [...new Set(ids.filter(Boolean))].slice(0, 50)
   if (unique.length === 0) return []
 
-  const pcIds = unique.filter((id) => id.startsWith("pc-"))
-  const pokemonIds = unique
+  const scrydexCards = await lookupScrydexCatalogCardsByIds(unique)
+  const scrydexById = catalogCardsByStoredId(scrydexCards)
+  const unresolved = unique.filter((id) => !scrydexById.has(id) && !scrydexById.has(id.replace(/^poke-/, "")))
+
+  const pcIds = unresolved.filter((id) => id.startsWith("pc-"))
+  const pokemonIds = unresolved
     .filter((id) => !id.startsWith("pc-"))
     .map((id) => (id.startsWith("poke-") ? id.slice("poke-".length) : id))
 
@@ -94,7 +99,7 @@ export async function lookupCatalogCardsByIds(ids: string[]): Promise<CatalogCar
     hasTcgGoApiKey() ? Promise.resolve([]) : fetchPriceChartingCardsByIds(pcIds),
   ])
 
-  return [...pokemonCards, ...pcCards]
+  return [...scrydexCards, ...pokemonCards, ...pcCards]
 }
 
 export function catalogCardsByStoredId(cards: CatalogCard[]): Map<string, CatalogCard> {
@@ -103,9 +108,15 @@ export function catalogCardsByStoredId(cards: CatalogCard[]): Map<string, Catalo
     map.set(card.id, card)
     if (!card.id.startsWith("poke-") && !card.id.startsWith("pc-")) {
       map.set(`poke-${card.id}`, card)
+      map.set(`pokemon-${card.id}`, card)
     }
     if (card.id.startsWith("poke-")) {
       map.set(card.id.slice("poke-".length), card)
+      map.set(`pokemon-${card.id.slice("poke-".length)}`, card)
+    }
+    if (card.id.startsWith("pokemon-")) {
+      map.set(`poke-${card.id.slice("pokemon-".length)}`, card)
+      map.set(card.id.slice("pokemon-".length), card)
     }
   }
   return map

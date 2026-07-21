@@ -11,6 +11,7 @@ import {
 } from "react"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { entitlementsForPlan, type Entitlements, type PlanId } from "@/lib/billing/plans"
+import { isNativeAppShell, requestNativeAppStorePurchase } from "@/lib/native-app"
 
 type EntitlementsState = Entitlements & {
   signedIn: boolean
@@ -112,6 +113,10 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
   }, [userId])
 
   const startCheckout = useCallback(async (priceKey: string, promotionCode?: string) => {
+    if (isNativeAppShell()) {
+      if (requestNativeAppStorePurchase(priceKey)) return null
+      throw new Error("Subscribe with In-App Purchase in the App Store version of CollecTools.")
+    }
     const res = await fetch("/api/billing/checkout", {
       method: "POST",
       credentials: "same-origin",
@@ -129,6 +134,9 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const openPortal = useCallback(async () => {
+    if (isNativeAppShell()) {
+      throw new Error("Manage your App Store subscription in Settings → Apple ID → Subscriptions.")
+    }
     const res = await fetch("/api/billing/portal", {
       method: "POST",
       credentials: "same-origin",

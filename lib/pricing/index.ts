@@ -22,12 +22,10 @@ export {
 export {
   fetchCardPricesBatch,
   fetchCardPricesForTarget,
-  fetchCardPricesFromPriceCharting,
   fetchCardPricesFromTcgGo,
-  priceChartingIdFromCardId,
 } from "@/lib/pricing/fetch"
 
-export { getActivePriceProvider, hasTcgGoApiKey, hasPriceChartingApiKey } from "@/lib/pricing/provider"
+export { getActivePriceProvider, hasTcgGoApiKey } from "@/lib/pricing/provider"
 export { syncTcgGoPriceHistory } from "@/lib/pricing/history-sync"
 
 export { syncUnifiedCardPrices } from "@/lib/pricing/sync"
@@ -43,6 +41,13 @@ export {
 export { lookupCatalogCardEntry } from "@/lib/pricing/catalog-card-lookup"
 export { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
 export { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
+export {
+  getLegacyMapByPcId,
+  listPendingLegacyMaps,
+  saveLegacyMapResolution,
+  upsertLegacyMapSeed,
+} from "@/lib/pricing/card-id-legacy-map"
+export { collectLegacyPcIdsFromCardIds, resolveLegacyPcCardId } from "@/lib/pricing/resolve-legacy-pc-id"
 export {
   getPriceHistorySeriesMap,
   priceHistorySeriesLabels,

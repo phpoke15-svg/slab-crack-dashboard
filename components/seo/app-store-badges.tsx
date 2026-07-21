@@ -11,7 +11,7 @@ export function AppStoreBadges({ className, compact = false }: AppStoreBadgesPro
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center gap-2",
+        "mobile-store-badges flex flex-wrap items-center gap-2",
         compact ? "justify-center" : "justify-start",
         className,
       )}
@@ -30,7 +30,7 @@ export function AppStoreBadges({ className, compact = false }: AppStoreBadgesPro
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Get CollecTools on Google Play"
-        className="inline-flex h-10 items-center rounded-lg border border-border bg-card/80 px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary/40 hover:bg-card"
+        className="app-store-badge--android inline-flex h-10 items-center rounded-lg border border-border bg-card/80 px-3 text-xs font-semibold text-foreground transition-colors hover:border-primary/40 hover:bg-card"
       >
         Google Play
       </a>
