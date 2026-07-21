@@ -30,6 +30,7 @@ export function cardPriceRowToMockEntry(
   row: CardPriceRow,
   metadata?: {
     id?: string
+    pokemonTcgId?: string
     cardName?: string
     setName?: string
     cardNumber?: string
@@ -43,6 +44,7 @@ export function cardPriceRowToMockEntry(
 
   return normalizeCardEntry({
     id: metadata?.id ?? row.card_id,
+    pokemonTcgId: metadata?.pokemonTcgId,
     cardName: metadata?.cardName ?? row.card_name ?? "Unknown card",
     setName: metadata?.setName ?? row.card_set ?? "Unknown set",
     cardNumber: metadata?.cardNumber ?? row.card_number ?? "",

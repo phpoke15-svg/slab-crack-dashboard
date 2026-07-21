@@ -654,11 +654,11 @@ export function Psa10SpreadScanner() {
                 </div>
                 <PriceHistoryChart
                   cardId={row.watchlistId || row.id}
+                  pokemonTcgId={row.pokemonTcgId}
                   grade={10}
                   currentRaw={row.rawPrice}
                   currentSlab={row.psa10Price}
                   compact
-                  title="30-day sales · PSA 10"
                 />
               </div>
             )
@@ -795,10 +795,10 @@ function SlabLabDetailDrawer({
             </div>
             <PriceHistoryChart
               cardId={row.watchlistId || row.id}
+              pokemonTcgId={row.pokemonTcgId}
               grade={10}
               currentRaw={row.rawPrice}
               currentSlab={row.psa10Price}
-              title="30-day sales · PSA 10"
             />
           </div>
 
