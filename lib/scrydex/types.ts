@@ -127,8 +127,34 @@ export type ScrydexVisionResult = {
   }
 }
 
+export type ScrydexVisionAnalysis = {
+  type?: string
+  game?: string
+  language_code?: string
+  graded_details?: {
+    company?: string
+    grade_code?: string
+    grade_label?: string
+    grade_number?: string
+    year?: string
+    cert?: string
+  }
+}
+
+export type ScrydexVisionMatch = {
+  score?: number
+  variant?: string
+  card?: ScrydexCard
+}
+
 export type ScrydexVisionResponse = {
-  data?: ScrydexVisionResult
+  data?: {
+    analysis?: ScrydexVisionAnalysis
+    matches?: ScrydexVisionMatch[]
+    page_size?: number
+    count?: number
+    total_count?: number
+  }
 }
 
 export type ScrydexListing = {

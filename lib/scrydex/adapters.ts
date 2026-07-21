@@ -5,6 +5,7 @@ import type {
   ScrydexExpansionRef,
   ScrydexHistoryPoint,
   ScrydexVariant,
+  ScrydexVisionResponse,
   ScrydexVisionResult,
   TcgGame,
 } from "@/lib/scrydex/types"
@@ -222,6 +223,30 @@ export function visionResultToCatalog(gameHint: TcgGame | undefined, result: Scr
     image_large_url: images.large,
     metadata: { vision: result },
   } satisfies Partial<CatalogCardRow>
+}
+
+/** Map Scrydex Vision `/vision/v1/cards/identify` response to a catalog row. */
+export function visionResponseToCatalog(
+  gameHint: TcgGame | undefined,
+  response: ScrydexVisionResponse,
+): (Partial<CatalogCardRow> & { confidence?: number }) | null {
+  const data = response.data
+  const match = data?.matches?.[0]
+  const card = match?.card
+  if (!card?.id) return null
+
+  const game = normalizeGame(data?.analysis?.game) ?? gameHint
+  if (!game) return null
+
+  const row = scrydexCardToRow(game, card)
+  return {
+    ...row,
+    metadata: {
+      ...(row.metadata ?? {}),
+      vision: { analysis: data?.analysis, match },
+    },
+    confidence: match.score,
+  }
 }
 
 export function parseRemoteCardList(game: TcgGame, payload: Record<string, unknown>[]) {

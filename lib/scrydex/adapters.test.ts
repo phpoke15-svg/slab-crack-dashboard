@@ -3,6 +3,7 @@ import {
   extractGradedPrices,
   extractRawPrices,
   scrydexCardToRow,
+  visionResponseToCatalog,
   visionResultToCatalog,
 } from "@/lib/scrydex/adapters"
 import { catalogIdToLegacyPokeId, legacyPokeIdToCatalogId, splitCatalogId, toCatalogId } from "@/lib/scrydex/constants"
@@ -50,7 +51,7 @@ describe("scrydex adapters", () => {
     expect(extractGradedPrices("pokemon-sv3pt5-173", variants)).toHaveLength(1)
   })
 
-  it("maps vision results", () => {
+  it("maps legacy flat vision results", () => {
     const mapped = visionResultToCatalog("pokemon", {
       game: "pokemon",
       id: "sv3pt5-173",
@@ -59,5 +60,28 @@ describe("scrydex adapters", () => {
       expansion: { id: "sv3pt5", name: "151" },
     })
     expect(mapped?.catalog_id).toBe("pokemon-sv3pt5-173")
+  })
+
+  it("maps Scrydex Vision identify response matches", () => {
+    const mapped = visionResponseToCatalog("pokemon", {
+      data: {
+        analysis: { type: "raw", game: "pokemon", language_code: "EN" },
+        matches: [
+          {
+            score: 1.13,
+            card: {
+              id: "me2pt5-284",
+              name: "Mega Gengar ex",
+              number: "284",
+              expansion: { id: "me2pt5", name: "Ascended Heroes" },
+              images: [{ type: "front", small: "https://images.scrydex.com/pokemon/me2pt5-284/small" }],
+            },
+          },
+        ],
+      },
+    })
+    expect(mapped?.catalog_id).toBe("pokemon-me2pt5-284")
+    expect(mapped?.name).toBe("Mega Gengar ex")
+    expect(mapped?.confidence).toBe(1.13)
   })
 })

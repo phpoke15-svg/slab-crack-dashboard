@@ -298,7 +298,9 @@ export function CardScanner({
           setScanning(true)
           setStatusNote("Reading card…")
           try {
-            const outcome = await matchPointScanSnapshot(dataUrl)
+            const outcome = matchSnapshot
+              ? await matchSnapshot(dataUrl)
+              : await matchPointScanSnapshot(dataUrl)
             if (!outcome.ok) {
               onScanFail?.(friendlyScanError(outcome.error), dataUrl)
               return
@@ -320,7 +322,7 @@ export function CardScanner({
       }
       reader.readAsDataURL(file)
     },
-    [onMatch, onScanFail],
+    [matchSnapshot, onMatch, onScanFail],
   )
 
   const g = guide
