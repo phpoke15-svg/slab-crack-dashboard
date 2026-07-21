@@ -5,6 +5,12 @@ import {
 } from "@/lib/db/cards-catalog"
 import { catalogSearchMinLength, normalizeSearchCleanName } from "@/lib/db/catalog-search-local"
 import type { CardSearchHit } from "@/lib/card-lookup"
+import { getMemorySearchCache, setMemorySearchCache } from "@/lib/cache/search-memory-cache"
+import {
+  getSearchRedisCache,
+  isSearchRedisConfigured,
+  setSearchRedisCache,
+} from "@/lib/cache/search-redis"
 import { enrichCardSearchHitsWithPrices, SEARCH_SERVER_LIVE_PRICE_LIMIT } from "@/lib/pricing/persist-search-prices"
 import { CATALOG_NOT_SEEDED_MESSAGE } from "@/lib/trade-binder/setup-health"
 import { enrichHitsWithTcgGoImages } from "@/lib/tcggo-api"
@@ -13,9 +19,23 @@ import { searchCatalogHybrid } from "@/lib/trade-binder/catalog-search"
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-const SEARCH_CACHE_TTL_MS = 30 * 1000
+const SEARCH_CACHE_TTL_SECONDS = 30
 const SEARCH_LIMIT = 40
-const searchCache = new Map<string, { results: CardSearchHit[]; expiresAt: number }>()
+
+async function readSearchCache(cacheKey: string): Promise<CardSearchHit[] | null> {
+  const memoryHit = getMemorySearchCache(cacheKey)
+  if (memoryHit) return memoryHit
+
+  if (!isSearchRedisConfigured()) return null
+  return getSearchRedisCache<CardSearchHit[]>(cacheKey)
+}
+
+async function writeSearchCache(cacheKey: string, results: CardSearchHit[]): Promise<void> {
+  setMemorySearchCache(cacheKey, results)
+  if (isSearchRedisConfigured()) {
+    await setSearchRedisCache(cacheKey, results, SEARCH_CACHE_TTL_SECONDS)
+  }
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
@@ -35,10 +55,10 @@ export async function GET(request: Request) {
   }
 
   const cacheKey = sqlQuery || rawQuery.toLowerCase()
-  const cached = searchCache.get(cacheKey)
-  if (cached && cached.expiresAt > Date.now()) {
+  const cached = await readSearchCache(cacheKey)
+  if (cached) {
     return NextResponse.json(
-      { results: cached.results, catalogReady: true },
+      { results: cached, catalogReady: true },
       { headers: { "Cache-Control": "private, max-age=120" } },
     )
   }
@@ -54,7 +74,7 @@ export async function GET(request: Request) {
       timeBudgetMs: 25_000,
     })
     const results = await enrichHitsWithTcgGoImages(priced)
-    searchCache.set(cacheKey, { results, expiresAt: Date.now() + SEARCH_CACHE_TTL_MS })
+    await writeSearchCache(cacheKey, results)
     return NextResponse.json(
       { results, catalogReady: true, catalogSource: source },
       { headers: { "Cache-Control": "private, max-age=120" } },
