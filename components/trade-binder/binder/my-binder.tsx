@@ -40,7 +40,7 @@ import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
 import { MatchesPanel } from "@/components/trade-binder/social/matches-panel"
 import { PokeMatchSetupBanner } from "@/components/trade-binder/social/pokematch-setup-banner"
 import { SiteAuthButton } from "@/components/site-auth-button"
-import { TcgResearchCardPanel } from "@/components/tcg-research-card-panel"
+import { PokeMatchCardDetailPanel } from "@/components/trade-binder/binder/pokematch-card-detail-panel"
 import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
 import type { PokeMatchCardDetailInput } from "@/lib/trade-binder/pokematch-card-detail"
 import type { MatchCard } from "@/lib/trade-binder/users"
@@ -535,7 +535,7 @@ export function MyBinder() {
       ) : null}
 
       {detailPayload ? (
-        <TcgResearchCardPanel
+        <PokeMatchCardDetailPanel
           payload={detailPayload}
           onClose={() => {
             setDetailPayload(null)

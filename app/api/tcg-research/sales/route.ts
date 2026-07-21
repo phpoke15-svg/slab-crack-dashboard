@@ -14,13 +14,14 @@ export async function GET(request: Request) {
   const catalogId = searchParams.get("catalogId")?.trim() || undefined
   const game = parseTcgResearchGame(searchParams.get("game"))
   const gradeParam = searchParams.get("grade") ?? "9"
+  const rawOnly = searchParams.get("rawOnly") === "1" || searchParams.get("rawOnly") === "true"
   const slabGrade = Number(gradeParam)
 
   if (!id && !scrydexId && !catalogId) {
     return NextResponse.json({ error: "id, scrydexId, or catalogId required" }, { status: 400 })
   }
 
-  if (!Number.isFinite(slabGrade) || slabGrade < 7 || slabGrade > 10) {
+  if (!rawOnly && (!Number.isFinite(slabGrade) || slabGrade < 7 || slabGrade > 10)) {
     return NextResponse.json({ error: "grade must be 7–10" }, { status: 400 })
   }
 
@@ -44,7 +45,8 @@ export async function GET(request: Request) {
       catalogId: full.catalogId,
       scrydexId: full.scrydexId,
       game: full.game,
-      slabGrade,
+      slabGrade: rawOnly ? 9 : slabGrade,
+      rawOnly,
     })
 
     return NextResponse.json({ ...sales, source: "scrydex" })

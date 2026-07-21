@@ -82,6 +82,7 @@ export async function fetchScrydexSoldComps(input: {
   game?: TcgGame
   slabGrade: number
   days?: number
+  rawOnly?: boolean
 }): Promise<{ recentRawSales: RecentSale[]; recentSlabSales: RecentSale[] }> {
   if (!isScrydexConfigured()) {
     throw new Error("SCRYDEX_API_KEY and SCRYDEX_TEAM_ID must be configured")
@@ -95,34 +96,40 @@ export async function fetchScrydexSoldComps(input: {
   const client = ScrydexClient.fromEnv()
   const requestOpts = { game: target.game, catalogId: target.catalogId ?? undefined }
 
-  const [rawResponse, slabResponse] = await Promise.all([
-    client.getListings(
-      target.game,
-      target.scrydexId,
-      { days: input.days ?? 30, condition: "NM", pageSize: 40 },
-      requestOpts,
-    ),
-    client.getListings(
-      target.game,
-      target.scrydexId,
-      {
-        days: input.days ?? 30,
-        company: "PSA",
-        grade: String(input.slabGrade),
-        pageSize: 40,
-      },
-      requestOpts,
-    ),
-  ])
+  const rawResponse = await client.getListings(
+    target.game,
+    target.scrydexId,
+    { days: input.days ?? 30, condition: "NM", pageSize: 40 },
+    requestOpts,
+  )
 
   const rawListings = rawResponse.data ?? []
-  const slabListings = slabResponse.data ?? []
-
   const rawSales = rawListings
     .map(scrydexListingToRecentSale)
     .filter((sale): sale is RecentSale => sale != null)
     .sort((a, b) => b.soldDate.localeCompare(a.soldDate))
     .slice(0, 40)
+
+  if (input.rawOnly) {
+    if (rawSales.length > 0) {
+      return { recentRawSales: rawSales, recentSlabSales: [] }
+    }
+    return partitionScrydexListings(rawListings, input.slabGrade)
+  }
+
+  const slabResponse = await client.getListings(
+    target.game,
+    target.scrydexId,
+    {
+      days: input.days ?? 30,
+      company: "PSA",
+      grade: String(input.slabGrade),
+      pageSize: 40,
+    },
+    requestOpts,
+  )
+
+  const slabListings = slabResponse.data ?? []
 
   const slabSales = slabListings
     .map(scrydexListingToRecentSale)
