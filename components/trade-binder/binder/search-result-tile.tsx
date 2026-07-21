@@ -13,18 +13,25 @@ export function SearchResultTile({
   pricePending = false,
   onAdd,
   onSetStatus,
+  onOpenDetail,
 }: {
   card: SearchResultCard
   ownedStatus?: CardStatus | null
   pricePending?: boolean
   onAdd: (status: CardStatus) => void
   onSetStatus?: (status: CardStatus) => void
+  onOpenDetail?: (card: SearchResultCard) => void
 }) {
   const owned = ownedStatus != null
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-xl border border-border bg-card">
-      <div className="relative aspect-[3/4] overflow-hidden border-b border-border bg-muted/40">
+      <button
+        type="button"
+        onClick={() => onOpenDetail?.(card)}
+        disabled={!onOpenDetail}
+        className="relative aspect-[3/4] overflow-hidden border-b border-border bg-muted/40 text-left transition-colors hover:bg-muted/60 disabled:cursor-default"
+      >
         <CardImage
           card={card}
           alt={`${card.name} Pokémon card`}
@@ -35,10 +42,15 @@ export function SearchResultTile({
             In binder
           </span>
         )}
-      </div>
+      </button>
 
       <div className="flex flex-1 flex-col gap-2.5 p-2.5">
-        <div className="min-w-0">
+        <button
+          type="button"
+          onClick={() => onOpenDetail?.(card)}
+          disabled={!onOpenDetail}
+          className="min-w-0 text-left transition-colors hover:text-primary disabled:cursor-default"
+        >
           <h3 className="truncate text-sm font-semibold leading-tight text-foreground">{card.name}</h3>
           <p className="truncate text-[11px] text-muted-foreground">{card.set}</p>
           {card.rawPrice != null && card.rawPrice > 0 ? (
@@ -47,8 +59,10 @@ export function SearchResultTile({
             </p>
           ) : pricePending ? (
             <p className="mt-0.5 text-[11px] text-muted-foreground">Pricing…</p>
-          ) : null}
-        </div>
+          ) : (
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Tap for market data</p>
+          )}
+        </button>
 
         {owned && ownedStatus === "pending" ? (
           <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1.5 text-center text-[10px] font-medium text-amber-700 dark:text-amber-400">

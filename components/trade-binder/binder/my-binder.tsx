@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   Clock3,
   Heart,
+  Loader2,
   Search,
   SearchX,
   Users,
@@ -39,6 +40,10 @@ import { SearchResultTile, type SearchResultCard } from "./search-result-tile"
 import { MatchesPanel } from "@/components/trade-binder/social/matches-panel"
 import { PokeMatchSetupBanner } from "@/components/trade-binder/social/pokematch-setup-banner"
 import { SiteAuthButton } from "@/components/site-auth-button"
+import { TcgResearchCardPanel } from "@/components/tcg-research-card-panel"
+import type { TcgResearchCardFull } from "@/lib/tcg-research/card-full"
+import type { PokeMatchCardDetailInput } from "@/lib/trade-binder/pokematch-card-detail"
+import type { MatchCard } from "@/lib/trade-binder/users"
 
 type BinderTab = "search" | "have" | "want" | "pending" | "matches"
 
@@ -67,6 +72,9 @@ export function MyBinder() {
   const [query, setQuery] = useState("")
   const [activeTab, setActiveTab] = useState<BinderTab>("search")
   const [matchCount, setMatchCount] = useState(0)
+  const [detailPayload, setDetailPayload] = useState<TcgResearchCardFull | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
   const loadIdRef = useRef(0)
 
   const isSearchActive = activeTab === "search"
@@ -122,6 +130,37 @@ export function MyBinder() {
       })
     })
   }, [getSupabase, user])
+
+  const openCardDetail = useCallback(async (card: PokeMatchCardDetailInput) => {
+    setDetailLoading(true)
+    setDetailError(null)
+    try {
+      const params = new URLSearchParams({ id: card.id, game: "pokemon" })
+      const res = await fetch(`/api/tcg-research/card?${params.toString()}`)
+      const json = (await res.json()) as TcgResearchCardFull & { error?: string }
+      if (!res.ok || !json.card) throw new Error(json.error || "Could not load card details")
+      setDetailPayload(json)
+    } catch (error) {
+      setDetailPayload(null)
+      setDetailError(error instanceof Error ? error.message : "Could not load card details")
+    } finally {
+      setDetailLoading(false)
+    }
+  }, [])
+
+  const openMatchCardDetail = useCallback(
+    (card: MatchCard) => {
+      void openCardDetail({
+        id: card.cardId,
+        name: card.cardName,
+        set: card.cardSet,
+        image: card.cardImage,
+        cardNumber: card.cardNumber,
+        rawPrice: card.rawPrice,
+      })
+    },
+    [openCardDetail],
+  )
 
   useEffect(() => {
     if (!authLoading) void loadBinder()
@@ -315,7 +354,11 @@ export function MyBinder() {
       <main className="flex-1 px-4 pb-8 pt-4 sm:px-6">
         <PokeMatchSetupBanner />
         {activeTab === "matches" ? (
-          <MatchesPanel active={activeTab === "matches"} onCountChange={setMatchCount} />
+          <MatchesPanel
+            active={activeTab === "matches"}
+            onCountChange={setMatchCount}
+            onOpenCardDetail={openMatchCardDetail}
+          />
         ) : activeTab === "search" ? (
           <>
             <SearchBar value={query} onChange={setQuery} isLoading={searchLoading} />
@@ -343,7 +386,7 @@ export function MyBinder() {
                   title={isBrowsingPopular ? "Loading popular cards…" : "Searching…"}
                   message={
                     isBrowsingPopular
-                      ? "Pulling top chase cards from PriceCharting."
+                      ? "Pulling top chase cards from Scrydex."
                       : "Looking through the catalog."
                   }
                 />
@@ -380,6 +423,7 @@ export function MyBinder() {
                               ? (status) => setCardStatus(card.id, status)
                               : undefined
                           }
+                          onOpenDetail={(selected) => void openCardDetail(selected)}
                         />
                       )
                     })}
@@ -424,6 +468,7 @@ export function MyBinder() {
                   card={card}
                   onSetStatus={setCardStatus}
                   onRemove={removeCard}
+                  onOpenDetail={(selected) => void openCardDetail(selected)}
                   showRemove={isListTab}
                 />
               ))}
@@ -466,6 +511,38 @@ export function MyBinder() {
           />
         )}
       </main>
+
+      {detailLoading && !detailPayload ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-3 text-sm text-foreground">
+            <Loader2 className="size-4 animate-spin text-primary" />
+            Loading card market data…
+          </div>
+        </div>
+      ) : null}
+
+      {detailError && !detailPayload ? (
+        <div className="fixed inset-x-4 bottom-6 z-50 mx-auto max-w-md rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {detailError}
+          <button
+            type="button"
+            onClick={() => setDetailError(null)}
+            className="ml-3 underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
+      {detailPayload ? (
+        <TcgResearchCardPanel
+          payload={detailPayload}
+          onClose={() => {
+            setDetailPayload(null)
+            setDetailError(null)
+          }}
+        />
+      ) : null}
 
       <FooterAd className="mx-4 mb-4 sm:mx-6" />
       <SiteFooter className="border-t border-border px-4 py-6 sm:px-6" />

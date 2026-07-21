@@ -4,6 +4,9 @@ import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
 import { getCardPricesForIds } from "@/lib/pricing/db"
 import { getLazyCardPrice } from "@/lib/pricing/lazy-card-price"
 import { getActivePriceProvider, isCachedPriceFromActiveProvider } from "@/lib/pricing/provider"
+import { isScrydexConfigured } from "@/lib/scrydex/constants"
+import { getScrydexRawPricesForIds } from "@/lib/scrydex/price-adapter"
+import { ensureScrydexCardFresh } from "@/lib/scrydex/on-demand"
 import type { BinderPriceInput } from "@/lib/trade-binder/binder-prices"
 import { promoCardMeta } from "@/lib/trade-binder/promo-card-meta"
 
@@ -15,12 +18,15 @@ const SEARCH_PRICE_TTL_MS = 24 * 60 * 60 * 1000
 export const SEARCH_SERVER_LIVE_PRICE_LIMIT = 40
 
 const SEARCH_LIVE_TIME_BUDGET_MS = 25_000
+const SCRYDEX_REFRESH_LIMIT = 16
 
 export type SearchPriceOptions = {
   /** Max cards to look up from cache (default: all). */
   limit?: number
   /** Max live PriceCharting lookups for still-unpriced cards (default: all unpriced). */
   liveLimit?: number
+  /** Max Scrydex on-demand refreshes for still-unpriced cards (default: 16). */
+  scrydexRefreshLimit?: number
   /** Parallel live lookups per batch (default: 2). */
   concurrency?: number
   /** Max wall-clock time for live lookups during one request. */
@@ -88,16 +94,50 @@ export async function resolveSearchCardPrices(
   return prices
 }
 
+async function refreshScrydexPricesForUnpriced(
+  cards: BinderPriceInput[],
+  prices: Map<string, number>,
+  limit: number,
+): Promise<Map<string, number>> {
+  if (!isScrydexConfigured() || typeof window !== "undefined" || limit <= 0) return prices
+
+  const needRefresh = cards
+    .filter((card) => {
+      const existing = prices.get(card.id)
+      return !existing || existing <= 0
+    })
+    .slice(0, limit)
+
+  if (needRefresh.length === 0) return prices
+
+  await Promise.all(
+    needRefresh.map((card) => ensureScrydexCardFresh(card.id, { activity: "view" })),
+  )
+
+  const refreshed = await getScrydexRawPricesForIds(needRefresh.map((card) => card.id))
+  for (const [id, price] of refreshed) {
+    if (price > 0) prices.set(id, price)
+  }
+
+  return prices
+}
+
 /**
- * Resolve prices from cache, then live PriceCharting for any still-unpriced cards.
+ * Resolve prices from cache, then Scrydex on-demand, then live TCGGO for any still-unpriced cards.
  * Used by PokeMatch search, binder enrichment, and match suggestions.
  */
 export async function enrichSearchCardPrices(
   cards: BinderPriceInput[],
   options?: SearchPriceOptions,
 ): Promise<Map<string, number>> {
-  const prices = await resolveSearchCardPrices(cards, { limit: options?.limit ?? cards.length })
+  let prices = await resolveSearchCardPrices(cards, { limit: options?.limit ?? cards.length })
   if (options?.cacheOnly) return prices
+
+  prices = await refreshScrydexPricesForUnpriced(
+    cards,
+    prices,
+    options?.scrydexRefreshLimit ?? SCRYDEX_REFRESH_LIMIT,
+  )
 
   const provider = getActivePriceProvider()
   if (!provider) return prices

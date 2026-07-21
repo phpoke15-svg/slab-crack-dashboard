@@ -30,7 +30,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const prices = await enrichSearchCardPrices(cards, {
-      limit: Math.min(cards.length, 80),
+      limit: Math.min(cards.length, 200),
+      scrydexRefreshLimit: 24,
       cacheOnly,
     })
     const pricesObj: Record<string, number> = {}

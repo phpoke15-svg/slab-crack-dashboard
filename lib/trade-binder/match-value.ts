@@ -60,7 +60,9 @@ async function fetchMatchCardPrices(cards: MatchCard[]): Promise<Map<string, num
 
   if (typeof window === "undefined") {
     const prices = await enrichSearchCardPrices(inputs, {
-      limit: Math.min(inputs.length, 80),
+      limit: Math.min(inputs.length, 200),
+      liveLimit: 60,
+      scrydexRefreshLimit: 24,
     })
     for (const [id, price] of prices) registerPrice(priceById, id, price)
     return priceById
