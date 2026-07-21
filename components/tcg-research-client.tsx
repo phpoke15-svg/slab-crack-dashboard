@@ -56,6 +56,127 @@ function TrendBadge({ trend }: { trend: TcgResearchCardDetail["priceTrend"] }) {
   return null
 }
 
+function useTcgResearchPopular(game: TcgGame) {
+  const [hits, setHits] = useState<CardSearchHit[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    setIsLoading(true)
+    setError(null)
+
+    void (async () => {
+      try {
+        const params = new URLSearchParams({ game, limit: "100" })
+        const res = await fetch(`/api/tcg-research/popular?${params.toString()}`, {
+          signal: controller.signal,
+        })
+        const json = (await res.json()) as { results?: CardSearchHit[]; error?: string }
+        if (!res.ok) throw new Error(json.error || "Could not load popular cards")
+        setHits(json.results ?? [])
+      } catch (err) {
+        if (controller.signal.aborted) return
+        setHits([])
+        setError(err instanceof Error ? err.message : "Could not load popular cards")
+      } finally {
+        if (!controller.signal.aborted) setIsLoading(false)
+      }
+    })()
+
+    return () => controller.abort()
+  }, [game])
+
+  return { hits, isLoading, error }
+}
+
+function TcgResearchBrowseList({
+  title,
+  hits,
+  loading,
+  emptyMessage,
+  onSelect,
+  detailLoadingId,
+}: {
+  title: string
+  hits: CardSearchHit[]
+  loading: boolean
+  emptyMessage: string
+  onSelect: (hit: CardSearchHit) => void
+  detailLoadingId: string | null
+}) {
+  return (
+    <section className="mt-4">
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
+        {loading ? <Loader2 className="size-3.5 animate-spin text-primary" /> : null}
+      </div>
+
+      {loading && hits.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border bg-secondary/20 px-4 py-6 text-center text-sm text-muted-foreground">
+          Loading top cards…
+        </p>
+      ) : hits.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border bg-secondary/20 px-4 py-6 text-center text-sm text-muted-foreground">
+          {emptyMessage}
+        </p>
+      ) : (
+        <ul className="grid gap-2 sm:grid-cols-2">
+          {hits.map((hit, index) => {
+            const loadingDetail = detailLoadingId === hit.id
+            const hasPrice = hit.rawPrice != null && hit.rawPrice > 0
+
+            return (
+              <li key={hit.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(hit)}
+                  disabled={loadingDetail}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-xl border border-border bg-card/60 p-2.5 text-left transition-colors",
+                    "hover:border-primary/40 hover:bg-card disabled:opacity-60",
+                  )}
+                >
+                  <span className="w-6 shrink-0 text-center font-mono text-[11px] text-muted-foreground">
+                    {index + 1}
+                  </span>
+                  <div className="relative aspect-[3/4] w-11 shrink-0 overflow-hidden rounded-md border border-white/10">
+                    <SlabCardImage
+                      card={{
+                        id: hit.id,
+                        cardName: hit.cardName,
+                        setName: hit.setName,
+                        imageUrl: hit.imageUrl,
+                        cardNumber: hit.cardNumber,
+                      }}
+                      alt=""
+                      sizes="44px"
+                      className="object-contain p-0.5"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">{hit.cardName}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {hit.setName}
+                      {hit.cardNumber ? ` · #${hit.cardNumber}` : ""}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="font-mono text-sm font-semibold tabular-nums text-foreground">
+                      {hasPrice ? money(hit.rawPrice) : "—"}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Market</p>
+                  </div>
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
 function useTcgResearchSearch(query: string, game: TcgGame, enabled: boolean) {
   const [hits, setHits] = useState<CardSearchHit[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -114,6 +235,13 @@ export function TcgResearchClient() {
 
   const searchEnabled = query.trim().length >= 2
   const { hits, isLoading, error: searchError } = useTcgResearchSearch(query, game, searchEnabled)
+  const {
+    hits: popularHits,
+    isLoading: popularLoading,
+    error: popularError,
+  } = useTcgResearchPopular(game)
+
+  const gameLabel = GAME_TABS.find((tab) => tab.id === game)?.label ?? "TCG"
 
   const loadDetail = useCallback(async (hit: CardSearchHit) => {
     setSelectedHit(hit)
@@ -343,7 +471,19 @@ export function TcgResearchClient() {
               detailLoadingId={detailLoading ? selectedHit?.id ?? null : null}
             />
           </div>
-        ) : null}
+        ) : (
+          <TcgResearchBrowseList
+            title={`Top 100 popular ${gameLabel} cards`}
+            hits={popularHits}
+            loading={popularLoading}
+            emptyMessage={
+              popularError ??
+              "No popular cards indexed yet for this game. Try searching above or run Scrydex sync."
+            }
+            onSelect={(hit) => void loadDetail(hit)}
+            detailLoadingId={detailLoading ? selectedHit?.id ?? null : null}
+          />
+        )}
       </section>
 
       {detail ? (
