@@ -31,7 +31,7 @@ async function loadNormalizedFeed(): Promise<MockCardEntry[]> {
 
 /**
  * Top grading opportunities: PSA 10 price above raw, ranked by gross spread.
- * Caps at TOP_CARDS_LIMIT (200).
+ * Caps at TOP_CARDS_LIMIT (100).
  *
  * Artwork enrichment is sync-only here so the feed stays fast — client CardImage
  * can still upgrade fronts without blocking /api/slablab.

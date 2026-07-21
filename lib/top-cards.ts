@@ -16,7 +16,7 @@ export const CHASE_RARITIES = [
   "Rare Holo",
 ] as const
 
-export const TOP_CARDS_LIMIT = 200
+export const TOP_CARDS_LIMIT = 100
 
 export const DEFAULT_MARKET_INSIGHT =
   "Chase-tier card tracked for slab vs raw arbitrage. Run sync-prices to refresh eBay sold comps."
