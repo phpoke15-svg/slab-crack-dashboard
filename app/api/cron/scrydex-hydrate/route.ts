@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { requireCronAuth } from "@/lib/cron-auth"
-import { hydrateExpansionPage, isScrydexConfigured, syncRecentExpansions } from "@/lib/scrydex"
+import {
+  hydrateExpansionPage,
+  isScrydexConfigured,
+  pickNextHydrationJob,
+  syncRecentExpansions,
+} from "@/lib/scrydex"
 import type { TcgGame } from "@/lib/scrydex/types"
 
 export const maxDuration = 300
@@ -20,6 +25,7 @@ export async function GET(request: Request) {
   const gameParam = searchParams.get("game") as TcgGame | null
   const expansionId = searchParams.get("expansionId")?.trim()
   const includePrices = searchParams.get("includePrices") === "1"
+  const games = gameParam ? [gameParam] : GAMES
 
   try {
     if (gameParam && expansionId) {
@@ -28,19 +34,30 @@ export async function GET(request: Request) {
     }
 
     const results = []
-    for (const game of gameParam ? [gameParam] : GAMES) {
+    for (const game of games) {
       const delta = await syncRecentExpansions(game, 5)
-      const firstExpansion = delta.ids[0]
-      if (!firstExpansion) {
-        results.push({ game, delta, hydrate: null })
+      const nextJob = await pickNextHydrationJob(game)
+      if (!nextJob) {
+        results.push({ game, delta, hydrate: null, message: "No pending hydration jobs" })
         continue
       }
+
       const hydrate = await hydrateExpansionPage({
-        game,
-        expansionId: firstExpansion,
+        game: nextJob.game,
+        expansionId: nextJob.expansionId,
         includePrices,
       })
-      results.push({ game, delta, hydrate })
+
+      results.push({
+        game,
+        delta,
+        hydrate,
+        job: {
+          expansionId: nextJob.expansionId,
+          previousStatus: nextJob.status,
+          complete: hydrate.complete,
+        },
+      })
     }
 
     return NextResponse.json({ results })

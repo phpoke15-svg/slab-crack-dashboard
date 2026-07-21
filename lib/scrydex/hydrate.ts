@@ -2,7 +2,7 @@ import { parseRemoteCardList } from "@/lib/scrydex/adapters"
 import { ScrydexClient } from "@/lib/scrydex/client"
 import { scrydexHydrationPagesPerRun } from "@/lib/scrydex/constants"
 import { persistCardPricingBundle, upsertCatalogCards, upsertExpansions } from "@/lib/scrydex/db"
-import { hydrationJobId, readSyncState, writeSyncState } from "@/lib/scrydex/sync-state"
+import { deltaExpansionJobId, hydrationJobId, readSyncState, writeSyncState } from "@/lib/scrydex/sync-state"
 import type { TcgGame } from "@/lib/scrydex/types"
 
 function sleep(ms: number) {

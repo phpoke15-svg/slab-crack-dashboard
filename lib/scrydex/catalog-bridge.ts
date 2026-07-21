@@ -1,5 +1,5 @@
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
-import { catalogHitIdForUi } from "@/lib/scrydex/constants"
+import { catalogHitIdForUi, resolveCatalogId } from "@/lib/scrydex/constants"
 import { getCatalogCard, loadCardBundle, searchLocalCatalog } from "@/lib/scrydex/db"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
 import type { CatalogCardRow } from "@/lib/scrydex/types"

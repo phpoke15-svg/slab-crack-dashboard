@@ -127,15 +127,16 @@ export async function getRawPricesForCardIds(cardIds: string[]): Promise<Map<str
     getScrydexRawPricesForIds(uniqueIds),
   ])
 
-  const unified = new Map<string, number>()
-  for (const [cardId, row] of priceRows) {
-    if ((row.raw_price ?? 0) > 0) unified.set(cardId, row.raw_price!)
+  const merged = new Map<string, number>()
+  for (const [cardId, price] of scrydexPrices) {
+    if (price > 0) merged.set(cardId, price)
   }
 
-  const merged = mergeCachedRawPrices(unified, binderPrices)
-  for (const [cardId, price] of scrydexPrices) {
-    if (price > 0 && !merged.has(cardId)) merged.set(cardId, price)
+  for (const [cardId, row] of priceRows) {
+    if ((row.raw_price ?? 0) > 0 && !merged.has(cardId)) merged.set(cardId, row.raw_price!)
   }
+
+  mergeCachedRawPrices(merged, binderPrices)
   const result = new Map<string, number>()
   for (const id of uniqueIds) {
     for (const variant of expandCardIdList([id])) {

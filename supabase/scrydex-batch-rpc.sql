@@ -91,3 +91,69 @@ $$;
 grant execute on function public.get_cards_with_prices_batch(text[]) to anon, authenticated, service_role;
 grant execute on function public.get_price_refresh_queue(timestamptz, integer) to service_role;
 grant execute on function public.get_history_backfill_queue(integer) to service_role;
+
+-- Seeded expansion queue (Phase 3)
+
+create or replace function public.get_seeded_expansion_codes(p_game public.tcg_game default 'pokemon')
+returns table (set_code text, card_count bigint) language sql stable as $$
+  select set_code, count(*)::bigint as card_count
+  from public.catalog_cards
+  where game = p_game
+  group by set_code
+  order by card_count desc, set_code asc;
+$$;
+
+create or replace function public.get_next_hydration_job(p_game public.tcg_game default 'pokemon')
+returns table (
+  game public.tcg_game,
+  expansion_id text,
+  job_id text,
+  cursor_page integer,
+  job_status text
+) language sql stable as $$
+  with resume as (
+    select
+      s.game,
+      s.expansion_id,
+      s.job_id,
+      s.cursor_page,
+      s.status as job_status
+    from public.scrydex_sync_state s
+    where s.game = p_game
+      and s.job_id like 'hydrate:%'
+      and s.status in ('paused', 'running', 'failed')
+    order by
+      case s.status when 'running' then 0 when 'paused' then 1 else 2 end,
+      s.updated_at asc
+    limit 1
+  ),
+  fresh as (
+    select
+      p_game as game,
+      c.set_code as expansion_id,
+      'hydrate:' || p_game::text || ':' || c.set_code as job_id,
+      1 as cursor_page,
+      'idle'::text as job_status
+    from (
+      select set_code
+      from public.catalog_cards
+      where game = p_game
+      group by set_code
+    ) c
+    where not exists (
+      select 1
+      from public.scrydex_sync_state s
+      where s.job_id = 'hydrate:' || p_game::text || ':' || c.set_code
+        and s.status = 'complete'
+    )
+    order by c.set_code asc
+    limit 1
+  )
+  select * from resume
+  union all
+  select * from fresh where not exists (select 1 from resume)
+  limit 1;
+$$;
+
+grant execute on function public.get_seeded_expansion_codes(public.tcg_game) to service_role;
+grant execute on function public.get_next_hydration_job(public.tcg_game) to service_role;

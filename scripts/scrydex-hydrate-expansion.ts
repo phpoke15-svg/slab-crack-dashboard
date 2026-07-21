@@ -6,17 +6,19 @@
  *   npx tsx scripts/scrydex-hydrate-expansion.ts lorcana ROJ --prices
  */
 
+import { readFile } from "node:fs/promises"
+import { existsSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { hydrateExpansionPage, syncRecentExpansions } from "../lib/scrydex/hydrate"
 import type { TcgGame } from "../lib/scrydex/types"
 
+const root = join(dirname(fileURLToPath(import.meta.url)), "..")
+
 async function loadEnvFile(relativePath: string, override = false) {
-  const { readFile, existsSync } = await import("node:fs/promises")
-  const { existsSync: exists } = await import("node:fs")
-  const { join, dirname } = await import("node:path")
-  const { fileURLToPath } = await import("node:url")
-  const root = join(dirname(fileURLToPath(import.meta.url)), "..")
   const path = join(root, relativePath)
-  if (!exists(path)) return
+  if (!existsSync(path)) return
+
   const raw = await readFile(path, "utf-8")
   for (const line of raw.split("\n")) {
     const trimmed = line.trim()

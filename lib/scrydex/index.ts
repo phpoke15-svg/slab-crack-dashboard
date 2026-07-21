@@ -4,6 +4,11 @@ export { ScrydexClient } from "@/lib/scrydex/client"
 export { CatalogService, createCatalogService } from "@/lib/scrydex/catalog-service"
 export { CreditLedger, ScrydexCreditBudgetError, recordCardActivity, getCreditsUsedToday } from "@/lib/scrydex/credit-ledger"
 export { hydrateExpansionPage, syncRecentExpansions } from "@/lib/scrydex/hydrate"
+export {
+  pickNextHydrationJob,
+  registerSeededExpansionJobs,
+  countHydrationProgress,
+} from "@/lib/scrydex/hydration-queue"
 export { syncScrydexPrices, probeScrydexSync } from "@/lib/scrydex/price-sync"
 export { resolveScanToCatalog, hashScanImage } from "@/lib/scrydex/vision-pipeline"
 export {
