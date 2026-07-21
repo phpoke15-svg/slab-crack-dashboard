@@ -52,21 +52,24 @@ set
 where clean_name is null or (id like 'poke-%' and scrydex_id is null);
 
 -- Sync denormalized prices from Scrydex cache (run periodically or after price sync)
+-- Joins via poke-* → pokemon-* catalog_id; scrydex_id on cards is optional enrichment only.
 create or replace function public.sync_cards_denormalized_prices()
 returns integer language plpgsql as $$
 declare
   updated_count integer;
 begin
   with latest as (
-    select
+    select distinct on (c.id)
       c.id,
       r.market_price as raw_price,
       g.market_price as psa10_price,
-      greatest(r.synced_at, g.synced_at) as synced_at
+      greatest(
+        coalesce(r.synced_at, 'epoch'::timestamptz),
+        coalesce(g.synced_at, 'epoch'::timestamptz)
+      ) as synced_at
     from public.cards c
-    left join public.catalog_cards cc
-      on cc.catalog_id = 'pokemon-' || c.scrydex_id
-      or cc.catalog_id = replace(c.id, 'poke-', 'pokemon-')
+    inner join public.catalog_cards cc
+      on cc.catalog_id = replace(c.id, 'poke-', 'pokemon-')
     left join public.prices_raw r
       on r.catalog_id = cc.catalog_id
       and r.variant = 'normal'
@@ -77,12 +80,13 @@ begin
       and g.grade = '10'
       and g.variant = 'normal'
     where r.market_price is not null or g.market_price is not null
+    order by c.id, cc.catalog_id
   )
   update public.cards c
   set
     current_price_raw = l.raw_price,
     current_price_psa10 = l.psa10_price,
-    price_updated_at = l.synced_at
+    price_updated_at = nullif(l.synced_at, 'epoch'::timestamptz)
   from latest l
   where c.id = l.id;
 
