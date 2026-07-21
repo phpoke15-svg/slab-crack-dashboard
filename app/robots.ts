@@ -13,7 +13,9 @@ export default function robots(): MetadataRoute.Robots {
     "/buyout-radar",
     "/live-binder-hud",
     "/slablabs/slabcrack/scan",
+    "/slablabs/slabcrack/multi-scan",
     "/slablabs/slabit/scan",
+    "/slablabs/slabit/multi-scan",
     "/pokewatch/mobile",
     "/queue-watch/mobile",
   ]

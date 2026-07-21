@@ -1,7 +1,8 @@
 import { TradeBinderClient } from "@/components/trade-binder-client"
 import { JsonLd } from "@/components/seo/json-ld"
 import { ToolSeoFooter, ToolSeoIntro } from "@/components/seo/tool-seo-intro"
-import { breadcrumbJsonLd, pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
+import { POKEMATCH_FAQ } from "@/lib/seo-faq"
+import { breadcrumbJsonLd, faqPageJsonLd, pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
 
 const description =
   "PokeMatch helps Pokémon TCG collectors build binders, find trade matches, and complete swaps with chat and reviews."
@@ -27,6 +28,7 @@ export default function BinderPage() {
             { name: "Home", path: "/" },
             { name: "PokeMatch", path: "/binder" },
           ]),
+          faqPageJsonLd([...POKEMATCH_FAQ]),
         ]}
       />
       <ToolSeoIntro

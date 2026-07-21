@@ -25,6 +25,19 @@ export type CardPseoPageData = {
   cardSlug: string
 }
 
+export type PseoSetRow = {
+  setSlug: string
+  setName: string
+  cardCount: number
+}
+
+export type SetCardListItem = {
+  cardSlug: string
+  name: string
+  number: string
+  imageUrl: string
+}
+
 function rowToSlugs(row: CatalogCardRow): { setSlug: string; cardSlug: string } {
   const setSlug =
     (row as CatalogCardRow & { set_slug?: string }).set_slug ??
@@ -247,3 +260,100 @@ export async function listCardSitemapRows(
 }
 
 export { SITEMAP_CHUNK_SIZE }
+
+const SET_PAGE_SIZE = 200
+
+/** Aggregate distinct sets for the /pokemon index (batched scan, cached per request). */
+export const listPseoSets = cache(async (): Promise<PseoSetRow[]> => {
+  if (!isSupabaseConfigured()) return []
+
+  const bySlug = new Map<string, PseoSetRow>()
+  const pageSize = 2_000
+  let offset = 0
+
+  try {
+    const supabase = createReadClient()
+
+    for (;;) {
+      const { data, error } = await supabase
+        .from("cards")
+        .select("set_slug, set_name, set_id")
+        .order("id", { ascending: true })
+        .range(offset, offset + pageSize - 1)
+
+      if (error) {
+        if (error.code === "42P01" || error.code === "42703") return []
+        throw error
+      }
+
+      const rows = data ?? []
+      if (rows.length === 0) break
+
+      for (const row of rows) {
+        const setName = String(row.set_name ?? "").trim()
+        const setId = String(row.set_id ?? "").trim()
+        const setSlug =
+          (row as { set_slug?: string }).set_slug?.trim() ||
+          buildSetSlug(setId, setName)
+        if (!setSlug) continue
+
+        const existing = bySlug.get(setSlug)
+        if (existing) {
+          existing.cardCount += 1
+        } else {
+          bySlug.set(setSlug, { setSlug, setName: setName || setSlug, cardCount: 1 })
+        }
+      }
+
+      if (rows.length < pageSize) break
+      offset += pageSize
+    }
+
+    return [...bySlug.values()].sort((a, b) => a.setName.localeCompare(b.setName))
+  } catch (error) {
+    console.error("[cards-pseo] list sets failed:", error)
+    return []
+  }
+})
+
+export const listSetCards = cache(
+  async (setSlug: string, limit = SET_PAGE_SIZE): Promise<SetCardListItem[]> => {
+    if (!isSupabaseConfigured()) return []
+
+    const normalized = setSlug.trim().toLowerCase()
+    if (!normalized) return []
+
+    try {
+      const supabase = createReadClient()
+      const { data, error } = await supabase
+        .from("cards")
+        .select("name, number, image_url, card_slug")
+        .eq("set_slug", normalized)
+        .order("number", { ascending: true })
+        .limit(limit)
+
+      if (error) {
+        if (error.code === "42P01" || error.code === "42703") return []
+        throw error
+      }
+
+      return (data ?? []).map((row) => ({
+        cardSlug:
+          (row as { card_slug?: string }).card_slug?.trim() ||
+          buildCardSlug(String(row.name ?? ""), String(row.number ?? "")),
+        name: String(row.name ?? ""),
+        number: String(row.number ?? ""),
+        imageUrl: String(row.image_url ?? ""),
+      }))
+    } catch (error) {
+      console.error("[cards-pseo] list set cards failed:", error)
+      return []
+    }
+  },
+)
+
+export async function listSetSitemapRows(): Promise<Array<{ setSlug: string; lastModified: string }>> {
+  const sets = await listPseoSets()
+  const now = new Date().toISOString()
+  return sets.map((set) => ({ setSlug: set.setSlug, lastModified: now }))
+}

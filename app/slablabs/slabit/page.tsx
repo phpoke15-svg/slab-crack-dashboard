@@ -6,7 +6,8 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { Psa10SpreadScanner } from "@/components/psa10-spread-scanner"
 import { JsonLd } from "@/components/seo/json-ld"
-import { pageMetadata, breadcrumbJsonLd, softwareApplicationJsonLd } from "@/lib/seo"
+import { SLABIT_FAQ } from "@/lib/seo-faq"
+import { breadcrumbJsonLd, faqPageJsonLd, pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"
 import { SLABIT_HREF, SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 
 const description =
@@ -33,6 +34,7 @@ export default function SlabItPage() {
             { name: "SlabLabs", path: SLABLABS_HREF },
             { name: "SlabIt", path: SLABIT_HREF },
           ]),
+          faqPageJsonLd([...SLABIT_FAQ]),
         ]}
       />
       <div

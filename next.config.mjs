@@ -47,6 +47,10 @@ const nextConfig = {
       { source: "/slablab", destination: "/slablabs/slabit", permanent: true },
       { source: "/slablab/scan", destination: "/slablabs/slabit/scan", permanent: true },
       { source: "/slablab/multi-scan", destination: "/slablabs/slabit/multi-scan", permanent: true },
+      { source: "/queue-watch", destination: "/pokewatch", permanent: true },
+      { source: "/queue-watch/mobile", destination: "/pokewatch/mobile", permanent: true },
+      { source: "/lounge", destination: "/card-lounge", permanent: true },
+      { source: "/psa10-scanner", destination: "/slablabs/slabit", permanent: true },
     ]
   },
   async rewrites() {
