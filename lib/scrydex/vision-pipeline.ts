@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { visionResultToCatalog, normalizeGame } from "@/lib/scrydex/adapters"
+import { visionResponseToCatalog } from "@/lib/scrydex/adapters"
 import { ScrydexClient } from "@/lib/scrydex/client"
 import {
   getCatalogCard,
@@ -40,12 +40,9 @@ export async function resolveScanToCatalog(input: {
 
   const client = ScrydexClient.fromEnv()
   const response = await client.visionIdentify(input.imageBase64, input.preferredGames)
-  const result = response.data
-  if (!result) throw new Error("Scrydex Vision returned no match")
-
-  const partial = visionResultToCatalog(input.preferredGames?.[0], result)
+  const partial = visionResponseToCatalog(input.preferredGames?.[0], response)
   if (!partial?.catalog_id || !partial.game || !partial.scrydex_id) {
-    throw new Error("Vision match could not be mapped to a catalog id")
+    throw new Error("Scrydex Vision returned no match")
   }
 
   let card = await getCatalogCard(partial.catalog_id)
@@ -101,13 +98,12 @@ export async function resolveScanToCatalog(input: {
   await saveVisionCache({
     phash,
     catalogId: card.catalog_id,
-    confidence: result.confidence,
+    confidence: partial.confidence,
   })
 
   const bundle = await loadCardBundle(card.catalog_id)
   if (!bundle) throw new Error("Failed to load card bundle after vision match")
 
-  const game = normalizeGame(result.game) ?? partial.game
   const extraCredit = bundle.raw.length === 0 && bundle.graded.length === 0 ? 1 : 0
 
   return {
