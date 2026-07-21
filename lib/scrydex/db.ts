@@ -1,3 +1,5 @@
+import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
+import { queryScrydexCatalogSearchRows } from "@/lib/scrydex/catalog-search-local"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import {
   extractGradedPrices,
@@ -121,27 +123,24 @@ export async function searchLocalCatalog(input: {
 }): Promise<{ cards: CatalogCardRow[]; total: number }> {
   if (!isSupabaseConfigured()) return { cards: [], total: 0 }
 
-  const supabase = createAdminClient()
-  const from = (input.page - 1) * input.pageSize
-  const to = from + input.pageSize - 1
   const q = input.q.trim()
+  if (!catalogSearchMinLength(q)) return { cards: [], total: 0 }
 
-  let query = supabase
-    .from("catalog_cards")
-    .select("*", { count: "exact" })
-    .eq("game", input.game)
-    .order("name", { ascending: true })
-    .range(from, to)
+  const supabase = createAdminClient()
+  const fetchLimit = Math.min(Math.max(input.pageSize * 4, 80), 200)
 
-  if (q) {
-    query = query.or(`name.ilike.%${q}%,set_name.ilike.%${q}%,number.ilike.%${q}%`)
+  try {
+    const rows = await queryScrydexCatalogSearchRows(supabase, q, fetchLimit)
+    const filtered = rows.filter((row) => row.game === input.game)
+    const from = (input.page - 1) * input.pageSize
+    const pageRows = filtered.slice(from, from + input.pageSize)
+    return { cards: pageRows as CatalogCardRow[], total: filtered.length }
+  } catch (error) {
+    if (error instanceof Error && "code" in error && (error as { code?: string }).code === "42P01") {
+      return { cards: [], total: 0 }
+    }
+    throw error
   }
-
-  const { data, error, count } = await query
-  if (error?.code === "42P01") return { cards: [], total: 0 }
-  if (error) throw error
-
-  return { cards: (data ?? []) as CatalogCardRow[], total: count ?? 0 }
 }
 
 export async function getCardsWithPricesBatch(catalogIds: string[]) {

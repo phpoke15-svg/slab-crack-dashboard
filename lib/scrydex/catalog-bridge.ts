@@ -1,4 +1,5 @@
 import type { CatalogSearchHit } from "@/lib/db/cards-catalog"
+import { catalogSearchMinLength, rankCatalogSearchHits } from "@/lib/db/catalog-search-local"
 import { catalogHitIdForUi, resolveCatalogId } from "@/lib/scrydex/constants"
 import { getCatalogCard, loadCardBundle, searchLocalCatalog } from "@/lib/scrydex/db"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
@@ -55,7 +56,7 @@ export async function searchScrydexCatalogLocal(
   if (!isSupabaseConfigured()) return []
 
   const q = query.trim()
-  if (q.length < 2) return []
+  if (!catalogSearchMinLength(q)) return []
 
   try {
     const { cards } = await searchLocalCatalog({
@@ -72,7 +73,8 @@ export async function searchScrydexCatalogLocal(
     const { data, error } = await supabase.rpc("get_cards_with_prices_batch", { ids: catalogIds })
 
     if (error?.code === "42883") {
-      return cards.map((row) => catalogRowToSearchHit(row))
+      const hits = cards.map((row) => catalogRowToSearchHit(row))
+      return rankCatalogSearchHits(hits, q, Math.min(Math.max(limit, 1), 80))
     }
     if (error?.code === "42P01") return []
     if (error) throw error
@@ -81,11 +83,13 @@ export async function searchScrydexCatalogLocal(
       ((data ?? []) as Record<string, unknown>[]).map((row) => [String(row.catalog_id), row]),
     )
 
-    return cards.map((row) => {
+    const hits = cards.map((row) => {
       const priced = pricedByCatalogId.get(row.catalog_id)
       if (priced) return batchRowToSearchHit(priced)
       return catalogRowToSearchHit(row)
     })
+
+    return rankCatalogSearchHits(hits, q, Math.min(Math.max(limit, 1), 80))
   } catch (error) {
     console.error("[scrydex/catalog-bridge] local search failed:", error)
     return []
