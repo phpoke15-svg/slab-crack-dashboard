@@ -191,7 +191,7 @@ export async function resolveTcgResearchCardFull(input: {
 
   if (catalogId && isScrydexConfigured()) {
     await ensureScrydexCardFresh(detail.id, { activity: "view" })
-    await ensureCardDailyPriceHistory(detail.id).catch((error) => {
+    void ensureCardDailyPriceHistory(detail.id).catch((error) => {
       console.warn("[tcg-research/card-full] history backfill failed:", error)
     })
   }
