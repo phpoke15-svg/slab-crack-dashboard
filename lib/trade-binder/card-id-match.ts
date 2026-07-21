@@ -1,13 +1,20 @@
-/** Expand catalog ids so poke- / base set ids match the same card in queries. */
+/** Expand catalog ids so poke- / pokemon- / base set ids match the same card in queries. */
 export function cardIdVariants(cardId: string): string[] {
   const id = cardId.trim()
   if (!id) return []
 
   const variants = new Set<string>([id])
   if (id.startsWith("poke-")) {
-    variants.add(id.slice("poke-".length))
+    const bare = id.slice("poke-".length)
+    variants.add(bare)
+    variants.add(`pokemon-${bare}`)
+  } else if (id.startsWith("pokemon-")) {
+    const bare = id.slice("pokemon-".length)
+    variants.add(`poke-${bare}`)
+    variants.add(bare)
   } else if (!id.startsWith("pc-")) {
     variants.add(`poke-${id}`)
+    variants.add(`pokemon-${id}`)
   }
   return [...variants]
 }

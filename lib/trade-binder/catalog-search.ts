@@ -6,6 +6,8 @@ import {
 import { catalogSearchMinLength } from "@/lib/db/catalog-search-local"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { hasTcgGoApiKey } from "@/lib/pricing/provider"
+import { searchScrydexCatalogLocal } from "@/lib/scrydex/catalog-bridge"
+import { cardIdsEquivalent } from "@/lib/trade-binder/card-id-match"
 import { mergeBinderSearchResults } from "@/lib/trade-binder/binder-search"
 import { persistDiscoveredCatalogHits } from "@/lib/trade-binder/persist-discovered-cards"
 import { searchTcgGoBinderCards, type PricedCatalogCard } from "@/lib/trade-binder/pokemon-catalog"
@@ -14,7 +16,7 @@ import { parseBinderSearchTokens, resolveBinderSetIdHint, cardNumberMatches } fr
 import type { CatalogCard } from "@/lib/trade-binder/cards"
 
 export type BinderCatalogCard = CatalogCard & { rawPrice?: number; cardNumber?: string }
-export type CatalogSearchSource = "local" | "tcggo" | "hybrid" | "supplemental"
+export type CatalogSearchSource = "local" | "tcggo" | "hybrid" | "supplemental" | "scrydex"
 
 const LIVE_FALLBACK_THRESHOLD = 8
 
@@ -74,6 +76,18 @@ function localResultsMatchNameAndNumber(
     if (!cardNumberMatches(hit.number, number)) return false
     return hit.name.toLowerCase().includes(normalizedName)
   })
+}
+
+function mergeScrydexHits(localHits: CatalogSearchHit[], scrydexHits: CatalogSearchHit[]): CatalogSearchHit[] {
+  if (scrydexHits.length === 0) return localHits
+
+  const merged = [...localHits]
+  for (const hit of scrydexHits) {
+    const duplicate = merged.some((existing) => cardIdsEquivalent(existing.id, hit.id))
+    if (duplicate) continue
+    merged.push(hit)
+  }
+  return merged
 }
 
 function shouldFetchLiveCatalog(
@@ -210,10 +224,12 @@ export async function searchCatalogHybrid(
   }
 
   const localHits = await searchCatalogCardsLocal(query, Math.min(limit * 2, 80))
+  const scrydexHits = await searchScrydexCatalogLocal(query, Math.min(limit * 2, 80))
+  const mergedLocal = mergeScrydexHits(localHits, scrydexHits)
   const supplementalHits = searchSupplementalCatalog(query, limit)
   let liveHits: CatalogSearchHit[] = []
 
-  if (shouldFetchLiveCatalog(query, [...localHits, ...supplementalHits], limit)) {
+  if (shouldFetchLiveCatalog(query, [...mergedLocal, ...supplementalHits], limit)) {
     try {
       liveHits = await fetchLiveCatalogHits(query, limit)
     } catch (error) {
@@ -221,7 +237,13 @@ export async function searchCatalogHybrid(
     }
   }
 
-  let { hits, source } = mergeCatalogHits(localHits, liveHits, supplementalHits, query, limit)
+  let { hits, source } = mergeCatalogHits(mergedLocal, liveHits, supplementalHits, query, limit)
+
+  if (scrydexHits.length > 0 && source === "local") {
+    source = "scrydex"
+  } else if (scrydexHits.length > 0 && source === "hybrid") {
+    source = "hybrid"
+  }
 
   const toPersist = discoveredHitsToPersist(hits, liveHits, supplementalHits)
   if (toPersist.length > 0) {

@@ -42,6 +42,27 @@ export function catalogIdToLegacyPokeId(catalogId: string): string | null {
   return `poke-${parts.scrydexId}`
 }
 
+/** Map any legacy binder id to a Scrydex catalog_id (pokemon-*). */
+export function resolveCatalogId(cardId: string): string | null {
+  const id = cardId.trim()
+  if (!id) return null
+  if (id.startsWith("pokemon-")) return id
+  if (id.startsWith("lorcana-") || id.startsWith("mtg-")) return id
+
+  const fromPoke = legacyPokeIdToCatalogId(id)
+  if (fromPoke) return fromPoke
+
+  if (splitCatalogId(id)) return id
+
+  if (!id.startsWith("pc-")) return `pokemon-${id}`
+  return null
+}
+
+/** Prefer poke-* ids in UI while Scrydex stores pokemon-* catalog ids. */
+export function catalogHitIdForUi(catalogId: string): string {
+  return catalogIdToLegacyPokeId(catalogId) ?? catalogId
+}
+
 export function isScrydexConfigured(): boolean {
   return Boolean(process.env.SCRYDEX_API_KEY?.trim() && process.env.SCRYDEX_TEAM_ID?.trim())
 }

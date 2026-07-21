@@ -5,6 +5,7 @@ import {
   rankCatalogSearchHits,
 } from "@/lib/db/catalog-search-local"
 import { getRawPricesForCardIds } from "@/lib/db/priced-catalog"
+import { lookupScrydexCatalogById } from "@/lib/scrydex/catalog-bridge"
 import { cleanNumber, simplifyCardName } from "@/lib/slabcrack/identify-parse"
 import { buildCardSlug, buildSetSlug } from "@/lib/seo/card-slugs"
 import { createAdminClient, createReadClient, isSupabaseConfigured } from "@/lib/supabase/server"
@@ -143,7 +144,10 @@ export async function getCatalogCardById(cardId: string): Promise<CatalogSearchH
       if (error.code === "42P01") return null
       throw error
     }
-    if (!data) return null
+    if (!data) {
+      const scrydexHit = await lookupScrydexCatalogById(cardId)
+      return scrydexHit
+    }
 
     const [hit] = await attachCachedPrices([data as CatalogCardRow])
     return hit ?? null

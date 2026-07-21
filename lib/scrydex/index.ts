@@ -12,4 +12,22 @@ export {
   loadCardBundle,
   searchLocalCatalog,
 } from "@/lib/scrydex/db"
-export { toCatalogId, splitCatalogId, legacyPokeIdToCatalogId, catalogIdToLegacyPokeId } from "@/lib/scrydex/constants"
+export {
+  toCatalogId,
+  splitCatalogId,
+  legacyPokeIdToCatalogId,
+  catalogIdToLegacyPokeId,
+  resolveCatalogId,
+  catalogHitIdForUi,
+} from "@/lib/scrydex/constants"
+export {
+  catalogRowToSearchHit,
+  searchScrydexCatalogLocal,
+  lookupScrydexCatalogById,
+  lookupScrydexCatalogCardsByIds,
+} from "@/lib/scrydex/catalog-bridge"
+export {
+  scrydexBundleToCardPriceRow,
+  getScrydexRawPricesForIds,
+  getScrydexCardPriceRowsForIds,
+} from "@/lib/scrydex/price-adapter"
