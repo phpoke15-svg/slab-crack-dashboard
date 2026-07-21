@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import {
   resolveWebhookCatalogId,
+  catalogBundleToDailyHistoryRows,
   webhookPricesToDailyHistoryRows,
 } from "@/lib/scrydex/webhook-history"
 
@@ -42,5 +43,21 @@ describe("webhook-history", () => {
 
   it("resolves pokemon catalog ids from scrydex ids", () => {
     expect(resolveWebhookCatalogId("mep-41")).toBe("pokemon-mep-41")
+  })
+})
+
+describe("catalogBundleToDailyHistoryRows", () => {
+  it("writes raw plus all PSA grades from a cached bundle", () => {
+    const rows = catalogBundleToDailyHistoryRows({
+      catalogId: "pokemon-mep-41",
+      raw: [{ variant: "normal", condition: "NM", market_price: 6.5 }],
+      graded: [
+        { variant: "normal", company: "PSA", grade: "9", market_price: 28 },
+        { variant: "normal", company: "PSA", grade: "10", market_price: 45 },
+      ],
+    })
+
+    expect(rows).toHaveLength(3)
+    expect(rows.map((row) => row.grade)).toEqual([null, "9", "10"])
   })
 })

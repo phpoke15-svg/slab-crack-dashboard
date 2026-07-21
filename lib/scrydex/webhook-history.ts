@@ -62,6 +62,85 @@ export function webhookPricesToDailyHistoryRows(input: {
   return rows
 }
 
+type CatalogPriceRow = {
+  variant?: string | null
+  condition?: string | null
+  company?: string | null
+  grade?: string | null
+  market_price?: number | null
+}
+
+/** Build daily history rows from cached Scrydex raw + PSA graded prices. */
+export function catalogBundleToDailyHistoryRows(input: {
+  catalogId: string
+  raw?: CatalogPriceRow[]
+  graded?: CatalogPriceRow[]
+  snapshotDate?: string
+  capturedAt?: string
+}): Array<Record<string, unknown>> {
+  const snapshotDate = input.snapshotDate ?? todayUtcDate()
+  const capturedAt = input.capturedAt ?? new Date().toISOString()
+  const rows: Array<Record<string, unknown>> = []
+
+  const rawCandidates = (input.raw ?? []).filter((row) => (row.variant ?? "normal") === "normal")
+  const rawRow =
+    rawCandidates.find((row) => (row.condition ?? "NM") === "NM" && (row.market_price ?? 0) > 0) ??
+    rawCandidates.find((row) => (row.market_price ?? 0) > 0)
+  const raw = positivePrice(rawRow?.market_price)
+  if (raw != null) {
+    rows.push({
+      catalog_id: input.catalogId,
+      snapshot_date: snapshotDate,
+      price_type: "raw",
+      variant: "normal",
+      condition: "NM",
+      company: null,
+      grade: null,
+      market_price: raw,
+      low_price: null,
+      currency: "USD",
+      source: "scrydex",
+      captured_at: capturedAt,
+    })
+  }
+
+  for (const graded of input.graded ?? []) {
+    if ((graded.variant ?? "normal") !== "normal") continue
+    if ((graded.company ?? "").toUpperCase() !== "PSA") continue
+    const grade = String(graded.grade ?? "").trim()
+    if (!["7", "8", "9", "10"].includes(grade)) continue
+    const price = positivePrice(graded.market_price)
+    if (price == null) continue
+    rows.push({
+      catalog_id: input.catalogId,
+      snapshot_date: snapshotDate,
+      price_type: "graded",
+      variant: "normal",
+      condition: null,
+      company: "PSA",
+      grade,
+      market_price: price,
+      low_price: null,
+      currency: "USD",
+      source: "scrydex",
+      captured_at: capturedAt,
+    })
+  }
+
+  return rows
+}
+
+export async function upsertCatalogBundleDailyHistory(input: {
+  catalogId: string
+  raw?: CatalogPriceRow[]
+  graded?: CatalogPriceRow[]
+  snapshotDate?: string
+}): Promise<number> {
+  const rows = catalogBundleToDailyHistoryRows(input)
+  if (rows.length === 0) return 0
+  return persistHistoryPointsBatch(input.catalogId, rows)
+}
+
 export function resolveWebhookCatalogId(scrydexId: string, game: TcgGame = "pokemon"): string {
   return toCatalogId(game, scrydexId)
 }

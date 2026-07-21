@@ -336,6 +336,23 @@ export async function isPriceStale(catalogId: string, staleBeforeMs: number): Pr
   return String(data.synced_at) < staleBefore
 }
 
+/** True when NM raw exists but no PSA graded rows are cached (incomplete Scrydex bundle). */
+export async function isGradedPricesMissing(catalogId: string): Promise<boolean> {
+  if (!isSupabaseConfigured()) return true
+  const supabase = createAdminClient()
+
+  const { count, error } = await supabase
+    .from("prices_graded")
+    .select("catalog_id", { count: "exact", head: true })
+    .eq("catalog_id", catalogId)
+    .eq("variant", "normal")
+    .ilike("company", "psa")
+
+  if (error?.code === "42P01") return true
+  if (error) return true
+  return (count ?? 0) === 0
+}
+
 export async function getVisionCache(phash: string) {
   if (!isSupabaseConfigured()) return null
   const supabase = createAdminClient()

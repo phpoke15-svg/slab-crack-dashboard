@@ -3,6 +3,7 @@ import { ensureCardDailyPriceHistory } from "@/lib/pricing/card-daily-price-hist
 import { ensureScrydexCardFresh } from "@/lib/scrydex/on-demand"
 import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import { loadCardBundle } from "@/lib/scrydex/db"
+import { upsertCatalogBundleDailyHistory } from "@/lib/scrydex/webhook-history"
 import { resolveScanToCatalog, ScrydexVisionNoMatchError, visionScanGameScope } from "@/lib/scrydex/vision-pipeline"
 import { scrydexBundleToCardPriceRow } from "@/lib/scrydex/price-adapter"
 import { resolveCatalogId, splitCatalogId } from "@/lib/scrydex/constants"
@@ -189,17 +190,31 @@ export async function resolveTcgResearchCardFull(input: {
   let priceTrend = detail.priceTrend
 
   if (catalogId && isScrydexConfigured()) {
-    await Promise.all([
-      ensureScrydexCardFresh(detail.id, { activity: "view" }),
-      ensureCardDailyPriceHistory(detail.id).catch((error) => {
-        console.warn("[tcg-research/card-full] history backfill failed:", error)
-      }),
-    ])
+    await ensureScrydexCardFresh(detail.id, { activity: "view" })
+    await ensureCardDailyPriceHistory(detail.id).catch((error) => {
+      console.warn("[tcg-research/card-full] history backfill failed:", error)
+    })
   }
+
+  let resolvedScrydexId = detail.scrydexId
+  let resolvedGame = detail.game ?? splitCatalogId(catalogId ?? "")?.game ?? input.game ?? "pokemon"
 
   if (catalogId) {
     const bundle = await loadCardBundle(catalogId)
     if (bundle?.card) {
+      resolvedScrydexId = bundle.card.scrydex_id ?? resolvedScrydexId
+      resolvedGame = bundle.card.game ?? resolvedGame
+
+      try {
+        await upsertCatalogBundleDailyHistory({
+          catalogId,
+          raw: bundle.raw as never[],
+          graded: bundle.graded as never[],
+        })
+      } catch (error) {
+        console.warn("[tcg-research/card-full] daily history snapshot failed:", catalogId, error)
+      }
+
       const priceRow = scrydexBundleToCardPriceRow({
         card: bundle.card,
         raw: bundle.raw as never[],
@@ -235,8 +250,8 @@ export async function resolveTcgResearchCardFull(input: {
   return {
     card,
     catalogId,
-    scrydexId: detail.scrydexId,
-    game: detail.game ?? splitCatalogId(catalogId ?? "")?.game ?? input.game ?? "pokemon",
+    scrydexId: resolvedScrydexId,
+    game: resolvedGame,
     priceUpdatedAt,
     priceSource,
     priceTrend,

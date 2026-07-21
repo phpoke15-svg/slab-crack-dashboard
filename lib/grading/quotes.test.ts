@@ -5,6 +5,7 @@ import {
   mergeGradedPriceRows,
   pickGradedPrice,
   resolveGradedPricesForCard,
+  resolvePsa10DisplayPrice,
 } from "@/lib/grading/quotes"
 import {
   coerceSlabGradeRef,
@@ -107,5 +108,26 @@ describe("grading quotes", () => {
 
     expect(pickGradedPrice(resolved, { company: "PSA", grade: "9" })).toBe(120)
     expect(pickGradedPrice(resolved, { company: "PSA", grade: "10" })).toBe(300)
+  })
+
+  it("estimates PSA 10 from lower Scrydex grades", () => {
+    const estimated = resolvePsa10DisplayPrice(
+      [{ company: "PSA", grade: "9", marketPrice: 45 }],
+      {
+        id: "poke-test-1",
+        cardName: "Test",
+        setName: "Set",
+        cardNumber: "1",
+        imageUrl: "/placeholder.svg",
+        rawPrice: 10,
+        slabGrade: 10,
+        slabPrice: 0,
+        hasPricing: true,
+        marketInsight: "",
+      },
+    )
+
+    expect(estimated.estimated).toBe(true)
+    expect(estimated.price).toBe(100)
   })
 })

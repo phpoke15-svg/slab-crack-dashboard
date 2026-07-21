@@ -14,7 +14,7 @@ import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
 import type { PriceHistorySeriesMap } from "@/lib/pricing/types"
 
 const MIN_DISTINCT_DAYS = 2
-const BACKFILL_DURATIONS: ScrydexPriceHistoryDuration[] = ["180d", "full"]
+const BACKFILL_DURATIONS: ScrydexPriceHistoryDuration[] = ["7d", "30d", "180d", "full"]
 
 export type EnsureCardDailyPriceHistoryResult = {
   catalogId: string | null
