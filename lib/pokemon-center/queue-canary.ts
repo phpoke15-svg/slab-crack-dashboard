@@ -1,4 +1,8 @@
 import {
+  buildBrowserProbeHeaders,
+  pickBrowserProbeProfile,
+} from "@/lib/pokemon-center/browser-probe-headers"
+import {
   detectQueueFromContent,
   type QueueDetection,
   type QueueSignal,
@@ -11,38 +15,11 @@ export type QueueCanaryResult = QueueDetection & {
 }
 
 /** Rotate client fingerprints each cron tick (low-frequency canary). */
-const ROTATING_PROFILES: Array<{ id: string; userAgent: string; acceptLanguage: string }> = [
-  {
-    id: "chrome-desktop-us",
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    acceptLanguage: "en-US,en;q=0.9",
-  },
-  {
-    id: "safari-ios",
-    userAgent:
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1",
-    acceptLanguage: "en-US,en;q=0.9",
-  },
-  {
-    id: "chrome-android",
-    userAgent:
-      "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Mobile Safari/537.36",
-    acceptLanguage: "en-US,en;q=0.9",
-  },
-  {
-    id: "firefox-desktop",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
-    acceptLanguage: "en-US,en;q=0.8",
-  },
-]
-
 const QUEUE_REDIRECT_RE = /queue-it|waitingroom|waiting-room|queueit|virtual.?queue/i
 const QUEUE_HEADER_RE = /queue-it|queueit|x-queue/i
 
-function pickProfile(): (typeof ROTATING_PROFILES)[number] {
-  const slot = Math.floor(Date.now() / (5 * 60 * 1000)) % ROTATING_PROFILES.length
-  return ROTATING_PROFILES[slot]!
+function pickProfile() {
+  return pickBrowserProbeProfile()
 }
 
 function signalsFromRedirect(location: string): QueueSignal[] {
@@ -81,13 +58,7 @@ export async function probePokemonCenterQueueCanary(): Promise<QueueCanaryResult
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 15_000)
 
-  const headers: Record<string, string> = {
-    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": profile.acceptLanguage,
-    "User-Agent": profile.userAgent,
-    "Cache-Control": "no-cache",
-    Pragma: "no-cache",
-  }
+  const headers: Record<string, string> = buildBrowserProbeHeaders(profile)
 
   const proxyUrl = process.env.QUEUE_CANARY_PROXY_URL?.trim()
   if (proxyUrl) {
