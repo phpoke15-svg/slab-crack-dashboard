@@ -18,7 +18,11 @@ function requiredProxy(primary: string, legacy: string): string {
   return value
 }
 
+export type WorkerMode = "webhook" | "probe"
+
 export const config = {
+  /** `webhook` = inbound alert receiver (default). `probe` = legacy Playwright poller. */
+  workerMode: optional("WORKER_MODE", "webhook") as WorkerMode,
   targetUrl: optional("TARGET_URL", "https://www.pokemoncenter.com/"),
   queueDeepLink: optional("QUEUE_DEEP_LINK", "https://www.pokemoncenter.com/"),
   fcmTopic: optional("FCM_TOPIC", "pokemon_center_alerts"),
@@ -26,31 +30,53 @@ export const config = {
   firebaseServiceAccountPath: optional("FIREBASE_SERVICE_ACCOUNT_PATH", "./firebase-service-account.json"),
   onesignalAppId: optional("ONESIGNAL_APP_ID"),
   onesignalRestApiKey: optional("ONESIGNAL_REST_API_KEY"),
-  /** Cooldown between queue push dispatches (default 20 minutes). */
-  notificationCooldownMs: Number(optional("NOTIFICATION_COOLDOWN_MS", "1200000")),
+  /** Cooldown between queue push dispatches (default 15 minutes). */
+  notificationCooldownMs: Number(optional("NOTIFICATION_COOLDOWN_MS", "900000")),
   /** Cooldown between worker failure admin alerts (default 60 minutes). */
   failureAlertCooldownMs: Number(optional("FAILURE_ALERT_COOLDOWN_MS", "3600000")),
   upstashRedisRestUrl: optional("UPSTASH_REDIS_REST_URL"),
   upstashRedisRestToken: optional("UPSTASH_REDIS_REST_TOKEN"),
   notificationRedisChannel: optional("NOTIFICATION_REDIS_CHANNEL", "queue:detected"),
-  /** Bearer token for POST /test/queue-live (falls back to CRON_SECRET). */
-  workerTestSecret: optional("WORKER_TEST_SECRET") || optional("CRON_SECRET"),
-  subscribePort: Number(optional("PORT", optional("SUBSCRIBE_PORT", "8787"))),
+  /** Shared secret for POST /api/webhook/queue-alert (header, bearer, or ?secret=). */
+  webhookSecret:
+    optional("WEBHOOK_SECRET") || optional("WORKER_TEST_SECRET") || optional("CRON_SECRET"),
+  /** Bearer token for POST /test/queue-live (falls back to webhookSecret). */
+  workerTestSecret:
+    optional("WORKER_TEST_SECRET") ||
+    optional("WEBHOOK_SECRET") ||
+    optional("CRON_SECRET"),
+  /** Railway sets PORT; default 3000 for local webhook receiver. */
+  port: Number(optional("PORT", optional("SUBSCRIBE_PORT", "3000"))),
+  /** @deprecated Use config.port */
+  subscribePort: Number(optional("PORT", optional("SUBSCRIBE_PORT", "3000"))),
   userAgent:
     optional(
       "USER_AGENT",
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     ),
   proxy: {
-    host: requiredProxy("IPROYAL_HOST", "PROXY_HOST"),
-    port: Number(requiredProxy("IPROYAL_PORT", "PROXY_PORT")),
+    host: proxyEnv("IPROYAL_HOST", "PROXY_HOST"),
+    port: Number(proxyEnv("IPROYAL_PORT", "PROXY_PORT") || "0"),
     username: proxyEnv("IPROYAL_USER", "PROXY_USERNAME"),
     password: proxyEnv("IPROYAL_PASS", "PROXY_PASSWORD"),
   },
 }
 
+export function isProbeMode(): boolean {
+  return config.workerMode === "probe"
+}
+
+export function assertProxyConfigured(): void {
+  if (!config.proxy.host || !config.proxy.port) {
+    throw new Error(
+      "Missing proxy env vars (IPROYAL_HOST/IPROYAL_PORT or PROXY_HOST/PROXY_PORT). Required for WORKER_MODE=probe.",
+    )
+  }
+}
+
 /** Build IPRoyal/PROXY URL for got-scraping `proxyUrl`. */
 export function buildProxyUrl(): string {
+  assertProxyConfigured()
   const { host, port, username, password } = config.proxy
   if (username && password) {
     return `http://${encodeURIComponent(username)}:${encodeURIComponent(password)}@${host}:${port}`
@@ -64,6 +90,7 @@ export function getPlaywrightProxy(): {
   username?: string
   password?: string
 } {
+  assertProxyConfigured()
   const { host, port, username, password } = config.proxy
   const server = `http://${host}:${port}`
   if (username && password) {

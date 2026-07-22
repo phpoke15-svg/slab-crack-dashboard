@@ -1,114 +1,96 @@
-# Pokémon Center Queue Detector Worker
+# CollecTools Queue Alert Worker
 
-Standalone Node.js worker that polls Pokémon Center through a proxy, detects virtual queue redirects, and broadcasts FCM alerts.
+Standalone Node.js worker that receives **inbound queue-drop webhooks** and dispatches push alerts to Pro and Supreme members.
 
 ## Setup
 
 ```bash
 cd worker
 cp env.example .env
-# Add proxy credentials + firebase-service-account.json
+# Set WEBHOOK_SECRET, OneSignal, and optional Firebase credentials
 npm install
 npm run dev
 ```
 
-## Environment
+## Default mode: webhook receiver
 
-See `env.example` for all variables. Required proxy (either naming scheme):
+The worker listens on `PORT` (Railway sets this automatically; local default **3000**).
 
-- `IPROYAL_HOST`, `IPROYAL_PORT`, `IPROYAL_USER`, `IPROYAL_PASS` — preferred on Railway
-- or `PROXY_HOST`, `PROXY_PORT`, `PROXY_USERNAME`, `PROXY_PASSWORD` — legacy aliases
-- `FIREBASE_SERVICE_ACCOUNT_JSON` — full Firebase Admin JSON (Railway) **or** `FIREBASE_SERVICE_ACCOUNT_PATH` locally
-- `FCM_TOPIC` — defaults to `pokemon_center_alerts`
+### POST `/api/webhook/queue-alert`
 
-**Railway:** see [RAILWAY.md](./RAILWAY.md) — set service **Root Directory** to `worker`.
+Authorized alert services POST JSON drop details here. The worker validates a shared secret, deduplicates alerts for **15 minutes**, and dispatches notifications asynchronously.
 
-## Schedule
+**Auth (pick one):**
 
-Queue probes run **Monday through Friday, 9:30 AM – 4:00 PM Eastern** (`America/New_York`, DST-aware). `isWithinMonitoringWindow()` enforces the exact start/end times (including minutes — checks begin at 9:30 AM ET and stop at 4:00 PM ET). Inside that window the worker runs a **90-second loop** (`CHECK_INTERVAL_MS = 90_000`): each check completes, logs a wait message, then sleeps 90s before the next cycle.
+- Header: `X-Webhook-Secret: $WEBHOOK_SECRET`
+- Header: `Authorization: Bearer $WEBHOOK_SECRET`
+- Query: `?secret=$WEBHOOK_SECRET`
 
-Outside that window the worker logs a skip message and makes **no HTTP or proxy requests**, waiting 90s before polling the clock again. The FCM subscribe API remains available 24/7.
+**Example payload:**
 
-## Detection logic
+```json
+{
+  "siteTitle": "Pokémon Center",
+  "dropUrl": "https://www.pokemoncenter.com/",
+  "productName": "151 Booster Bundle",
+  "status": 302
+}
+```
 
-1. Opens **headless Chromium** (Playwright + stealth plugin) every 90 seconds during the operating window
-2. **Blocks images, fonts, CSS, and media** via route interception to minimize proxy bandwidth
-3. Routes browser traffic through IPRoyal (`IPROYAL_*` or legacy `PROXY_*` env vars)
-4. Waits for DOM content + 5s so Imperva JavaScript challenges can render (avoids brittle `networkidle` timeouts)
-5. Marks queue **LIVE** on queue redirects, Queue-it HTML/title markers, or queue hostnames in the final URL
-6. Treats Imperva block/challenge pages as **blocked** (logged cleanly, no crash, no false alerts)
-7. Debounces alerts: **2 consecutive LIVE hits within 7 minutes** before dispatching notifications
-8. Closes browser context after each probe to limit memory use
+**Example request:**
+
+```bash
+curl -sS -X POST "https://<your-railway-domain>/api/webhook/queue-alert" \
+  -H "X-Webhook-Secret: $WEBHOOK_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "siteTitle": "Pokémon Center",
+    "dropUrl": "https://www.pokemoncenter.com/",
+    "productName": "151 Booster Bundle"
+  }'
+```
+
+Returns **`200 OK` immediately** after validation. Duplicate webhooks inside the cooldown window are accepted but do not re-notify users.
 
 ## Notification dispatch
 
-When a queue is confirmed live, the worker **enqueues alerts asynchronously** so the Playwright loop never blocks on push APIs.
-
 `src/services/notificationService.ts` orchestrates:
 
-1. **Cooldown** — default 20 minutes (`NOTIFICATION_COOLDOWN_MS`), stored in memory or Upstash Redis (`UPSTASH_REDIS_REST_*`)
-2. **OneSignal** — `POST https://onesignal.com/api/v1/notifications` targeting subscribers tagged `membership_tier = pro` or `supreme` (`ONESIGNAL_APP_ID`, `ONESIGNAL_REST_API_KEY`)
-3. **FCM topic broadcast** — existing Firebase Admin topic send for native mobile subscribers
+1. **Cooldown** — default **15 minutes** (`NOTIFICATION_COOLDOWN_MS=900000`), stored in memory or Upstash Redis
+2. **OneSignal** — pro/supreme subscribers (`ONESIGNAL_APP_ID`, `ONESIGNAL_REST_API_KEY`)
+3. **FCM topic broadcast** — native mobile subscribers (`FIREBASE_SERVICE_ACCOUNT_JSON`, `FCM_TOPIC`)
 4. **WebSocket** — instant `QUEUE_DETECTED` event to online clients at `ws://HOST:PORT/ws`
-5. **Redis pub/sub** — optional publish to `NOTIFICATION_REDIS_CHANNEL` (default `queue:detected`) for downstream consumers
+5. **Redis pub/sub** — optional publish to `NOTIFICATION_REDIS_CHANNEL`
 
-Push title: **🚨 Queue Live: Pokémon Center!** — opens `https://www.pokemoncenter.com` (or `QUEUE_DEEP_LINK`).
+Custom webhook fields map into push copy:
 
-## Failure alerting
+- `siteTitle` → push heading
+- `productName` → push body
+- `dropUrl` / `url` → deep link
 
-Unexpected probe errors and **2+ consecutive navigation failures** trigger `sendFailureAlert()`:
+## Other endpoints
 
-- OneSignal push to subscribers tagged `role = admin` or `membership_tier = supreme`
-- Includes ISO timestamp and error message
-- Rate-limited to **1 alert per 60 minutes** by default (`FAILURE_ALERT_COOLDOWN_MS = 3600000`)
+| Method | Path | Purpose |
+|--------|------|---------|
+| `GET` | `/health` | Railway health check |
+| `POST` | `/subscribe` | Subscribe native FCM device token to topic |
+| `POST` | `/test/queue-live` | Manual test dispatch (`Authorization: Bearer $WORKER_TEST_SECRET`) |
+| `WS` | `/ws` | Live queue-detected events |
 
-Requires `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` on Railway.
+## Legacy probe mode
 
-## Playwright setup (local)
+Set `WORKER_MODE=probe` to restore the old Playwright browser poller (requires proxy env vars + `npm run postinstall:probe`).
 
-```bash
-cd worker
-npm install
-npx playwright install --with-deps chromium   # Linux/Railway needs system deps
-npm run dev
-```
+## Railway
 
-Railway Docker builds run `npx playwright install --with-deps chromium` automatically.
+See [RAILWAY.md](./RAILWAY.md). Set service **Root Directory** to `worker`.
 
-## Mobile token subscription
+Required env vars for webhook mode:
 
-The worker exposes `POST /subscribe` on `SUBSCRIBE_PORT` (default `8787`):
+- `WEBHOOK_SECRET`
+- `ONESIGNAL_APP_ID` + `ONESIGNAL_REST_API_KEY` (recommended)
+- `FIREBASE_SERVICE_ACCOUNT_JSON` (optional, for native FCM)
 
-```json
-{ "token": "<native FCM device token>" }
-```
+Optional:
 
-Mobile apps should register for push, obtain a native device token (`expo-notifications` → `getDevicePushTokenAsync`), and POST it here so Firebase Admin can subscribe the device to `pokemon_center_alerts`.
-
-## Test queue-live alerts
-
-Use these endpoints to verify push delivery without waiting for a real queue drop.
-
-### Railway worker (OneSignal pro/supreme + FCM topic + WebSocket)
-
-Set `WORKER_TEST_SECRET` on Railway (or reuse the same value as Vercel `CRON_SECRET`).
-
-```bash
-curl -sS -X POST "https://<your-railway-domain>/test/queue-live?force=1" \
-  -H "Authorization: Bearer $WORKER_TEST_SECRET" \
-  -H "Content-Type: application/json" \
-  -d '{"status":302}'
-```
-
-- Omit `?force=1` to exercise the normal 20-minute cooldown (`NOTIFICATION_COOLDOWN_MS`).
-- Response includes `oneSignalId`, `fcmMessageId`, and `websocketClients`.
-
-### Vercel web push (Pro/Supreme on `/pokewatch`)
-
-```bash
-curl -sS -X POST "https://collectools.app/api/pokemon-center/test-queue-alert?force=1" \
-  -H "Authorization: Bearer $CRON_SECRET"
-```
-
-- Sends a labeled **(TEST)** queue-live push to subscribers who opted in on `/pokewatch`.
-- Without `?force=1`, respects the 5-minute web-push dedupe window.
+- `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` for cross-instance dedupe

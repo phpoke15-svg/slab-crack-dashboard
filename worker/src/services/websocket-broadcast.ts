@@ -8,6 +8,8 @@ export type QueueDetectedPayload = {
   url: string
   status: number
   detectedAt: string
+  siteTitle?: string
+  productName?: string
 }
 
 let wss: WebSocketServer | null = null
