@@ -54,6 +54,16 @@ When a queue is confirmed live, the worker **enqueues alerts asynchronously** so
 
 Push title: **🚨 Queue Live: Pokémon Center!** — opens `https://www.pokemoncenter.com` (or `QUEUE_DEEP_LINK`).
 
+## Failure alerting
+
+Unexpected probe errors and **2+ consecutive navigation failures** trigger `sendFailureAlert()`:
+
+- OneSignal push to subscribers tagged `role = admin` or `membership_tier = supreme`
+- Includes ISO timestamp and error message
+- Rate-limited to **1 alert per 60 minutes** by default (`FAILURE_ALERT_COOLDOWN_MS = 3600000`)
+
+Requires `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` on Railway.
+
 ## Playwright setup (local)
 
 ```bash

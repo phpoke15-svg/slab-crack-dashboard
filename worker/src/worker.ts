@@ -6,6 +6,7 @@ import {
   formatProbeError,
   formatProbeLogLine,
   probePokemonCenterQueue,
+  type PokemonCenterProbeResult,
 } from "./pokemon-center-probe.js"
 import { logProxyIpDiagnostic, runProxyIpDiagnostic } from "./proxy-diagnostic.js"
 import {
@@ -21,6 +22,7 @@ import {
   resetLiveDebounce,
   type LiveDebounceState,
 } from "./queue-detector.js"
+import { sendFailureAlert } from "./services/failure-alert.js"
 import { dispatchQueueNotificationAsync } from "./services/notificationService.js"
 import {
   attachWebSocketBroadcast,
@@ -99,9 +101,34 @@ export function startSubscribeServer(): Server {
 }
 
 let probeInFlight = false
+let consecutiveProbeFailures = 0
+
+/** Alert after this many consecutive navigation/probe failures in a row. */
+const CONSECUTIVE_FAILURE_ALERT_THRESHOLD = 2
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function isNavigationFailure(probe: PokemonCenterProbeResult): boolean {
+  return probe.navigationFailed === true
+}
+
+async function recordProbeOutcome(probe: PokemonCenterProbeResult): Promise<void> {
+  if (isNavigationFailure(probe)) {
+    consecutiveProbeFailures += 1
+    if (consecutiveProbeFailures >= CONSECUTIVE_FAILURE_ALERT_THRESHOLD) {
+      await sendFailureAlert(
+        new Error(
+          `${consecutiveProbeFailures} consecutive navigation failures (latest status=${probe.status})`,
+        ),
+        "consecutive_navigation_failures",
+      )
+    }
+    return
+  }
+
+  consecutiveProbeFailures = 0
 }
 
 /** Single queue probe — only called while inside the monitoring window. */
@@ -116,6 +143,7 @@ export async function checkQueueOnce(debounce: LiveDebounceState): Promise<void>
   try {
     const probe = await probePokemonCenterQueue()
     console.log(formatProbeLogLine(probe))
+    await recordProbeOutcome(probe)
 
     if (probe.live) {
       const confirmed = registerLiveHit(debounce)
@@ -132,8 +160,10 @@ export async function checkQueueOnce(debounce: LiveDebounceState): Promise<void>
       resetLiveDebounce(debounce)
     }
   } catch (error) {
+    consecutiveProbeFailures += 1
     resetLiveDebounce(debounce)
     console.warn(`[worker] probe failed: ${formatProbeError(error)}`)
+    await sendFailureAlert(error, "unexpected_probe_error")
   } finally {
     probeInFlight = false
   }
@@ -142,20 +172,31 @@ export async function checkQueueOnce(debounce: LiveDebounceState): Promise<void>
 /** Poll loop: run checks every 90s inside the window; wait 90s between cycles outside it. */
 export async function runQueueLoop(debounce: LiveDebounceState): Promise<never> {
   while (true) {
-    if (!isWithinMonitoringWindow()) {
-      console.log(OUTSIDE_MONITORING_WINDOW_MESSAGE)
-      await sleep(CHECK_INTERVAL_MS)
-      continue
-    }
+    try {
+      if (!isWithinMonitoringWindow()) {
+        console.log(OUTSIDE_MONITORING_WINDOW_MESSAGE)
+        await sleep(CHECK_INTERVAL_MS)
+        continue
+      }
 
-    await checkQueueOnce(debounce)
-    console.log(CHECK_COMPLETE_WAIT_MESSAGE)
-    await sleep(CHECK_INTERVAL_MS)
+      await checkQueueOnce(debounce)
+      console.log(CHECK_COMPLETE_WAIT_MESSAGE)
+      await sleep(CHECK_INTERVAL_MS)
+    } catch (error) {
+      console.error(`[worker] Unexpected loop error: ${formatProbeError(error)}`)
+      await sendFailureAlert(error, "run_queue_loop")
+      await sleep(CHECK_INTERVAL_MS)
+    }
   }
 }
 
 export function startQueueLoop(debounce: LiveDebounceState = createDebounceState()): void {
   void runQueueLoop(debounce)
+}
+
+export function resetProbeFailureStateForTests(): void {
+  consecutiveProbeFailures = 0
+  probeInFlight = false
 }
 
 async function main(): Promise<void> {
@@ -170,8 +211,13 @@ async function main(): Promise<void> {
 
   startSubscribeServer()
 
-  const proxyDiagnostic = await runProxyIpDiagnostic()
-  logProxyIpDiagnostic(proxyDiagnostic)
+  try {
+    const proxyDiagnostic = await runProxyIpDiagnostic()
+    logProxyIpDiagnostic(proxyDiagnostic)
+  } catch (error) {
+    console.warn(`[worker] Proxy diagnostic failed: ${formatProbeError(error)}`)
+    await sendFailureAlert(error, "proxy_diagnostic")
+  }
 
   await runQueueLoop(createDebounceState())
 }
@@ -182,8 +228,13 @@ const isMain = Boolean(
 )
 
 if (isMain) {
-  main().catch((error) => {
+  main().catch(async (error) => {
     console.error("[worker] fatal:", error)
+    try {
+      await sendFailureAlert(error, "fatal_startup")
+    } catch {
+      // best-effort alert before exit
+    }
     process.exit(1)
   })
 }

@@ -5,6 +5,8 @@ export type PokemonCenterProbeResult = HeadProbeResult & {
   transport: "playwright-stealth"
   profile: string
   title?: string | null
+  /** True when Playwright navigation failed before a usable page snapshot. */
+  navigationFailed?: boolean
 }
 
 export function formatProbeLogLine(probe: PokemonCenterProbeResult): string {
@@ -41,5 +43,6 @@ export function createNavigationFailureProbe(): PokemonCenterProbeResult {
     transport: "playwright-stealth",
     profile: "chromium-desktop-stealth",
     title: null,
+    navigationFailed: true,
   }
 }

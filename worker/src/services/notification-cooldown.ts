@@ -52,6 +52,11 @@ export async function claimNotificationCooldown(
   return claimRedisCooldown(`notification:cooldown:${key}`, ttlMs)
 }
 
+/** Generic cooldown helper (failure alerts, etc.). */
+export async function claimCooldown(key: string, ttlMs: number): Promise<boolean> {
+  return claimRedisCooldown(`notification:cooldown:${key}`, ttlMs)
+}
+
 export async function publishQueueDetectedEvent(payload: string): Promise<void> {
   const redis = getRedisClient()
   if (!redis) return
@@ -67,3 +72,5 @@ export function resetNotificationCooldownForTests(): void {
   memoryLocks.clear()
   redisClient = undefined
 }
+
+export const resetCooldownForTests = resetNotificationCooldownForTests

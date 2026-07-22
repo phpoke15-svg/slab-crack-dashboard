@@ -28,6 +28,8 @@ export const config = {
   onesignalRestApiKey: optional("ONESIGNAL_REST_API_KEY"),
   /** Cooldown between queue push dispatches (default 20 minutes). */
   notificationCooldownMs: Number(optional("NOTIFICATION_COOLDOWN_MS", "1200000")),
+  /** Cooldown between worker failure admin alerts (default 60 minutes). */
+  failureAlertCooldownMs: Number(optional("FAILURE_ALERT_COOLDOWN_MS", "3600000")),
   upstashRedisRestUrl: optional("UPSTASH_REDIS_REST_URL"),
   upstashRedisRestToken: optional("UPSTASH_REDIS_REST_TOKEN"),
   notificationRedisChannel: optional("NOTIFICATION_REDIS_CHANNEL", "queue:detected"),
