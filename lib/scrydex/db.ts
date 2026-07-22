@@ -212,6 +212,7 @@ export async function countDistinctDailyHistoryDays(catalogId: string): Promise<
 export async function loadDailyHistoryRows(
   catalogId: string,
   days = 0,
+  range?: { from?: string; to?: string },
 ): Promise<Array<Record<string, unknown>>> {
   if (!isSupabaseConfigured()) return []
   const supabase = createAdminClient()
@@ -222,7 +223,12 @@ export async function loadDailyHistoryRows(
     .eq("catalog_id", catalogId)
     .order("snapshot_date", { ascending: true })
 
-  if (days > 0) {
+  if (range?.from) {
+    query = query.gte("snapshot_date", range.from.slice(0, 10))
+  }
+  if (range?.to) {
+    query = query.lte("snapshot_date", range.to.slice(0, 10))
+  } else if (days > 0) {
     const since = new Date()
     since.setUTCDate(since.getUTCDate() - days)
     query = query.gte("snapshot_date", since.toISOString().slice(0, 10))

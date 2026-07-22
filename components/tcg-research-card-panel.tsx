@@ -267,7 +267,7 @@ export function TcgResearchCardPanel({
             {priced ? (
               <div className="mt-3">
                 {payload.scrydexId ? (
-                  <PriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} />
+                  <PriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} mode="both" />
                 ) : (
                   <LegacyPriceHistoryChart
                     cardId={payload.catalogId ?? card.id}

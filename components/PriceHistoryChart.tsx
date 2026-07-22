@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Legend,
   Line,
@@ -13,6 +13,7 @@ import {
 import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RechartsHistoryRow } from "@/lib/scrydex/history-chart"
+import type { PriceHistoryType } from "@/lib/scrydex/price-history-type"
 import type { TcgGame } from "@/lib/scrydex/types"
 import {
   DEFAULT_PRICE_HISTORY_RANGE,
@@ -23,14 +24,59 @@ import {
 
 export type PriceHistoryChartRow = RechartsHistoryRow
 
-const SERIES = [
-  { key: "RAW" as const, stroke: "#3b82f6", width: 2.5, name: "Raw Market" },
-  { key: "PSA_10" as const, stroke: "#10b981", width: 2.5, name: "PSA 10 Gem Mint" },
-  { key: "PSA_9" as const, stroke: "#f59e0b", width: 2, name: "PSA 9 Mint" },
-] as const
+const SERIES_STYLE: Record<string, { stroke: string; width: number }> = {
+  RAW: { stroke: "#3b82f6", width: 2.5 },
+  PSA_10: { stroke: "#10b981", width: 2.5 },
+  PSA_9: { stroke: "#f59e0b", width: 2 },
+  PSA_8: { stroke: "#a855f7", width: 2 },
+  PSA_7: { stroke: "#64748b", width: 1.75 },
+  BGS_10: { stroke: "#14b8a6", width: 2.5 },
+  BGS_9_5: { stroke: "#06b6d4", width: 2 },
+  BGS_9: { stroke: "#0ea5e9", width: 2 },
+  CGC_10: { stroke: "#22c55e", width: 2.5 },
+  CGC_9_5: { stroke: "#84cc16", width: 2 },
+}
 
-function seriesHasData(data: PriceHistoryChartRow[], key: keyof PriceHistoryChartRow): boolean {
+const DEFAULT_SERIES_STYLE = { stroke: "#94a3b8", width: 2 }
+
+function seriesHasData(data: PriceHistoryChartRow[], key: string): boolean {
   return data.some((row) => typeof row[key] === "number" && (row[key] as number) > 0)
+}
+
+function formatSeriesName(key: string): string {
+  if (key === "RAW") return "Raw Market"
+  const underscore = key.indexOf("_")
+  if (underscore <= 0) return key
+  const company = key.slice(0, underscore)
+  const grade = key.slice(underscore + 1).replace(/_/g, ".")
+  return `${company} ${grade}`
+}
+
+function discoverSeriesFromData(data: PriceHistoryChartRow[]) {
+  const keys = new Set<string>()
+  for (const row of data) {
+    for (const [key, value] of Object.entries(row)) {
+      if (key !== "recorded_at" && typeof value === "number" && value > 0) {
+        keys.add(key)
+      }
+    }
+  }
+
+  return [...keys]
+    .sort((a, b) => {
+      if (a === "RAW") return -1
+      if (b === "RAW") return 1
+      return a.localeCompare(b)
+    })
+    .map((key) => {
+      const style = SERIES_STYLE[key] ?? DEFAULT_SERIES_STYLE
+      return {
+        key,
+        stroke: style.stroke,
+        width: style.width,
+        name: formatSeriesName(key),
+      }
+    })
 }
 
 function rangePeriodLabel(key: PriceHistoryRangeKey): string {
@@ -57,6 +103,7 @@ type PriceHistoryChartProps =
       data: PriceHistoryChartRow[]
       scrydexId?: never
       game?: never
+      mode?: never
       days?: never
       defaultRange?: never
       className?: string
@@ -65,6 +112,7 @@ type PriceHistoryChartProps =
       data?: never
       scrydexId: string
       game?: TcgGame
+      mode?: PriceHistoryType
       /** @deprecated Prefer defaultRange */
       days?: number
       defaultRange?: PriceHistoryRangeKey
@@ -82,12 +130,14 @@ export function PriceHistoryChart(props: PriceHistoryChartProps) {
 function PriceHistoryChartLoader({
   scrydexId,
   game = "pokemon",
+  mode = "both",
   days,
   defaultRange,
   className,
 }: {
   scrydexId: string
   game?: TcgGame
+  mode?: PriceHistoryType
   days?: number
   defaultRange?: PriceHistoryRangeKey
   className?: string
@@ -108,7 +158,7 @@ function PriceHistoryChartLoader({
     setLoading(true)
     setError(null)
 
-    const params = new URLSearchParams({ game, range })
+    const params = new URLSearchParams({ game, range, type: mode })
     void fetch(`/api/cards/${encodeURIComponent(scrydexId)}/history?${params.toString()}`)
       .then(async (res) => {
         const json = (await res.json().catch(() => null)) as PriceHistoryChartRow[] | { error?: string } | null
@@ -137,7 +187,7 @@ function PriceHistoryChartLoader({
     return () => {
       cancelled = true
     }
-  }, [scrydexId, game, range])
+  }, [scrydexId, game, range, mode])
 
   return (
     <div
@@ -193,7 +243,9 @@ function PriceHistoryChartView({
   className?: string
   embedded?: boolean
 }) {
-  if (!data || data.length === 0) {
+  const activeSeries = useMemo(() => discoverSeriesFromData(data), [data])
+
+  if (!data || data.length === 0 || activeSeries.length === 0) {
     return (
       <div
         className={cn(
@@ -207,7 +259,6 @@ function PriceHistoryChartView({
     )
   }
 
-  const activeSeries = SERIES.filter((series) => seriesHasData(data, series.key))
   const showDots = data.length < 2
 
   return (
