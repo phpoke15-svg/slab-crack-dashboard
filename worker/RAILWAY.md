@@ -21,9 +21,12 @@ Successful deploy logs:
 
 ```
 [worker] Pokémon Center queue detector started
-[worker] Queue probe transport=got-scraping profile=firefox-desktop
+[worker] Queue probe transport=playwright-stealth profile=chromium-desktop-stealth
+[worker] Current Proxy IP: ...
 [worker] FCM subscribe API listening on 0.0.0.0:8080/subscribe
 ```
+
+**Note:** Docker builds install Chromium via `npx playwright install --with-deps chromium` (required for headless browser probes).
 
 ## 2. Required environment variables
 

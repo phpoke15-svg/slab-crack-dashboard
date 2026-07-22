@@ -1,78 +1,87 @@
-import { gotScraping } from "got-scraping"
-import { buildProxyUrl, config } from "./config.js"
-import { analyzeHeadResponse, type HeadProbeResult } from "./queue-detector.js"
+import type { Browser, BrowserContext, Page } from "playwright"
+import { chromium } from "playwright-extra"
+import StealthPlugin from "puppeteer-extra-plugin-stealth"
+import { config, getPlaywrightProxy } from "./config.js"
+import { analyzeHeadResponse, isQueueRedirectLocation } from "./queue-detector.js"
+import {
+  formatProbeError,
+  type PokemonCenterProbeResult,
+  sleep,
+} from "./probe-utils.js"
 
-export type PokemonCenterProbeResult = HeadProbeResult & {
-  transport: "got-scraping"
-  profile: string
-}
+chromium.use(StealthPlugin())
 
-const PROBE_PROFILE = "firefox-desktop"
+const NAV_TIMEOUT_MS = 45_000
+const NETWORK_IDLE_TIMEOUT_MS = 15_000
+const IMPERVA_SETTLE_MS = 5_000
+const DESKTOP_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-const scrapingClient = gotScraping.extend({
-  useHeaderGenerator: true,
-  headerGeneratorOptions: {
-    browsers: [
-      { name: "firefox", minVersion: 120, maxVersion: 135 },
-      { name: "chrome", minVersion: 120, maxVersion: 135 },
-    ],
-    devices: ["desktop"],
-    locales: ["en-US"],
-    operatingSystems: ["windows"],
-  },
-  http2: true,
-  timeout: { request: 15_000 },
-  retry: { limit: 0 },
-  followRedirect: false,
-  throwHttpErrors: false,
-})
+export { formatProbeError, formatProbeLogLine } from "./probe-utils.js"
+export type { PokemonCenterProbeResult } from "./probe-utils.js"
 
-function normalizeHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string> {
-  const normalized: Record<string, string> = {}
-  for (const [key, value] of Object.entries(headers)) {
-    if (value == null) continue
-    normalized[key.toLowerCase()] = Array.isArray(value) ? value[0]! : value
-  }
-  return normalized
-}
-
-/** Probe Pokémon Center through IPRoyal with browser-like TLS + headers via got-scraping. */
+/** Render Pokémon Center in headless Chromium (stealth) through IPRoyal proxy. */
 export async function probePokemonCenterQueue(): Promise<PokemonCenterProbeResult> {
-  const proxyUrl = buildProxyUrl()
+  let browser: Browser | null = null
+  let context: BrowserContext | null = null
+  let page: Page | null = null
 
-  const response = await scrapingClient.get({
-    url: config.targetUrl,
-    proxyUrl,
-  })
+  try {
+    browser = await chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    })
 
-  const location = response.headers.location ?? null
-  const html = typeof response.body === "string" ? response.body.slice(0, 8192) : null
-  const probe = analyzeHeadResponse(response.statusCode, location, {
-    headers: normalizeHeaders(response.headers),
-    html,
-  })
+    context = await browser.newContext({
+      proxy: getPlaywrightProxy(),
+      userAgent: DESKTOP_USER_AGENT,
+      viewport: { width: 1920, height: 1080 },
+      screen: { width: 1920, height: 1080 },
+      locale: "en-US",
+      timezoneId: "America/New_York",
+      colorScheme: "light",
+      javaScriptEnabled: true,
+    })
 
-  return {
-    ...probe,
-    transport: "got-scraping",
-    profile: PROBE_PROFILE,
+    page = await context.newPage()
+
+    let documentStatus = 200
+    page.on("response", (response) => {
+      const request = response.request()
+      if (!request.isNavigationRequest()) return
+      if (!request.url().includes("pokemoncenter.com") && !request.url().includes("queue-it")) return
+      documentStatus = response.status()
+    })
+
+    await page.goto(config.targetUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: NAV_TIMEOUT_MS,
+    })
+
+    await page.waitForLoadState("networkidle", { timeout: NETWORK_IDLE_TIMEOUT_MS }).catch(() => {})
+    await sleep(IMPERVA_SETTLE_MS)
+
+    const finalUrl = page.url()
+    const title = await page.title()
+    const html = (await page.content()).slice(0, 16_384)
+    const haystack = `${title}\n${finalUrl}\n${html}`
+    const redirectQueue = isQueueRedirectLocation(finalUrl)
+
+    const probe = analyzeHeadResponse(
+      redirectQueue ? 302 : documentStatus,
+      redirectQueue ? finalUrl : null,
+      { html: haystack },
+    )
+
+    return {
+      ...probe,
+      transport: "playwright-stealth",
+      profile: "chromium-desktop-stealth",
+      title,
+    }
+  } finally {
+    await page?.close().catch(() => {})
+    await context?.close().catch(() => {})
+    await browser?.close().catch(() => {})
   }
-}
-
-export function formatProbeLogLine(probe: PokemonCenterProbeResult): string {
-  const blockedNote = probe.blocked ? " blocked=Imperva" : ""
-  return (
-    `[worker] GET ${config.targetUrl} -> ${probe.status} transport=${probe.transport} profile=${probe.profile}` +
-    (probe.location ? ` location=${probe.location}` : "") +
-    (probe.live ? " LIVE" : "") +
-    blockedNote
-  )
-}
-
-export function formatProbeError(error: unknown): string {
-  if (error instanceof Error) {
-    const code = "code" in error ? String((error as NodeJS.ErrnoException).code) : ""
-    return code ? `${error.message} (${code})` : error.message
-  }
-  return String(error)
 }

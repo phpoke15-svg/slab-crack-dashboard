@@ -1,6 +1,6 @@
 import { gotScraping } from "got-scraping"
 import { buildProxyUrl, config } from "./config.js"
-import { formatProbeError } from "./pokemon-center-probe.js"
+import { formatProbeError } from "./probe-utils.js"
 import { parseIpFromBody } from "./proxy-ip-parse.js"
 
 const IP_CHECK_URL = "https://icanhazip.com"
