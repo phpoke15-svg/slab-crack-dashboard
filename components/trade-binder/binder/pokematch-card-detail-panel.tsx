@@ -183,7 +183,7 @@ export function PokeMatchCardDetailPanel({
               <h4 className="font-semibold text-foreground">Price history</h4>
             </div>
             {payload.scrydexId ? (
-              <PriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} days={90} />
+              <PriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} />
             ) : (
               <LegacyPriceHistoryChart
                 cardId={payload.catalogId ?? payload.id}

@@ -22,13 +22,14 @@ export async function GET(
   const { searchParams } = new URL(request.url)
   const game = parseTcgResearchGame(searchParams.get("game"))
   const rangeParam = searchParams.get("range") ?? searchParams.get("days")
-  const { days } = parsePriceHistoryRange(rangeParam)
+  const { days, full, key: rangeKey } = parsePriceHistoryRange(rangeParam)
+  const historyDays = full ? 0 : (days || 90)
 
   try {
     const { catalogId, rows } = await loadScrydexPriceHistoryChart({
       scrydexId,
       game,
-      days: days || 90,
+      days: historyDays,
     })
 
     if (searchParams.get("meta") === "1") {
@@ -36,7 +37,8 @@ export async function GET(
         scrydexId,
         catalogId,
         game,
-        days: days || 90,
+        range: rangeKey,
+        days: historyDays,
         count: rows.length,
         data: rows,
       })
