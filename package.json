@@ -9,6 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "build:worker": "npm ci --prefix worker && npm run build --prefix worker",
     "start:worker": "npm --prefix worker run start:worker",
     "lint": "echo \"No ESLint config yet — run npm test for checks.\"",
     "test": "vitest run",

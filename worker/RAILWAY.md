@@ -6,14 +6,19 @@ This worker is a **long-running process** (not serverless). Railway is the right
 
 1. In [Railway](https://railway.app), open your project linked to this repo.
 2. **New → GitHub Repo** (or add a service to the existing project).
-3. Set **Root Directory** to `worker` (important — repo root `npm start` runs **Next.js**, not the worker).
-4. Railway reads `worker/railway.toml` automatically (`startCommand = npm run start:worker`).
+3. Deploy branch **`main`**.
+4. **Root Directory** — either option works:
+   - **Empty / repo root** → uses root `railway.toml` (`npm run start:worker`)
+   - **`worker`** → uses `worker/railway.toml` (`node dist/worker.js`)
 
-If you must deploy from the repo root instead, set Railway **Start Command** to:
+**Do not** set Start Command to `npm start` — that runs **Next.js** (`next start`) and will fail the `/health` check.
 
-```bash
-npm run start:worker
-```
+If logs show `collectools@1.1.0 start` and `next start`, the wrong start command is configured. Fix:
+
+| Setting | Value |
+|---|---|
+| Start Command | `npm run start:worker` (root) or `node dist/worker.js` (`worker/`) |
+| Root Directory | empty **or** `worker` |
 
 ## 2. Required environment variables
 
