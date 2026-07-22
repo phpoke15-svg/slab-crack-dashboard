@@ -68,7 +68,7 @@ function buildQueueLiveMessage(
         ? "🚨 Pokémon Center Queue is LIVE! (TEST)"
         : "🚨 Pokémon Center queue is LIVE",
       body: test
-        ? "This is a test queue-live alert from CollecTools PokeWatch."
+        ? "Tap to open pokemoncenter.com — this is a CollecTools test alert."
         : "Tap to open the queue in your browser.",
     },
     data: {

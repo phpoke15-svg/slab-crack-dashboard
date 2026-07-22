@@ -10,6 +10,7 @@ import {
 } from "@/lib/push/web-push"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { getSiteUrl } from "@/lib/site-url"
+import { POKEMON_CENTER_HOME_URL } from "@/lib/pokemon-center/constants"
 
 export type QueueWatchReport = {
   sessionId: string
@@ -297,17 +298,18 @@ async function maybeSendQueueLiveWebPush(
 /** Manual test hook for Pro/Supreme web push on /pokewatch (CRON_SECRET). */
 export async function sendTestQueueLiveWebPush(options?: {
   force?: boolean
-}): Promise<{ sent: boolean; reason?: string; sentCount?: number }> {
+  targetUrl?: string
+}): Promise<{ sent: boolean; reason?: string; sentCount?: number; targetUrl?: string }> {
   if (!options?.force) {
     const claimed = await claimPushAlertDedupe("queue_live_global", PUSH_COOLDOWN_MS)
     if (!claimed) return { sent: false, reason: "deduped" }
   }
 
-  const site = getSiteUrl()
+  const targetUrl = options?.targetUrl?.trim() || POKEMON_CENTER_HOME_URL
   const result = await sendWebPushToTopic("queue_live", {
     title: "🚨 Pokémon Center Queue is LIVE! (TEST)",
-    body: "This is a test queue-live alert from CollecTools PokeWatch.",
-    url: `${site}/pokewatch`,
+    body: "Tap to open pokemoncenter.com — this is a CollecTools test alert.",
+    url: targetUrl,
     tag: "pc-queue-live-test",
   })
 
@@ -315,14 +317,14 @@ export async function sendTestQueueLiveWebPush(options?: {
     if (!options?.force) {
       await releasePushAlertDedupe("queue_live_global")
     }
-    return { sent: false, reason: result.reason || "send_failed", sentCount: 0 }
+    return { sent: false, reason: result.reason || "send_failed", sentCount: 0, targetUrl }
   }
 
   if (!options?.force) {
     await recordPushAlertDedupe("queue_live_global")
   }
 
-  return { sent: true, sentCount: result.sent }
+  return { sent: true, sentCount: result.sent, targetUrl }
 }
 
 export async function maybeSendMobileAlerts(
