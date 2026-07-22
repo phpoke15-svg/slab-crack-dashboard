@@ -19,7 +19,7 @@ import {
   historyChartGradeProps,
   type SlabGradeRef,
 } from "@/lib/grading/types"
-import { slabEbayAffiliateCampaign, slabEbaySearchKeyword } from "@/lib/grading/ebay-search"
+import { slabEbayGradedAffiliateCampaign, slabEbayGradedSearchKeyword } from "@/lib/grading/ebay-search"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
 import { PriceHistoryChart } from "@/components/price-history-chart"
@@ -59,8 +59,8 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
     activeQuote?.slabPrice ?? pickGradedPrice(gradedPrices, activeGrade) ?? 0
 
   const ebayUrl = ebaySearchUrl(
-    slabEbaySearchKeyword(card.cardName, card.cardNumber, activeGrade, card.setName),
-    slabEbayAffiliateCampaign(card.id, activeGrade, "slabcrack"),
+    slabEbayGradedSearchKeyword(card.cardName, card.cardNumber, card.setName),
+    slabEbayGradedAffiliateCampaign(card.id, "slabcrack"),
   )
 
   const chartGradeProps = historyChartGradeProps(activeGrade)

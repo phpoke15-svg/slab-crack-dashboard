@@ -24,7 +24,7 @@ import {
   historyChartGradeProps,
   type SlabGradeRef,
 } from "@/lib/grading/types"
-import { slabEbayAffiliateCampaign, slabEbaySearchKeyword } from "@/lib/grading/ebay-search"
+import { slabEbayGradedAffiliateCampaign, slabEbayGradedSearchKeyword } from "@/lib/grading/ebay-search"
 import { DEFAULT_PSA_GRADING_FEE } from "@/lib/psa-grading-tiers"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
@@ -160,13 +160,12 @@ export function SlabDrawer({
   const slabSales = liveSlabSales ?? selectedCard.recentSlabSales ?? []
 
   const ebayUrl = ebaySearchUrl(
-    slabEbaySearchKeyword(
+    slabEbayGradedSearchKeyword(
       selectedCard.cardName,
       selectedCard.cardNumber,
-      slabGrade,
       selectedCard.setName,
     ),
-    slabEbayAffiliateCampaign(selectedCard.id, slabGrade, "slabcrack"),
+    slabEbayGradedAffiliateCampaign(selectedCard.id, "slabcrack"),
   )
 
   const chartGradeProps = historyChartGradeProps(slabGrade)
@@ -360,7 +359,7 @@ export function SlabDrawer({
             className="mt-4 flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 font-semibold text-primary-foreground transition-opacity hover:opacity-90"
           >
             <ExternalLink className="size-4" />
-            Search eBay {formatSlabLabel(slabGrade)}
+            Search eBay
           </a>
 
           {priced && (
