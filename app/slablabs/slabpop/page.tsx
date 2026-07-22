@@ -50,11 +50,6 @@ export default async function SlabPopPage() {
             <h1 className="mt-5 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               SlabPop
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Filter graded Pokémon cards by Scrydex registry population, price band, and grade.
-              PSA rows use PriceCharting prices with Scrydex pop reports; BGS and CGC rows use
-              Scrydex graded prices when population data is available.
-            </p>
             <Link
               href={SLABLABS_HREF}
               className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
