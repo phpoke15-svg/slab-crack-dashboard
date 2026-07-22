@@ -4,6 +4,7 @@ import cron from "node-cron"
 import { config } from "./config.js"
 import { sendQueueLiveAlert, subscribeTokenToTopic } from "./fcm.js"
 import {
+  ensureStealthChromium,
   formatProbeError,
   formatProbeLogLine,
   probePokemonCenterQueue,
@@ -123,6 +124,7 @@ export function startQueueSchedule(debounce: LiveDebounceState = createDebounceS
 }
 
 async function main(): Promise<void> {
+  ensureStealthChromium()
   console.log("[worker] Pokémon Center queue detector started")
   console.log("[worker] Queue probe transport=playwright-stealth profile=chromium-desktop-stealth")
   console.log(

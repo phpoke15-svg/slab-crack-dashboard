@@ -30,3 +30,16 @@ export function formatProbeError(error: unknown): string {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
+
+export function createNavigationFailureProbe(): PokemonCenterProbeResult {
+  return {
+    status: 0,
+    location: null,
+    live: false,
+    queueUrl: null,
+    blocked: true,
+    transport: "playwright-stealth",
+    profile: "chromium-desktop-stealth",
+    title: null,
+  }
+}
