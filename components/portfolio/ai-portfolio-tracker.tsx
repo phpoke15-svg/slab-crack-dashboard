@@ -356,7 +356,12 @@ export function AiPortfolioTracker() {
             Upgrade to Premium, Pro, or Supreme to unlock card-level AI analysis, confidence scores,
             price targets, and win-rate tracking.
           </p>
-          <UpgradeBanner compact />
+          <Link
+            href="/pricing"
+            className="mt-4 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            View plans
+          </Link>
         </section>
       )}
     </div>
