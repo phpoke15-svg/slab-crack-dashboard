@@ -12,7 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { Loader2, Lock, Sparkles, Target, TrendingUp } from "lucide-react"
+import { Loader2, Lock, Sparkles, Target, TrendingUp, ExternalLink } from "lucide-react"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { cn } from "@/lib/utils"
 import {
@@ -20,10 +20,13 @@ import {
   TIER_BUDGETS,
   type BucketTier,
 } from "@/lib/ai-weekly-picks/tiers"
+import { portfolioPickEbayUrl } from "@/lib/ai-weekly-picks/ebay-search"
 import type {
   AiPortfolioPerformanceSummary,
   AiWeeklyPickDisplay,
+  AiWeeklyGradeType,
 } from "@/lib/ai-weekly-picks/types"
+import { formatSlabLabel } from "@/lib/grading/types"
 
 type PortfolioPayload = {
   ok: boolean
@@ -57,6 +60,12 @@ function confidenceBadgeClass(score: number): string {
   if (score >= 80) return "border-primary/40 bg-primary/10 text-primary"
   if (score >= 65) return "border-amber-500/40 bg-amber-500/10 text-amber-600"
   return "border-border bg-secondary/60 text-muted-foreground"
+}
+
+function pickEbayLabel(grade: AiWeeklyGradeType): string {
+  if (grade === "RAW") return "raw NM"
+  if (grade === "PSA_10") return formatSlabLabel({ company: "PSA", grade: "10" })
+  return formatSlabLabel({ company: "PSA", grade: "9" })
 }
 
 function TierTabs({
@@ -338,6 +347,22 @@ function PicksSection({
                 </div>
               </div>
               <p className="mt-4 text-sm leading-relaxed text-muted-foreground">{pick.ai_rationale}</p>
+              <a
+                href={portfolioPickEbayUrl({
+                  scrydex_id: pick.scrydex_id,
+                  card_name: pick.card_name,
+                  card_number: pick.card_number,
+                  set_name: pick.set_name,
+                  grade_type: pick.grade_type,
+                  bucket_tier: pick.bucket_tier,
+                })}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                className="mt-4 inline-flex items-center gap-2 rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm font-semibold text-foreground transition-colors hover:border-primary/40 hover:text-primary"
+              >
+                <ExternalLink className="size-4" />
+                Search eBay {pickEbayLabel(pick.grade_type)}
+              </a>
             </article>
           ))}
         </div>
