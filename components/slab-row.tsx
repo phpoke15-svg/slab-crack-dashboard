@@ -4,13 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Sparkles, ExternalLink } from "lucide-react"
 import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
 import { cn } from "@/lib/utils"
-import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SelectedGradePriceCompact } from "@/components/grading/selected-grade-price"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import {
   buildSlabQuotesForCompany,
   getBestSlabQuote,
   pickGradedPrice,
   resolveGradedPricesForCard,
+  resolveSelectedGradeDisplayPrice,
 } from "@/lib/grading/quotes"
 import { useScrydexCardPricing } from "@/lib/grading/use-scrydex-card-pricing"
 import {
@@ -76,8 +77,9 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
     companyQuotes.find(
       (quote) => quote.company === activeGrade.company && quote.grade === activeGrade.grade,
     ) ?? getBestSlabQuote(companyQuotes)
+  const selectedGradePrice = resolveSelectedGradeDisplayPrice(scrydexPricing.gradedPrices, card, activeGrade)
   const activeSlabPrice =
-    activeQuote?.slabPrice ?? pickGradedPrice(gradedPrices, activeGrade) ?? 0
+    activeQuote?.slabPrice ?? pickGradedPrice(gradedPrices, activeGrade) ?? selectedGradePrice.price ?? 0
 
   const ebayUrl = ebaySearchUrl(
     slabEbayGradedSearchKeyword(card.cardName, card.cardNumber, card.setName),
@@ -179,7 +181,7 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
             </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
             <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Raw NM</span>
             <span
               className={cn(
@@ -189,6 +191,13 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
             >
               {card.rawPrice > 0 ? `$${card.rawPrice.toFixed(0)}` : "—"}
             </span>
+            <SelectedGradePriceCompact
+              slabGrade={activeGrade}
+              gradedPrices={gradedPrices}
+              card={card}
+              priced={priced}
+              loading={scrydexPricing.loading}
+            />
             <SlabGradeSelector
               value={activeGrade}
               onChange={(value) => {
@@ -202,20 +211,6 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
           </div>
         </div>
       </div>
-
-      <CompanyGradePriceGrid
-        company={activeGrade.company}
-        gradedPrices={gradedPrices}
-        rawPrice={card.rawPrice}
-        priced={priced || companyQuotes.some((quote) => quote.slabPrice > 0)}
-        compact
-        selected={activeGrade}
-        onSelectGrade={(value) => {
-          setSelectedGrade(value)
-          setSlabGrade(value)
-        }}
-        highlightBest={selectedGrade == null}
-      />
 
       {showPriceHistory ? (
         <PriceHistoryChart

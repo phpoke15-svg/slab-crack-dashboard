@@ -143,6 +143,22 @@ export function resolvePsa10DisplayPrice(
   return resolvePsa10Price(card)
 }
 
+/** Selected slab price for display — PSA 10 can be estimated from lower grades. */
+export function resolveSelectedGradeDisplayPrice(
+  gradedPrices: ScrydexGradedPrice[] | undefined,
+  card: MockCardEntry,
+  ref: SlabGradeRef,
+): { price: number; estimated: boolean } {
+  if (ref.company === "PSA" && ref.grade === "10") {
+    return resolvePsa10DisplayPrice(gradedPrices, card)
+  }
+
+  const resolved = resolveGradedPricesForCard(gradedPrices, card)
+  const direct = pickGradedPrice(resolved, ref)
+  if (direct && direct > 0) return { price: direct, estimated: false }
+  return { price: 0, estimated: false }
+}
+
 export function gradedRowsFromScrydexBundle(
   graded: Array<{ company?: string | null; grade?: string | null; market_price?: number | null; variant?: string | null }>,
 ): ScrydexGradedPrice[] {

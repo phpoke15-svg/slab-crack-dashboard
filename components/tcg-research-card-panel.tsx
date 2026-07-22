@@ -10,7 +10,7 @@ import {
   X,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SelectedGradePrice } from "@/components/grading/selected-grade-price"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import { PriceHistoryChart as LegacyPriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
@@ -22,7 +22,7 @@ import {
   getBestSlabQuote,
   pickGradedPrice,
   resolveGradedPricesForCard,
-  resolvePsa10DisplayPrice,
+  resolveSelectedGradeDisplayPrice,
 } from "@/lib/grading/quotes"
 import {
   DEFAULT_SLAB_GRADE,
@@ -161,15 +161,15 @@ export function TcgResearchCardPanel({
     companyQuotes.find(
       (quote) => quote.company === slabGrade.company && quote.grade === slabGrade.grade,
     ) ?? getBestSlabQuote(companyQuotes)
+  const selectedGradePrice = useMemo(
+    () => resolveSelectedGradeDisplayPrice(gradedPrices, card, slabGrade),
+    [card, gradedPrices, slabGrade],
+  )
   const activeSlabPrice =
     activeQuote?.slabPrice ??
     pickGradedPrice(gradedPrices, slabGrade) ??
+    selectedGradePrice.price ??
     0
-
-  const psa10Price = useMemo(
-    () => resolvePsa10DisplayPrice(gradedPrices, card),
-    [card, gradedPrices],
-  )
 
   const chartGradeProps = historyChartGradeProps(slabGrade)
 
@@ -244,15 +244,12 @@ export function TcgResearchCardPanel({
                     {priced && card.rawPrice > 0 ? `$${card.rawPrice.toFixed(2)}` : "—"}
                   </span>
                 </div>
-                <div>
-                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">PSA 10</span>
-                  <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
-                    {priced && psa10Price.price > 0 ? `$${psa10Price.price.toFixed(2)}` : "—"}
-                  </span>
-                  {psa10Price.estimated ? (
-                    <span className="ml-1 text-[10px] text-muted-foreground">est.</span>
-                  ) : null}
-                </div>
+                <SelectedGradePrice
+                  slabGrade={slabGrade}
+                  gradedPrices={gradedPrices}
+                  card={card}
+                  priced={priced}
+                />
               </div>
               <SlabGradeSelector
                 value={slabGrade}
@@ -266,14 +263,6 @@ export function TcgResearchCardPanel({
                 <PriceTrendBadge trend={payload.priceTrend} />
               </div>
             ) : null}
-            <CompanyGradePriceGrid
-              company={slabGrade.company}
-              gradedPrices={gradedPrices}
-              rawPrice={card.rawPrice}
-              priced={priced}
-              selected={slabGrade}
-              onSelectGrade={setSlabGrade}
-            />
             {priced ? (
               <div className="mt-3">
                 <LegacyPriceHistoryChart

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 import { CollecToolsBrand } from "@/components/collectools-brand"
 import { SiteAuthButton } from "@/components/site-auth-button"
 import { DeficitBadge } from "@/components/deficit-badge"
-import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SelectedGradePrice } from "@/components/grading/selected-grade-price"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { resolveGradedPricesForCard, buildSlabQuotesForCompany, pickGradedPrice } from "@/lib/grading/quotes"
@@ -486,10 +486,19 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
               </div>
 
               <div className="mt-3">
-                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-white/45">
-                    SlabCrack · graded comps
-                  </p>
+                <div className="mb-1.5 flex flex-wrap items-end justify-between gap-2">
+                  <div className="flex flex-wrap items-end gap-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-white/45">
+                      SlabCrack · graded comps
+                    </p>
+                    <SelectedGradePrice
+                      slabGrade={slabGrade}
+                      gradedPrices={gradedPrices}
+                      card={card}
+                      priced={card.hasPricing !== false}
+                      className="[&_span]:text-white"
+                    />
+                  </div>
                   <SlabGradeSelector
                     value={slabGrade}
                     onChange={setSlabGrade}
@@ -499,14 +508,6 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                     className="[&_select]:border-white/15 [&_select]:bg-white/5 [&_select]:text-white"
                   />
                 </div>
-                <CompanyGradePriceGrid
-                  company={slabGrade.company}
-                  gradedPrices={gradedPrices}
-                  rawPrice={card.rawPrice}
-                  priced={card.hasPricing !== false}
-                  compact
-                  selected={slabGrade}
-                />
                 {card.hasPricing !== false ? (
                   <div className="mt-2">
                     <PriceHistoryChart

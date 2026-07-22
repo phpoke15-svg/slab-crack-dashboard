@@ -4,7 +4,7 @@ import { useMemo, useState } from "react"
 import Image from "next/image"
 import { ShieldCheck, TrendingDown, TrendingUp } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SelectedGradePrice } from "@/components/grading/selected-grade-price"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import { PriceHistoryChart } from "@/components/price-history-chart"
 import { pickGradedPrice, resolveGradedPricesForCard } from "@/lib/grading/quotes"
@@ -98,22 +98,22 @@ export function GradeCheckResult({ card, condition, frontPhoto }: GradeCheckResu
       {priced && (
         <div className="rounded-2xl border border-border bg-secondary/30 p-4">
           <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-            <h3 className="font-semibold text-foreground">Live graded comps</h3>
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <span className="text-sm text-muted-foreground">Raw NM reference</span>
+                <span className="ml-2 font-mono font-semibold text-foreground">
+                  {card.rawPrice > 0 ? money(card.rawPrice) : "—"}
+                </span>
+              </div>
+              <SelectedGradePrice
+                slabGrade={displayGrade}
+                gradedPrices={gradedPrices}
+                card={card}
+                priced={priced}
+              />
+            </div>
             <SlabGradeSelector value={slabGrade} onChange={setSlabGrade} available={gradedPrices} compact />
           </div>
-          <div className="mb-3 flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Raw NM reference</span>
-            <span className="font-mono font-semibold text-foreground">
-              {card.rawPrice > 0 ? money(card.rawPrice) : "—"}
-            </span>
-          </div>
-          <CompanyGradePriceGrid
-            company={slabGrade.company}
-            gradedPrices={gradedPrices}
-            rawPrice={card.rawPrice}
-            priced={priced}
-            selected={displayGrade}
-          />
           <div className="mt-3">
             <PriceHistoryChart
               cardId={card.id}
