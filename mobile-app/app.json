@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Pokémon Center Queue Alerts",
+    "slug": "pokemon-center-queue-alerts",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "pcqueue",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "app.collectools.pcqueue",
+      "infoPlist": {
+        "UIBackgroundModes": ["remote-notification"]
+      }
+    },
+    "android": {
+      "package": "app.collectools.pcqueue",
+      "permissions": ["RECEIVE_BOOT_COMPLETED"]
+    },
+    "plugins": ["expo-notifications"],
+    "extra": {
+      "subscribeApiUrl": "http://127.0.0.1:8787/subscribe"
+    }
+  }
+}
