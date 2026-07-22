@@ -8,6 +8,8 @@ export type QueueNotificationDetails = {
   url: string
   status: number
   detectedAt?: string
+  siteTitle?: string
+  productName?: string
 }
 
 export type QueueNotificationDispatchResult = {
@@ -21,6 +23,20 @@ export type QueueNotificationDispatchResult = {
 const ONESIGNAL_API_URL = "https://onesignal.com/api/v1/notifications"
 const DEFAULT_PUSH_TITLE = "🚨 Queue Live: Pokémon Center!"
 const DEFAULT_PUSH_BODY = "Tap to join the queue now."
+
+function buildPushTitle(details: QueueNotificationDetails): string {
+  if (details.siteTitle) {
+    return `🚨 Queue Live: ${details.siteTitle}`
+  }
+  return DEFAULT_PUSH_TITLE
+}
+
+function buildPushBody(details: QueueNotificationDetails): string {
+  if (details.productName) {
+    return `${details.productName} — tap to join the queue now.`
+  }
+  return DEFAULT_PUSH_BODY
+}
 
 const pendingJobs: QueueNotificationDetails[] = []
 let draining = false
@@ -54,14 +70,16 @@ export async function sendOneSignalQueueNotification(
         { operator: "OR" },
         { field: "tag", key: "membership_tier", relation: "=", value: "supreme" },
       ],
-      headings: { en: DEFAULT_PUSH_TITLE },
-      contents: { en: DEFAULT_PUSH_BODY },
+      headings: { en: buildPushTitle(details) },
+      contents: { en: buildPushBody(details) },
       url: targetUrl,
       priority: 10,
       data: {
         type: "queue_live",
         url: targetUrl,
         status: String(details.status),
+        siteTitle: details.siteTitle ?? null,
+        productName: details.productName ?? null,
       },
     }),
   })
@@ -105,6 +123,8 @@ export async function sendQueueNotification(
     url: targetUrl,
     status: details.status,
     detectedAt,
+    siteTitle: details.siteTitle,
+    productName: details.productName,
   })
 
   let oneSignalId: string | null = null

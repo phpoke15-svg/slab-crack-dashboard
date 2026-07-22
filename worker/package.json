@@ -12,11 +12,12 @@
     "start:worker": "node dist/worker.js",
     "build": "tsc -p tsconfig.json",
     "test": "vitest run",
-    "postinstall": "playwright install chromium"
+    "postinstall:probe": "playwright install chromium"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",
     "dotenv": "^16.4.7",
+    "fastify": "^5.2.1",
     "firebase-admin": "^13.2.0",
     "got-scraping": "^4.2.1",
     "node-cron": "^3.0.3",

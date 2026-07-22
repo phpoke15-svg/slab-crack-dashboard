@@ -1,6 +1,4 @@
-import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http"
-import { config } from "./config.js"
-import { subscribeTokenToTopic } from "./fcm.js"
+import { config, assertProxyConfigured } from "./config.js"
 import {
   ensureStealthChromium,
   formatProbeError,
@@ -23,94 +21,8 @@ import {
   type LiveDebounceState,
 } from "./queue-detector.js"
 import { sendFailureAlert } from "./services/failure-alert.js"
-import { handleTestQueueLive } from "./routes/test-queue-live.js"
 import { dispatchQueueNotificationAsync } from "./services/notificationService.js"
-import {
-  attachWebSocketBroadcast,
-  getWebSocketClientCount,
-} from "./services/websocket-broadcast.js"
-
-async function readJsonBody(request: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = []
-  for await (const chunk of request) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk)
-  }
-  if (chunks.length === 0) return null
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"))
-}
-
-export function startSubscribeServer(): Server {
-  const server = createServer(async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "*")
-    response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-    if (request.method === "OPTIONS") {
-      response.writeHead(204)
-      response.end()
-      return
-    }
-
-    const parsedUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`)
-
-    if (request.method === "GET" && parsedUrl.pathname === "/health") {
-      response.writeHead(200, { "Content-Type": "application/json" })
-      response.end(
-        JSON.stringify({
-          ok: true,
-          service: "pokemon-center-queue-worker",
-          websocketClients: getWebSocketClientCount(),
-          oneSignalConfigured: Boolean(config.onesignalAppId && config.onesignalRestApiKey),
-          notificationCooldownMs: config.notificationCooldownMs,
-          testEndpointConfigured: Boolean(config.workerTestSecret),
-        }),
-      )
-      return
-    }
-
-    if (request.method === "POST" && parsedUrl.pathname === "/test/queue-live") {
-      await handleTestQueueLive(request, response, parsedUrl)
-      return
-    }
-
-    if (request.method !== "POST" || parsedUrl.pathname !== "/subscribe") {
-      response.writeHead(404, { "Content-Type": "application/json" })
-      response.end(JSON.stringify({ error: "Not found" }))
-      return
-    }
-
-    try {
-      const body = (await readJsonBody(request)) as { token?: string } | null
-      const token = body?.token?.trim()
-      if (!token) {
-        response.writeHead(400, { "Content-Type": "application/json" })
-        response.end(JSON.stringify({ error: "token required" }))
-        return
-      }
-
-      await subscribeTokenToTopic(token)
-      response.writeHead(200, { "Content-Type": "application/json" })
-      response.end(JSON.stringify({ ok: true, topic: config.fcmTopic }))
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "subscribe failed"
-      console.error("[worker/subscribe]", message)
-      response.writeHead(500, { "Content-Type": "application/json" })
-      response.end(JSON.stringify({ error: message }))
-    }
-  })
-
-  attachWebSocketBroadcast(server, "/ws")
-
-  server.listen(config.subscribePort, "0.0.0.0", () => {
-    console.log(`[worker] FCM subscribe API listening on 0.0.0.0:${config.subscribePort}/subscribe`)
-    console.log(`[worker] WebSocket broadcast available at ws://0.0.0.0:${config.subscribePort}/ws`)
-    if (config.workerTestSecret) {
-      console.log(`[worker] Test endpoint POST /test/queue-live (?force=1 skips cooldown)`)
-    }
-  })
-
-  return server
-}
+import { startWorkerServer } from "./server.js"
 
 let probeInFlight = false
 let consecutiveProbeFailures = 0
@@ -211,17 +123,15 @@ export function resetProbeFailureStateForTests(): void {
   probeInFlight = false
 }
 
-async function main(): Promise<void> {
+async function startLegacyProbeLoop(): Promise<void> {
+  assertProxyConfigured()
   ensureStealthChromium()
-  console.log("[worker] Pokémon Center queue detector started")
+  console.log("[worker] Legacy probe mode enabled (WORKER_MODE=probe)")
   console.log("[worker] Queue probe transport=playwright-stealth profile=chromium-desktop-stealth")
   console.log(
     `[worker] Queue checks scheduled ${MONITORING_WINDOW_LABEL} every ${CHECK_INTERVAL_MS / 1000}s`,
   )
-  console.log("[worker] Outside operating window — checks skipped until the next interval")
   console.log(`[worker] target=${config.targetUrl}`)
-
-  startSubscribeServer()
 
   try {
     const proxyDiagnostic = await runProxyIpDiagnostic()
@@ -231,7 +141,20 @@ async function main(): Promise<void> {
     await sendFailureAlert(error, "proxy_diagnostic")
   }
 
-  await runQueueLoop(createDebounceState())
+  startQueueLoop(createDebounceState())
+}
+
+async function main(): Promise<void> {
+  console.log("[worker] Pokémon Center alert worker started")
+  console.log(`[worker] mode=${config.workerMode}`)
+
+  await startWorkerServer()
+
+  if (config.workerMode === "probe") {
+    await startLegacyProbeLoop()
+  } else {
+    console.log("[worker] Inbound webhook receiver ready — POST /api/webhook/queue-alert")
+  }
 }
 
 const isMain = Boolean(
