@@ -24,8 +24,14 @@ Use "Restore purchases" if needed.
 No Google Play references appear in the iOS app. Subscriptions use In-App Purchase only.`
 
 export const APP_STORE_SUBSCRIPTION_SCREENSHOTS = {
-  premium: "apps/pc-queue-watch/store-assets/iap-review/collectools-premium-plan.png",
-  pro: "apps/pc-queue-watch/store-assets/iap-review/collectools-pro-plan.png",
+  premium: {
+    repoPath: "apps/pc-queue-watch/store-assets/iap-review/collectools-premium-plan.png",
+    downloadUrl: "https://www.collectools.app/app-store/collectools-premium-plan.png",
+  },
+  pro: {
+    repoPath: "apps/pc-queue-watch/store-assets/iap-review/collectools-pro-plan.png",
+    downloadUrl: "https://www.collectools.app/app-store/collectools-pro-plan.png",
+  },
 } as const
 
 export function getAppStoreSubscriptionCatalog() {
@@ -40,7 +46,7 @@ export function getAppStoreSubscriptionCatalog() {
         yearly: APPLE_IAP_PRODUCTS.premium_year,
       },
       prices: { monthly: premium.monthlyPrice, yearly: premium.yearlyPrice },
-      reviewScreenshot: APP_STORE_SUBSCRIPTION_SCREENSHOTS.premium,
+      reviewScreenshot: APP_STORE_SUBSCRIPTION_SCREENSHOTS.premium.downloadUrl,
     },
     {
       plan: "pro" as const,
@@ -49,7 +55,7 @@ export function getAppStoreSubscriptionCatalog() {
         yearly: APPLE_IAP_PRODUCTS.pro_year,
       },
       prices: { monthly: pro.monthlyPrice, yearly: pro.yearlyPrice },
-      reviewScreenshot: APP_STORE_SUBSCRIPTION_SCREENSHOTS.pro,
+      reviewScreenshot: APP_STORE_SUBSCRIPTION_SCREENSHOTS.pro.downloadUrl,
     },
   ]
 }

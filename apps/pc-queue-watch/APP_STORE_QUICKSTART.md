@@ -52,12 +52,12 @@ Create **one group**, then **4 products** (IDs must match exactly):
 
 Add **7-day free trial** on each.
 
-**Review screenshot** (no iPhone):
+**Review screenshot** (no iPhone) — open in browser, right-click → **Save image as…**:
 
-| Product | Upload this file |
-|---------|------------------|
-| Premium (monthly + yearly) | `store-assets/iap-review/collectools-premium-plan.png` |
-| Pro (monthly + yearly) | `store-assets/iap-review/collectools-pro-plan.png` |
+| Product | Download |
+|---------|----------|
+| Premium (monthly + yearly) | https://www.collectools.app/app-store/collectools-premium-plan.png |
+| Pro (monthly + yearly) | https://www.collectools.app/app-store/collectools-pro-plan.png |
 
 Regenerate screenshots:
 

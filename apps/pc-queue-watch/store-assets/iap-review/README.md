@@ -1,20 +1,25 @@
 # App Store Connect — subscription review screenshots
 
-Use these when Apple asks for a **screenshot** on each In-App Purchase subscription.
+## Download (right-click → Save link as…)
 
-| File | Upload to product ID |
-|------|----------------------|
-| `collectools-premium-plan.png` | `collectools_premium_monthly` (and yearly if asked) |
-| `collectools-pro-plan.png` | `collectools_pro_monthly` (and yearly if asked) |
+| Plan | Direct link |
+|------|-------------|
+| **Premium** | https://www.collectools.app/app-store/collectools-premium-plan.png |
+| **Pro** | https://www.collectools.app/app-store/collectools-pro-plan.png |
 
-Size: **1290 × 2796** (iPhone 6.7"). Captured with `html.native-app` so **no Google Play** badges appear.
+Use for **Review Information → Screenshot** on each subscription in App Store Connect.
 
-## Regenerate (no iPhone needed)
+| Product ID | Use this file |
+|------------|---------------|
+| `collectools_premium_monthly` / `_yearly` | Premium PNG |
+| `collectools_pro_monthly` / `_yearly` | Pro PNG |
+
+Size: **1290 × 2796** (iPhone 6.7"). No Google Play badges (native-app shell).
+
+## Regenerate
 
 ```bash
-node apps/pc-queue-watch/scripts/capture-iap-review-screenshots.mjs
+npm run capture:iap-screenshots
 ```
 
-## Where to upload
-
-App Store Connect → **Subscriptions** → open product → **Review Information** → **Screenshot** → drag PNG.
+Files are saved to `public/app-store/` (web) and `apps/pc-queue-watch/store-assets/iap-review/` (repo).

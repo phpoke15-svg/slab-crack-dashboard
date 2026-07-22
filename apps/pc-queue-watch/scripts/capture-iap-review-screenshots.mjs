@@ -6,7 +6,7 @@
  *   node apps/pc-queue-watch/scripts/capture-iap-review-screenshots.mjs
  */
 import { createRequire } from "node:module"
-import { mkdirSync } from "node:fs"
+import { mkdirSync, copyFileSync } from "node:fs"
 import { join, dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -16,7 +16,9 @@ const { chromium, devices } = require(join(root, "node_modules", "playwright"))
 const sharp = require(join(root, "node_modules", "sharp"))
 
 const OUT = join(root, "apps", "pc-queue-watch", "store-assets", "iap-review")
+const PUBLIC_OUT = join(root, "public", "app-store")
 mkdirSync(OUT, { recursive: true })
+mkdirSync(PUBLIC_OUT, { recursive: true })
 
 /** iPhone 6.7" — App Store Connect subscription screenshot slot. */
 const W = 1290
@@ -97,7 +99,9 @@ async function main() {
     const final = await toPhoneCanvas(shot)
     const outPath = join(OUT, `${plan.file}.png`)
     await sharp(final).toFile(outPath)
+    copyFileSync(outPath, join(PUBLIC_OUT, `${plan.file}.png`))
     console.log(`→ ${outPath} (${plan.productId})`)
+    console.log(`  public: https://www.collectools.app/app-store/${plan.file}.png`)
   }
 
   await browser.close()
