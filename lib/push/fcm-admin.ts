@@ -26,13 +26,103 @@ export function getFcmTopic(): string {
   return process.env.FCM_TOPIC?.trim() || "pokemon_center_alerts"
 }
 
-export async function subscribeDeviceTokenToQueueTopic(deviceToken: string): Promise<void> {
-  initFirebaseAdmin()
-  await admin.messaging().subscribeToTopic([deviceToken], getFcmTopic())
+export type FcmTopicSubscribeResult = {
+  successCount: number
+  failureCount: number
+  errors: string[]
 }
 
-/** Broadcast a test queue-live alert to all native app subscribers on the FCM topic. */
-export async function sendTestQueueLiveFcmAlert(
+export async function subscribeDeviceTokenToQueueTopic(
+  deviceToken: string,
+  topic = getFcmTopic(),
+): Promise<FcmTopicSubscribeResult> {
+  initFirebaseAdmin()
+  const response = await admin.messaging().subscribeToTopic([deviceToken], topic)
+  const errors = (response.errors ?? []).map((entry) => entry.error.message)
+  const successCount = response.successCount ?? 0
+  const failureCount = response.failureCount ?? 0
+
+  if (successCount === 0) {
+    throw new Error(
+      errors[0] ||
+        "FCM topic subscribe failed. The device token is invalid or from a different Firebase project.",
+    )
+  }
+
+  return { successCount, failureCount, errors }
+}
+
+export type FcmMulticastResult = {
+  sent: number
+  failed: number
+  errors: string[]
+}
+
+function buildQueueLiveMessage(
+  targetUrl: string,
+  test: boolean,
+): Pick<admin.messaging.Message, "notification" | "data" | "android" | "apns"> {
+  return {
+    notification: {
+      title: test
+        ? "🚨 Pokémon Center Queue is LIVE! (TEST)"
+        : "🚨 Pokémon Center queue is LIVE",
+      body: test
+        ? "This is a test queue-live alert from CollecTools PokeWatch."
+        : "Tap to open the queue in your browser.",
+    },
+    data: {
+      url: targetUrl,
+      type: test ? "queue_live_test" : "queue_live",
+    },
+    android: {
+      priority: "high",
+      notification: {
+        channelId: "pokemon_center_alerts",
+        priority: "max",
+      },
+    },
+    apns: {
+      payload: {
+        aps: {
+          sound: "default",
+        },
+      },
+    },
+  }
+}
+
+export async function sendQueueLiveToDeviceTokens(
+  tokens: string[],
+  targetUrl: string,
+  options?: { test?: boolean },
+): Promise<FcmMulticastResult> {
+  if (!isFcmAdminConfigured()) {
+    return { sent: 0, failed: 0, errors: ["fcm_not_configured"] }
+  }
+  if (tokens.length === 0) {
+    return { sent: 0, failed: 0, errors: ["no_device_tokens"] }
+  }
+
+  initFirebaseAdmin()
+  const response = await admin.messaging().sendEachForMulticast({
+    tokens,
+    ...buildQueueLiveMessage(targetUrl, options?.test === true),
+  })
+
+  const errors = response.responses
+    .map((entry, index) => (entry.success ? null : entry.error?.message || `token_${index}_failed`))
+    .filter((value): value is string => Boolean(value))
+
+  return {
+    sent: response.successCount,
+    failed: response.failureCount,
+    errors,
+  }
+}
+
+/** Broadcast a test queue-live alert to the FCM topic (may reach zero devices). */
+export async function sendTestQueueLiveFcmTopicAlert(
   targetUrl: string,
 ): Promise<{ sent: boolean; messageId?: string; reason?: string }> {
   if (!isFcmAdminConfigured()) {
@@ -44,28 +134,7 @@ export async function sendTestQueueLiveFcmAlert(
   try {
     const messageId = await admin.messaging().send({
       topic: getFcmTopic(),
-      notification: {
-        title: "🚨 Pokémon Center Queue is LIVE! (TEST)",
-        body: "This is a test queue-live alert from CollecTools PokeWatch.",
-      },
-      data: {
-        url: targetUrl,
-        type: "queue_live_test",
-      },
-      android: {
-        priority: "high",
-        notification: {
-          channelId: "pokemon_center_alerts",
-          priority: "max",
-        },
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-          },
-        },
-      },
+      ...buildQueueLiveMessage(targetUrl, true),
     })
 
     return { sent: true, messageId }
@@ -73,4 +142,13 @@ export async function sendTestQueueLiveFcmAlert(
     const message = error instanceof Error ? error.message : "fcm_send_failed"
     return { sent: false, reason: message }
   }
+}
+
+export async function sendQueueLiveAlert(targetUrl: string): Promise<string> {
+  initFirebaseAdmin()
+  const messageId = await admin.messaging().send({
+    topic: getFcmTopic(),
+    ...buildQueueLiveMessage(targetUrl, false),
+  })
+  return messageId
 }

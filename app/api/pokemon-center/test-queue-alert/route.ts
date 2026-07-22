@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
 import { requireCronAuth } from "@/lib/cron-auth"
 import { sendTestQueueLiveWebPush } from "@/lib/pokemon-center/queue-alerts"
-import { isFcmAdminConfigured, sendTestQueueLiveFcmAlert } from "@/lib/push/fcm-admin"
+import {
+  isFcmAdminConfigured,
+  sendQueueLiveToDeviceTokens,
+  sendTestQueueLiveFcmTopicAlert,
+} from "@/lib/push/fcm-admin"
+import { countFcmDeviceTokens, listFcmDeviceTokens } from "@/lib/push/fcm-tokens"
 import { getSiteUrl } from "@/lib/site-url"
 
 export const dynamic = "force-dynamic"
@@ -10,8 +15,8 @@ export const maxDuration = 30
 /**
  * POST /api/pokemon-center/test-queue-alert — send test queue-live alerts.
  * - Web Push: Pro/Supreme browser subscribers on /pokewatch
- * - FCM: native iOS/Android app subscribers on the queue topic
- * Requires CRON_SECRET Bearer auth. Pass ?force=1 to bypass web-push dedupe.
+ * - FCM devices: registered native tokens (direct multicast — reliable)
+ * - FCM topic: broadcast fallback (may reach zero devices)
  */
 export async function POST(request: Request) {
   const denied = requireCronAuth(request)
@@ -23,23 +28,26 @@ export async function POST(request: Request) {
 
   try {
     const site = getSiteUrl()
-    const [webPush, fcm] = await Promise.all([
+    const targetUrl = `${site}/pokewatch`
+    const registeredTokens = await listFcmDeviceTokens()
+    const tokenStrings = registeredTokens.map((row) => row.deviceToken)
+
+    const [webPush, fcmDevices, fcmTopic, registeredDeviceCount] = await Promise.all([
       sendTestQueueLiveWebPush({ force }),
-      sendTestQueueLiveFcmAlert(`${site}/pokewatch`),
+      sendQueueLiveToDeviceTokens(tokenStrings, targetUrl, { test: true }),
+      sendTestQueueLiveFcmTopicAlert(targetUrl),
+      countFcmDeviceTokens(),
     ])
 
-    const sent = webPush.sent || fcm.sent
+    const sent = webPush.sent || fcmDevices.sent > 0
     let reason = webPush.reason
     if (!sent) {
-      if (!webPush.sent && !fcm.sent) {
-        reason =
-          webPush.reason === "no_queue_subscribers" && fcm.reason === "fcm_not_configured"
-            ? "no_web_push_subscribers_and_fcm_not_configured"
-            : webPush.reason || fcm.reason
-      } else if (!webPush.sent) {
-        reason = webPush.reason
+      if (registeredDeviceCount === 0) {
+        reason = "no_registered_fcm_devices"
+      } else if (fcmDevices.failed > 0 && fcmDevices.errors[0]) {
+        reason = fcmDevices.errors[0]
       } else {
-        reason = fcm.reason
+        reason = webPush.reason || fcmTopic.reason || "send_failed"
       }
     }
 
@@ -49,9 +57,11 @@ export async function POST(request: Request) {
       force,
       sent,
       reason: sent ? undefined : reason,
-      sentCount: webPush.sentCount ?? 0,
+      sentCount: (webPush.sentCount ?? 0) + fcmDevices.sent,
+      registeredDeviceCount,
       webPush,
-      fcm,
+      fcmDevices,
+      fcmTopic,
       fcmConfigured: isFcmAdminConfigured(),
       time: new Date().toISOString(),
     })
