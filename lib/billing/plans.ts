@@ -34,6 +34,7 @@ export type PlanTier = {
 
 export const FREE_PLAN_FEATURES = [
   "SlabCrack preview: 10 mid-deficit cards",
+  "AI Portfolio ROI over time (Labs preview)",
   giveawayTierFeatureLine("free"),
   "CardLounge collector social feed",
   "PokeMatch with ads",
@@ -61,6 +62,7 @@ export const PLAN_TIERS: PlanTier[] = [
       "7-day free trial",
       giveawayTierFeatureLine("premium"),
       "Full SlabCrack deficit feed (all graded opportunities)",
+      "Full AI Portfolio weekly picks + win rate (Labs)",
       "Ad-free SlabCrack and PokeMatch",
       "Cancel anytime",
     ],
@@ -137,6 +139,8 @@ export type Entitlements = {
   queueWatch: boolean
   /** Full SlabCrack feed; free users get a mid-deficit preview only. */
   fullSlabCrack: boolean
+  /** Full AI Portfolio picks + win rate; free users get cumulative ROI preview only. */
+  fullAiPortfolio: boolean
   /** Reorder hub tool tiles (Pro and Supreme). */
   customHubLayout: boolean
   /** In-development tools + site metrics console (Supreme only). */
@@ -172,6 +176,7 @@ export function entitlementsForPlan(plan: PlanId, extras?: Partial<Entitlements>
     adFree: supreme || Boolean(tier?.adFree),
     queueWatch: supreme || Boolean(tier?.includesQueueWatch),
     fullSlabCrack: paid || Boolean(tier?.fullSlabCrack),
+    fullAiPortfolio: paid,
     customHubLayout: supreme || plan === "pro",
     supreme,
     status: extras?.status ?? (plan === "free" ? null : "active"),

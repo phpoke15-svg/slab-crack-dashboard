@@ -215,12 +215,18 @@ const ALL_COLLECTOOLS: CollecTool[] = [
   },
 ]
 
+/** Labs-only surfaces (not shown on the main hub). */
+export const LABS_ONLY_TOOL_IDS = new Set(["portfolio"])
+
 /** Public hub tools (and Restocks when Affiliate is enabled for everyone). */
 export const COLLECTOOLS: CollecTool[] = ALL_COLLECTOOLS.filter((tool) => {
   if (tool.supremeOnly) return false
+  if (LABS_ONLY_TOOL_IDS.has(tool.id)) return false
   if (tool.id === "restocks") return RESTOCKS_ENABLED
   return true
 })
+
+export const LABS_TOOLS: CollecTool[] = ALL_COLLECTOOLS.filter((tool) => LABS_ONLY_TOOL_IDS.has(tool.id))
 
 /** Tools only Supreme should see on the hub (in-dev + console). */
 export const SUPREME_TOOLS: CollecTool[] = ALL_COLLECTOOLS.filter((tool) => tool.supremeOnly)
