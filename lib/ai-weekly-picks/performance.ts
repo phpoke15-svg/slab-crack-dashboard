@@ -17,6 +17,7 @@ type CardPriceRow = {
   scrydex_id: string | null
   name: string
   set_name: string
+  number: string | null
   image_url: string | null
   current_price_raw: number | null
   current_price_psa10: number | null
@@ -38,7 +39,7 @@ async function loadCardMetaByScrydexIds(ids: string[]): Promise<Map<string, Card
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from("cards")
-    .select("scrydex_id, name, set_name, image_url, current_price_raw, current_price_psa10")
+    .select("scrydex_id, name, set_name, number, image_url, current_price_raw, current_price_psa10")
     .in("scrydex_id", ids)
 
   if (error?.code === "42P01" || error?.code === "42703") return map
@@ -91,6 +92,7 @@ export async function enrichWeeklyPicksForDisplay(
       projected_target_price: storedTarget > 0 ? storedTarget : null,
       card_name: card?.name ?? pick.scrydex_id,
       set_name: card?.set_name ?? "Unknown set",
+      card_number: card?.number ? String(card.number) : null,
       image_url: card?.image_url ?? null,
       current_price: current,
       price_target: storedTarget > 0 ? storedTarget : fallbackTarget,

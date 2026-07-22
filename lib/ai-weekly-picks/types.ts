@@ -44,6 +44,7 @@ export type AiWeeklyPickDraft = {
 export type AiWeeklyPickDisplay = AiWeeklyPickRow & {
   card_name: string
   set_name: string
+  card_number: string | null
   image_url: string | null
   current_price: number | null
   price_target: number | null
