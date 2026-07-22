@@ -85,16 +85,27 @@ Dev-only: `APPLE_IAP_SKIP_VERIFY=1` skips Apple API (local testing only — **ne
 
 ### 2.1(a) — Demo account for App Review
 
-**App Store Connect → App Review Information:**
+**Shared login for Apple App Store and Google Play review** (same account):
 
 | Field | Value |
 |-------|--------|
-| Username | *(create a dedicated reviewer account)* |
-| Password | *(strong password)* |
+| **Email** | `appreview@collectools.app` |
+| **Password** | `CollectoolsReview2026!` (override with Vercel env `STORE_REVIEWER_PASSWORD`) |
+
+**Setup (after deploy):**
+
+```bash
+curl -sS -X POST "https://www.collectools.app/api/admin/setup-store-reviewer" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Or run `supabase/grant-store-reviewer-pro.sql` after creating the auth user manually.
+
+**App Store Connect → App Review Information:** paste the email + password above.
 
 **Setup steps:**
-1. Create `reviewer@yourdomain.com` (or similar) in Supabase Auth
-2. Grant **Pro** entitlements in DB or via a comp Stripe subscription for review only
+1. Deploy latest `main`, then call `/api/admin/setup-store-reviewer` once (creates user + Pro comp subscription)
+2. Confirm sign-in at https://www.collectools.app/sign-in
 3. In Review Notes, paste:
 
 ```
