@@ -7,18 +7,22 @@ This worker is a **long-running process** (not serverless). Railway is the right
 1. In [Railway](https://railway.app), open your project linked to this repo.
 2. **New → GitHub Repo** (or add a service to the existing project).
 3. Deploy branch **`main`**.
-4. **Root Directory** — either option works:
-   - **Empty / repo root** → uses root `railway.toml` (`npm run start:worker`)
-   - **`worker`** → uses `worker/railway.toml` (`node dist/worker.js`)
+4. **Recommended:** set **Root Directory** to `worker` (uses `worker/Dockerfile` + `worker/railway.toml`).
+5. If Root Directory is empty, Railway uses root `Dockerfile.worker` instead.
 
-**Do not** set Start Command to `npm start` — that runs **Next.js** (`next start`) and will fail the `/health` check.
-
-If logs show `collectools@1.1.0 start` and `next start`, the wrong start command is configured. Fix:
+**Do not** set Start Command to `npm start` — that runs **Next.js** and will fail.
 
 | Setting | Value |
 |---|---|
-| Start Command | `npm run start:worker` (root) or `node dist/worker.js` (`worker/`) |
-| Root Directory | empty **or** `worker` |
+| Root Directory | `worker` (recommended) |
+| Start Command | leave empty (uses `node dist/worker.js` from railway.toml) |
+
+Successful deploy logs:
+
+```
+[worker] Pokémon Center queue detector started
+[worker] FCM subscribe API listening on 0.0.0.0:8080/subscribe
+```
 
 ## 2. Required environment variables
 
