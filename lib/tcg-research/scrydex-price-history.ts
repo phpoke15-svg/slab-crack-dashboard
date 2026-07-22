@@ -1,4 +1,4 @@
-import { catalogIdToLegacyPokeId, isScrydexConfigured, splitCatalogId } from "@/lib/scrydex/constants"
+import { pickPreferredGradedRows, pickPreferredRawRow } from "@/lib/scrydex/variant-prices"
 import { loadCardBundle } from "@/lib/scrydex/db"
 import { SCRYDEX_CACHE } from "@/lib/scrydex/types"
 import { ensureCardDailyPriceHistory } from "@/lib/pricing/card-daily-price-history"
@@ -35,8 +35,6 @@ export const SCRYDEX_PRICE_HISTORY_LABELS: Record<PriceHistorySeriesKey, string>
 }
 
 function seriesKeyForPsaRow(row: HistoryRow): PriceHistorySeriesKey | null {
-  if ((row.variant ?? "normal") !== "normal") return null
-
   if (row.price_type === "raw" || (!row.company && !row.grade)) {
     if ((row.condition ?? "NM") !== "NM") return null
     return "raw"
@@ -198,14 +196,7 @@ export function augmentHistoryWithBundlePrices(
   const hasSnapshot = (predicate: (row: HistoryRow) => boolean) =>
     rows.some((row) => String(row.snapshot_date ?? "").slice(0, 10) === today && predicate(row))
 
-  const rawCandidates = (bundle.raw ?? []) as HistoryRow[]
-  const rawRow =
-    rawCandidates.find(
-      (row) =>
-        (row.variant ?? "normal") === "normal" &&
-        (row.condition ?? "NM") === "NM" &&
-        Number(row.market_price) > 0,
-    ) ?? rawCandidates.find((row) => Number(row.market_price) > 0)
+  const rawRow = pickPreferredRawRow((bundle.raw ?? []) as HistoryRow[])
 
   if (
     rawRow &&
@@ -223,8 +214,7 @@ export function augmentHistoryWithBundlePrices(
     })
   }
 
-  for (const graded of (bundle.graded ?? []) as HistoryRow[]) {
-    if ((graded.variant ?? "normal") !== "normal") continue
+  for (const graded of pickPreferredGradedRows((bundle.graded ?? []) as HistoryRow[])) {
     if ((graded.company ?? "").toUpperCase() !== "PSA") continue
     const grade = String(graded.grade ?? "").trim()
     if (!["7", "8", "9", "10"].includes(grade)) continue

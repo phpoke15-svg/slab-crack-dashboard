@@ -345,7 +345,6 @@ export async function isGradedPricesMissing(catalogId: string): Promise<boolean>
     .from("prices_graded")
     .select("market_price")
     .eq("catalog_id", catalogId)
-    .eq("variant", "normal")
     .ilike("company", "psa")
     .gt("market_price", 0)
     .limit(1)
