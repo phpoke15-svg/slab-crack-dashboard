@@ -90,7 +90,9 @@ After changing env vars, **Redeploy**.
 4. **Native app push (Android/iOS):** set the same Firebase Admin JSON on Vercel:
    - `FIREBASE_SERVICE_ACCOUNT_JSON` (full JSON one line)
    - `FCM_TOPIC` (optional, default `pokemon_center_alerts`)
-5. Redeploy. Users enable **Phone alerts** on `/pokewatch` or `/restocks`.
+5. Run [`supabase/fcm-device-tokens.sql`](./supabase/fcm-device-tokens.sql) in Supabase.
+6. Add `google-services.json` + `GoogleService-Info.plist` to `apps/pc-queue-watch/` and rebuild the app (see [`apps/pc-queue-watch/FIREBASE.md`](./apps/pc-queue-watch/FIREBASE.md)).
+7. Redeploy. Users enable **Phone alerts** on `/pokewatch` or `/restocks`.
 5. Sends:
    - Pokémon Center queue live → **all Pro and Supreme members** who enabled queue phone alerts (Supreme always receives every alert type; one monitor detects → everyone notified)
    - Walmart Wednesday 9pm ET reminder (anyone who opted in)

@@ -82,20 +82,17 @@ export async function registerNativeQueueAlerts(options?: {
     }
   }
 
-  const previous = await AsyncStorage.getItem(NATIVE_PUSH_TOKEN_KEY)
-  if (previous === deviceToken && (await isNativePushRegistered())) {
-    return { ok: true }
-  }
-
   const response = await fetch(`${COLLECTOOLS_BASE_URL}/api/push/fcm-register`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Queue-Watch-Token": queueWatchToken,
+      "X-Device-Platform": Platform.OS,
     },
     body: JSON.stringify({
       deviceToken,
       queueWatchToken,
+      platform: Platform.OS,
     }),
   })
 

@@ -5,6 +5,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/server"
 import { isQueueWatchReportsTableReady } from "@/lib/pokemon-center/queue-alerts"
 import { isWalmartAffiliateConfigured } from "@/lib/restocks/walmart"
 import { isWebPushConfigured, countProQueuePushSubscribers } from "@/lib/push/web-push"
+import { isFcmAdminConfigured } from "@/lib/push/fcm-admin"
+import { countFcmDeviceTokens } from "@/lib/push/fcm-tokens"
 import { isAdsDisplayEnabled } from "@/lib/adsense-config"
 import { isStripeConfigured } from "@/lib/billing/stripe"
 import { checkScrydexHealth } from "@/lib/scrydex/health"
@@ -24,11 +26,19 @@ export async function GET() {
   const walmartAffiliateConfigured = isWalmartAffiliateConfigured()
   const webPushConfigured = isWebPushConfigured()
   let proQueuePushSubscribers: number | null = null
+  let fcmDeviceTokens: number | null = null
   if (webPushConfigured && supabaseConfigured) {
     try {
       proQueuePushSubscribers = await countProQueuePushSubscribers()
     } catch {
       proQueuePushSubscribers = null
+    }
+  }
+  if (isFcmAdminConfigured() && supabaseConfigured) {
+    try {
+      fcmDeviceTokens = await countFcmDeviceTokens()
+    } catch {
+      fcmDeviceTokens = null
     }
   }
   const restockReportSecured = Boolean(process.env.RESTOCKS_REPORT_SECRET?.trim())
@@ -96,6 +106,8 @@ export async function GET() {
         walmartAffiliateConfigured,
         webPushConfigured,
         proQueuePushSubscribers,
+        fcmConfigured: isFcmAdminConfigured(),
+        fcmDeviceTokens,
         restockReportSecured,
         pokematchReady,
         queueWatchReportsReady,

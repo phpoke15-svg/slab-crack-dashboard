@@ -25,3 +25,7 @@ __pycache__/
 data/buyout_anomaly.sqlite
 
 worker/dist
+
+# Firebase mobile config (download from Firebase Console — see apps/pc-queue-watch/FIREBASE.md)
+apps/pc-queue-watch/google-services.json
+apps/pc-queue-watch/GoogleService-Info.plist

@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server"
 import { requireQueueWatchAccess } from "@/lib/billing/stripe"
 import { verifyQueueWatchToken } from "@/lib/billing/queue-watch-token"
-import { isFcmAdminConfigured, subscribeDeviceTokenToQueueTopic, getFcmTopic } from "@/lib/push/fcm-admin"
+import {
+  getFcmTopic,
+  isFcmAdminConfigured,
+  subscribeDeviceTokenToQueueTopic,
+} from "@/lib/push/fcm-admin"
+import { upsertFcmDeviceToken } from "@/lib/push/fcm-tokens"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 
 export const dynamic = "force-dynamic"
@@ -9,6 +14,7 @@ export const dynamic = "force-dynamic"
 type Body = {
   deviceToken?: string
   queueWatchToken?: string
+  platform?: string
 }
 
 async function resolveProUserId(body: Body, request: Request): Promise<string | null> {
@@ -64,6 +70,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "deviceToken required" }, { status: 400 })
   }
 
+  if (deviceToken.startsWith("ExponentPushToken") || deviceToken.startsWith("ExpoPushToken")) {
+    return NextResponse.json(
+      {
+        error:
+          "Received an Expo push token, not a native FCM/APNs token. Rebuild the app with google-services.json (Android) and GoogleService-Info.plist (iOS) from Firebase project collectools-28131.",
+      },
+      { status: 400 },
+    )
+  }
+
   const userId = await resolveProUserId(body, request)
   if (!userId) {
     return NextResponse.json(
@@ -73,15 +89,24 @@ export async function POST(request: Request) {
   }
 
   try {
-    await subscribeDeviceTokenToQueueTopic(deviceToken)
+    const topic = getFcmTopic()
+    const subscribe = await subscribeDeviceTokenToQueueTopic(deviceToken, topic)
+    await upsertFcmDeviceToken({
+      userId,
+      deviceToken,
+      platform: body.platform?.trim() || request.headers.get("x-device-platform"),
+      topic,
+    })
+
     return NextResponse.json({
       ok: true,
-      topic: getFcmTopic(),
+      topic,
       userId,
+      subscribe,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "FCM subscribe failed"
-    console.error("[push/fcm-register]", message)
+    console.error("[push/fcm-register]", message, { userId, tokenPrefix: deviceToken.slice(0, 12) })
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }

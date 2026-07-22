@@ -143,6 +143,9 @@ export default function SiteWebScreen() {
             webRef.current?.injectJavaScript(
               buildNativePushStatusInject(result.ok),
             )
+            if (!result.ok && result.error) {
+              Alert.alert("Queue alerts failed", result.error)
+            }
           })
           return
         }
