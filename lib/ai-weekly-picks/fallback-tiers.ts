@@ -3,17 +3,26 @@ import { buildFallbackRationale, priceTargetForGrade } from "@/lib/ai-weekly-pic
 import {
   BUCKET_TIERS,
   type BucketTier,
+  priceInCandidateRange,
   TIER_BUDGETS,
   tierBudgetInRange,
   tierBudgetSpent,
 } from "@/lib/ai-weekly-picks/tiers"
 
-function pickPriceForGrade(
-  candidate: AiWeeklyPickCandidate,
-  grade: AiWeeklyGradeType,
-): number {
-  if (grade === "PSA_10") return candidate.psa10_price
-  return candidate.raw_price
+type GradeOption = {
+  grade: AiWeeklyGradeType
+  price: number
+}
+
+function gradeOptionsForCandidate(candidate: AiWeeklyPickCandidate): GradeOption[] {
+  const options: GradeOption[] = []
+  if (priceInCandidateRange(candidate.raw_price)) {
+    options.push({ grade: "RAW", price: candidate.raw_price })
+  }
+  if (priceInCandidateRange(candidate.psa10_price)) {
+    options.push({ grade: "PSA_10", price: candidate.psa10_price })
+  }
+  return options.sort((a, b) => a.price - b.price)
 }
 
 export function selectFallbackTierPicks(
@@ -25,31 +34,69 @@ export function selectFallbackTierPicks(
   const used = new Set<string>()
   let spent = 0
 
-  for (const candidate of candidates) {
-    if (used.has(candidate.scrydex_id)) continue
-    const grade = candidate.recommended_grade
-    const price = pickPriceForGrade(candidate, grade)
-    if (price <= 0 || spent + price > max) continue
+  const pool = [...candidates].sort((a, b) => b.composite_score - a.composite_score)
+
+  while (spent < min) {
+    let best: { candidate: AiWeeklyPickCandidate; option: GradeOption } | null = null
+    let bestScore = Number.NEGATIVE_INFINITY
+
+    for (const candidate of pool) {
+      if (used.has(candidate.scrydex_id)) continue
+
+      for (const option of gradeOptionsForCandidate(candidate)) {
+        const nextSpent = spent + option.price
+        if (option.price <= 0 || nextSpent > max) continue
+
+        let score = candidate.composite_score * 100
+        if (nextSpent >= min) score += 100
+        if (nextSpent >= min && nextSpent <= max) score += 40
+
+        const remainingHeadroom = max - nextSpent
+        const stillNeed = min - spent
+        if (stillNeed > option.price) {
+          // Need multiple cards — favor cheaper picks that preserve headroom.
+          score += remainingHeadroom / 10
+          score -= option.price / 20
+        } else {
+          // Close to the target band — favor prices that land inside [min, max].
+          score += option.price / 10
+          score -= Math.abs(min - nextSpent)
+        }
+
+        if (score > bestScore) {
+          bestScore = score
+          best = { candidate, option }
+        }
+      }
+    }
+
+    if (!best) break
 
     const target = priceTargetForGrade(
-      grade,
-      candidate.raw_price,
-      candidate.psa10_price,
-      candidate.momentum_30d_pct,
+      best.option.grade,
+      best.candidate.raw_price,
+      best.candidate.psa10_price,
+      best.candidate.momentum_30d_pct,
     )
 
     picks.push({
       bucket_tier: tier,
-      scrydex_id: candidate.scrydex_id,
-      grade_type: grade,
-      pick_price: price,
+      scrydex_id: best.candidate.scrydex_id,
+      grade_type: best.option.grade,
+      pick_price: best.option.price,
       projected_target_price: target,
-      ai_rationale: buildFallbackRationale(candidate),
-      confidence_score: Math.max(55, Math.min(90, Math.round(candidate.composite_score * 100))),
+      ai_rationale: buildFallbackRationale({
+        ...best.candidate,
+        recommended_grade: best.option.grade,
+        pick_price: best.option.price,
+      }),
+      confidence_score: Math.max(
+        55,
+        Math.min(90, Math.round(best.candidate.composite_score * 100)),
+      ),
     })
-    used.add(candidate.scrydex_id)
-    spent += price
-    if (spent >= min) break
+    used.add(best.candidate.scrydex_id)
+    spent += best.option.price
   }
 
   if (!tierBudgetInRange(spent, tier)) {
