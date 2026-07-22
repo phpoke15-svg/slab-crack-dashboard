@@ -76,14 +76,14 @@ export type LiveDebounceState = {
   lastAlertAt: number | null
 }
 
-/** 6-field cron (sec min hour dom month dow): every 3 minutes on weekdays; window guarded in code. */
-export const CHECK_INTERVAL_MS = 180_000
-export const CRON_SCHEDULE = "0 */3 * * * 1-5"
+/** Delay between completed checks (and between outside-window poll ticks). */
+export const CHECK_INTERVAL_MS = 90_000
+export const CHECK_INTERVAL_SECONDS = CHECK_INTERVAL_MS / 1000
 export const CRON_TIMEZONE = "America/New_York"
 export const MONITORING_WINDOW_LABEL = "M-F 9:30am-4:00pm ET"
 export const MONITORING_START_MINUTES = 9 * 60 + 30
 export const MONITORING_END_MINUTES = 16 * 60
-/** Two consecutive LIVE checks must fall inside this window (fits 3-minute polling). */
+/** Two consecutive LIVE checks must fall inside this window (fits 90-second polling). */
 export const DEBOUNCE_WINDOW_MS = 7 * 60 * 1000
 export const DEBOUNCE_REQUIRED_HITS = 2
 export const ALERT_COOLDOWN_MS = 5 * 60 * 1000
@@ -131,6 +131,9 @@ export function isWithinMonitoringWindow(now = new Date()): boolean {
 
 export const OUTSIDE_MONITORING_WINDOW_MESSAGE =
   `[worker] Outside operating window (${MONITORING_WINDOW_LABEL}). Skipping check...`
+
+export const CHECK_COMPLETE_WAIT_MESSAGE =
+  `[worker] Check complete. Waiting ${CHECK_INTERVAL_SECONDS}s until next cycle...`
 
 export function createDebounceState(): LiveDebounceState {
   return { consecutiveLive: 0, windowStartedAt: null, lastAlertAt: null }

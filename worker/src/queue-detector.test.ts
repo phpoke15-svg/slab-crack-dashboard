@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   analyzeHeadResponse,
   createDebounceState,
+  CHECK_COMPLETE_WAIT_MESSAGE,
   CHECK_INTERVAL_MS,
   DEBOUNCE_WINDOW_MS,
   isQueueRedirectLocation,
@@ -73,6 +74,13 @@ describe("queue-detector", () => {
   it("uses the friendly outside-window log message", () => {
     expect(OUTSIDE_MONITORING_WINDOW_MESSAGE).toBe(
       "[worker] Outside operating window (M-F 9:30am-4:00pm ET). Skipping check...",
+    )
+  })
+
+  it("uses a 90-second check interval and completion log message", () => {
+    expect(CHECK_INTERVAL_MS).toBe(90_000)
+    expect(CHECK_COMPLETE_WAIT_MESSAGE).toBe(
+      "[worker] Check complete. Waiting 90s until next cycle...",
     )
   })
 
