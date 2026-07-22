@@ -67,6 +67,10 @@ export function CompanyGradePriceGrid({
     >
       {gridGrades.map((grade, index) => {
         const quote = quoteForGrade(grade)
+        const slabPrice =
+          quote?.slabPrice ??
+          pickGradedPrice(gradedPrices, { company, grade }) ??
+          0
         const isSelected = selected?.company === company && selected?.grade === grade
         const isBest =
           !isSelected &&
@@ -74,10 +78,7 @@ export function CompanyGradePriceGrid({
           quote?.isArbitrage &&
           quote.deficit === bestDeficit &&
           bestDeficit > 0
-        const hasPrice =
-          priced &&
-          ((quote?.slabPrice ?? 0) > 0 ||
-            (pickGradedPrice(gradedPrices, { company, grade }) ?? 0) > 0)
+        const hasPrice = priced && slabPrice > 0
 
         const cellClass = cn(
           "rounded-lg border p-1.5 text-center transition-colors sm:p-2",
@@ -106,7 +107,7 @@ export function CompanyGradePriceGrid({
                 hasPrice ? "text-foreground" : "text-muted-foreground",
               )}
             >
-              {hasPrice && quote && quote.slabPrice > 0 ? `$${quote.slabPrice.toFixed(0)}` : "—"}
+              {hasPrice ? `$${slabPrice.toFixed(0)}` : "—"}
             </p>
             {quote?.isArbitrage ? (
               <p
