@@ -35,10 +35,6 @@ export default async function BuyoutRadarPage() {
             <h1 className="mt-5 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Buyout Radar
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Automated market buyout & speculation alerts from rolling transaction velocity —
-              Supreme accounts only until this ships publicly.
-            </p>
           </div>
           <SiteAuthButton className="shrink-0" />
         </header>

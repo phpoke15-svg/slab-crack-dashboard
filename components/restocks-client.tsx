@@ -76,14 +76,6 @@ export function RestocksClient() {
       <header className="mb-8 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <CollecToolsBrand href="/" size="lg" subtitle="Restocks · Walmart sealed TCG" />
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Automatically finds Pokémon sealed products at Walmart and tracks stock. For Pokémon
-            Center drop timing and virtual queues, use{" "}
-            <Link href="/pokewatch" className="font-medium text-primary hover:underline">
-              PokeWatch
-            </Link>
-            .
-          </p>
         </div>
         <SiteAuthButton className="shrink-0" />
       </header>

@@ -28,9 +28,6 @@ export default function FeedbackPage() {
             <h1 className="mt-5 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Feedback
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Tell us what to improve, then upvote the potential tools you want most.
-            </p>
           </div>
           <SiteAuthButton className="shrink-0" />
         </header>

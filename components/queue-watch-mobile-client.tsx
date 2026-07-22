@@ -9,11 +9,6 @@ export function QueueWatchMobileClient() {
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
       <header className="mb-8">
         <CollecToolsBrand href="/" size="lg" subtitle="PokeWatch · Mobile APK" />
-        <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
-          PokeWatch is built into the CollecTools Android app. Install the Queue Watcher bookmarklet in
-          your mobile browser — the app never loads Pokemon Center directly. You get push alerts when the
-          queue goes live, then tap your bookmark on pokemoncenter.com to monitor your place in line.
-        </p>
       </header>
 
       <section className="mb-6 rounded-2xl border border-primary/30 bg-primary/10 p-5">

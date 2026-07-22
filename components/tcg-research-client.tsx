@@ -182,7 +182,6 @@ export function TcgResearchClient() {
       <header className="flex items-start justify-between gap-4">
         <div>
           <CollecToolsBrand href="/" size="md" subtitle="TCG Research · full search" />
-          <p className="mt-2 text-xs text-muted-foreground">Hybrid search · charts · Vision scan</p>
         </div>
         <SiteAuthButton className="shrink-0" />
       </header>

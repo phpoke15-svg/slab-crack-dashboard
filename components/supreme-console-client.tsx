@@ -192,9 +192,6 @@ export function SupremeConsoleClient() {
               <BarChart3 className="size-7 text-primary" aria-hidden="true" />
               Site Insights
             </h1>
-            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Live product, billing, and ops metrics for CollecTools. Supreme accounts only.
-            </p>
           </div>
           <SiteAuthButton className="shrink-0" />
         </header>
