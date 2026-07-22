@@ -1,7 +1,8 @@
 const QUEUE_HOST_PATTERNS = [/queue\.pokemoncenter\.com/i, /queue-it\.net/i, /queue-it\.com/i]
 const QUEUE_REDIRECT_RE = /queue-it|waitingroom|waiting-room|queueit|virtual.?queue/i
 const QUEUE_HEADER_RE = /queue-it|queueit|x-queue/i
-const IMPERVA_BLOCK_RE = /access denied|request unsuccessful|_Incapsula_Resource|incident_id=/i
+const IMPERVA_BLOCK_RE =
+  /access denied|request unsuccessful|are you human|verify you are human|_Incapsula_Resource[\s\S]{0,400}incident_id=/i
 
 export type HeadProbeResult = {
   status: number

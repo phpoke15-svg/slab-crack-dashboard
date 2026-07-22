@@ -11,13 +11,17 @@
     "start": "node dist/worker.js",
     "start:worker": "node dist/worker.js",
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "playwright install chromium"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
     "firebase-admin": "^13.2.0",
     "got-scraping": "^4.2.1",
-    "node-cron": "^3.0.3"
+    "node-cron": "^3.0.3",
+    "playwright": "^1.61.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

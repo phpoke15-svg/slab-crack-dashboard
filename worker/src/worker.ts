@@ -124,7 +124,7 @@ export function startQueueSchedule(debounce: LiveDebounceState = createDebounceS
 
 async function main(): Promise<void> {
   console.log("[worker] Pokémon Center queue detector started")
-  console.log("[worker] Queue probe transport=got-scraping profile=firefox-desktop")
+  console.log("[worker] Queue probe transport=playwright-stealth profile=chromium-desktop-stealth")
   console.log(
     `[worker] Queue checks scheduled Mon-Fri 9:00 AM - 5:00 PM ${CRON_TIMEZONE} every 5s (cron: ${CRON_SCHEDULE})`,
   )

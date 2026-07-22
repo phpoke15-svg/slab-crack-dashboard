@@ -46,3 +46,17 @@ export function buildProxyUrl(): string {
   }
   return `http://${host}:${port}`
 }
+
+/** Playwright proxy settings for IPRoyal (`IPROYAL_*` or legacy `PROXY_*`). */
+export function getPlaywrightProxy(): {
+  server: string
+  username?: string
+  password?: string
+} {
+  const { host, port, username, password } = config.proxy
+  const server = `http://${host}:${port}`
+  if (username && password) {
+    return { server, username, password }
+  }
+  return { server }
+}

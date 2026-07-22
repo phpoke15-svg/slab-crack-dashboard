@@ -14,24 +14,25 @@ describe("pokemon-center-probe logging", () => {
   })
 
   it("formats blocked Imperva responses cleanly", async () => {
-    const { formatProbeLogLine } = await import("./pokemon-center-probe.js")
+    const { formatProbeLogLine } = await import("./probe-utils.js")
     const line = formatProbeLogLine({
       status: 403,
       location: null,
       live: false,
       queueUrl: null,
       blocked: true,
-      transport: "got-scraping",
-      profile: "firefox-desktop",
+      transport: "playwright-stealth",
+      profile: "chromium-desktop-stealth",
+      title: "Access Denied",
     })
 
-    expect(line).toContain("transport=got-scraping")
-    expect(line).toContain("profile=firefox-desktop")
+    expect(line).toContain("transport=playwright-stealth")
+    expect(line).toContain("profile=chromium-desktop-stealth")
     expect(line).toContain("blocked=Imperva")
   })
 
   it("formats probe errors without throwing", async () => {
-    const { formatProbeError } = await import("./pokemon-center-probe.js")
+    const { formatProbeError } = await import("./probe-utils.js")
     expect(formatProbeError(new Error("socket hang up"))).toBe("socket hang up")
     expect(formatProbeError("timeout")).toBe("timeout")
   })

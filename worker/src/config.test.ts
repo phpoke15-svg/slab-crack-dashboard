@@ -37,7 +37,12 @@ describe("buildProxyUrl", () => {
     process.env.PROXY_USERNAME = "legacy-user"
     process.env.PROXY_PASSWORD = "legacy-pass"
 
-    const { buildProxyUrl } = await import("./config.js")
+    const { buildProxyUrl, getPlaywrightProxy } = await import("./config.js")
     expect(buildProxyUrl()).toBe("http://legacy-user:legacy-pass@proxy.example.com:8080")
+    expect(getPlaywrightProxy()).toEqual({
+      server: "http://proxy.example.com:8080",
+      username: "legacy-user",
+      password: "legacy-pass",
+    })
   })
 })

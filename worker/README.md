@@ -35,13 +35,24 @@ Every **5 seconds** during business hours. Outside that window the worker stays 
 
 ## Detection logic
 
-1. Sends browser-like `GET` requests every 5 seconds via **`got-scraping`** (TLS fingerprint + header generation)
-2. Routes through IPRoyal using `proxyUrl` built from `IPROYAL_*` (or legacy `PROXY_*`) env vars
-3. Uses desktop Firefox/Chrome header profiles with HTTP/2
-4. Marks queue **LIVE** on queue redirects, queue response headers, or Queue-it HTML markers
-5. Treats `403` / Imperva challenge pages as **blocked** (logged cleanly, no crash, no false alerts)
+1. Opens **headless Chromium** (Playwright + stealth plugin) every 5 seconds on the cron schedule
+2. Routes browser traffic through IPRoyal (`IPROYAL_*` or legacy `PROXY_*` env vars)
+3. Waits for DOM + network idle so Imperva JavaScript challenges can render
+4. Marks queue **LIVE** on queue redirects, Queue-it HTML/title markers, or queue hostnames in the final URL
+5. Treats Imperva block/challenge pages as **blocked** (logged cleanly, no crash, no false alerts)
 6. Debounces alerts: **2 consecutive LIVE hits within 15 seconds** before sending FCM
-7. Broadcasts to FCM topic with payload `{ url: "..." }`
+7. Closes browser context after each probe to limit memory use
+
+## Playwright setup (local)
+
+```bash
+cd worker
+npm install
+npx playwright install --with-deps chromium   # Linux/Railway needs system deps
+npm run dev
+```
+
+Railway Docker builds run `npx playwright install --with-deps chromium` automatically.
 
 ## Mobile token subscription
 
