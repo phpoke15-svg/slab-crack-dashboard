@@ -8,6 +8,7 @@ import {
   formatProbeLogLine,
   probePokemonCenterQueue,
 } from "./pokemon-center-probe.js"
+import { logProxyIpDiagnostic, runProxyIpDiagnostic } from "./proxy-diagnostic.js"
 import {
   canSendAlert,
   createDebounceState,
@@ -131,6 +132,10 @@ async function main(): Promise<void> {
   console.log(`[worker] target=${config.targetUrl}`)
 
   startSubscribeServer()
+
+  const proxyDiagnostic = await runProxyIpDiagnostic()
+  logProxyIpDiagnostic(proxyDiagnostic)
+
   startQueueSchedule()
 
   await new Promise<void>(() => {
