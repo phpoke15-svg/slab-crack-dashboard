@@ -37,7 +37,8 @@
     "backfill-card-slugs": "npx tsx scripts/backfill-card-slugs.ts",
     "seed-top-200": "node scripts/seed-top-200.mjs",
     "compute-catalog-phash": "node scripts/compute-catalog-phash.mjs",
-    "live-binder-hud": "npm --prefix live-binder-hud run dev"
+    "live-binder-hud": "npm --prefix live-binder-hud run dev",
+    "capture:iap-screenshots": "node apps/pc-queue-watch/scripts/capture-iap-review-screenshots.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
