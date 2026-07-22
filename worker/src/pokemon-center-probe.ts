@@ -3,31 +3,75 @@ import { chromium } from "playwright-extra"
 import StealthPlugin from "puppeteer-extra-plugin-stealth"
 import { config, getPlaywrightProxy } from "./config.js"
 import { analyzeHeadResponse, isQueueRedirectLocation } from "./queue-detector.js"
-import {
-  formatProbeError,
-  type PokemonCenterProbeResult,
-  sleep,
-} from "./probe-utils.js"
-
-chromium.use(StealthPlugin())
+import { createNavigationFailureProbe, type PokemonCenterProbeResult } from "./probe-utils.js"
 
 const NAV_TIMEOUT_MS = 45_000
-const NETWORK_IDLE_TIMEOUT_MS = 15_000
 const IMPERVA_SETTLE_MS = 5_000
 const DESKTOP_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
-export { formatProbeError, formatProbeLogLine } from "./probe-utils.js"
+/** Register stealth once on the playwright-extra chromium launcher. */
+const stealthPlugin = StealthPlugin()
+let stealthPluginRegistered = false
+
+export function ensureStealthChromium(): typeof chromium {
+  if (!stealthPluginRegistered) {
+    chromium.use(stealthPlugin)
+    stealthPluginRegistered = true
+    console.log("[worker] playwright-extra chromium configured with puppeteer-extra-plugin-stealth")
+  }
+  return chromium
+}
+
+export { formatProbeError, formatProbeLogLine, createNavigationFailureProbe } from "./probe-utils.js"
 export type { PokemonCenterProbeResult } from "./probe-utils.js"
+
+async function closePlaywrightSession(
+  page: Page | null,
+  context: BrowserContext | null,
+  browser: Browser | null,
+): Promise<void> {
+  if (page) {
+    await page.close().catch(() => {})
+  }
+  if (context) {
+    await context.close().catch(() => {})
+  }
+  if (browser) {
+    await browser.close().catch(() => {})
+  }
+}
+
+async function analyzeCurrentPage(page: Page, documentStatus: number): Promise<PokemonCenterProbeResult> {
+  const finalUrl = page.url()
+  const title = await page.title()
+  const html = (await page.content()).slice(0, 16_384)
+  const haystack = `${title}\n${finalUrl}\n${html}`
+  const redirectQueue = isQueueRedirectLocation(finalUrl)
+
+  const probe = analyzeHeadResponse(
+    redirectQueue ? 302 : documentStatus,
+    redirectQueue ? finalUrl : null,
+    { html: haystack },
+  )
+
+  return {
+    ...probe,
+    transport: "playwright-stealth",
+    profile: "chromium-desktop-stealth",
+    title,
+  }
+}
 
 /** Render Pokémon Center in headless Chromium (stealth) through IPRoyal proxy. */
 export async function probePokemonCenterQueue(): Promise<PokemonCenterProbeResult> {
+  const stealthChromium = ensureStealthChromium()
   let browser: Browser | null = null
   let context: BrowserContext | null = null
   let page: Page | null = null
 
   try {
-    browser = await chromium.launch({
+    browser = await stealthChromium.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     })
@@ -53,35 +97,23 @@ export async function probePokemonCenterQueue(): Promise<PokemonCenterProbeResul
       documentStatus = response.status()
     })
 
-    await page.goto(config.targetUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: NAV_TIMEOUT_MS,
-    })
+    try {
+      await page.goto(config.targetUrl, {
+        waitUntil: "networkidle",
+        timeout: NAV_TIMEOUT_MS,
+      })
 
-    await page.waitForLoadState("networkidle", { timeout: NETWORK_IDLE_TIMEOUT_MS }).catch(() => {})
-    await sleep(IMPERVA_SETTLE_MS)
+      await page.waitForTimeout(IMPERVA_SETTLE_MS)
 
-    const finalUrl = page.url()
-    const title = await page.title()
-    const html = (await page.content()).slice(0, 16_384)
-    const haystack = `${title}\n${finalUrl}\n${html}`
-    const redirectQueue = isQueueRedirectLocation(finalUrl)
-
-    const probe = analyzeHeadResponse(
-      redirectQueue ? 302 : documentStatus,
-      redirectQueue ? finalUrl : null,
-      { html: haystack },
-    )
-
-    return {
-      ...probe,
-      transport: "playwright-stealth",
-      profile: "chromium-desktop-stealth",
-      title,
+      return await analyzeCurrentPage(page, documentStatus)
+    } catch (error) {
+      console.warn("[worker] Navigation timed out or failed, waiting for next cycle:", error)
+      return createNavigationFailureProbe()
     }
+  } catch (error) {
+    console.warn("[worker] Navigation timed out or failed, waiting for next cycle:", error)
+    return createNavigationFailureProbe()
   } finally {
-    await page?.close().catch(() => {})
-    await context?.close().catch(() => {})
-    await browser?.close().catch(() => {})
+    await closePlaywrightSession(page, context, browser)
   }
 }
