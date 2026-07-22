@@ -18,7 +18,7 @@ import {
   PRICE_MAX,
   PRICE_MIN,
 } from "@/lib/card-filters/price-scale"
-import type { CardMarketFilterState, GradeFilter, SlabPopCard } from "@/lib/card-filters/types"
+import type { CardMarketFilterState, GradeFilter, MockGradedCard, SlabPopCard } from "@/lib/card-filters/types"
 import { cn } from "@/lib/utils"
 import { SlidersHorizontal } from "lucide-react"
 
