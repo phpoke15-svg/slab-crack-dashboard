@@ -7,10 +7,11 @@ export function portfolioPerformanceForAccess(
   if (fullAccess) return performance
 
   return {
-    total_roi_pct: performance.total_roi_pct,
+    ...performance,
     win_rate_pct: 0,
+    total_gain_loss_usd: 0,
     pick_count: 0,
-    weeks_tracked: performance.weeks_tracked,
+    budget_spent: 0,
     chart: performance.chart.map((point) => ({
       week_start_date: point.week_start_date,
       ai_cumulative_pct: point.ai_cumulative_pct,

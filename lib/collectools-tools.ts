@@ -57,11 +57,11 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     tagline: "Weekly picks · ROI tracker",
     blurb: "AI weekly picks · ROI",
     description:
-      "AI Portfolio Tracker surfaces five weekly purchase opportunities from Scrydex momentum, supply velocity, and PSA spread signals, then tracks cumulative ROI against a market baseline.",
+      "AI Portfolio Tracker surfaces weekly budget-tiered purchase baskets ($100–$1,000/week) from Scrydex momentum, supply velocity, and PSA spread signals.",
     highlights: [
-      "Monday cron ranks top 5 sub-$1000 opportunities",
-      "AI-written rationales with confidence scores",
-      "Historical win rate and cumulative ROI chart",
+      "Four budget tiers: $100, $250, $500, and $1,000 per week",
+      "OpenAI-ranked card baskets with confidence scores and targets",
+      "Tier-specific ROI, win rate, and cumulative performance charts",
     ],
     icon: Activity,
   },

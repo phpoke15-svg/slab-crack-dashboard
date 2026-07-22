@@ -1,12 +1,14 @@
 import { gatherWeeklyPickCandidates } from "@/lib/ai-weekly-picks/candidates"
-import { countWeeklyPicks, replaceWeeklyPicks } from "@/lib/ai-weekly-picks/db"
-import { selectWeeklyPicksWithLlm } from "@/lib/ai-weekly-picks/llm"
+import { countWeeklyTierCoverage, replaceWeeklyPicks } from "@/lib/ai-weekly-picks/db"
+import { selectMultiTierWeeklyPicksWithLlm } from "@/lib/ai-weekly-picks/llm"
+import { BUCKET_TIERS } from "@/lib/ai-weekly-picks/tiers"
 import { weekStartDateUtc } from "@/lib/ai-weekly-picks/week"
 
 export type GenerateWeeklyPicksResult = {
   weekStartDate: string
   candidateCount: number
   pickCount: number
+  tiersGenerated: number
   provider: "openai" | "fallback"
   skipped: boolean
   reason?: string
@@ -19,27 +21,30 @@ export async function generateWeeklyPicks(input?: {
   const weekStartDate = input?.weekStartDate ?? weekStartDateUtc()
 
   if (!input?.force) {
-    const existing = await countWeeklyPicks(weekStartDate)
-    if (existing >= 5) {
+    const tierCoverage = await countWeeklyTierCoverage(weekStartDate)
+    if (tierCoverage >= BUCKET_TIERS.length) {
       return {
         weekStartDate,
         candidateCount: 0,
-        pickCount: existing,
+        pickCount: 0,
+        tiersGenerated: tierCoverage,
         provider: "fallback",
         skipped: true,
-        reason: "Picks already exist for this week",
+        reason: "All budget tiers already exist for this week",
       }
     }
   }
 
-  const candidates = await gatherWeeklyPickCandidates(15)
-  const { picks, provider } = await selectWeeklyPicksWithLlm(candidates)
+  const candidates = await gatherWeeklyPickCandidates(80)
+  const { picks, provider } = await selectMultiTierWeeklyPicksWithLlm(candidates)
   const saved = await replaceWeeklyPicks(weekStartDate, picks)
+  const tiersGenerated = new Set(saved.map((pick) => pick.bucket_tier)).size
 
   return {
     weekStartDate,
     candidateCount: candidates.length,
     pickCount: saved.length,
+    tiersGenerated,
     provider,
     skipped: false,
   }
