@@ -34,10 +34,12 @@ Every **5 seconds** during business hours. Outside that window the worker stays 
 
 ## Detection logic
 
-1. Sends `HEAD` requests every 5 seconds on the cron schedule above (headers only, no body download)
-2. Marks queue **LIVE** when status is `302`/`307` and `Location` points at `queue.pokemoncenter.com`, `queue-it.net`, or `queue-it.com`
-3. Debounces alerts: **2 consecutive LIVE hits within 15 seconds** before sending FCM
-4. Broadcasts to FCM topic with payload `{ url: "..." }`
+1. Sends browser-like `GET` requests every 5 seconds on the cron schedule above (Imperva often blocks bare `HEAD` probes)
+2. Rotates User-Agent / Accept-Language profiles every 5 minutes
+3. Marks queue **LIVE** on queue redirects (`301`/`302`/`307`/`308`), queue response headers, or Queue-it HTML markers
+4. Treats `403` / Imperva challenge pages as **blocked** (no false alerts)
+5. Debounces alerts: **2 consecutive LIVE hits within 15 seconds** before sending FCM
+6. Broadcasts to FCM topic with payload `{ url: "..." }`
 
 ## Mobile token subscription
 

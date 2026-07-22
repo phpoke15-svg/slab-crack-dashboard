@@ -14,6 +14,7 @@ describe("queue-detector", () => {
       "https://pokemoncenter.queue-it.net/?c=pokemoncenter&e=drop",
     )
     expect(result.live).toBe(true)
+    expect(result.blocked).toBe(false)
     expect(result.queueUrl).toContain("queue-it.net")
   })
 
@@ -24,6 +25,23 @@ describe("queue-detector", () => {
   it("ignores non-queue redirects", () => {
     const result = analyzeHeadResponse(302, "https://www.pokemoncenter.com/login")
     expect(result.live).toBe(false)
+    expect(result.blocked).toBe(false)
+  })
+
+  it("treats Imperva 403 as blocked, not LIVE", () => {
+    const result = analyzeHeadResponse(403, null, {
+      html: "<html>Access Denied</html>",
+    })
+    expect(result.live).toBe(false)
+    expect(result.blocked).toBe(true)
+  })
+
+  it("detects queue-it markers in HTML without redirect", () => {
+    const result = analyzeHeadResponse(200, null, {
+      html: '<script src="https://assets.queue-it.net/static/queueconfig.js"></script>',
+    })
+    expect(result.live).toBe(true)
+    expect(result.blocked).toBe(false)
   })
 
   it("requires two consecutive LIVE hits within 15 seconds", () => {

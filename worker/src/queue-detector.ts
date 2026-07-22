@@ -1,10 +1,14 @@
 const QUEUE_HOST_PATTERNS = [/queue\.pokemoncenter\.com/i, /queue-it\.net/i, /queue-it\.com/i]
+const QUEUE_REDIRECT_RE = /queue-it|waitingroom|waiting-room|queueit|virtual.?queue/i
+const QUEUE_HEADER_RE = /queue-it|queueit|x-queue/i
+const IMPERVA_BLOCK_RE = /access denied|request unsuccessful|_Incapsula_Resource|incident_id=/i
 
 export type HeadProbeResult = {
   status: number
   location: string | null
   live: boolean
   queueUrl: string | null
+  blocked: boolean
 }
 
 export function isQueueRedirectLocation(location: string | null | undefined): boolean {
@@ -17,16 +21,51 @@ export function isQueueRedirectLocation(location: string | null | undefined): bo
   }
 }
 
-export function analyzeHeadResponse(status: number, location: string | null | undefined): HeadProbeResult {
-  const redirect = status === 302 || status === 307
-  const queueLive = redirect && isQueueRedirectLocation(location)
-  const queueUrl = queueLive && location ? location : null
+function hasQueueHeader(headers: Record<string, string> | undefined): boolean {
+  if (!headers) return false
+  for (const [key, value] of Object.entries(headers)) {
+    if (QUEUE_HEADER_RE.test(`${key}:${value}`)) return true
+  }
+  return false
+}
+
+function hasQueueHtml(html: string | null | undefined): boolean {
+  if (!html) return false
+  return QUEUE_REDIRECT_RE.test(html)
+}
+
+export function analyzeHeadResponse(
+  status: number,
+  location: string | null | undefined,
+  options?: { headers?: Record<string, string>; html?: string | null },
+): HeadProbeResult {
+  const headers = options?.headers
+  const html = options?.html ?? null
+  const redirect = status === 301 || status === 302 || status === 307 || status === 308
+  const redirectQueue = redirect && isQueueRedirectLocation(location)
+  const headerQueue = hasQueueHeader(headers)
+  const htmlQueue = !redirectQueue && hasQueueHtml(html)
+  const blocked =
+    status === 403 ||
+    IMPERVA_BLOCK_RE.test(html ?? "") ||
+    (status === 503 && IMPERVA_BLOCK_RE.test(html ?? ""))
+
+  const queueLive = !blocked && (redirectQueue || headerQueue || htmlQueue)
+  const queueUrl =
+    redirectQueue && location
+      ? location
+      : htmlQueue && location
+        ? location
+        : queueLive
+          ? "https://www.pokemoncenter.com/"
+          : null
 
   return {
     status,
     location: location ?? null,
     live: queueLive,
     queueUrl,
+    blocked,
   }
 }
 

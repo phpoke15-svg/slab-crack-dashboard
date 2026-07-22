@@ -5,6 +5,7 @@ import { HttpsProxyAgent } from "https-proxy-agent"
 import cron from "node-cron"
 import { buildProxyUrl, config } from "./config.js"
 import { sendQueueLiveAlert, subscribeTokenToTopic } from "./fcm.js"
+import { buildProbeHeaders, pickProbeProfile } from "./probe-profiles.js"
 import {
   analyzeHeadResponse,
   canSendAlert,
@@ -17,7 +18,7 @@ import {
   type LiveDebounceState,
 } from "./queue-detector.js"
 
-function createProbeClient(): AxiosInstance {
+function createProbeClient(headers: Record<string, string>): AxiosInstance {
   const proxyUrl = buildProxyUrl()
   const httpsAgent = new HttpsProxyAgent(proxyUrl)
 
@@ -27,12 +28,19 @@ function createProbeClient(): AxiosInstance {
     timeout: 15_000,
     maxRedirects: 0,
     validateStatus: () => true,
-    headers: {
-      "User-Agent": config.userAgent,
-      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      "Accept-Language": "en-US,en;q=0.9",
-    },
+    headers,
+    maxContentLength: 32 * 1024,
+    maxBodyLength: 32 * 1024,
   })
+}
+
+function normalizeHeaders(headers: Record<string, unknown>): Record<string, string> {
+  const normalized: Record<string, string> = {}
+  for (const [key, value] of Object.entries(headers)) {
+    if (value == null) continue
+    normalized[key.toLowerCase()] = Array.isArray(value) ? String(value[0]) : String(value)
+  }
+  return normalized
 }
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
@@ -95,9 +103,8 @@ export function startSubscribeServer(): void {
 
 let probeInFlight = false
 
-/** Single queue HEAD probe — only invoked by the weekday cron schedule. */
+/** Single queue GET probe — only invoked by the weekday cron schedule. */
 export async function checkQueueOnce(
-  client: AxiosInstance,
   debounce: LiveDebounceState,
 ): Promise<void> {
   if (probeInFlight) {
@@ -108,15 +115,23 @@ export async function checkQueueOnce(
   probeInFlight = true
 
   try {
-    const response = await client.head(config.targetUrl)
+    const profile = pickProbeProfile()
+    const client = createProbeClient(buildProbeHeaders(profile))
+    const response = await client.get<string>(config.targetUrl, { responseType: "text" })
     const locationHeader = response.headers.location
     const location = Array.isArray(locationHeader) ? locationHeader[0] : locationHeader
-    const probe = analyzeHeadResponse(response.status, location)
+    const html = typeof response.data === "string" ? response.data.slice(0, 8192) : null
+    const probe = analyzeHeadResponse(response.status, location, {
+      headers: normalizeHeaders(response.headers as Record<string, unknown>),
+      html,
+    })
 
+    const blockedNote = probe.blocked ? " blocked=Imperva" : ""
     console.log(
-      `[worker] HEAD ${config.targetUrl} -> ${probe.status}` +
+      `[worker] GET ${config.targetUrl} -> ${probe.status} profile=${profile.id}` +
         (probe.location ? ` location=${probe.location}` : "") +
-        (probe.live ? " LIVE" : ""),
+        (probe.live ? " LIVE" : "") +
+        blockedNote,
     )
 
     if (probe.live) {
@@ -139,14 +154,11 @@ export async function checkQueueOnce(
   }
 }
 
-export function startQueueSchedule(
-  client: AxiosInstance = createProbeClient(),
-  debounce: LiveDebounceState = createDebounceState(),
-): void {
+export function startQueueSchedule(debounce: LiveDebounceState = createDebounceState()): void {
   cron.schedule(
     CRON_SCHEDULE,
     () => {
-      void checkQueueOnce(client, debounce)
+      void checkQueueOnce(debounce)
     },
     { timezone: CRON_TIMEZONE },
   )
