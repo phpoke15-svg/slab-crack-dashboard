@@ -76,7 +76,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     highlights: [
       "SlabCrack — top 100 graded arbitrage board",
       "SlabIt — top 100 PSA 10 submission ROI rankings",
-      "SlabPop — population and price band filters",
+      "SlabPop — Scrydex registry population filters",
       "Camera scan on SlabCrack and SlabIt",
     ],
     icon: FlaskConical,

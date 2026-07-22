@@ -3,6 +3,13 @@ import { getCatalogFeedFromDb } from "@/lib/db/catalog-feed"
 import type { CardPriceRow } from "@/lib/pricing/types"
 import { upgradeCardImageUrlSync } from "@/lib/card-image-url"
 import { MOCK_GRADED_CARDS } from "@/lib/card-filters/mock-catalog"
+import {
+  fetchScrydexGradedPriceIndex,
+  fetchScrydexPopulationIndex,
+  populationReportKey,
+  resolveCardCatalogId,
+  resolveSlabPopCount,
+} from "@/lib/card-filters/slabpop-population"
 import type { CardGrade, SlabPopCard } from "@/lib/card-filters/types"
 import { createReadClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import type { SampleCounts } from "@/lib/slab-data"
@@ -17,10 +24,22 @@ type PsaGradeSpec = {
   historyGrade: 8 | 9 | 10
 }
 
+type ExtraGraderSpec = {
+  grade: CardGrade
+  company: string
+  gradeKey: string
+}
+
 const PSA_GRADE_SPECS: PsaGradeSpec[] = [
   { grade: "PSA 8", priceKey: "psa8_price", sampleKey: "psa8", historyGrade: 8 },
   { grade: "PSA 9", priceKey: "psa9_price", sampleKey: "psa9", historyGrade: 9 },
   { grade: "PSA 10", priceKey: "psa10_price", sampleKey: "psa10", historyGrade: 10 },
+]
+
+const EXTRA_GRADER_SPECS: ExtraGraderSpec[] = [
+  { grade: "BGS 9.5", company: "BGS", gradeKey: "9.5" },
+  { grade: "BGS 10", company: "BGS", gradeKey: "10" },
+  { grade: "CGC 10", company: "CGC", gradeKey: "10" },
 ]
 
 function catalogMatchKey(setName: string, name: string): string {
@@ -72,9 +91,7 @@ function sampleCountForCard(
   return value > 0 ? value : null
 }
 
-async function fetchMarketActivityPop(
-  cardIds: string[],
-): Promise<Map<string, number>> {
+async function fetchMarketActivityPop(cardIds: string[]): Promise<Map<string, number>> {
   const activity = new Map<string, number>()
   if (!isSupabaseConfigured() || cardIds.length === 0) return activity
 
@@ -116,11 +133,40 @@ async function fetchMarketActivityPop(
   return activity
 }
 
-function expandGradedRows(
+function buildSlabPopCard(input: {
+  cardId: string
+  catalogId: string | null
+  title: string
+  setName: string
+  cardNumber?: string
+  image: string
+  grade: CardGrade
+  price: number
+  popCount: number
+  popSource: NonNullable<SlabPopCard["popSource"]>
+}): SlabPopCard {
+  return {
+    id: rowId(input.cardId, input.grade),
+    cardId: input.cardId,
+    catalogId: input.catalogId,
+    title: input.title,
+    price: input.price,
+    popCount: input.popCount,
+    grade: input.grade,
+    image: input.image,
+    setName: input.setName,
+    cardNumber: input.cardNumber,
+    popSource: input.popSource,
+  }
+}
+
+function expandPsaRows(
   priceRow: CardPriceRow,
   card: CatalogCardRow,
+  catalogId: string | null,
   sampleIndex: Map<string, SampleCounts>,
   marketActivity: Map<string, number>,
+  scrydexPop: Map<string, number>,
 ): SlabPopCard[] {
   const rows: SlabPopCard[] = []
   const image = upgradeCardImageUrlSync(card.image_url ?? "/placeholder.svg")
@@ -131,23 +177,78 @@ function expandGradedRows(
     const price = priceRow[spec.priceKey]
     if (price == null || price <= 0) continue
 
+    const registryPop =
+      catalogId != null
+        ? scrydexPop.get(populationReportKey(catalogId, "PSA", String(spec.historyGrade))) ?? null
+        : null
     const soldCompPop = sampleCountForCard(priceRow.card_id, setName, titleBase, spec, sampleIndex)
     const activityKey = `${priceRow.card_id}::${spec.historyGrade}`
     const marketPop = marketActivity.get(activityKey) ?? 0
-    const popCount = soldCompPop ?? (marketPop > 0 ? marketPop : 1)
-
-    rows.push({
-      id: rowId(priceRow.card_id, spec.grade),
-      cardId: priceRow.card_id,
-      title: formatTitle(titleBase, setName),
-      price: Math.round(price * 100) / 100,
-      popCount,
-      grade: spec.grade,
-      image,
-      setName,
-      cardNumber: card.number || undefined,
-      popSource: soldCompPop != null ? "sold_comps" : "market_activity",
+    const resolved = resolveSlabPopCount({
+      scrydexPop: registryPop,
+      soldCompPop,
+      marketActivityPop: marketPop,
     })
+    if (!resolved) continue
+
+    rows.push(
+      buildSlabPopCard({
+        cardId: priceRow.card_id,
+        catalogId,
+        title: formatTitle(titleBase, setName),
+        setName,
+        cardNumber: card.number || undefined,
+        image,
+        grade: spec.grade,
+        price: Math.round(price * 100) / 100,
+        popCount: resolved.popCount,
+        popSource: resolved.popSource,
+      }),
+    )
+  }
+
+  return rows
+}
+
+function expandAlternateGraderRows(
+  cardId: string,
+  catalogId: string | null,
+  card: CatalogCardRow,
+  scrydexPop: Map<string, number>,
+  scrydexGradedPrices: Map<string, number>,
+): SlabPopCard[] {
+  if (!catalogId) return []
+
+  const rows: SlabPopCard[] = []
+  const image = upgradeCardImageUrlSync(card.image_url ?? "/placeholder.svg")
+  const setName = card.set_name
+
+  for (const spec of EXTRA_GRADER_SPECS) {
+    const key = populationReportKey(catalogId, spec.company, spec.gradeKey)
+    const price = scrydexGradedPrices.get(key)
+    if (price == null || price <= 0) continue
+
+    const resolved = resolveSlabPopCount({
+      scrydexPop: scrydexPop.get(key) ?? null,
+      soldCompPop: null,
+      marketActivityPop: 0,
+    })
+    if (!resolved) continue
+
+    rows.push(
+      buildSlabPopCard({
+        cardId,
+        catalogId,
+        title: formatTitle(card.name, setName),
+        setName,
+        cardNumber: card.number || undefined,
+        image,
+        grade: spec.grade,
+        price,
+        popCount: resolved.popCount,
+        popSource: resolved.popSource,
+      }),
+    )
   }
 
   return rows
@@ -198,7 +299,9 @@ async function fetchCatalogCards(cardIds: string[]): Promise<Map<string, Catalog
     const chunk = cardIds.slice(i, i + chunkSize)
     const { data, error } = await supabase
       .from("cards")
-      .select("id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at")
+      .select(
+        "id, name, japanese_name, set_name, set_id, number, rarity, image_url, language, updated_at, scrydex_id",
+      )
       .in("id", chunk)
 
     if (error) {
@@ -224,8 +327,8 @@ function mockFallbackCatalog(): SlabPopCard[] {
 }
 
 /**
- * Live SlabPop catalog: PSA graded prices from card_prices + cards metadata.
- * Pop counts prefer SlabCrack sold-comp sample sizes; otherwise 30-day price_history activity.
+ * Live SlabPop catalog: PSA graded prices from card_prices + Scrydex population reports.
+ * Pop counts prefer PSA registry population, then SlabCrack sold comps, then price_history activity.
  */
 export async function getSlabPopCatalog(limit = DEFAULT_CARD_POOL): Promise<SlabPopCard[]> {
   if (!isSupabaseConfigured()) return mockFallbackCatalog()
@@ -244,11 +347,35 @@ export async function getSlabPopCatalog(limit = DEFAULT_CARD_POOL): Promise<Slab
       fetchMarketActivityPop(cardIds),
     ])
 
+    const catalogIds = [
+      ...new Set(
+        cardIds
+          .map((cardId) => resolveCardCatalogId(cardId, cardsById.get(cardId)?.scrydex_id))
+          .filter((catalogId): catalogId is string => Boolean(catalogId)),
+      ),
+    ]
+
+    const [scrydexPop, scrydexGradedPrices] = await Promise.all([
+      fetchScrydexPopulationIndex(catalogIds),
+      fetchScrydexGradedPriceIndex(catalogIds),
+    ])
+
     const catalog: SlabPopCard[] = []
     for (const priceRow of priceRows) {
       const card = cardsById.get(priceRow.card_id)
       if (!card) continue
-      catalog.push(...expandGradedRows(priceRow, card, sampleIndex, marketActivity))
+
+      const catalogId = resolveCardCatalogId(priceRow.card_id, card.scrydex_id)
+      catalog.push(
+        ...expandPsaRows(priceRow, card, catalogId, sampleIndex, marketActivity, scrydexPop),
+        ...expandAlternateGraderRows(
+          priceRow.card_id,
+          catalogId,
+          card,
+          scrydexPop,
+          scrydexGradedPrices,
+        ),
+      )
     }
 
     if (!catalog.length) return mockFallbackCatalog()
