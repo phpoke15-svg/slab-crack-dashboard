@@ -1,6 +1,7 @@
 import { getCatalogFeedFromDb, isSupabaseConfigured } from "@/lib/db/catalog-feed"
 import { readSlabItTopCache, writeSlabItTopCache } from "@/lib/db/slabit-top-cache"
 import { readAnomaliesCache } from "@/lib/sync-anomalies"
+import { enrichMockEntriesWithScrydexGrades } from "@/lib/grading/enrich-scrydex-grades"
 import mockData from "@/lib/mockData.json"
 import {
   buildGradeQuotes,
@@ -238,7 +239,10 @@ export async function getTopSlabCrackCards(limit = TOP_CARDS_LIMIT): Promise<Moc
       .filter((entry): entry is MockCardEntry => entry != null)
       .sort((a, b) => b.deficit - a.deficit)
 
-    if (entries.length > 0) return entries.slice(0, limit)
+    if (entries.length > 0) {
+      const enriched = await enrichMockEntriesWithScrydexGrades(entries)
+      return enriched.slice(0, limit)
+    }
   } catch (error) {
     console.warn("[top-ranked-cards] SlabCrack market scan failed:", error)
   }

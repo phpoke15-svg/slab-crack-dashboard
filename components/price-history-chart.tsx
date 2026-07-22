@@ -333,6 +333,13 @@ export function PriceHistoryChart({
     for (const [key, value] of Object.entries(historyQuery ?? {})) {
       if (value) params.set(key, value)
     }
+    if (slabSelection) {
+      if (!params.has("company")) params.set("company", slabSelection.company)
+      if (!params.has("grade")) params.set("grade", slabSelection.grade)
+    } else if (grade != null) {
+      if (!params.has("company")) params.set("company", "PSA")
+      if (!params.has("grade")) params.set("grade", String(grade))
+    }
     void fetch(`${historyEndpoint}?${params.toString()}`)
       .then(async (res) => {
         const data = (await res.json().catch(() => null)) as HistoryApiResponse | null
@@ -360,7 +367,7 @@ export function PriceHistoryChart({
     return () => {
       cancelled = true
     }
-  }, [visible, loadedKey, fetchKey, cardId, range, historyEndpoint, historyQuery, rawOnly])
+  }, [visible, loadedKey, fetchKey, cardId, range, historyEndpoint, historyQuery, rawOnly, slabSelection, grade])
 
   useEffect(() => {
     setLoadedKey("")

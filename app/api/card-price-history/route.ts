@@ -1,8 +1,4 @@
 import { NextResponse } from "next/server"
-import {
-  ensureCardDailyPriceHistory,
-  getCardDailyPriceHistorySeries,
-} from "@/lib/pricing/card-daily-price-history"
 import { ensureCardPriceHistory } from "@/lib/pricing/lazy-price-history"
 import {
   getPriceHistorySeriesMap,
@@ -10,73 +6,95 @@ import {
 } from "@/lib/pricing/price-history-series"
 import { isScrydexConfigured, resolveCatalogId } from "@/lib/scrydex/constants"
 import { parsePriceHistoryRange } from "@/lib/pricing/price-history-range"
-import { SCRYDEX_PRICE_HISTORY_LABELS } from "@/lib/tcg-research/scrydex-price-history"
-import type { PriceHistorySeriesKey } from "@/lib/pricing/types"
+import { normalizeGradingCompany } from "@/lib/grading/types"
+import {
+  loadTcgResearchScrydexPriceHistory,
+  SCRYDEX_PRICE_HISTORY_LABELS,
+} from "@/lib/tcg-research/scrydex-price-history"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
-function filterSeriesByDays<T extends { date: string }>(points: T[], days: number): T[] {
-  if (days <= 0 || points.length === 0) return points
-  const since = new Date()
-  since.setUTCDate(since.getUTCDate() - days)
-  const sinceDate = since.toISOString().slice(0, 10)
-  return points.filter((point) => point.date >= sinceDate)
-}
-
-/** Price history for Slab Labs charts — Scrydex daily cache with TCGGO fallback. */
+/** Price history for Slab Labs charts — Scrydex-only when configured. */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const id = searchParams.get("id")?.trim()
+  const catalogIdParam = searchParams.get("catalogId")?.trim() || undefined
+  const scrydexId = searchParams.get("scrydexId")?.trim() || undefined
+  const game = searchParams.get("game")?.trim() || undefined
+  const company = normalizeGradingCompany(searchParams.get("company"))
+  const grade = searchParams.get("grade")?.trim() || undefined
   const rangeParam = searchParams.get("range") ?? searchParams.get("days")
   const { days, full } = parsePriceHistoryRange(rangeParam)
 
-  if (!id) {
+  if (!id && !catalogIdParam && !scrydexId) {
     return NextResponse.json({ error: "id is required" }, { status: 400 })
   }
 
-  try {
-    const catalogId = resolveCatalogId(id)
+  const catalogId =
+    catalogIdParam ??
+    (scrydexId && game ? `${game}-${scrydexId}` : null) ??
+    (id ? resolveCatalogId(id) : null)
 
+  try {
     if (catalogId && isScrydexConfigured()) {
-      const ensure = await ensureCardDailyPriceHistory(id)
-      const { series, range } = await getCardDailyPriceHistorySeries(id, days)
-      const filtered = Object.fromEntries(
-        Object.entries(series).map(([key, points]) => [key, filterSeriesByDays(points, days)]),
-      ) as Record<PriceHistorySeriesKey, (typeof series)[PriceHistorySeriesKey]>
+      const { series, range, labels, highlightKey } = await loadTcgResearchScrydexPriceHistory({
+        catalogId,
+        scrydexId,
+        game: game as "pokemon" | "lorcana" | "mtg" | undefined,
+        days: days || 90,
+        company,
+        grade,
+      })
 
       const counts = Object.fromEntries(
-        Object.entries(filtered).map(([key, points]) => [key, points.length]),
-      ) as Record<PriceHistorySeriesKey, number>
+        Object.entries(series).map(([key, points]) => [key, points.length]),
+      )
 
-      const hasChartableSeries = Object.values(filtered).some((points) => points.length >= 2)
+      const hasChartableSeries = Object.values(series).some((points) => points.length >= 1)
       if (hasChartableSeries) {
         return NextResponse.json({
-          cardId: id,
-          catalogId: ensure.catalogId,
+          cardId: id ?? catalogId,
+          catalogId,
           days,
           full,
-          labels: SCRYDEX_PRICE_HISTORY_LABELS,
-          highlightKey: "psa9",
-          series: filtered,
+          labels: labels ?? SCRYDEX_PRICE_HISTORY_LABELS,
+          highlightKey,
+          series,
           counts,
           range,
           source: "scrydex",
-          backfill: ensure,
         })
       }
+
+      return NextResponse.json({
+        cardId: id ?? catalogId,
+        catalogId,
+        days,
+        full,
+        labels: labels ?? SCRYDEX_PRICE_HISTORY_LABELS,
+        highlightKey: highlightKey ?? "raw",
+        series,
+        counts,
+        range,
+        source: "scrydex",
+      })
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: "id is required" }, { status: 400 })
     }
 
     await ensureCardPriceHistory(id, { days: days || 30, full, force: full })
 
     const { series, range } = await getPriceHistorySeriesMap(id, 0)
     const filtered = Object.fromEntries(
-      Object.entries(series).map(([key, points]) => [key, filterSeriesByDays(points, days)]),
-    ) as Record<PriceHistorySeriesKey, (typeof series)[PriceHistorySeriesKey]>
+      Object.entries(series).map(([key, points]) => [key, points]),
+    )
 
     const counts = Object.fromEntries(
       Object.entries(filtered).map(([key, points]) => [key, points.length]),
-    ) as Record<PriceHistorySeriesKey, number>
+    )
 
     return NextResponse.json({
       cardId: id,
