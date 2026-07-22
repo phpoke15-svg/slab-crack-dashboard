@@ -33,8 +33,8 @@ export async function saveQueueWatchCredentials(input: {
 export const BRIDGE_INJECT = `
 (function(){
   try {
-    var sid = localStorage.getItem('pc-queue-watch-session') || '';
-    var tok = localStorage.getItem('pc-queue-watch-token') || '';
+    var sid = localStorage.getItem('collectools-qw-session') || localStorage.getItem('pc-queue-watch-session') || '';
+    var tok = localStorage.getItem('collectools-qw-token') || localStorage.getItem('pc-queue-watch-token') || '';
     window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({
       type: 'collectools-qw-creds',
       sessionId: sid,

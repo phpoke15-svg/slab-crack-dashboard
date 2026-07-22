@@ -7,22 +7,18 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import * as Notifications from "expo-notifications"
-import { Platform } from "react-native"
+import {
+  isNativePushRegistered,
+  registerNativeQueueAlerts,
+} from "../push/remote-alerts"
 import { verifyProAccess } from "./pro-access"
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-})
 
 type QueueWatchContextValue = {
   hasPro: boolean | null
   proChecking: boolean
+  nativePushEnabled: boolean
   refreshProAccess: () => Promise<boolean>
+  registerNativePush: () => Promise<{ ok: true } | { ok: false; error: string }>
 }
 
 const QueueWatchContext = createContext<QueueWatchContextValue | null>(null)
@@ -30,12 +26,31 @@ const QueueWatchContext = createContext<QueueWatchContextValue | null>(null)
 export function QueueWatchProvider({ children }: { children: ReactNode }) {
   const [hasPro, setHasPro] = useState<boolean | null>(null)
   const [proChecking, setProChecking] = useState(true)
+  const [nativePushEnabled, setNativePushEnabled] = useState(false)
+
+  const refreshNativePushState = useCallback(async () => {
+    setNativePushEnabled(await isNativePushRegistered())
+  }, [])
+
+  const registerNativePush = useCallback(async () => {
+    const result = await registerNativeQueueAlerts()
+    if (result.ok) {
+      setNativePushEnabled(true)
+    }
+    return result
+  }, [])
 
   const refreshProAccess = useCallback(async () => {
     setProChecking(true)
     try {
       const result = await verifyProAccess()
       setHasPro(result.hasPro)
+      if (result.hasPro) {
+        const push = await registerNativeQueueAlerts()
+        if (push.ok) {
+          setNativePushEnabled(true)
+        }
+      }
       return result.hasPro
     } finally {
       setProChecking(false)
@@ -43,26 +58,19 @@ export function QueueWatchProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    void (async () => {
-      if (Platform.OS === "android") {
-        await Notifications.setNotificationChannelAsync("queue-live", {
-          name: "Pokemon Center queue alerts",
-          importance: Notifications.AndroidImportance.MAX,
-          vibrationPattern: [0, 300, 150, 300],
-          sound: "default",
-        })
-      }
-      const current = await Notifications.getPermissionsAsync()
-      if (current.status !== "granted") {
-        await Notifications.requestPermissionsAsync()
-      }
-      await refreshProAccess()
-    })()
-  }, [refreshProAccess])
+    void refreshNativePushState()
+    void refreshProAccess()
+  }, [refreshNativePushState, refreshProAccess])
 
   const value = useMemo(
-    () => ({ hasPro, proChecking, refreshProAccess }),
-    [hasPro, proChecking, refreshProAccess],
+    () => ({
+      hasPro,
+      proChecking,
+      nativePushEnabled,
+      refreshProAccess,
+      registerNativePush,
+    }),
+    [hasPro, proChecking, nativePushEnabled, refreshProAccess, registerNativePush],
   )
 
   return <QueueWatchContext.Provider value={value}>{children}</QueueWatchContext.Provider>

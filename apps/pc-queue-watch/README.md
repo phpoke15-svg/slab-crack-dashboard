@@ -56,6 +56,18 @@ npm start
 
 Use Expo Go for UI. **Verify push + WebView monitoring on a real APK.**
 
+## Native queue alerts (Android / iOS app)
+
+The Play/App Store app registers device tokens via `POST /api/push/fcm-register` (Pro-gated).
+When the Railway worker detects a live queue, it broadcasts to the same FCM topic.
+
+Requires on **Vercel** (same Firebase project as the worker):
+
+- `FIREBASE_SERVICE_ACCOUNT_JSON`
+- `FCM_TOPIC` (optional, default `pokemon_center_alerts`)
+
+Users: open `/pokewatch` in the app → **Enable queue alerts** → allow notifications.
+
 ## Env
 
 ```

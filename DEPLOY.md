@@ -87,7 +87,10 @@ After changing env vars, **Redeploy**.
    - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
    - `VAPID_PRIVATE_KEY`
    - `VAPID_SUBJECT` (e.g. `mailto:support@collectools.app`)
-4. Redeploy. Users enable **Phone alerts** on `/pokewatch` or `/restocks`.
+4. **Native app push (Android/iOS):** set the same Firebase Admin JSON on Vercel:
+   - `FIREBASE_SERVICE_ACCOUNT_JSON` (full JSON one line)
+   - `FCM_TOPIC` (optional, default `pokemon_center_alerts`)
+5. Redeploy. Users enable **Phone alerts** on `/pokewatch` or `/restocks`.
 5. Sends:
    - Pokémon Center queue live → **all Pro and Supreme members** who enabled queue phone alerts (Supreme always receives every alert type; one monitor detects → everyone notified)
    - Walmart Wednesday 9pm ET reminder (anyone who opted in)
