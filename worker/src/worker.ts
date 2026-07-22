@@ -1,13 +1,14 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { fileURLToPath } from "node:url"
-import axios, { type AxiosInstance } from "axios"
-import { HttpsProxyAgent } from "https-proxy-agent"
 import cron from "node-cron"
-import { buildProxyUrl, config } from "./config.js"
+import { config } from "./config.js"
 import { sendQueueLiveAlert, subscribeTokenToTopic } from "./fcm.js"
-import { buildProbeHeaders, pickProbeProfile } from "./probe-profiles.js"
 import {
-  analyzeHeadResponse,
+  formatProbeError,
+  formatProbeLogLine,
+  probePokemonCenterQueue,
+} from "./pokemon-center-probe.js"
+import {
   canSendAlert,
   createDebounceState,
   CRON_SCHEDULE,
@@ -17,31 +18,6 @@ import {
   resetLiveDebounce,
   type LiveDebounceState,
 } from "./queue-detector.js"
-
-function createProbeClient(headers: Record<string, string>): AxiosInstance {
-  const proxyUrl = buildProxyUrl()
-  const httpsAgent = new HttpsProxyAgent(proxyUrl)
-
-  return axios.create({
-    httpsAgent,
-    proxy: false,
-    timeout: 15_000,
-    maxRedirects: 0,
-    validateStatus: () => true,
-    headers,
-    maxContentLength: 32 * 1024,
-    maxBodyLength: 32 * 1024,
-  })
-}
-
-function normalizeHeaders(headers: Record<string, unknown>): Record<string, string> {
-  const normalized: Record<string, string> = {}
-  for (const [key, value] of Object.entries(headers)) {
-    if (value == null) continue
-    normalized[key.toLowerCase()] = Array.isArray(value) ? String(value[0]) : String(value)
-  }
-  return normalized
-}
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = []
@@ -104,9 +80,7 @@ export function startSubscribeServer(): void {
 let probeInFlight = false
 
 /** Single queue GET probe — only invoked by the weekday cron schedule. */
-export async function checkQueueOnce(
-  debounce: LiveDebounceState,
-): Promise<void> {
+export async function checkQueueOnce(debounce: LiveDebounceState): Promise<void> {
   if (probeInFlight) {
     console.log("[worker] Skipping scheduled check — previous probe still running")
     return
@@ -115,24 +89,8 @@ export async function checkQueueOnce(
   probeInFlight = true
 
   try {
-    const profile = pickProbeProfile()
-    const client = createProbeClient(buildProbeHeaders(profile))
-    const response = await client.get<string>(config.targetUrl, { responseType: "text" })
-    const locationHeader = response.headers.location
-    const location = Array.isArray(locationHeader) ? locationHeader[0] : locationHeader
-    const html = typeof response.data === "string" ? response.data.slice(0, 8192) : null
-    const probe = analyzeHeadResponse(response.status, location, {
-      headers: normalizeHeaders(response.headers as Record<string, unknown>),
-      html,
-    })
-
-    const blockedNote = probe.blocked ? " blocked=Imperva" : ""
-    console.log(
-      `[worker] GET ${config.targetUrl} -> ${probe.status} profile=${profile.id}` +
-        (probe.location ? ` location=${probe.location}` : "") +
-        (probe.live ? " LIVE" : "") +
-        blockedNote,
-    )
+    const probe = await probePokemonCenterQueue()
+    console.log(formatProbeLogLine(probe))
 
     if (probe.live) {
       const confirmed = registerLiveHit(debounce)
@@ -147,8 +105,7 @@ export async function checkQueueOnce(
     }
   } catch (error) {
     resetLiveDebounce(debounce)
-    const message = error instanceof Error ? error.message : String(error)
-    console.warn("[worker] probe failed:", message)
+    console.warn(`[worker] probe failed: ${formatProbeError(error)}`)
   } finally {
     probeInFlight = false
   }
@@ -166,6 +123,7 @@ export function startQueueSchedule(debounce: LiveDebounceState = createDebounceS
 
 async function main(): Promise<void> {
   console.log("[worker] Pokémon Center queue detector started")
+  console.log("[worker] Queue probe transport=got-scraping profile=firefox-desktop")
   console.log(
     `[worker] Queue checks scheduled Mon-Fri 9:00 AM - 5:00 PM ${CRON_TIMEZONE} every 5s (cron: ${CRON_SCHEDULE})`,
   )

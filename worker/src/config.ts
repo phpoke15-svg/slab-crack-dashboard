@@ -2,25 +2,28 @@ import dotenv from "dotenv"
 
 dotenv.config()
 
-function required(name: string): string {
-  const value = process.env[name]?.trim()
-  if (!value) throw new Error(`Missing required env var: ${name}`)
-  return value
-}
-
 function optional(name: string, fallback = ""): string {
   return process.env[name]?.trim() || fallback
+}
+
+function proxyEnv(primary: string, legacy: string): string {
+  return optional(primary) || optional(legacy)
+}
+
+function requiredProxy(primary: string, legacy: string): string {
+  const value = proxyEnv(primary, legacy)
+  if (!value) {
+    throw new Error(`Missing required env var: ${primary} or ${legacy}`)
+  }
+  return value
 }
 
 export const config = {
   targetUrl: optional("TARGET_URL", "https://www.pokemoncenter.com/"),
   queueDeepLink: optional("QUEUE_DEEP_LINK", "https://www.pokemoncenter.com/"),
   fcmTopic: optional("FCM_TOPIC", "pokemon_center_alerts"),
-  /** Paste full Firebase service account JSON (preferred on Railway). */
   firebaseServiceAccountJson: optional("FIREBASE_SERVICE_ACCOUNT_JSON"),
-  /** Local file path when JSON env var is not set. */
   firebaseServiceAccountPath: optional("FIREBASE_SERVICE_ACCOUNT_PATH", "./firebase-service-account.json"),
-  /** Railway injects PORT; falls back to SUBSCRIBE_PORT for local dev. */
   subscribePort: Number(optional("PORT", optional("SUBSCRIBE_PORT", "8787"))),
   userAgent:
     optional(
@@ -28,13 +31,14 @@ export const config = {
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     ),
   proxy: {
-    host: required("PROXY_HOST"),
-    port: Number(required("PROXY_PORT")),
-    username: optional("PROXY_USERNAME"),
-    password: optional("PROXY_PASSWORD"),
+    host: requiredProxy("IPROYAL_HOST", "PROXY_HOST"),
+    port: Number(requiredProxy("IPROYAL_PORT", "PROXY_PORT")),
+    username: proxyEnv("IPROYAL_USER", "PROXY_USERNAME"),
+    password: proxyEnv("IPROYAL_PASS", "PROXY_PASSWORD"),
   },
 }
 
+/** Build IPRoyal/PROXY URL for got-scraping `proxyUrl`. */
 export function buildProxyUrl(): string {
   const { host, port, username, password } = config.proxy
   if (username && password) {

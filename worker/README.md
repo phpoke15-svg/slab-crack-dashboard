@@ -14,9 +14,10 @@ npm run dev
 
 ## Environment
 
-See `env.example` for all variables. Required:
+See `env.example` for all variables. Required proxy (either naming scheme):
 
-- `PROXY_HOST`, `PROXY_PORT` — proxy used by `HttpsProxyAgent`
+- `IPROYAL_HOST`, `IPROYAL_PORT`, `IPROYAL_USER`, `IPROYAL_PASS` — preferred on Railway
+- or `PROXY_HOST`, `PROXY_PORT`, `PROXY_USERNAME`, `PROXY_PASSWORD` — legacy aliases
 - `FIREBASE_SERVICE_ACCOUNT_JSON` — full Firebase Admin JSON (Railway) **or** `FIREBASE_SERVICE_ACCOUNT_PATH` locally
 - `FCM_TOPIC` — defaults to `pokemon_center_alerts`
 
@@ -34,12 +35,13 @@ Every **5 seconds** during business hours. Outside that window the worker stays 
 
 ## Detection logic
 
-1. Sends browser-like `GET` requests every 5 seconds on the cron schedule above (Imperva often blocks bare `HEAD` probes)
-2. Rotates User-Agent / Accept-Language profiles every 5 minutes
-3. Marks queue **LIVE** on queue redirects (`301`/`302`/`307`/`308`), queue response headers, or Queue-it HTML markers
-4. Treats `403` / Imperva challenge pages as **blocked** (no false alerts)
-5. Debounces alerts: **2 consecutive LIVE hits within 15 seconds** before sending FCM
-6. Broadcasts to FCM topic with payload `{ url: "..." }`
+1. Sends browser-like `GET` requests every 5 seconds via **`got-scraping`** (TLS fingerprint + header generation)
+2. Routes through IPRoyal using `proxyUrl` built from `IPROYAL_*` (or legacy `PROXY_*`) env vars
+3. Uses desktop Firefox/Chrome header profiles with HTTP/2
+4. Marks queue **LIVE** on queue redirects, queue response headers, or Queue-it HTML markers
+5. Treats `403` / Imperva challenge pages as **blocked** (logged cleanly, no crash, no false alerts)
+6. Debounces alerts: **2 consecutive LIVE hits within 15 seconds** before sending FCM
+7. Broadcasts to FCM topic with payload `{ url: "..." }`
 
 ## Mobile token subscription
 

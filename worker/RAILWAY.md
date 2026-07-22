@@ -21,18 +21,23 @@ Successful deploy logs:
 
 ```
 [worker] Pokémon Center queue detector started
+[worker] Queue probe transport=got-scraping profile=firefox-desktop
 [worker] FCM subscribe API listening on 0.0.0.0:8080/subscribe
 ```
 
 ## 2. Required environment variables
 
+**IPRoyal (preferred):**
+
 | Variable | Description |
 |---|---|
-| `PROXY_HOST` | Proxy hostname |
-| `PROXY_PORT` | Proxy port |
-| `PROXY_USERNAME` | Proxy user (if required) |
-| `PROXY_PASSWORD` | Proxy password (if required) |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Full Firebase Admin JSON pasted as one line (recommended on Railway) |
+| `IPROYAL_HOST` | e.g. `geo.iproyal.com` |
+| `IPROYAL_PORT` | e.g. `12321` |
+| `IPROYAL_USER` | IPRoyal username |
+| `IPROYAL_PASS` | IPRoyal password + flags, e.g. `yourpass_country-us` |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Full Firebase Admin JSON pasted as one line |
+
+**Legacy aliases** (`PROXY_HOST`, `PROXY_PORT`, `PROXY_USERNAME`, `PROXY_PASSWORD`) still work if `IPROYAL_*` is not set.
 
 Optional:
 
