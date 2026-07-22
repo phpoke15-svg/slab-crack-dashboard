@@ -28,10 +28,6 @@ export default function PortfolioPage() {
             <h1 className="mt-5 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Top Weekly Purchase Opportunities
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Part of CollecTools Labs. Starter accounts track cumulative AI ROI over time; Premium,
-              Pro, and Supreme unlock weekly picks, win rate, and full performance analytics.
-            </p>
           </div>
           <SiteAuthButton className="shrink-0" />
         </header>

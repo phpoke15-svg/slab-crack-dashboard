@@ -21,7 +21,6 @@ export const metadata: Metadata = pageMetadata({
 
 export default async function SlabPopPage() {
   const catalog = await getSlabPopCatalog()
-  const source = catalog.some((card) => card.popSource !== "demo") ? "live" : "demo"
 
   return (
     <main className="relative min-h-dvh overflow-x-hidden bg-background">
@@ -61,7 +60,7 @@ export default async function SlabPopPage() {
           <SiteAuthButton />
         </header>
 
-        <SlabPopClient catalog={catalog} source={source} />
+        <SlabPopClient catalog={catalog} />
 
         <SiteFooter className="mt-12" />
       </div>

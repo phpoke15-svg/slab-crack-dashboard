@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, ExternalLink } from "lucide-react"
 import { CardMarketFilterPanel } from "@/components/card-filters/card-market-filter-panel"
@@ -29,23 +29,11 @@ function tcgResearchHref(card: SlabPopCard): string | null {
 
 type SlabPopClientProps = {
   catalog: SlabPopCard[]
-  source: "live" | "demo"
 }
 
-export function SlabPopClient({ catalog, source }: SlabPopClientProps) {
+export function SlabPopClient({ catalog }: SlabPopClientProps) {
   const [matches, setMatches] = useState<SlabPopCard[]>([])
   const [showResults, setShowResults] = useState(false)
-
-  const catalogSummary = useMemo(() => {
-    const psaRows = catalog.filter((card) => card.grade.startsWith("PSA"))
-    return {
-      total: catalog.length,
-      psa: psaRows.length,
-      withRegistryPop: catalog.filter((card) => card.popSource === "scrydex_pop").length,
-      withSoldComps: catalog.filter((card) => card.popSource === "sold_comps").length,
-      alternateGraders: catalog.filter((card) => !card.grade.startsWith("PSA")).length,
-    }
-  }, [catalog])
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -56,42 +44,6 @@ export function SlabPopClient({ catalog, source }: SlabPopClientProps) {
         <ArrowLeft className="size-3.5" aria-hidden />
         All SlabLabs tools
       </Link>
-
-      <p className="rounded-xl border border-border bg-card/50 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-        {source === "live" ? (
-          <>
-            Live catalog: <span className="font-semibold text-foreground">{catalogSummary.total}</span>{" "}
-            graded rows
-            {catalogSummary.withRegistryPop > 0 ? (
-              <>
-                {" "}
-                ·{" "}
-                <span className="font-semibold text-foreground">{catalogSummary.withRegistryPop}</span>{" "}
-                with Scrydex registry population
-              </>
-            ) : null}
-            {catalogSummary.alternateGraders > 0 ? (
-              <>
-                {" "}
-                ·{" "}
-                <span className="font-semibold text-foreground">{catalogSummary.alternateGraders}</span>{" "}
-                BGS/CGC rows
-              </>
-            ) : null}
-            {catalogSummary.withSoldComps > 0 ? (
-              <>
-                {" "}
-                ·{" "}
-                <span className="font-semibold text-foreground">{catalogSummary.withSoldComps}</span>{" "}
-                with sold-comp fallbacks
-              </>
-            ) : null}
-            .
-          </>
-        ) : (
-          <>Demo catalog — connect Supabase + seed card_prices and Scrydex population to load live data.</>
-        )}
-      </p>
 
       <CardMarketFilterPanel
         catalog={catalog}

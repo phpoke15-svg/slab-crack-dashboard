@@ -23,10 +23,6 @@ export function SlabLabsHub() {
               <FlaskConical className="size-7 shrink-0 text-primary" aria-hidden />
               SlabLabs
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              One home for graded slab research — crack arbitrage, population filters, and
-              submission ROI. Pick a tool to get started.
-            </p>
           </div>
           <SiteAuthButton />
         </header>

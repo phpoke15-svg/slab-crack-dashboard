@@ -42,8 +42,7 @@ export default function PricingPage() {
       />
       <section className="border-b border-border bg-card/30 px-4 py-5 sm:px-6">
         <div className="mx-auto max-w-3xl">
-          <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p>
-          <div className="mt-4">
+          <div>
             <p className="mb-2 text-xs font-medium text-foreground">Also on mobile</p>
             <AppStoreBadges />
           </div>

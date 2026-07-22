@@ -285,13 +285,6 @@ export function QueueWatchClient() {
       <header className="mb-8 flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <CollecToolsBrand href="/" size="lg" subtitle="PokeWatch · Pokemon Center alerts" />
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-foreground">
-            Get instant alerts when Pokemon Center&apos;s virtual queue goes live. Included with{" "}
-            <Link href="/pricing" className="font-medium text-primary hover:underline">
-              CollecTools Pro
-            </Link>
-            .
-          </p>
           <p className="mt-3 max-w-xl rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-muted-foreground">
             <strong className="text-foreground">Use at your own risk.</strong>
           </p>

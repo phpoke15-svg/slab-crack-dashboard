@@ -46,10 +46,6 @@ export default function SlabItPage() {
             <h1 className="mt-5 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               SlabIt
             </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Top 100 PSA 10 submission candidates from sets released in the past five years. The board
-              refreshes daily after price sync. Tap a card for spread, multiplier, and grading-cost breakdown.
-            </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <Link
                 href={SLABLABS_HREF}
