@@ -190,10 +190,10 @@ export function PushAlertsOptIn({
       )
     }
 
-    const nativeTitle = enabled ? "Queue alerts enabled" : "Turn on queue alerts"
+    const nativeTitle = enabled ? "Native queue alerts enabled" : "Turn on queue alerts"
     const nativeSubtitle = enabled
-      ? "You’ll get an instant push when the Pokemon Center queue goes live."
-      : "Allow notifications on this phone. Alerts are delivered by the CollecTools app, not the browser."
+      ? "You’ll get an instant app push when the Pokemon Center queue goes live."
+      : "Allow notifications on this phone. Alerts are delivered by the CollecTools app (Firebase), not browser Web Push."
 
     return (
       <section
