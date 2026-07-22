@@ -14,7 +14,6 @@ function optional(name: string, fallback = ""): string {
 
 export const config = {
   targetUrl: optional("TARGET_URL", "https://www.pokemoncenter.com/"),
-  pollIntervalMs: Number(optional("POLL_INTERVAL_MS", "5000")),
   queueDeepLink: optional("QUEUE_DEEP_LINK", "https://www.pokemoncenter.com/"),
   fcmTopic: optional("FCM_TOPIC", "pokemon_center_alerts"),
   firebaseServiceAccountPath: required("FIREBASE_SERVICE_ACCOUNT_PATH"),

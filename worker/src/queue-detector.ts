@@ -36,7 +36,10 @@ export type LiveDebounceState = {
   lastAlertAt: number | null
 }
 
-export const DEBOUNCE_WINDOW_MS = 10_000
+export const CRON_SCHEDULE = "*/5 * 9-16 * * 1-5"
+export const CRON_TIMEZONE = "America/New_York"
+/** Two consecutive cron ticks (every 5 min) must fall inside this window. */
+export const DEBOUNCE_WINDOW_MS = 11 * 60 * 1000
 export const DEBOUNCE_REQUIRED_HITS = 2
 export const ALERT_COOLDOWN_MS = 5 * 60 * 1000
 
@@ -44,7 +47,7 @@ export function createDebounceState(): LiveDebounceState {
   return { consecutiveLive: 0, windowStartedAt: null, lastAlertAt: null }
 }
 
-/** Returns true when two consecutive LIVE hits occur within 10 seconds. */
+/** Returns true when two consecutive LIVE hits occur within the debounce window. */
 export function registerLiveHit(state: LiveDebounceState, now = Date.now()): boolean {
   if (state.windowStartedAt != null && now - state.windowStartedAt > DEBOUNCE_WINDOW_MS) {
     state.consecutiveLive = 0

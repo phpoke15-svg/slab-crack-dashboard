@@ -2,15 +2,19 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { fileURLToPath } from "node:url"
 import axios, { type AxiosInstance } from "axios"
 import { HttpsProxyAgent } from "https-proxy-agent"
+import cron from "node-cron"
 import { buildProxyUrl, config } from "./config.js"
 import { sendQueueLiveAlert, subscribeTokenToTopic } from "./fcm.js"
 import {
   analyzeHeadResponse,
   canSendAlert,
   createDebounceState,
+  CRON_SCHEDULE,
+  CRON_TIMEZONE,
   markAlertSent,
   registerLiveHit,
   resetLiveDebounce,
+  type LiveDebounceState,
 } from "./queue-detector.js"
 
 function createProbeClient(): AxiosInstance {
@@ -83,59 +87,79 @@ export function startSubscribeServer(): void {
   })
 }
 
-export async function runPollingLoop(client: AxiosInstance = createProbeClient()): Promise<never> {
-  const debounce = createDebounceState()
-  let polling = false
+let probeInFlight = false
 
-  const tick = async () => {
-    if (polling) return
-    polling = true
-
-    try {
-      const response = await client.head(config.targetUrl)
-      const locationHeader = response.headers.location
-      const location = Array.isArray(locationHeader) ? locationHeader[0] : locationHeader
-      const probe = analyzeHeadResponse(response.status, location)
-
-      console.log(
-        `[worker] HEAD ${config.targetUrl} -> ${probe.status}` +
-          (probe.location ? ` location=${probe.location}` : "") +
-          (probe.live ? " LIVE" : ""),
-      )
-
-      if (probe.live) {
-        const confirmed = registerLiveHit(debounce)
-        if (confirmed && canSendAlert(debounce)) {
-          const queueUrl = probe.queueUrl ?? config.queueDeepLink
-          const messageId = await sendQueueLiveAlert(queueUrl)
-          markAlertSent(debounce)
-          console.log(`[worker] FCM alert sent (${messageId}) topic=${config.fcmTopic} url=${queueUrl}`)
-        }
-      } else {
-        resetLiveDebounce(debounce)
-      }
-    } catch (error) {
-      resetLiveDebounce(debounce)
-      const message = error instanceof Error ? error.message : String(error)
-      console.warn("[worker] probe failed:", message)
-    } finally {
-      polling = false
-    }
+/** Single queue HEAD probe — only invoked by the weekday cron schedule. */
+export async function checkQueueOnce(
+  client: AxiosInstance,
+  debounce: LiveDebounceState,
+): Promise<void> {
+  if (probeInFlight) {
+    console.log("[worker] Skipping scheduled check — previous probe still running")
+    return
   }
 
-  await tick()
-  setInterval(tick, config.pollIntervalMs)
+  probeInFlight = true
 
-  return new Promise(() => {
-    // run forever
-  })
+  try {
+    const response = await client.head(config.targetUrl)
+    const locationHeader = response.headers.location
+    const location = Array.isArray(locationHeader) ? locationHeader[0] : locationHeader
+    const probe = analyzeHeadResponse(response.status, location)
+
+    console.log(
+      `[worker] HEAD ${config.targetUrl} -> ${probe.status}` +
+        (probe.location ? ` location=${probe.location}` : "") +
+        (probe.live ? " LIVE" : ""),
+    )
+
+    if (probe.live) {
+      const confirmed = registerLiveHit(debounce)
+      if (confirmed && canSendAlert(debounce)) {
+        const queueUrl = probe.queueUrl ?? config.queueDeepLink
+        const messageId = await sendQueueLiveAlert(queueUrl)
+        markAlertSent(debounce)
+        console.log(`[worker] FCM alert sent (${messageId}) topic=${config.fcmTopic} url=${queueUrl}`)
+      }
+    } else {
+      resetLiveDebounce(debounce)
+    }
+  } catch (error) {
+    resetLiveDebounce(debounce)
+    const message = error instanceof Error ? error.message : String(error)
+    console.warn("[worker] probe failed:", message)
+  } finally {
+    probeInFlight = false
+  }
+}
+
+export function startQueueSchedule(
+  client: AxiosInstance = createProbeClient(),
+  debounce: LiveDebounceState = createDebounceState(),
+): void {
+  cron.schedule(
+    CRON_SCHEDULE,
+    () => {
+      void checkQueueOnce(client, debounce)
+    },
+    { timezone: CRON_TIMEZONE },
+  )
 }
 
 async function main(): Promise<void> {
-  console.log("[worker] Pokémon Center queue detector starting")
-  console.log(`[worker] target=${config.targetUrl} interval=${config.pollIntervalMs}ms`)
+  console.log("[worker] Pokémon Center queue detector started")
+  console.log(
+    `[worker] Queue checks scheduled Mon-Fri 9:00 AM - 5:00 PM ${CRON_TIMEZONE} (cron: ${CRON_SCHEDULE})`,
+  )
+  console.log("[worker] Idle outside scheduled hours — no HTTP or proxy requests will be made")
+  console.log(`[worker] target=${config.targetUrl}`)
+
   startSubscribeServer()
-  await runPollingLoop()
+  startQueueSchedule()
+
+  await new Promise<void>(() => {
+    // Keep process alive; cron handles all queue probes.
+  })
 }
 
 const isMain = Boolean(process.argv[1] && fileURLToPath(import.meta.url) === fileURLToPath(process.argv[1]))
