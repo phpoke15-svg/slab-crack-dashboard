@@ -170,6 +170,94 @@ export function scrydexHistoryRowsToCompanySeriesMap(
   }
 }
 
+function psaHighlightKey(grade: string | null | undefined): PriceHistorySeriesKey {
+  if (grade === "7") return "psa7"
+  if (grade === "8") return "psa8"
+  if (grade === "10") return "psa10"
+  return "psa9"
+}
+
+function isPsaStandardChartGrade(grade: string | null | undefined): boolean {
+  return grade === "7" || grade === "8" || grade === "9" || grade === "10"
+}
+
+function todayUtcDate(): string {
+  return new Date().toISOString().slice(0, 10)
+}
+
+/** Merge live catalog raw/PSA prices into history when today's row is missing. */
+export function augmentHistoryWithBundlePrices(
+  history: HistoryRow[],
+  bundle: Awaited<ReturnType<typeof loadCardBundle>>,
+): HistoryRow[] {
+  if (!bundle) return history
+
+  const today = todayUtcDate()
+  const rows = [...history]
+
+  const hasSnapshot = (predicate: (row: HistoryRow) => boolean) =>
+    rows.some((row) => String(row.snapshot_date ?? "").slice(0, 10) === today && predicate(row))
+
+  const rawCandidates = (bundle.raw ?? []) as HistoryRow[]
+  const rawRow =
+    rawCandidates.find(
+      (row) =>
+        (row.variant ?? "normal") === "normal" &&
+        (row.condition ?? "NM") === "NM" &&
+        Number(row.market_price) > 0,
+    ) ?? rawCandidates.find((row) => Number(row.market_price) > 0)
+
+  if (
+    rawRow &&
+    !hasSnapshot((row) => row.price_type === "raw" && (row.condition ?? "NM") === "NM")
+  ) {
+    rows.push({
+      catalog_id: catalogIdFromRow(rawRow, bundle),
+      snapshot_date: today,
+      price_type: "raw",
+      variant: "normal",
+      condition: "NM",
+      company: null,
+      grade: null,
+      market_price: Number(rawRow.market_price),
+    })
+  }
+
+  for (const graded of (bundle.graded ?? []) as HistoryRow[]) {
+    if ((graded.variant ?? "normal") !== "normal") continue
+    if ((graded.company ?? "").toUpperCase() !== "PSA") continue
+    const grade = String(graded.grade ?? "").trim()
+    if (!["7", "8", "9", "10"].includes(grade)) continue
+    if (Number(graded.market_price) <= 0) continue
+    if (
+      hasSnapshot(
+        (row) =>
+          row.price_type === "graded" &&
+          (row.company ?? "").toUpperCase() === "PSA" &&
+          String(row.grade) === grade,
+      )
+    ) {
+      continue
+    }
+    rows.push({
+      catalog_id: catalogIdFromRow(graded, bundle),
+      snapshot_date: today,
+      price_type: "graded",
+      variant: "normal",
+      condition: null,
+      company: "PSA",
+      grade,
+      market_price: Number(graded.market_price),
+    })
+  }
+
+  return rows
+}
+
+function catalogIdFromRow(row: HistoryRow, bundle: NonNullable<Awaited<ReturnType<typeof loadCardBundle>>>) {
+  return String((row as { catalog_id?: string }).catalog_id ?? bundle.card.catalog_id)
+}
+
 function isHistoryStale(rows: HistoryRow[]): boolean {
   if (rows.length === 0) return true
   const latest = rows
@@ -223,20 +311,24 @@ export async function loadTcgResearchScrydexPriceHistory(input: {
   }
 
   const company = normalizeGradingCompany(input.company)
-  if (company !== "PSA" || input.grade) {
-    const mapped = scrydexHistoryRowsToCompanySeriesMap(history, input.days, company, {
-      company,
-      grade: String(input.grade ?? "9"),
-    })
-    return { ...mapped, source: "scrydex" }
+  const grade = String(input.grade ?? "").trim()
+
+  history = augmentHistoryWithBundlePrices(history, bundle)
+
+  if (company === "PSA" && (!grade || isPsaStandardChartGrade(grade))) {
+    const mapped = scrydexHistoryRowsToSeriesMap(history, input.days)
+    return {
+      series: mapped.series,
+      labels: SCRYDEX_PRICE_HISTORY_LABELS,
+      highlightKey: psaHighlightKey(grade || "9"),
+      range: mapped.range,
+      source: "scrydex",
+    }
   }
 
-  const mapped = scrydexHistoryRowsToSeriesMap(history, input.days)
-  return {
-    series: mapped.series,
-    labels: SCRYDEX_PRICE_HISTORY_LABELS,
-    highlightKey: "psa9",
-    range: mapped.range,
-    source: "scrydex",
-  }
+  const mapped = scrydexHistoryRowsToCompanySeriesMap(history, input.days, company, {
+    company,
+    grade: grade || "9",
+  })
+  return { ...mapped, source: "scrydex" }
 }

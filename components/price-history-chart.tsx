@@ -339,7 +339,13 @@ export function PriceHistoryChart({
         if (cancelled) return
         setSeriesMap(data?.series ?? {})
         setLabels(data?.labels ?? null)
-        if (data?.highlightKey && !rawOnly) setHighlightKey(data.highlightKey)
+        if (data?.highlightKey && !rawOnly) {
+          const preferred =
+            !slabSelection && grade != null ? GRADE_TO_SERIES[grade] : data.highlightKey
+          const resolved =
+            data.series?.[preferred]?.length ? preferred : data.highlightKey
+          setHighlightKey(resolved)
+        }
         setLoadedKey(fetchKey)
       })
       .catch(() => {
@@ -360,7 +366,7 @@ export function PriceHistoryChart({
     setLoadedKey("")
     setSeriesMap({})
     setHoverIndex(null)
-  }, [cardId, slabSelection?.company, slabSelection?.grade])
+  }, [cardId, slabSelection?.company, slabSelection?.grade, grade])
 
   const activeSeriesKey = viewMode === "raw" || rawOnly ? "raw" : highlightKey
   const activeSeries = seriesMap[activeSeriesKey]
