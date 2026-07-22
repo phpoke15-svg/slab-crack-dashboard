@@ -40,6 +40,16 @@ Outside that window the worker logs a skip message and makes **no HTTP or proxy 
 7. Debounces alerts: **2 consecutive LIVE hits within 7 minutes** before sending FCM
 8. Closes browser context after each probe to limit memory use
 
+## Failure alerting
+
+Unexpected probe errors and **2+ consecutive navigation failures** trigger `sendFailureAlert()`:
+
+- OneSignal push to subscribers tagged `role = admin` or `membership_tier = supreme`
+- Includes ISO timestamp and error message
+- Rate-limited to **1 alert per 60 minutes** by default (`FAILURE_ALERT_COOLDOWN_MS = 3600000`)
+
+Requires `ONESIGNAL_APP_ID` and `ONESIGNAL_REST_API_KEY` on Railway.
+
 ## Playwright setup (local)
 
 ```bash
