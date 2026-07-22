@@ -3,7 +3,7 @@ import { chromium } from "playwright-extra"
 import StealthPlugin from "puppeteer-extra-plugin-stealth"
 import { config, getPlaywrightProxy } from "./config.js"
 import { analyzeHeadResponse, isQueueRedirectLocation } from "./queue-detector.js"
-import { createNavigationFailureProbe, type PokemonCenterProbeResult } from "./probe-utils.js"
+import { createNavigationFailureProbe, formatProbeError, type PokemonCenterProbeResult } from "./probe-utils.js"
 
 const NAV_TIMEOUT_MS = 45_000
 const IMPERVA_SETTLE_MS = 5_000
@@ -105,24 +105,39 @@ export async function probePokemonCenterQueue(): Promise<PokemonCenterProbeResul
     })
 
     try {
-      await page.goto(config.targetUrl, {
-        waitUntil: "networkidle",
-        timeout: NAV_TIMEOUT_MS,
-      })
+      let navigationWarning: string | null = null
+
+      try {
+        await page.goto(config.targetUrl, {
+          waitUntil: "domcontentloaded",
+          timeout: NAV_TIMEOUT_MS,
+        })
+      } catch (error) {
+        navigationWarning = formatProbeError(error)
+        const currentUrl = page.url()
+        if (!currentUrl || currentUrl === "about:blank") {
+          console.warn(`[worker] Navigation failed: ${navigationWarning}`)
+          return createNavigationFailureProbe()
+        }
+      }
 
       await page.waitForTimeout(IMPERVA_SETTLE_MS)
 
       const result = await analyzeCurrentPage(page, documentStatus)
-      console.log(
-        "[worker] Light page check completed successfully (blocked images/fonts/css/media)",
-      )
+      if (navigationWarning) {
+        console.warn(`[worker] Navigation warning (analyzed page snapshot): ${navigationWarning}`)
+      } else {
+        console.log(
+          "[worker] Light page check completed successfully (blocked images/fonts/css/media)",
+        )
+      }
       return result
     } catch (error) {
-      console.warn("[worker] Navigation timed out or failed, waiting for next cycle:", error)
+      console.warn(`[worker] Probe failed: ${formatProbeError(error)}`)
       return createNavigationFailureProbe()
     }
   } catch (error) {
-    console.warn("[worker] Navigation timed out or failed, waiting for next cycle:", error)
+    console.warn(`[worker] Probe failed: ${formatProbeError(error)}`)
     return createNavigationFailureProbe()
   } finally {
     await closePlaywrightSession(page, context, browser)

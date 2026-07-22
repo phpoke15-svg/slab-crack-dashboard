@@ -31,10 +31,11 @@ describe("pokemon-center-probe logging", () => {
     expect(line).toContain("blocked=Imperva")
   })
 
-  it("formats probe errors without throwing", async () => {
+  it("formats Playwright timeout errors as a single line", async () => {
     const { formatProbeError } = await import("./probe-utils.js")
-    expect(formatProbeError(new Error("socket hang up"))).toBe("socket hang up")
-    expect(formatProbeError("timeout")).toBe("timeout")
+    const error = new Error("page.goto: Timeout 45000ms exceeded.")
+    error.name = "TimeoutError"
+    expect(formatProbeError(error)).toBe("page.goto: Timeout 45000ms exceeded.")
   })
 })
 
