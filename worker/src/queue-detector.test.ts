@@ -26,12 +26,12 @@ describe("queue-detector", () => {
     expect(result.live).toBe(false)
   })
 
-  it("requires two consecutive LIVE hits within 10 seconds", () => {
+  it("requires two consecutive LIVE hits within 15 seconds", () => {
     const state = createDebounceState()
     const now = Date.now()
 
     expect(registerLiveHit(state, now)).toBe(false)
-    expect(registerLiveHit(state, now + 2_000)).toBe(true)
+    expect(registerLiveHit(state, now + 5_000)).toBe(true)
 
     resetLiveDebounce(state)
     expect(registerLiveHit(state, now + 20_000)).toBe(false)
