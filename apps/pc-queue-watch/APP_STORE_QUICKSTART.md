@@ -78,10 +78,15 @@ npm run capture:iap-screenshots
 
 ```bash
 cd apps/pc-queue-watch
-npm install
-npx eas-cli build -p ios --profile production
+npm ci
+npm run build:ios
 npx eas-cli submit -p ios --profile production
 ```
+
+**If EAS says `Cannot find expo-modules-autolinking`:**
+1. Run from `apps/pc-queue-watch` (not the repo root)
+2. Run `npm ci` before `eas build`
+3. Put `GoogleService-Info.plist` in this folder for push alerts (see `FIREBASE.md`)
 
 ---
 
