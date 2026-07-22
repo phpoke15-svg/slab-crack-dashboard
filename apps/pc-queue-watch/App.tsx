@@ -6,6 +6,7 @@ import type { RootStackParamList } from "./lib/navigation"
 import { colors } from "./lib/theme"
 import { QueueWatchProvider } from "./lib/queue-watch"
 import InstallQueueWatcherScreen from "./screens/InstallQueueWatcherScreen"
+import NativeQueueMonitorScreen from "./screens/NativeQueueMonitorScreen"
 import PointScanScreen from "./screens/PointScanScreen"
 import SiteWebScreen from "./screens/SiteWebScreen"
 
@@ -49,6 +50,11 @@ export default function App() {
             <Stack.Screen
               name="PokeWatch"
               component={InstallQueueWatcherScreen}
+              options={{ headerShown: false }}
+            />
+            <Stack.Screen
+              name="NativeQueueMonitor"
+              component={NativeQueueMonitorScreen}
               options={{ headerShown: false }}
             />
             <Stack.Screen

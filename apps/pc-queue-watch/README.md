@@ -1,8 +1,15 @@
 # CollecTools Mobile App
 
-Installable **Android / iOS** app (v1.4.2) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
+Installable **Android / iOS** app (v1.4.4) that loads your live **CollecTools website** full-screen (no bottom tabs). Native **PokeWatch** opens from the site when you tap **Open native PokeWatch** on `/pokewatch`.
 
-**PokeWatch is Pro-only** — sign in on the site, open PokeWatch once to link your token, then start native monitoring.
+**PokeWatch is Pro-only** — sign in on the site, open PokeWatch once to link your token, then start the in-app monitor.
+
+## Security model
+
+- Pro bookmarklet tokens are minted server-side (HMAC, 30-day TTL) and verified on every report
+- The native monitor **never injects your token into Pokemon Center** — DOM scans post to React Native, and the app reports via HTTPS with the token in a header only
+- Pokemon Center WebView navigation is restricted to `pokemoncenter.com` and `queue-it.net`
+- Bookmarklet sync pop-ups post back to CollecTools with a fixed origin (not `*`)
 
 Theme: dark background (`#0b0e14`) + **white / mint-green** (`#4ade80`) accents (same as the website). Brand mark is white **C** + mint **T**.
 
@@ -22,11 +29,11 @@ Opens the full website:
 
 ## Native PokeWatch (from the site)
 
-1. Open **PokeWatch** from the CollecTools hub
-2. Tap **Open native PokeWatch** (green button at the bottom)
-3. Tap **Start monitoring** — Pokemon Center loads in-app
-4. Pass any Imperva / bot check once
-5. Leave that screen open during drops for a local push when the queue goes live
+1. Open **PokeWatch** from the CollecTools hub (or tap **Open native PokeWatch** on `/pokewatch`)
+2. Tap **Start in-app monitor** — Pokemon Center loads in a dedicated WebView
+3. Pass any Imperva / bot check once
+4. Leave that screen open during drops for a local push when the queue goes live
+5. Optional: copy the bookmarklet for a second tab in your mobile browser
 
 ## Build internal APK
 
