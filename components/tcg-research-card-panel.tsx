@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils"
 import { SelectedGradePrice } from "@/components/grading/selected-grade-price"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
+import { PriceHistoryChart } from "@/components/PriceHistoryChart"
 import { PriceHistoryChart as LegacyPriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { SlabCardImage } from "@/components/slab-card-image"
@@ -265,22 +266,26 @@ export function TcgResearchCardPanel({
             ) : null}
             {priced ? (
               <div className="mt-3">
-                <LegacyPriceHistoryChart
-                  cardId={payload.catalogId ?? card.id}
-                  {...chartGradeProps}
-                  currentRaw={card.rawPrice}
-                  currentSlab={activeSlabPrice}
-                  historyEndpoint="/api/tcg-research/price-history"
-                  historyQuery={{
-                    catalogId: payload.catalogId ?? undefined,
-                    scrydexId: payload.scrydexId ?? undefined,
-                    game: payload.game,
-                    company: slabGrade.company,
-                    grade: slabGrade.grade,
-                  }}
-                  title="Price history"
-                  subtitle="Scrydex"
-                />
+                {payload.scrydexId ? (
+                  <PriceHistoryChart scrydexId={payload.scrydexId} game={payload.game} days={90} />
+                ) : (
+                  <LegacyPriceHistoryChart
+                    cardId={payload.catalogId ?? card.id}
+                    {...chartGradeProps}
+                    currentRaw={card.rawPrice}
+                    currentSlab={activeSlabPrice}
+                    historyEndpoint="/api/tcg-research/price-history"
+                    historyQuery={{
+                      catalogId: payload.catalogId ?? undefined,
+                      scrydexId: payload.scrydexId ?? undefined,
+                      game: payload.game,
+                      company: slabGrade.company,
+                      grade: slabGrade.grade,
+                    }}
+                    title="Price history"
+                    subtitle="Scrydex"
+                  />
+                )}
               </div>
             ) : null}
             <p className="mt-3 text-[11px] text-muted-foreground">
