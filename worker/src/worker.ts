@@ -56,6 +56,12 @@ export function startSubscribeServer(): void {
       return
     }
 
+    if (request.method === "GET" && request.url === "/health") {
+      response.writeHead(200, { "Content-Type": "application/json" })
+      response.end(JSON.stringify({ ok: true, service: "pokemon-center-queue-worker" }))
+      return
+    }
+
     if (request.method !== "POST" || request.url !== "/subscribe") {
       response.writeHead(404, { "Content-Type": "application/json" })
       response.end(JSON.stringify({ error: "Not found" }))
@@ -82,8 +88,8 @@ export function startSubscribeServer(): void {
     }
   })
 
-  server.listen(config.subscribePort, () => {
-    console.log(`[worker] FCM subscribe API listening on :${config.subscribePort}/subscribe`)
+  server.listen(config.subscribePort, "0.0.0.0", () => {
+    console.log(`[worker] FCM subscribe API listening on 0.0.0.0:${config.subscribePort}/subscribe`)
   })
 }
 

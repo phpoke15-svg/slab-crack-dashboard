@@ -16,8 +16,12 @@ export const config = {
   targetUrl: optional("TARGET_URL", "https://www.pokemoncenter.com/"),
   queueDeepLink: optional("QUEUE_DEEP_LINK", "https://www.pokemoncenter.com/"),
   fcmTopic: optional("FCM_TOPIC", "pokemon_center_alerts"),
-  firebaseServiceAccountPath: required("FIREBASE_SERVICE_ACCOUNT_PATH"),
-  subscribePort: Number(optional("SUBSCRIBE_PORT", "8787")),
+  /** Paste full Firebase service account JSON (preferred on Railway). */
+  firebaseServiceAccountJson: optional("FIREBASE_SERVICE_ACCOUNT_JSON"),
+  /** Local file path when JSON env var is not set. */
+  firebaseServiceAccountPath: optional("FIREBASE_SERVICE_ACCOUNT_PATH", "./firebase-service-account.json"),
+  /** Railway injects PORT; falls back to SUBSCRIBE_PORT for local dev. */
+  subscribePort: Number(optional("PORT", optional("SUBSCRIBE_PORT", "8787"))),
   userAgent:
     optional(
       "USER_AGENT",

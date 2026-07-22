@@ -5,14 +5,20 @@ import { config } from "./config.js"
 
 let initialized = false
 
+function loadServiceAccount(): admin.ServiceAccount {
+  if (config.firebaseServiceAccountJson) {
+    return JSON.parse(config.firebaseServiceAccountJson) as admin.ServiceAccount
+  }
+
+  const accountPath = resolve(process.cwd(), config.firebaseServiceAccountPath)
+  return JSON.parse(readFileSync(accountPath, "utf8")) as admin.ServiceAccount
+}
+
 export function initFirebase(): void {
   if (initialized) return
 
-  const accountPath = resolve(process.cwd(), config.firebaseServiceAccountPath)
-  const serviceAccount = JSON.parse(readFileSync(accountPath, "utf8")) as admin.ServiceAccount
-
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+    credential: admin.credential.cert(loadServiceAccount()),
   })
 
   initialized = true

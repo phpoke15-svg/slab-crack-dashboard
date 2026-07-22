@@ -17,8 +17,10 @@ npm run dev
 See `env.example` for all variables. Required:
 
 - `PROXY_HOST`, `PROXY_PORT` — proxy used by `HttpsProxyAgent`
-- `FIREBASE_SERVICE_ACCOUNT_PATH` — path to Firebase Admin JSON key
+- `FIREBASE_SERVICE_ACCOUNT_JSON` — full Firebase Admin JSON (Railway) **or** `FIREBASE_SERVICE_ACCOUNT_PATH` locally
 - `FCM_TOPIC` — defaults to `pokemon_center_alerts`
+
+**Railway:** see [RAILWAY.md](./RAILWAY.md) — set service **Root Directory** to `worker`.
 
 ## Schedule
 
