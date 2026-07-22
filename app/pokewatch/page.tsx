@@ -47,8 +47,8 @@ export default function PokeWatchPage() {
         disclaimer="Use at your own risk."
         bullets={[
           "24/7 monitoring for Pokemon Center virtual queue drops",
-          "Browser and phone push alerts when the queue goes live",
-          "Included with CollecTools Pro — bookmarklet syncs with the mobile app",
+          "Phone push alerts when the queue goes live",
+          "Included with CollecTools Pro and Supreme",
         ]}
         related={[
           { href: "/pricing", label: "Pricing" },

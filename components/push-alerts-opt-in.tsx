@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
-import { Bell, BellOff, Loader2, Smartphone } from "lucide-react"
+import { Bell, BellOff, Loader2, Lock, Smartphone } from "lucide-react"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
 import {
@@ -20,6 +20,10 @@ type Props = {
   defaultQueueLive?: boolean
   defaultWalmartWednesday?: boolean
   compact?: boolean
+  /** PokeWatch page: single primary button, queue alerts only */
+  queueOnly?: boolean
+  /** Large CTA card with upgrade path for non-Pro tiers */
+  variant?: "default" | "hero"
 }
 
 export function PushAlertsOptIn({
@@ -27,11 +31,14 @@ export function PushAlertsOptIn({
   defaultQueueLive = true,
   defaultWalmartWednesday = true,
   compact = false,
+  queueOnly = false,
+  variant = "default",
 }: Props) {
   const { user, isLoading: authLoading } = useAuth()
   const entitlements = useEntitlements()
   const hasPro = entitlements.queueWatch
   const isSupreme = entitlements.supreme
+  const isHero = variant === "hero"
 
   const [supported, setSupported] = useState(true)
   const [enabled, setEnabled] = useState(false)
@@ -39,6 +46,7 @@ export function PushAlertsOptIn({
   const [error, setError] = useState<string | null>(null)
   const [queueLive, setQueueLive] = useState(defaultQueueLive)
   const [walmartWednesday, setWalmartWednesday] = useState(defaultWalmartWednesday)
+  const [checkoutBusy, setCheckoutBusy] = useState(false)
 
   const refresh = useCallback(async () => {
     setSupported(isWebPushSupported())
@@ -55,17 +63,16 @@ export function PushAlertsOptIn({
     void refresh()
   }, [refresh])
 
-  // Queue-live requires Pro or Supreme; Supreme always receives every alert type.
   useEffect(() => {
     if (!authLoading && isSupreme) {
       setQueueLive(true)
-      setWalmartWednesday(true)
+      if (!queueOnly) setWalmartWednesday(true)
       return
     }
     if (!authLoading && (!user || !hasPro) && queueLive) {
       setQueueLive(false)
     }
-  }, [authLoading, user, hasPro, isSupreme, queueLive])
+  }, [authLoading, user, hasPro, isSupreme, queueLive, queueOnly])
 
   const onEnable = async () => {
     setBusy(true)
@@ -83,8 +90,8 @@ export function PushAlertsOptIn({
     }
 
     const result = await enableWebPush({
-      queueLive,
-      walmartWednesday,
+      queueLive: queueOnly ? true : queueLive,
+      walmartWednesday: queueOnly ? false : walmartWednesday,
       socialAlerts: Boolean(user),
       priceAlerts: Boolean(user),
     })
@@ -104,12 +111,29 @@ export function PushAlertsOptIn({
     setEnabled(false)
   }
 
+  const upgradeToPro = async () => {
+    if (!user) {
+      window.location.href = `/sign-in?next=${encodeURIComponent("/pokewatch")}`
+      return
+    }
+    setCheckoutBusy(true)
+    setError(null)
+    try {
+      const url = await entitlements.startCheckout("pro_month")
+      if (url) window.location.href = url
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Checkout failed")
+    } finally {
+      setCheckoutBusy(false)
+    }
+  }
+
   if (!supported) {
     return (
       <section className={cn("rounded-2xl border border-border bg-card/60 p-5", className)}>
         <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Smartphone className="size-4" />
-          Phone alerts
+          {isHero ? "Queue alerts" : "Phone alerts"}
         </p>
         <p className="mt-2 text-sm text-muted-foreground">
           Web Push isn&apos;t available in this browser. On iPhone/iPad: Safari → Share → Add to Home
@@ -119,13 +143,90 @@ export function PushAlertsOptIn({
     )
   }
 
+  if (isHero && !hasPro) {
+    return (
+      <section
+        className={cn(
+          "rounded-2xl border border-primary/40 bg-primary/10 p-6 text-center",
+          className,
+        )}
+      >
+        <span className="mx-auto flex size-12 items-center justify-center rounded-xl border border-primary/40 bg-primary/15 text-primary">
+          <Lock className="size-6" />
+        </span>
+        <h2 className="mt-4 text-lg font-semibold text-foreground">Queue live push alerts</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+          Get notified on your phone the moment the Pokemon Center virtual queue opens. Included with
+          CollecTools Pro and Supreme.
+        </p>
+        <button
+          type="button"
+          disabled={checkoutBusy || (user && !entitlements.stripeConfigured)}
+          onClick={() => void upgradeToPro()}
+          className="mt-5 inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {checkoutBusy ? (
+            <>
+              <Loader2 className="size-4 animate-spin" />
+              Starting…
+            </>
+          ) : !user ? (
+            "Upgrade to Pro for access"
+          ) : !entitlements.stripeConfigured ? (
+            "Billing coming soon"
+          ) : (
+            "Upgrade to Pro for access"
+          )}
+        </button>
+        {!user ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Already on Pro?{" "}
+            <Link href={`/sign-in?next=${encodeURIComponent("/pokewatch")}`} className="text-primary hover:underline">
+              Sign in
+            </Link>
+          </p>
+        ) : (
+          <Link
+            href="/pricing"
+            className="mt-3 inline-block text-xs font-medium text-primary hover:underline"
+          >
+            Compare plans
+          </Link>
+        )}
+        {error ? (
+          <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </section>
+    )
+  }
+
+  const heroTitle = enabled ? "Queue alerts enabled" : "Turn on queue alerts"
+  const heroSubtitle = enabled
+    ? "You’ll get a push when the Pokemon Center queue goes live."
+    : "Allow notifications on this device to receive queue-live alerts."
+
   return (
-    <section className={cn("rounded-2xl border border-border bg-card/60 p-5", className)}>
-      <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+    <section
+      className={cn(
+        "rounded-2xl border bg-card/60 p-5",
+        isHero ? "border-primary/40 bg-primary/5 p-6 text-center" : "border-border",
+        className,
+      )}
+    >
+      <p
+        className={cn(
+          "flex items-center gap-2 text-sm font-semibold text-foreground",
+          isHero && "justify-center text-base",
+        )}
+      >
         {enabled ? <Bell className="size-4 text-primary" /> : <BellOff className="size-4" />}
-        Phone alerts
+        {isHero ? heroTitle : "Phone alerts"}
       </p>
-      {!compact && (
+      {isHero ? (
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{heroSubtitle}</p>
+      ) : !compact ? (
         <p className="mt-2 text-sm text-muted-foreground">
           When <strong className="font-medium text-foreground">any</strong> Pro or Supreme member
           detects the Pokémon Center queue live, <strong className="font-medium text-foreground">all</strong>{" "}
@@ -133,9 +234,9 @@ export function PushAlertsOptIn({
           every alert type (queue live, drop guard, Walmart Wednesday). Wednesday 9pm ET Walmart
           reminders are separate for everyone else.
         </p>
-      )}
+      ) : null}
 
-      {!enabled && (
+      {!enabled && !isHero && (
         <div className="mt-3 space-y-2 text-sm text-muted-foreground">
           <label className="flex items-center gap-2">
             <input
@@ -171,44 +272,72 @@ export function PushAlertsOptIn({
               for queue-live pushes.
             </p>
           )}
-          <label className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={walmartWednesday}
-              onChange={(e) => setWalmartWednesday(e.target.checked)}
-              className="size-4 rounded border-border"
-            />
-            Walmart Wednesday 9pm ET
-          </label>
+          {!queueOnly && (
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={walmartWednesday}
+                onChange={(e) => setWalmartWednesday(e.target.checked)}
+                className="size-4 rounded border-border"
+              />
+              Walmart Wednesday 9pm ET
+            </label>
+          )}
         </div>
       )}
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className={cn("mt-4 flex flex-wrap gap-2", isHero && "justify-center")}>
         {enabled ? (
           <button
             type="button"
             disabled={busy}
             onClick={() => void onDisable()}
-            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl border border-border px-4 py-2 text-sm font-medium disabled:opacity-50",
+              isHero && "min-w-[220px] justify-center px-5 py-3",
+            )}
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : <BellOff className="size-4" />}
-            Turn off phone alerts
+            {isHero ? "Turn off queue alerts" : "Turn off phone alerts"}
           </button>
         ) : (
           <button
             type="button"
-            disabled={busy || authLoading || (!queueLive && !walmartWednesday)}
+            disabled={
+              busy ||
+              authLoading ||
+              (!isHero && !queueLive && !walmartWednesday) ||
+              (isHero && !user)
+            }
             onClick={() => void onEnable()}
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            className={cn(
+              "inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50",
+              isHero && "min-w-[220px] justify-center px-5 py-3 font-semibold",
+            )}
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : <Bell className="size-4" />}
-            Enable phone alerts
+            {isHero
+              ? user
+                ? "Enable queue alerts"
+                : "Sign in to enable alerts"
+              : "Enable phone alerts"}
           </button>
         )}
       </div>
 
+      {isHero && !user && !enabled ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          <Link href={`/sign-in?next=${encodeURIComponent("/pokewatch")}`} className="text-primary hover:underline">
+            Sign in
+          </Link>{" "}
+          with a Pro or Supreme account.
+        </p>
+      ) : null}
+
       {enabled && (
-        <p className="mt-3 text-xs font-medium text-trade">Enabled on this device</p>
+        <p className={cn("mt-3 text-xs font-medium text-trade", isHero && "text-center")}>
+          Enabled on this device
+        </p>
       )}
       {error && (
         <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
