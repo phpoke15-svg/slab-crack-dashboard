@@ -11,7 +11,7 @@ import { pageMetadata, breadcrumbJsonLd, softwareApplicationJsonLd } from "@/lib
 import { SLABLABS_HREF, SLABPOP_HREF } from "@/lib/slabs-labs-routes"
 
 const description =
-  "SlabPop filters graded Pokémon TCG cards by population proxy, price range, and PSA grade using live PriceCharting prices."
+  "SlabPop filters graded Pokémon TCG cards by Scrydex registry population, price range, and PSA/BGS/CGC grade."
 
 export const metadata: Metadata = pageMetadata({
   title: "SlabPop",
@@ -51,9 +51,9 @@ export default async function SlabPopPage() {
               SlabPop
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Filter live PSA graded prices by pop proxy, price band, and grade. Pop counts use
-              SlabCrack sold-comp samples when available, otherwise recent market activity from
-              price history.
+              Filter graded Pokémon cards by Scrydex registry population, price band, and grade.
+              PSA rows use PriceCharting prices with Scrydex pop reports; BGS and CGC rows use
+              Scrydex graded prices when population data is available.
             </p>
             <Link
               href={SLABLABS_HREF}

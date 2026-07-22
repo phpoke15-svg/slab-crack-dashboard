@@ -18,8 +18,9 @@ export type SlabPopCard = {
   image: string
   setName?: string
   cardNumber?: string
-  /** sold_comps = SlabCrack eBay sample size; market_activity = price_history proxy */
-  popSource?: "sold_comps" | "market_activity" | "demo"
+  /** scrydex_pop = PSA registry population; sold_comps = SlabCrack eBay sample size; market_activity = price_history proxy */
+  popSource?: "scrydex_pop" | "sold_comps" | "market_activity" | "demo"
+  catalogId?: string | null
 }
 
 /** @deprecated Use SlabPopCard */
