@@ -15,6 +15,11 @@ import {
 import { Loader2, Lock, Sparkles, Target, TrendingUp } from "lucide-react"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
 import { cn } from "@/lib/utils"
+import {
+  BUCKET_TIERS,
+  TIER_BUDGETS,
+  type BucketTier,
+} from "@/lib/ai-weekly-picks/tiers"
 import type {
   AiPortfolioPerformanceSummary,
   AiWeeklyPickDisplay,
@@ -23,7 +28,9 @@ import type {
 type PortfolioPayload = {
   ok: boolean
   access?: "preview" | "full"
+  tier: BucketTier
   weekStartDate: string
+  budget: { spent: number; min: number; max: number; label: string }
   picks: AiWeeklyPickDisplay[]
   performance: AiPortfolioPerformanceSummary
   error?: string
@@ -32,6 +39,12 @@ type PortfolioPayload = {
 function formatMoney(value: number | null | undefined): string {
   if (value == null || value <= 0) return "—"
   return value >= 100 ? `$${value.toFixed(0)}` : `$${value.toFixed(2)}`
+}
+
+function formatSignedMoney(value: number | null | undefined): string {
+  if (value == null) return "—"
+  const sign = value > 0 ? "+" : value < 0 ? "−" : ""
+  return `${sign}$${Math.abs(value).toFixed(2)}`
 }
 
 function formatPct(value: number | null | undefined): string {
@@ -46,14 +59,37 @@ function confidenceBadgeClass(score: number): string {
   return "border-border bg-secondary/60 text-muted-foreground"
 }
 
-function UpgradeBanner({ compact = false }: { compact?: boolean }) {
+function TierTabs({
+  active,
+  onChange,
+}: {
+  active: BucketTier
+  onChange: (tier: BucketTier) => void
+}) {
   return (
-    <div
-      className={cn(
-        "rounded-2xl border border-primary/25 bg-primary/[0.06] p-4",
-        compact ? "mt-4" : "mb-6",
-      )}
-    >
+    <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-secondary/30 p-1">
+      {BUCKET_TIERS.map((tier) => (
+        <button
+          key={tier}
+          type="button"
+          onClick={() => onChange(tier)}
+          className={cn(
+            "rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:text-sm",
+            active === tier
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {TIER_BUDGETS[tier].label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function UpgradeBanner() {
+  return (
+    <div className="mb-6 rounded-2xl border border-primary/25 bg-primary/[0.06] p-4">
       <div className="flex items-start gap-3">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-primary/30 bg-primary/10 text-primary">
           <Lock className="size-4" />
@@ -61,8 +97,8 @@ function UpgradeBanner({ compact = false }: { compact?: boolean }) {
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">Upgrade for full AI Portfolio access</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Starter accounts see cumulative ROI over time. Premium, Pro, and Supreme unlock this
-            week&apos;s top 5 picks, AI rationales, win rate, and market baseline comparisons.
+            Starter accounts see cumulative ROI over time per budget tier. Premium, Pro, and Supreme
+            unlock weekly pick baskets, win rate, gain/loss, and market baseline comparisons.
           </p>
           <Link
             href="/pricing"
@@ -79,28 +115,32 @@ function UpgradeBanner({ compact = false }: { compact?: boolean }) {
 function PerformanceSection({
   performance,
   fullAccess,
+  tier,
 }: {
   performance: AiPortfolioPerformanceSummary
   fullAccess: boolean
+  tier: BucketTier
 }) {
   return (
     <section className="rounded-2xl border border-border bg-card/60 p-5 sm:p-6">
       <div className="mb-5 flex items-center gap-2">
         <TrendingUp className="size-4 text-primary" />
-        <h2 className="text-lg font-semibold text-foreground">Historical AI Performance</h2>
+        <h2 className="text-lg font-semibold text-foreground">
+          {TIER_BUDGETS[tier].label} Performance
+        </h2>
       </div>
 
-      <div className={cn("mb-6 grid gap-4", fullAccess ? "sm:grid-cols-3" : "sm:grid-cols-1")}>
+      <div
+        className={cn(
+          "mb-6 grid gap-4",
+          fullAccess ? "sm:grid-cols-2 lg:grid-cols-4" : "sm:grid-cols-1",
+        )}
+      >
         <div className="rounded-xl border border-border bg-background/70 p-4">
-          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            Total Portfolio ROI
-          </p>
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total ROI</p>
           <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-foreground">
             {formatPct(performance.total_roi_pct)}
           </p>
-          {!fullAccess ? (
-            <p className="mt-1 text-xs text-muted-foreground">Starter preview · cumulative return</p>
-          ) : null}
         </div>
         {fullAccess ? (
           <>
@@ -108,6 +148,19 @@ function PerformanceSection({
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Win Rate</p>
               <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-foreground">
                 {performance.win_rate_pct.toFixed(1)}%
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/70 p-4">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                Total Gain / Loss
+              </p>
+              <p
+                className={cn(
+                  "mt-1 font-mono text-2xl font-bold tabular-nums",
+                  performance.total_gain_loss_usd >= 0 ? "text-primary" : "text-destructive",
+                )}
+              >
+                {formatSignedMoney(performance.total_gain_loss_usd)}
               </p>
             </div>
             <div className="rounded-xl border border-border bg-background/70 p-4">
@@ -120,10 +173,13 @@ function PerformanceSection({
               <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-foreground">
                 {performance.pick_count}
               </p>
-              <p className="text-xs text-muted-foreground">{performance.weeks_tracked} weeks in chart</p>
             </div>
           </>
-        ) : null}
+        ) : (
+          <p className="text-xs text-muted-foreground sm:col-span-1">
+            Starter preview · cumulative ROI chart for this tier
+          </p>
+        )}
       </div>
 
       {performance.chart.length > 0 ? (
@@ -151,7 +207,7 @@ function PerformanceSection({
               <Line
                 type="monotone"
                 dataKey="ai_cumulative_pct"
-                name="AI Portfolio ROI"
+                name={`${TIER_BUDGETS[tier].label} ROI`}
                 stroke="#10b981"
                 strokeWidth={2.5}
                 dot={false}
@@ -173,7 +229,7 @@ function PerformanceSection({
         </div>
       ) : (
         <div className="rounded-xl border border-dashed border-border bg-secondary/20 p-6 text-center text-sm text-muted-foreground">
-          Performance history will appear after the first few weekly pick cycles complete.
+          Performance history will appear after weekly picks are generated for this tier.
         </div>
       )}
     </section>
@@ -183,27 +239,36 @@ function PerformanceSection({
 function PicksSection({
   picks,
   weekStartDate,
+  tier,
+  budget,
 }: {
   picks: AiWeeklyPickDisplay[]
   weekStartDate: string
+  tier: BucketTier
+  budget: PortfolioPayload["budget"]
 }) {
   return (
     <section className="rounded-2xl border border-border bg-card/60 p-5 sm:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">This Week&apos;s Top 5 Picks</h2>
+            <h2 className="text-lg font-semibold text-foreground">
+              This Week&apos;s ${tier} Picks
+            </h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            AI-ranked purchase opportunities for week of {weekStartDate}
+            Week of {weekStartDate} · budget allocation{" "}
+            <span className="font-mono font-semibold text-foreground">
+              {formatMoney(budget.spent)} / {formatMoney(budget.max)} spent
+            </span>
           </p>
         </div>
       </div>
 
       {picks.length === 0 ? (
         <div className="rounded-xl border border-dashed border-border bg-secondary/20 p-6 text-center text-sm text-muted-foreground">
-          Weekly picks have not been generated yet. The Monday cron will populate this board automatically.
+          No picks for this tier yet. Re-run the weekly cron after applying the multi-tier migration.
         </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -283,6 +348,7 @@ function PicksSection({
 
 export function AiPortfolioTracker() {
   const entitlements = useOptionalEntitlements()
+  const [activeTier, setActiveTier] = useState<BucketTier>("100")
   const [payload, setPayload] = useState<PortfolioPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -296,7 +362,7 @@ export function AiPortfolioTracker() {
     setLoading(true)
     setError(null)
 
-    void fetch("/api/portfolio/weekly-picks", { credentials: "same-origin" })
+    void fetch(`/api/portfolio/weekly-picks?tier=${activeTier}`, { credentials: "same-origin" })
       .then(async (res) => {
         const json = (await res.json().catch(() => null)) as PortfolioPayload | null
         if (cancelled) return
@@ -320,49 +386,55 @@ export function AiPortfolioTracker() {
     return () => {
       cancelled = true
     }
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-border bg-card/60">
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
-
-  if (error || !payload) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border bg-secondary/20 p-8 text-center text-sm text-muted-foreground">
-        {error ?? "Portfolio data unavailable."}
-      </div>
-    )
-  }
-
-  const { picks, performance, weekStartDate } = payload
+  }, [activeTier])
 
   return (
-    <div className="flex flex-col gap-8">
-      {!fullAccess ? <UpgradeBanner /> : null}
+    <div className="flex flex-col gap-6">
+      <TierTabs active={activeTier} onChange={setActiveTier} />
 
-      <PerformanceSection performance={performance} fullAccess={fullAccess} />
-
-      {fullAccess ? (
-        <PicksSection picks={picks} weekStartDate={weekStartDate} />
+      {loading ? (
+        <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-border bg-card/60">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : error || !payload ? (
+        <div className="rounded-2xl border border-dashed border-border bg-secondary/20 p-8 text-center text-sm text-muted-foreground">
+          {error ?? "Portfolio data unavailable."}
+        </div>
       ) : (
-        <section className="rounded-2xl border border-dashed border-border bg-secondary/20 p-6 text-center">
-          <Lock className="mx-auto size-5 text-muted-foreground" />
-          <h2 className="mt-3 text-base font-semibold text-foreground">Weekly picks are a paid Labs feature</h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Upgrade to Premium, Pro, or Supreme to unlock card-level AI analysis, confidence scores,
-            price targets, and win-rate tracking.
-          </p>
-          <Link
-            href="/pricing"
-            className="mt-4 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            View plans
-          </Link>
-        </section>
+        <div className="flex flex-col gap-8">
+          {!fullAccess ? <UpgradeBanner /> : null}
+
+          {fullAccess ? (
+            <PicksSection
+              picks={payload.picks}
+              weekStartDate={payload.weekStartDate}
+              tier={activeTier}
+              budget={payload.budget}
+            />
+          ) : (
+            <section className="rounded-2xl border border-dashed border-border bg-secondary/20 p-6 text-center">
+              <Lock className="mx-auto size-5 text-muted-foreground" />
+              <h2 className="mt-3 text-base font-semibold text-foreground">
+                Weekly pick baskets are a paid Labs feature
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Upgrade to Premium, Pro, or Supreme to unlock tiered AI pick baskets for this budget.
+              </p>
+              <Link
+                href="/pricing"
+                className="mt-4 inline-flex items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                View plans
+              </Link>
+            </section>
+          )}
+
+          <PerformanceSection
+            performance={payload.performance}
+            fullAccess={fullAccess}
+            tier={activeTier}
+          />
+        </div>
       )}
     </div>
   )

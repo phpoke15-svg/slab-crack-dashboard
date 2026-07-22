@@ -1,17 +1,20 @@
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import type { AiWeeklyPickDraft, AiWeeklyPickRow } from "@/lib/ai-weekly-picks/types"
+import { BUCKET_TIERS, type BucketTier } from "@/lib/ai-weekly-picks/tiers"
 
-export async function countWeeklyPicks(weekStartDate: string): Promise<number> {
+export async function countWeeklyTierCoverage(weekStartDate: string): Promise<number> {
   if (!isSupabaseConfigured()) return 0
   const supabase = createAdminClient()
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from("ai_weekly_picks")
-    .select("id", { count: "exact", head: true })
+    .select("bucket_tier")
     .eq("week_start_date", weekStartDate)
 
   if (error?.code === "42P01") return 0
   if (error) throw error
-  return count ?? 0
+
+  const tiers = new Set((data ?? []).map((row) => String(row.bucket_tier)))
+  return tiers.size
 }
 
 export async function replaceWeeklyPicks(
@@ -37,9 +40,11 @@ export async function replaceWeeklyPicks(
 
   const payload = picks.map((pick) => ({
     week_start_date: weekStartDate,
+    bucket_tier: pick.bucket_tier,
     scrydex_id: pick.scrydex_id,
     grade_type: pick.grade_type,
     pick_price: pick.pick_price,
+    projected_target_price: pick.projected_target_price,
     ai_rationale: pick.ai_rationale,
     confidence_score: pick.confidence_score,
   }))
@@ -49,7 +54,10 @@ export async function replaceWeeklyPicks(
   return (data ?? []) as AiWeeklyPickRow[]
 }
 
-export async function loadWeeklyPicks(weekStartDate?: string): Promise<AiWeeklyPickRow[]> {
+export async function loadWeeklyPicks(
+  weekStartDate?: string,
+  bucketTier?: BucketTier,
+): Promise<AiWeeklyPickRow[]> {
   if (!isSupabaseConfigured()) return []
   const supabase = createAdminClient()
 
@@ -59,12 +67,17 @@ export async function loadWeeklyPicks(weekStartDate?: string): Promise<AiWeeklyP
   }
   if (!targetWeek) return []
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("ai_weekly_picks")
     .select("*")
     .eq("week_start_date", targetWeek)
     .order("confidence_score", { ascending: false })
 
+  if (bucketTier) {
+    query = query.eq("bucket_tier", bucketTier)
+  }
+
+  const { data, error } = await query
   if (error?.code === "42P01") return []
   if (error) throw error
   return (data ?? []) as AiWeeklyPickRow[]
@@ -77,7 +90,7 @@ export async function loadAllWeeklyPicks(limitWeeks = 26): Promise<AiWeeklyPickR
     .from("ai_weekly_picks")
     .select("*")
     .order("week_start_date", { ascending: false })
-    .limit(limitWeeks * 5)
+    .limit(limitWeeks * BUCKET_TIERS.length * 8)
 
   if (error?.code === "42P01") return []
   if (error) throw error

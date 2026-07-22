@@ -6,17 +6,22 @@ create extension if not exists pgcrypto;
 create table if not exists public.ai_weekly_picks (
   id uuid primary key default gen_random_uuid(),
   week_start_date date not null,
+  bucket_tier text not null check (bucket_tier in ('100', '250', '500', '1000')),
   scrydex_id text not null,
   grade_type text not null check (grade_type in ('RAW', 'PSA_9', 'PSA_10')),
   pick_price numeric(12, 2) not null check (pick_price > 0),
+  projected_target_price numeric(12, 2),
   ai_rationale text not null,
   confidence_score numeric(5, 2) not null check (confidence_score >= 0 and confidence_score <= 100),
   created_at timestamptz not null default now(),
-  unique (week_start_date, scrydex_id, grade_type)
+  unique (week_start_date, bucket_tier, scrydex_id, grade_type)
 );
 
 create index if not exists ai_weekly_picks_week_idx
   on public.ai_weekly_picks (week_start_date desc);
+
+create index if not exists ai_weekly_picks_week_tier_idx
+  on public.ai_weekly_picks (week_start_date desc, bucket_tier);
 
 create index if not exists ai_weekly_picks_scrydex_idx
   on public.ai_weekly_picks (scrydex_id);

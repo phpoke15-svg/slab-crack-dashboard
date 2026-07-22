@@ -1,11 +1,15 @@
+import type { BucketTier } from "@/lib/ai-weekly-picks/tiers"
+
 export type AiWeeklyGradeType = "RAW" | "PSA_9" | "PSA_10"
 
 export type AiWeeklyPickRow = {
   id: string
   week_start_date: string
+  bucket_tier: BucketTier
   scrydex_id: string
   grade_type: AiWeeklyGradeType
   pick_price: number
+  projected_target_price?: number | null
   ai_rationale: string
   confidence_score: number
   created_at?: string
@@ -28,9 +32,11 @@ export type AiWeeklyPickCandidate = {
 }
 
 export type AiWeeklyPickDraft = {
+  bucket_tier: BucketTier
   scrydex_id: string
   grade_type: AiWeeklyGradeType
   pick_price: number
+  projected_target_price: number
   ai_rationale: string
   confidence_score: number
 }
@@ -42,6 +48,7 @@ export type AiWeeklyPickDisplay = AiWeeklyPickRow & {
   current_price: number | null
   price_target: number | null
   return_pct: number | null
+  gain_loss_usd: number | null
 }
 
 export type AiPortfolioPerformancePoint = {
@@ -51,9 +58,19 @@ export type AiPortfolioPerformancePoint = {
 }
 
 export type AiPortfolioPerformanceSummary = {
+  bucket_tier: BucketTier
   total_roi_pct: number
   win_rate_pct: number
+  total_gain_loss_usd: number
   pick_count: number
   weeks_tracked: number
+  budget_spent: number
+  budget_max: number
   chart: AiPortfolioPerformancePoint[]
+}
+
+export type AiPortfolioTierPayload = {
+  tier: BucketTier
+  picks: AiWeeklyPickDisplay[]
+  performance: AiPortfolioPerformanceSummary
 }
