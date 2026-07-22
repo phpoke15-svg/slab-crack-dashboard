@@ -1,9 +1,10 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
+import { resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import axios, { type AxiosInstance } from "axios"
 import { HttpsProxyAgent } from "https-proxy-agent"
 import cron from "node-cron"
-import { buildProxyUrl, config } from "./config.js"
+import { buildProxyUrl, config, getMissingEnvVars } from "./config.js"
 import { sendQueueLiveAlert, subscribeTokenToTopic } from "./fcm.js"
 import {
   analyzeHeadResponse,
@@ -56,9 +57,17 @@ export function startSubscribeServer(): void {
       return
     }
 
-    if (request.method === "GET" && request.url === "/health") {
+    if (request.method === "GET" && request.url?.startsWith("/health")) {
+      const missing = getMissingEnvVars()
       response.writeHead(200, { "Content-Type": "application/json" })
-      response.end(JSON.stringify({ ok: true, service: "pokemon-center-queue-worker" }))
+      response.end(
+        JSON.stringify({
+          ok: true,
+          service: "pokemon-center-queue-worker",
+          ready: missing.length === 0,
+          missing,
+        }),
+      )
       return
     }
 
@@ -139,28 +148,38 @@ export async function checkQueueOnce(
   }
 }
 
-export function startQueueSchedule(
-  client: AxiosInstance = createProbeClient(),
-  debounce: LiveDebounceState = createDebounceState(),
-): void {
+export function startQueueSchedule(debounce: LiveDebounceState = createDebounceState()): void {
   cron.schedule(
     CRON_SCHEDULE,
     () => {
-      void checkQueueOnce(client, debounce)
+      try {
+        const client = createProbeClient()
+        void checkQueueOnce(client, debounce)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        console.warn("[worker] probe skipped:", message)
+      }
     },
     { timezone: CRON_TIMEZONE },
   )
 }
 
 async function main(): Promise<void> {
+  startSubscribeServer()
+
+  const missing = getMissingEnvVars()
+  if (missing.length > 0) {
+    console.warn(`[worker] Missing env vars (service stays up; probes/subscribe disabled): ${missing.join(", ")}`)
+  }
+
   console.log("[worker] Pokémon Center queue detector started")
   console.log(
     `[worker] Queue checks scheduled Mon-Fri 9:00 AM - 5:00 PM ${CRON_TIMEZONE} every 5s (cron: ${CRON_SCHEDULE})`,
   )
   console.log("[worker] Idle outside scheduled hours — no HTTP or proxy requests will be made")
   console.log(`[worker] target=${config.targetUrl}`)
+  console.log(`[worker] listening on 0.0.0.0:${config.subscribePort}`)
 
-  startSubscribeServer()
   startQueueSchedule()
 
   await new Promise<void>(() => {
@@ -168,7 +187,9 @@ async function main(): Promise<void> {
   })
 }
 
-const isMain = Boolean(process.argv[1] && fileURLToPath(import.meta.url) === fileURLToPath(process.argv[1]))
+const isMain =
+  Boolean(process.argv[1]) &&
+  resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1]!)
 
 if (isMain) {
   main().catch((error) => {
