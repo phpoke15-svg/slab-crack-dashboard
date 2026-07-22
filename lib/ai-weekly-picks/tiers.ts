@@ -18,6 +18,15 @@ export const TIER_BUDGETS: Record<BucketTier, TierBudgetRange> = {
 export const CANDIDATE_MIN_PRICE = 25
 export const CANDIDATE_MAX_PRICE = 1000
 
+export function priceInCandidateRange(price: number): boolean {
+  return price >= CANDIDATE_MIN_PRICE && price <= CANDIDATE_MAX_PRICE
+}
+
+/** True when at least one grade price (raw or PSA 10) fits the weekly pick window. */
+export function cardHasPickablePrice(raw: number, psa10: number): boolean {
+  return priceInCandidateRange(raw) || priceInCandidateRange(psa10)
+}
+
 export function parseBucketTier(value: string | null | undefined): BucketTier | null {
   const normalized = String(value ?? "").trim()
   if (normalized === "100" || normalized === "250" || normalized === "500" || normalized === "1000") {

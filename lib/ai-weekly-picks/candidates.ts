@@ -1,10 +1,12 @@
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
 import { loadDailyHistoryRows } from "@/lib/scrydex/db"
 import { toCatalogId } from "@/lib/scrydex/constants"
-import type { AiWeeklyPickCandidate } from "@/lib/ai-weekly-picks/types"
+import type { AiWeeklyPickCandidate, AiWeeklyGradeType } from "@/lib/ai-weekly-picks/types"
 import {
   CANDIDATE_MAX_PRICE,
   CANDIDATE_MIN_PRICE,
+  cardHasPickablePrice,
+  priceInCandidateRange,
 } from "@/lib/ai-weekly-picks/tiers"
 import {
   computeMomentum30dPct,
@@ -22,18 +24,33 @@ type PricedCardRow = {
   scrydex_id: string | null
   current_price_raw: number | null
   current_price_psa10: number | null
+  price_updated_at: string | null
 }
 
-const MAX_CANDIDATE_SCAN = 600
-const HISTORY_BATCH = 80
+const MAX_CANDIDATE_SCAN = 1200
+const HISTORY_BATCH = 120
 
-function pickPriceForGrade(
-  grade: ReturnType<typeof recommendGradeType>,
-  raw: number,
-  psa10: number,
-): number {
+function pickPriceForGrade(grade: AiWeeklyGradeType, raw: number, psa10: number): number {
   if (grade === "PSA_10") return psa10
   return raw
+}
+
+function resolvePickGrade(
+  raw: number,
+  psa10: number,
+  recommended: AiWeeklyGradeType,
+): { grade: AiWeeklyGradeType; pickPrice: number } | null {
+  const recommendedPrice = pickPriceForGrade(recommended, raw, psa10)
+  if (priceInCandidateRange(recommendedPrice)) {
+    return { grade: recommended, pickPrice: recommendedPrice }
+  }
+  if (priceInCandidateRange(raw)) {
+    return { grade: "RAW", pickPrice: raw }
+  }
+  if (priceInCandidateRange(psa10)) {
+    return { grade: "PSA_10", pickPrice: psa10 }
+  }
+  return null
 }
 
 function compositeScore(input: {
@@ -49,13 +66,11 @@ function compositeScore(input: {
   return momentumNorm * 0.35 + spreadNorm * 0.35 + velocityNorm * 0.2 + valueNorm * 0.1
 }
 
-function cardInCandidatePriceRange(raw: number, psa10: number): boolean {
-  return (
-    raw >= CANDIDATE_MIN_PRICE &&
-    raw <= CANDIDATE_MAX_PRICE &&
-    psa10 >= CANDIDATE_MIN_PRICE &&
-    psa10 <= CANDIDATE_MAX_PRICE
-  )
+function candidatePriceOrFilter(): string {
+  return [
+    `and(current_price_raw.gte.${CANDIDATE_MIN_PRICE},current_price_raw.lte.${CANDIDATE_MAX_PRICE})`,
+    `and(current_price_psa10.gte.${CANDIDATE_MIN_PRICE},current_price_psa10.lte.${CANDIDATE_MAX_PRICE})`,
+  ].join(",")
 }
 
 async function fetchPricedCardsInRange(): Promise<PricedCardRow[]> {
@@ -63,20 +78,17 @@ async function fetchPricedCardsInRange(): Promise<PricedCardRow[]> {
   const supabase = createAdminClient()
   const rows: PricedCardRow[] = []
 
-  for (let page = 0; page < 10; page++) {
+  for (let page = 0; page < 12; page++) {
     const from = page * 500
     const to = from + 499
     const { data, error } = await supabase
       .from("cards")
       .select(
-        "id, name, set_name, image_url, scrydex_id, current_price_raw, current_price_psa10",
+        "id, name, set_name, image_url, scrydex_id, current_price_raw, current_price_psa10, price_updated_at",
       )
       .not("scrydex_id", "is", null)
-      .gte("current_price_raw", CANDIDATE_MIN_PRICE)
-      .lte("current_price_raw", CANDIDATE_MAX_PRICE)
-      .gte("current_price_psa10", CANDIDATE_MIN_PRICE)
-      .lte("current_price_psa10", CANDIDATE_MAX_PRICE)
-      .order("id", { ascending: true })
+      .or(candidatePriceOrFilter())
+      .order("price_updated_at", { ascending: false, nullsFirst: false })
       .range(from, to)
 
     if (error?.code === "42P01" || error?.code === "42703") return []
@@ -97,7 +109,7 @@ export async function gatherWeeklyPickCandidates(limit = 80): Promise<AiWeeklyPi
       const scrydexId = String(card.scrydex_id ?? "").trim()
       const raw = Number(card.current_price_raw ?? 0)
       const psa10 = Number(card.current_price_psa10 ?? 0)
-      if (!scrydexId || !cardInCandidatePriceRange(raw, psa10)) return null
+      if (!scrydexId || !cardHasPickablePrice(raw, psa10)) return null
 
       const spreadRatio = computeSpreadRatio(raw, psa10)
       const preliminary = spreadRatio * 0.6 + (psa10 - raw) / Math.max(raw, 1)
@@ -124,15 +136,15 @@ export async function gatherWeeklyPickCandidates(limit = 80): Promise<AiWeeklyPi
       momentumPsa10,
       spreadRatio,
     )
-    const pickPrice = pickPriceForGrade(recommendedGrade, entry.raw, entry.psa10)
-    if (pickPrice < CANDIDATE_MIN_PRICE || pickPrice > CANDIDATE_MAX_PRICE) continue
+    const resolved = resolvePickGrade(entry.raw, entry.psa10, recommendedGrade)
+    if (!resolved) continue
 
-    const momentum = recommendedGrade === "PSA_10" ? momentumPsa10 : momentumRaw
+    const momentum = resolved.grade === "PSA_10" ? momentumPsa10 : momentumRaw
     const composite = compositeScore({
       momentum,
       supplyVelocity,
       spreadRatio,
-      pickPrice,
+      pickPrice: resolved.pickPrice,
     })
 
     candidates.push({
@@ -143,8 +155,8 @@ export async function gatherWeeklyPickCandidates(limit = 80): Promise<AiWeeklyPi
       image_url: entry.card.image_url,
       raw_price: entry.raw,
       psa10_price: entry.psa10,
-      recommended_grade: recommendedGrade,
-      pick_price: pickPrice,
+      recommended_grade: resolved.grade,
+      pick_price: resolved.pickPrice,
       momentum_30d_pct: Number(momentum.toFixed(2)),
       supply_velocity: supplyVelocity,
       spread_ratio: Number(spreadRatio.toFixed(3)),
