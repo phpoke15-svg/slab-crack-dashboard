@@ -4,7 +4,7 @@ import { checkPokeMatchSetup } from "@/lib/trade-binder/setup-health"
 import { isSupabaseConfigured } from "@/lib/supabase/server"
 import { isQueueWatchReportsTableReady } from "@/lib/pokemon-center/queue-alerts"
 import { isWalmartAffiliateConfigured } from "@/lib/restocks/walmart"
-import { isWebPushConfigured, countProQueuePushSubscribers } from "@/lib/push/web-push"
+import { isWebPushConfigured, countProQueuePushSubscribers, countRawQueuePushSubscribers } from "@/lib/push/web-push"
 import { isFcmAdminConfigured } from "@/lib/push/fcm-admin"
 import { countFcmDeviceTokens } from "@/lib/push/fcm-tokens"
 import { isAdsDisplayEnabled } from "@/lib/adsense-config"
@@ -26,12 +26,15 @@ export async function GET() {
   const walmartAffiliateConfigured = isWalmartAffiliateConfigured()
   const webPushConfigured = isWebPushConfigured()
   let proQueuePushSubscribers: number | null = null
+  let rawQueuePushSubscribers: number | null = null
   let fcmDeviceTokens: number | null = null
   if (webPushConfigured && supabaseConfigured) {
     try {
+      rawQueuePushSubscribers = await countRawQueuePushSubscribers()
       proQueuePushSubscribers = await countProQueuePushSubscribers()
     } catch {
       proQueuePushSubscribers = null
+      rawQueuePushSubscribers = null
     }
   }
   if (isFcmAdminConfigured() && supabaseConfigured) {
@@ -105,6 +108,7 @@ export async function GET() {
         stripeConfigured,
         walmartAffiliateConfigured,
         webPushConfigured,
+        rawQueuePushSubscribers,
         proQueuePushSubscribers,
         fcmConfigured: isFcmAdminConfigured(),
         fcmDeviceTokens,

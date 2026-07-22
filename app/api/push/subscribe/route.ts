@@ -80,7 +80,7 @@ export async function POST(request: Request) {
     }
   }
 
-  await upsertPushSubscription({
+  const saved = await upsertPushSubscription({
     endpoint,
     p256dh,
     auth,
@@ -92,6 +92,13 @@ export async function POST(request: Request) {
     giveawayReminders,
     userAgent: request.headers.get("user-agent"),
   })
+
+  if (!saved.ok) {
+    return NextResponse.json(
+      { error: "Could not save push subscription.", detail: saved.error },
+      { status: 503 },
+    )
+  }
 
   return NextResponse.json({
     ok: true,

@@ -13,9 +13,11 @@ import {
 import {
   disableWebPush,
   enableWebPush,
+  fetchServerPushStatus,
   getPushPermission,
   hasActivePushSubscription,
   isWebPushSupported,
+  resyncWebPushSubscription,
 } from "@/lib/push/client"
 import { cn } from "@/lib/utils"
 
@@ -68,8 +70,24 @@ export function PushAlertsOptIn({
       setEnabled(false)
       return
     }
-    setEnabled(await hasActivePushSubscription())
-  }, [])
+    const browserEnabled = await hasActivePushSubscription()
+    setEnabled(browserEnabled)
+
+    if (browserEnabled && user && hasPro) {
+      const server = await fetchServerPushStatus()
+      if (server?.signedIn && !server.queueLiveOnServer) {
+        const sync = await resyncWebPushSubscription({
+          queueLive: queueOnly ? true : queueLive,
+          walmartWednesday: queueOnly ? false : walmartWednesday,
+          socialAlerts: Boolean(user),
+          priceAlerts: Boolean(user),
+        })
+        if (!sync.ok) {
+          setError(sync.error)
+        }
+      }
+    }
+  }, [user, hasPro, queueLive, walmartWednesday, queueOnly])
 
   useEffect(() => {
     void refresh()

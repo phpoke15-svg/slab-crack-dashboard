@@ -51,6 +51,32 @@ function topicColumn(topic: PushTopic): "queue_live" | "walmart_wednesday" {
   return topic === "queue_live" ? "queue_live" : "walmart_wednesday"
 }
 
+function isMissingColumnError(error: { message?: string; code?: string } | null): boolean {
+  if (!error) return false
+  const msg = (error.message ?? "").toLowerCase()
+  return error.code === "42703" || msg.includes("does not exist") || msg.includes("column")
+}
+
+function rowToRecord(row: Record<string, unknown>): PushSubscriptionRecord {
+  return {
+    endpoint: row.endpoint as string,
+    p256dh: row.p256dh as string,
+    auth: row.auth as string,
+    userId: (row.user_id as string | null) ?? null,
+    queueLive: Boolean(row.queue_live),
+    walmartWednesday: Boolean(row.walmart_wednesday),
+    socialAlerts: row.social_alerts !== false,
+    priceAlerts: row.price_alerts !== false,
+    giveawayReminders: Boolean(row.giveaway_reminders),
+  }
+}
+
+const PUSH_SUBSCRIPTION_SELECT_FULL =
+  "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders"
+
+const PUSH_SUBSCRIPTION_SELECT_BASE =
+  "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday"
+
 export async function upsertPushSubscription(input: {
   endpoint: string
   p256dh: string
@@ -62,7 +88,7 @@ export async function upsertPushSubscription(input: {
   priceAlerts?: boolean
   giveawayReminders?: boolean
   userAgent?: string | null
-}): Promise<void> {
+}): Promise<{ ok: true } | { ok: false; error: string }> {
   const record: PushSubscriptionRecord = {
     endpoint: input.endpoint,
     p256dh: input.p256dh,
@@ -76,29 +102,56 @@ export async function upsertPushSubscription(input: {
   }
   memorySubs.set(record.endpoint, record)
 
-  if (!isSupabaseConfigured()) return
+  if (!isSupabaseConfigured()) return { ok: true }
+
+  const supabase = createAdminClient()
+  const updatedAt = new Date().toISOString()
+  const fullRow = {
+    endpoint: record.endpoint,
+    p256dh: record.p256dh,
+    auth: record.auth,
+    user_id: record.userId,
+    queue_live: record.queueLive,
+    walmart_wednesday: record.walmartWednesday,
+    social_alerts: record.socialAlerts,
+    price_alerts: record.priceAlerts,
+    giveaway_reminders: record.giveawayReminders,
+    user_agent: input.userAgent ?? null,
+    updated_at: updatedAt,
+  }
+  const baseRow = {
+    endpoint: record.endpoint,
+    p256dh: record.p256dh,
+    auth: record.auth,
+    user_id: record.userId,
+    queue_live: record.queueLive,
+    walmart_wednesday: record.walmartWednesday,
+    user_agent: input.userAgent ?? null,
+    updated_at: updatedAt,
+  }
 
   try {
-    const supabase = createAdminClient()
-    await supabase.from("push_subscriptions").upsert(
-      {
-        endpoint: record.endpoint,
-        p256dh: record.p256dh,
-        auth: record.auth,
-        user_id: record.userId,
-        queue_live: record.queueLive,
-        walmart_wednesday: record.walmartWednesday,
-        social_alerts: record.socialAlerts,
-        price_alerts: record.priceAlerts,
-        giveaway_reminders: record.giveawayReminders,
-        user_agent: input.userAgent ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "endpoint" },
-    )
-  } catch {
-    // Table may not exist yet; memory fallback still works on warm instances.
+    let { error } = await supabase
+      .from("push_subscriptions")
+      .upsert(fullRow, { onConflict: "endpoint" })
+
+    if (error && isMissingColumnError(error)) {
+      ;({ error } = await supabase
+        .from("push_subscriptions")
+        .upsert(baseRow, { onConflict: "endpoint" }))
+    }
+
+    if (error) {
+      console.error("[push] upsert failed:", error.message)
+      return { ok: false, error: error.message }
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "push_subscriptions upsert failed"
+    console.error("[push] upsert threw:", message)
+    return { ok: false, error: message }
   }
+
+  return { ok: true }
 }
 
 export async function removePushSubscription(endpoint: string): Promise<void> {
@@ -112,35 +165,40 @@ export async function removePushSubscription(endpoint: string): Promise<void> {
   }
 }
 
-async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionRecord[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createAdminClient()
-      const column = topicColumn(topic)
-      const { data, error } = await supabase
-        .from("push_subscriptions")
-        .select(
-          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders",
-        )
-        .eq(column, true)
+async function queryPushSubscriptions(
+  filters?: { column: string; value: boolean | string }[],
+): Promise<PushSubscriptionRecord[] | null> {
+  if (!isSupabaseConfigured()) return null
 
-      if (!error && data) {
-        return data.map((row) => ({
-          endpoint: row.endpoint as string,
-          p256dh: row.p256dh as string,
-          auth: row.auth as string,
-          userId: (row.user_id as string | null) ?? null,
-          queueLive: Boolean(row.queue_live),
-          walmartWednesday: Boolean(row.walmart_wednesday),
-          socialAlerts: row.social_alerts !== false,
-          priceAlerts: row.price_alerts !== false,
-          giveawayReminders: Boolean(row.giveaway_reminders),
-        }))
-      }
-    } catch {
-      // fall through
+  const supabase = createAdminClient()
+  const run = async (select: string) => {
+    let query = supabase.from("push_subscriptions").select(select)
+    for (const filter of filters ?? []) {
+      query = query.eq(filter.column, filter.value)
     }
+    return query
   }
+
+  try {
+    let { data, error } = await run(PUSH_SUBSCRIPTION_SELECT_FULL)
+    if (error && isMissingColumnError(error)) {
+      ;({ data, error } = await run(PUSH_SUBSCRIPTION_SELECT_BASE))
+    }
+    if (error) {
+      console.error("[push] list failed:", error.message)
+      return null
+    }
+    return (data ?? []).map((row) => rowToRecord(row as Record<string, unknown>))
+  } catch (err) {
+    console.error("[push] list threw:", err instanceof Error ? err.message : err)
+    return null
+  }
+}
+
+async function listSubscriptions(topic: PushTopic): Promise<PushSubscriptionRecord[]> {
+  const column = topicColumn(topic)
+  const fromDb = await queryPushSubscriptions([{ column, value: true }])
+  if (fromDb) return fromDb
 
   return [...memorySubs.values()].filter((s) =>
     topic === "queue_live" ? s.queueLive : s.walmartWednesday,
@@ -163,36 +221,10 @@ export async function sendWebPushToUser(
 
   configureWebPush()
   const column = userTopicColumn(topic)
-  let subs: PushSubscriptionRecord[] = []
-
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createAdminClient()
-      const { data, error } = await supabase
-        .from("push_subscriptions")
-        .select(
-          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders",
-        )
-        .eq("user_id", userId)
-        .eq(column, true)
-
-      if (!error && data) {
-        subs = data.map((row) => ({
-          endpoint: row.endpoint as string,
-          p256dh: row.p256dh as string,
-          auth: row.auth as string,
-          userId: (row.user_id as string | null) ?? null,
-          queueLive: Boolean(row.queue_live),
-          walmartWednesday: Boolean(row.walmart_wednesday),
-          socialAlerts: row.social_alerts !== false,
-          priceAlerts: row.price_alerts !== false,
-          giveawayReminders: Boolean(row.giveaway_reminders),
-        }))
-      }
-    } catch {
-      // fall through
-    }
-  }
+  let subs = (await queryPushSubscriptions([
+    { column: "user_id", value: userId },
+    { column, value: true },
+  ])) ?? []
 
   if (subs.length === 0) {
     subs = [...memorySubs.values()].filter(
@@ -218,36 +250,11 @@ export async function sendWebPushGiveawayReminder(
   }
 
   configureWebPush()
-  let subs: PushSubscriptionRecord[] = []
-
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createAdminClient()
-      const { data, error } = await supabase
-        .from("push_subscriptions")
-        .select(
-          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders",
-        )
-        .eq("user_id", userId)
-        .eq("giveaway_reminders", true)
-
-      if (!error && data) {
-        subs = data.map((row) => ({
-          endpoint: row.endpoint as string,
-          p256dh: row.p256dh as string,
-          auth: row.auth as string,
-          userId: (row.user_id as string | null) ?? null,
-          queueLive: Boolean(row.queue_live),
-          walmartWednesday: Boolean(row.walmart_wednesday),
-          socialAlerts: row.social_alerts !== false,
-          priceAlerts: row.price_alerts !== false,
-          giveawayReminders: Boolean(row.giveaway_reminders),
-        }))
-      }
-    } catch {
-      // fall through
-    }
-  }
+  let subs =
+    (await queryPushSubscriptions([
+      { column: "user_id", value: userId },
+      { column: "giveaway_reminders", value: true },
+    ])) ?? []
 
   if (subs.length === 0) {
     subs = [...memorySubs.values()].filter((s) => s.userId === userId && s.giveawayReminders)
@@ -392,11 +399,34 @@ export async function recordPushAlertDedupe(alertKey: string): Promise<void> {
   }
 }
 
+export async function countRawQueuePushSubscribers(): Promise<number> {
+  const subs = await listSubscriptions("queue_live")
+  return subs.length
+}
+
 export async function countProQueuePushSubscribers(): Promise<number> {
   const subs = await listSubscriptions("queue_live")
   const queueWatch = await filterQueueWatchSubscribers(subs)
   const supreme = await listSupremePushSubscriptions()
   return mergeSubscriptionsByEndpoint(queueWatch, supreme).length
+}
+
+/** True when this user has queue_live enabled on at least one stored subscription. */
+export async function userHasQueuePushSubscription(userId: string): Promise<boolean> {
+  if (!userId || !isSupabaseConfigured()) return false
+
+  const supabase = createAdminClient()
+  const { count, error } = await supabase
+    .from("push_subscriptions")
+    .select("endpoint", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("queue_live", true)
+
+  if (error) {
+    console.error("[push] userHasQueuePushSubscription failed:", error.message)
+    return false
+  }
+  return (count ?? 0) > 0
 }
 
 export async function sendWebPushToTopic(
@@ -426,33 +456,8 @@ export async function sendWebPushToTopic(
 }
 
 async function listAllSubscriptions(): Promise<PushSubscriptionRecord[]> {
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createAdminClient()
-      const { data, error } = await supabase
-        .from("push_subscriptions")
-        .select(
-          "endpoint, p256dh, auth, user_id, queue_live, walmart_wednesday, social_alerts, price_alerts, giveaway_reminders",
-        )
-
-      if (!error && data) {
-        return data.map((row) => ({
-          endpoint: row.endpoint as string,
-          p256dh: row.p256dh as string,
-          auth: row.auth as string,
-          userId: (row.user_id as string | null) ?? null,
-          queueLive: Boolean(row.queue_live),
-          walmartWednesday: Boolean(row.walmart_wednesday),
-          socialAlerts: row.social_alerts !== false,
-          priceAlerts: row.price_alerts !== false,
-          giveawayReminders: Boolean(row.giveaway_reminders),
-        }))
-      }
-    } catch {
-      // fall through
-    }
-  }
-
+  const fromDb = await queryPushSubscriptions()
+  if (fromDb) return fromDb
   return [...memorySubs.values()]
 }
 
