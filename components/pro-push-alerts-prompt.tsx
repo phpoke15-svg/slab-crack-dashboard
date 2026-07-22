@@ -258,11 +258,11 @@ export function ProPushAlertsPrompt() {
         </div>
 
         <p className="mt-3 text-center text-[11px] text-muted-foreground">
-          Also install the{" "}
+          Manage alerts anytime on{" "}
           <Link href="/pokewatch" className="text-primary hover:underline" onClick={close}>
-            PokeWatch bookmarklet
-          </Link>{" "}
-          on pokemoncenter.com before drop day.
+            PokeWatch
+          </Link>
+          .
         </p>
       </div>
     </div>

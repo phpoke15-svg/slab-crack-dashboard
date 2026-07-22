@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
 import {
-  Bookmark,
   Check,
   LayoutGrid,
   Loader2,
@@ -37,11 +36,6 @@ const HIGHLIGHTS = [
     icon: Smartphone,
     title: "Phone alerts",
     body: "Push notifications on your phone when it matters.",
-  },
-  {
-    icon: Bookmark,
-    title: "Bookmarklet",
-    body: "One-click helper for monitoring from your browser.",
   },
 ] as const
 
