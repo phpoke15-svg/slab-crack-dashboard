@@ -7,6 +7,7 @@ import { createNavigationFailureProbe, type PokemonCenterProbeResult } from "./p
 
 const NAV_TIMEOUT_MS = 45_000
 const IMPERVA_SETTLE_MS = 5_000
+const BLOCKED_ASSET_GLOB = "**/*.{png,jpg,jpeg,svg,webp,gif,woff,woff2,mp4,css}"
 const DESKTOP_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
@@ -25,6 +26,11 @@ export function ensureStealthChromium(): typeof chromium {
 
 export { formatProbeError, formatProbeLogLine, createNavigationFailureProbe } from "./probe-utils.js"
 export type { PokemonCenterProbeResult } from "./probe-utils.js"
+
+/** Block heavy assets to minimize residential proxy bandwidth. */
+export async function setupLightPageRouting(page: Page): Promise<void> {
+  await page.route(BLOCKED_ASSET_GLOB, (route) => route.abort())
+}
 
 async function closePlaywrightSession(
   page: Page | null,
@@ -88,6 +94,7 @@ export async function probePokemonCenterQueue(): Promise<PokemonCenterProbeResul
     })
 
     page = await context.newPage()
+    await setupLightPageRouting(page)
 
     let documentStatus = 200
     page.on("response", (response) => {
@@ -105,7 +112,11 @@ export async function probePokemonCenterQueue(): Promise<PokemonCenterProbeResul
 
       await page.waitForTimeout(IMPERVA_SETTLE_MS)
 
-      return await analyzeCurrentPage(page, documentStatus)
+      const result = await analyzeCurrentPage(page, documentStatus)
+      console.log(
+        "[worker] Light page check completed successfully (blocked images/fonts/css/media)",
+      )
+      return result
     } catch (error) {
       console.warn("[worker] Navigation timed out or failed, waiting for next cycle:", error)
       return createNavigationFailureProbe()
