@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/trade-binder/supabase/route-auth"
 import { getEntitlementsForUser, isStripeConfigured } from "@/lib/billing/stripe"
+import { isAppleIapConfigured } from "@/lib/billing/apple-iap"
 import { entitlementsForPlan } from "@/lib/billing/plans"
 import { touchLastSeen } from "@/lib/presence"
 
@@ -13,6 +14,7 @@ export async function GET() {
       ...entitlementsForPlan("free"),
       signedIn: false,
       stripeConfigured: isStripeConfigured(),
+      appleIapConfigured: isAppleIapConfigured(),
     })
   }
 
@@ -23,6 +25,7 @@ export async function GET() {
       ...entitlements,
       signedIn: true,
       stripeConfigured: isStripeConfigured(),
+      appleIapConfigured: isAppleIapConfigured(),
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load entitlements"
@@ -31,6 +34,7 @@ export async function GET() {
         ...entitlementsForPlan("free"),
         signedIn: true,
         stripeConfigured: isStripeConfigured(),
+        appleIapConfigured: isAppleIapConfigured(),
         error: message,
       },
       { status: 500 },

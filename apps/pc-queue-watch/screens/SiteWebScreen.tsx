@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native"
+import { ActivityIndicator, Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native"
 import { useNavigation, useRoute } from "@react-navigation/native"
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack"
 import type { RouteProp } from "@react-navigation/native"
@@ -17,6 +17,12 @@ import {
   isNativePushRegistered,
 } from "../lib/push/remote-alerts"
 import { useAppExitGuard } from "../lib/use-app-exit-guard"
+import {
+  ensureIapConnection,
+  purchaseSubscription,
+  restorePurchases,
+  teardownIapConnection,
+} from "../lib/iap/purchases"
 
 function isAllowedInApp(url: string) {
   if (!url || url === "about:blank") return true
@@ -78,6 +84,14 @@ export default function SiteWebScreen() {
   useAppExitGuard({ contentCanGoBack, onContentGoBack: webGoBack })
 
   useEffect(() => {
+    if (Platform.OS !== "ios") return
+    void ensureIapConnection().catch(() => null)
+    return () => {
+      void teardownIapConnection()
+    }
+  }, [])
+
+  useEffect(() => {
     if (!loading) return
     const timer = setTimeout(() => setLoading(false), 10_000)
     return () => clearTimeout(timer)
@@ -126,12 +140,58 @@ export default function SiteWebScreen() {
           type?: string
           sessionId?: string
           token?: string
+          priceKey?: string
         }
         if (data?.type === "collectools-iap-purchase") {
-          Alert.alert(
-            "In-App Purchase required",
-            "Create Premium/Pro subscription products in App Store Connect, then wire StoreKit in the native shell before resubmitting.",
-          )
+          const priceKey = data.priceKey?.trim()
+          if (!priceKey) {
+            Alert.alert("Subscription unavailable", "Choose a Premium or Pro plan on the Pricing page.")
+            return
+          }
+          void purchaseSubscription(priceKey)
+            .then(({ verifyInject }) => {
+              webRef.current?.injectJavaScript(verifyInject)
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : "Purchase failed"
+              if (message.toLowerCase().includes("cancel")) return
+              Alert.alert("Subscription failed", message)
+              webRef.current?.injectJavaScript(`
+                window.dispatchEvent(new CustomEvent("collectools-iap-complete", {
+                  detail: { ok: false, error: ${JSON.stringify(message)} }
+                }));
+                true;
+              `)
+            })
+          return
+        }
+        if (data?.type === "collectools-iap-restore") {
+          void restorePurchases()
+            .then(({ verifyInject, count }) => {
+              webRef.current?.injectJavaScript(verifyInject)
+              if (count === 0) {
+                Alert.alert("Nothing to restore", "No CollecTools subscriptions were found for this Apple ID.")
+              }
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : "Restore failed"
+              Alert.alert("Restore failed", message)
+              webRef.current?.injectJavaScript(`
+                window.dispatchEvent(new CustomEvent("collectools-iap-complete", {
+                  detail: { ok: false, error: ${JSON.stringify(message)} }
+                }));
+                true;
+              `)
+            })
+          return
+        }
+        if (data?.type === "collectools-manage-subscriptions") {
+          Linking.openURL("https://apps.apple.com/account/subscriptions").catch(() => {
+            Alert.alert(
+              "Manage subscription",
+              "Open Settings → Apple ID → Subscriptions to manage CollecTools.",
+            )
+          })
           return
         }
         if (data?.type === "open-native-queue") {

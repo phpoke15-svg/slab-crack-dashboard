@@ -11,6 +11,7 @@ import {
   type Entitlements,
   type PlanId,
 } from "@/lib/billing/plans"
+import { planFromAppleProductId } from "@/lib/billing/apple-iap"
 
 let stripeClient: Stripe | null = null
 
@@ -51,7 +52,9 @@ export async function getEntitlementsForUser(userId: string): Promise<Entitlemen
     admin.from("profiles").select("plan").eq("id", userId).maybeSingle(),
     admin
       .from("subscriptions")
-      .select("status, plan, stripe_price_id, current_period_end, cancel_at_period_end, updated_at")
+      .select(
+        "status, plan, stripe_price_id, apple_product_id, current_period_end, cancel_at_period_end, updated_at",
+      )
       .eq("user_id", userId)
       .order("updated_at", { ascending: false })
       .limit(20),
@@ -74,7 +77,15 @@ export async function getEntitlementsForUser(userId: string): Promise<Entitlemen
     if (!ACTIVE_STATUSES.has(String(row.status))) continue
     const fromColumn = (row.plan as PlanId) || "free"
     const fromPrice = planFromStripePriceId(row.stripe_price_id)
-    const candidate = planRank(fromColumn) >= planRank(fromPrice) ? fromColumn : fromPrice
+    const fromApple = planFromAppleProductId(row.apple_product_id as string | null)
+    const candidate =
+      planRank(fromColumn) >= planRank(fromPrice)
+        ? planRank(fromColumn) >= planRank(fromApple)
+          ? fromColumn
+          : fromApple
+        : planRank(fromPrice) >= planRank(fromApple)
+          ? fromPrice
+          : fromApple
     if (planRank(candidate) > planRank(best)) {
       best = candidate
       bestMeta = {

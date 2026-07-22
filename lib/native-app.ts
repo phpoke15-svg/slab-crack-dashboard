@@ -34,3 +34,43 @@ export function requestNativeAppStorePurchase(priceKey: string): boolean {
   rn.postMessage(payload)
   return true
 }
+
+export function requestNativeRestorePurchases(): boolean {
+  if (!isNativeAppShell()) return false
+  const payload = JSON.stringify({ type: "collectools-iap-restore" })
+  const rn = (window as Window & { ReactNativeWebView?: { postMessage: (msg: string) => void } })
+    .ReactNativeWebView
+  if (!rn?.postMessage) return false
+  rn.postMessage(payload)
+  return true
+}
+
+export function requestNativeManageSubscriptions(): boolean {
+  if (!isNativeAppShell()) return false
+  const payload = JSON.stringify({ type: "collectools-manage-subscriptions" })
+  const rn = (window as Window & { ReactNativeWebView?: { postMessage: (msg: string) => void } })
+    .ReactNativeWebView
+  if (!rn?.postMessage) return false
+  rn.postMessage(payload)
+  return true
+}
+
+export type NativeIapCompleteDetail = {
+  ok?: boolean
+  error?: string
+  entitlements?: { plan?: string }
+  restored?: number
+}
+
+/** Listen for native IAP verify/restore completion events. */
+export function onNativeIapComplete(
+  listener: (detail: NativeIapCompleteDetail) => void,
+): () => void {
+  if (typeof window === "undefined") return () => undefined
+  const handler = (event: Event) => {
+    const detail = (event as CustomEvent<NativeIapCompleteDetail>).detail
+    listener(detail ?? {})
+  }
+  window.addEventListener("collectools-iap-complete", handler)
+  return () => window.removeEventListener("collectools-iap-complete", handler)
+}

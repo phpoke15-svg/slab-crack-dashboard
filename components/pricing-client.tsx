@@ -143,6 +143,9 @@ export function PricingClient() {
         window.location.assign(url)
         return
       }
+      if (isNativeAppShell()) {
+        return
+      }
       setError("Checkout did not return a Stripe URL. Try again or contact support.")
     } catch (err) {
       setError(err instanceof Error ? err.message : "Checkout failed")
@@ -159,6 +162,18 @@ export function PricingClient() {
       if (url) window.location.href = url
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not open billing portal")
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
+  const restorePurchases = async () => {
+    setBusyKey("restore")
+    setError(null)
+    try {
+      await entitlements.restoreNativePurchases()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not restore purchases")
     } finally {
       setBusyKey(null)
     }
@@ -289,10 +304,20 @@ export function PricingClient() {
         )}
 
         {nativeBilling && (
-          <p className="mt-6 rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">
-            Subscriptions in the iOS app use Apple In-App Purchase. Tap a plan below to subscribe through
-            the App Store. Manage renewals in Settings → Apple ID → Subscriptions.
-          </p>
+          <div className="mt-6 space-y-3">
+            <p className="rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-foreground">
+              Subscriptions in the iOS app use Apple In-App Purchase. Tap a plan below to subscribe through
+              the App Store. Manage renewals in Settings → Apple ID → Subscriptions.
+            </p>
+            <button
+              type="button"
+              onClick={() => void restorePurchases()}
+              disabled={busyKey === "restore"}
+              className="text-sm font-medium text-primary hover:underline disabled:opacity-60"
+            >
+              {busyKey === "restore" ? "Restoring purchases…" : "Restore purchases"}
+            </button>
+          </div>
         )}
 
         {/* Plans */}
@@ -302,33 +327,38 @@ export function PricingClient() {
               Promotion code
             </label>
             <p className="mt-1 text-xs text-muted-foreground">
-              Enter your code here before checkout. Discount codes replace the 7-day free trial so the
-              savings show up immediately on Stripe.
+              {nativeBilling
+                ? "Promotion codes apply on collectools.app in a browser. Apple In-App Purchase uses App Store pricing."
+                : "Enter your code here before checkout. Discount codes replace the 7-day free trial so the savings show up immediately on Stripe."}
             </p>
-            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-              <input
-                id="promotion-code"
-                value={promotionCode}
-                onChange={(event) => setPromotionCode(event.target.value)}
-                placeholder="collectools"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                className="h-11 flex-1 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/40 focus:ring-2"
-              />
-              <button
-                type="button"
-                onClick={() => void validatePromotionCode()}
-                disabled={promotionBusy || !promotionCode.trim()}
-                className="inline-flex h-11 items-center justify-center rounded-xl border border-primary/40 px-4 text-sm font-semibold text-foreground transition-colors hover:bg-primary/10 disabled:opacity-60"
-              >
-                {promotionBusy ? <Loader2 className="size-4 animate-spin" /> : "Apply code"}
-              </button>
-            </div>
-            {promotionStatus ? (
-              <p className="mt-2 text-sm text-primary">
-                {promotionStatus.code} applied — {promotionStatus.label}
-              </p>
+            {!nativeBilling ? (
+              <>
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                  <input
+                    id="promotion-code"
+                    value={promotionCode}
+                    onChange={(event) => setPromotionCode(event.target.value)}
+                    placeholder="collectools"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    className="h-11 flex-1 rounded-xl border border-border bg-background px-3 text-sm text-foreground outline-none ring-primary/40 focus:ring-2"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void validatePromotionCode()}
+                    disabled={promotionBusy || !promotionCode.trim()}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-primary/40 px-4 text-sm font-semibold text-foreground transition-colors hover:bg-primary/10 disabled:opacity-60"
+                  >
+                    {promotionBusy ? <Loader2 className="size-4 animate-spin" /> : "Apply code"}
+                  </button>
+                </div>
+                {promotionStatus ? (
+                  <p className="mt-2 text-sm text-primary">
+                    {promotionStatus.code} applied — {promotionStatus.label}
+                  </p>
+                ) : null}
+              </>
             ) : null}
           </div>
 

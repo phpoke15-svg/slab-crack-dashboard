@@ -11,7 +11,7 @@ import {
 } from "react"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { entitlementsForPlan, type Entitlements, type PlanId } from "@/lib/billing/plans"
-import { isNativeAppShell, requestNativeAppStorePurchase } from "@/lib/native-app"
+import { isNativeAppShell, onNativeIapComplete, requestNativeAppStorePurchase, requestNativeManageSubscriptions, requestNativeRestorePurchases } from "@/lib/native-app"
 
 type EntitlementsState = Entitlements & {
   signedIn: boolean
@@ -20,6 +20,7 @@ type EntitlementsState = Entitlements & {
   refresh: (opts?: { silent?: boolean }) => Promise<void>
   startCheckout: (priceKey: string, promotionCode?: string) => Promise<string | null>
   openPortal: () => Promise<string | null>
+  restoreNativePurchases: () => Promise<void>
 }
 
 const defaultState: Entitlements = entitlementsForPlan("free")
@@ -116,8 +117,20 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     }
   }, [userId])
 
+  useEffect(() => {
+    if (!isNativeAppShell()) return
+    return onNativeIapComplete((detail) => {
+      if (detail.ok) {
+        void refresh({ silent: true })
+      }
+    })
+  }, [refresh])
+
   const startCheckout = useCallback(async (priceKey: string, promotionCode?: string) => {
     if (isNativeAppShell()) {
+      if (promotionCode?.trim()) {
+        throw new Error("Promotion codes apply on the website only. Subscribe with Apple In-App Purchase here.")
+      }
       if (requestNativeAppStorePurchase(priceKey)) return null
       throw new Error("Subscribe with In-App Purchase in the App Store version of CollecTools.")
     }
@@ -139,6 +152,7 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
 
   const openPortal = useCallback(async () => {
     if (isNativeAppShell()) {
+      if (requestNativeManageSubscriptions()) return null
       throw new Error("Manage your App Store subscription in Settings → Apple ID → Subscriptions.")
     }
     const res = await fetch("/api/billing/portal", {
@@ -152,6 +166,15 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
     return data.url
   }, [])
 
+  const restoreNativePurchases = useCallback(async () => {
+    if (!isNativeAppShell()) {
+      throw new Error("Restore purchases is only available in the CollecTools app.")
+    }
+    if (!requestNativeRestorePurchases()) {
+      throw new Error("Could not reach the CollecTools app billing bridge.")
+    }
+  }, [])
+
   const value = useMemo<EntitlementsState>(
     () => ({
       ...entitlements,
@@ -161,6 +184,7 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
       refresh,
       startCheckout,
       openPortal,
+      restoreNativePurchases,
     }),
     [
       entitlements,
@@ -171,6 +195,7 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
       refresh,
       startCheckout,
       openPortal,
+      restoreNativePurchases,
     ],
   )
 

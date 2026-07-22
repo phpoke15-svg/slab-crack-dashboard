@@ -1,7 +1,8 @@
 # App Store resubmission checklist (CollecTools iOS)
 
 Bundle ID: `com.collectools.app`  
-App Store Connect ID: `6790246131`
+App Store Connect ID: `6790246131`  
+App version: **1.4.6** (iOS build **29**)
 
 ## Rejection fixes
 
@@ -16,34 +17,53 @@ App Store Connect ID: `6790246131`
 
 ---
 
-### 3.1.1 — In-App Purchase (blocking)
+### 3.1.1 — In-App Purchase (implemented)
 
 Apple requires Premium/Pro subscriptions to be sold with **StoreKit**, not Stripe, inside the iOS app.
 
-**Before resubmitting you must:**
+**App Store Connect → Subscriptions (manual — create before TestFlight):**
 
-1. **App Store Connect → Subscriptions**
-   - Create subscription group (e.g. `collectools_plans`)
-   - Add products matching web tiers, for example:
-     - `collectools_premium_monthly` — Premium $4.99/mo
-     - `collectools_premium_yearly` — Premium $39.99/yr
-     - `collectools_pro_monthly` — Pro $9.99/mo
-     - `collectools_pro_yearly` — Pro $99.99/yr
-   - Enable 7-day free trial on each (matches web)
+| Web price key | App Store product ID | Price |
+|---------------|----------------------|-------|
+| `premium_month` | `collectools_premium_monthly` | $4.99/mo |
+| `premium_year` | `collectools_premium_yearly` | $39.99/yr |
+| `pro_month` | `collectools_pro_monthly` | $9.99/mo |
+| `pro_year` | `collectools_pro_yearly` | $99.99/yr |
 
-2. **Native app**
-   - Add `react-native-iap` (or RevenueCat) to `apps/pc-queue-watch`
-   - Handle WebView message `{ type: "collectools-iap-purchase", priceKey }` in `SiteWebScreen.tsx`
-   - Present StoreKit purchase sheet and validate receipt server-side
+- Subscription group: e.g. `collectools_plans`
+- Enable **7-day free trial** on each (matches web Stripe trial)
+- Supreme is **not** sold via IAP (email allowlist only, same as web)
 
-3. **Server**
-   - Add `/api/billing/apple/verify` to sync App Store subscriptions to Supabase entitlements (mirror Stripe webhook flow)
+**Native app (implemented):**
+- `react-native-iap` in `apps/pc-queue-watch`
+- WebView `{ type: "collectools-iap-purchase", priceKey }` → StoreKit sheet
+- `{ type: "collectools-iap-restore" }` → restore + server sync
+- `{ type: "collectools-manage-subscriptions" }` → Apple subscriptions page
+- Stripe URLs blocked in WebView
 
-4. **Web (already started)**
-   - Stripe checkout blocked when `html.native-app` is present
-   - Stripe URLs blocked in WebView navigation
+**Server (implemented):**
+- `POST /api/billing/apple/verify` — validate transaction + sync entitlements
+- `POST /api/billing/apple/restore` — re-verify restored purchases
+- `supabase/apple-iap.sql` — Apple columns on `subscriptions`
 
-**Do not resubmit until IAP purchase works end-to-end on TestFlight.**
+**Vercel env (required for production verify):**
+
+| Variable | Source |
+|----------|--------|
+| `APPLE_IAP_KEY_ID` | App Store Connect → Users and Access → Keys |
+| `APPLE_IAP_ISSUER_ID` | Same page (Issuer ID) |
+| `APPLE_IAP_PRIVATE_KEY` | `.p8` key contents (use `\n` for newlines in Vercel) |
+| `APPLE_IAP_BUNDLE_ID` | `com.collectools.app` (optional, defaults to this) |
+
+Dev-only: `APPLE_IAP_SKIP_VERIFY=1` skips Apple API (local testing only — **never in production**).
+
+**Supabase:** run `supabase/apple-iap.sql` in SQL Editor.
+
+**Test on TestFlight:**
+1. Sign in with a test account
+2. Pricing → tap Pro or Premium → complete Apple purchase sheet
+3. Entitlements should update to `pro` or `premium` within a few seconds
+4. PokeWatch queue alerts should unlock for Pro
 
 ---
 
@@ -52,7 +72,7 @@ Apple requires Premium/Pro subscriptions to be sold with **StoreKit**, not Strip
 **We do not track users across apps for advertising.**
 
 **App Store Connect (manual — Account Holder):**
-1. App Privacy → **Data Used to Track You** → set to **No** / remove tracking purposes
+1. App Privacy → **Data Used to Track You** → set to **No**
 2. Keep “Data Linked to You” only for app functionality (account email, photos for scan, etc.)
 
 **Code:**
@@ -87,8 +107,9 @@ To test PokeWatch:
 2. Hub → PokeWatch
 3. Tap "Open native PokeWatch" for Imperva-safe monitoring + local alerts
 
-To test subscriptions (after IAP build):
+To test subscriptions:
 Pricing → tap Premium or Pro → Apple In-App Purchase sheet
+Use Restore purchases if needed.
 
 No Google Play references appear in the iOS app. Subscriptions use In-App Purchase only.
 ```
@@ -104,18 +125,16 @@ npx eas-cli build -p ios --profile production
 npx eas-cli submit -p ios --profile production
 ```
 
-Bump `ios.buildNumber` in `app.json` each submission (currently **27**).
+Bump `ios.buildNumber` in `app.json` each submission.
 
 ---
 
-## Suggested reply to App Review (paste in Resolution Center)
+## Suggested reply to App Review (Resolution Center)
 
-> **2.3.10:** We removed Google Play badges and Android-only setup copy from the in-app WebView experience. App metadata will be updated to remove third-party store references.
+> **2.3.10:** We removed Google Play badges and Android-only setup copy from the in-app WebView experience. App metadata has been updated to remove third-party store references.
 >
-> **3.1.1:** We implemented Apple In-App Purchase for Premium and Pro subscriptions in the iOS app. External Stripe checkout is disabled in the native shell. Subscriptions are available on the Pricing screen via StoreKit.
+> **3.1.1:** We implemented Apple In-App Purchase for Premium and Pro subscriptions in the iOS app using StoreKit. External Stripe checkout is disabled in the native shell. Subscriptions are available on the Pricing screen, with Restore purchases and manage-subscription support.
 >
 > **5.1.2:** We updated App Privacy labels to reflect that we do not track users. We removed the unused App Tracking Transparency string and disabled third-party analytics/ads in the native WebView.
 >
 > **2.1:** Demo credentials are provided in App Review Information. The account has Pro access for testing PokeWatch and native queue monitoring.
-
-*(Only send the 3.1.1 paragraph after IAP is actually working on TestFlight.)*
