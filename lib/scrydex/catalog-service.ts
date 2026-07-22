@@ -78,6 +78,12 @@ export class CatalogService {
 
     if (!stale && !badImage && !missingGraded) return { source: "cache", creditsUsed: 0 }
 
+    return this.forceRefreshCard(catalogId)
+  }
+
+  /** Always pull latest prices from Scrydex (1 credit). */
+  async forceRefreshCard(catalogId: string): Promise<{ source: "cache" | "scrydex"; creditsUsed: number }> {
+    const existing = await getCatalogCard(catalogId)
     const parts = splitCatalogId(catalogId)
     const game = existing?.game ?? parts?.game
     const scrydexId = existing?.scrydex_id ?? parts?.scrydexId

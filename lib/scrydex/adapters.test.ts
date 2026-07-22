@@ -51,6 +51,19 @@ describe("scrydex adapters", () => {
     expect(extractGradedPrices("pokemon-sv3pt5-173", variants)).toHaveLength(1)
   })
 
+  it("uses mid when graded market is missing", () => {
+    const variants = [
+      {
+        name: "normal",
+        prices: [{ company: "PSA", grade: "10", mid: 180, currency: "USD" }],
+      },
+    ]
+
+    expect(extractGradedPrices("pokemon-swsh8-271", variants)).toEqual([
+      expect.objectContaining({ company: "PSA", grade: "10", market_price: 180 }),
+    ])
+  })
+
   it("maps legacy flat vision results", () => {
     const mapped = visionResultToCatalog("pokemon", {
       game: "pokemon",

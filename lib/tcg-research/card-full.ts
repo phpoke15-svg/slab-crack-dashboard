@@ -1,6 +1,7 @@
 import { cardPriceRowToMockEntry } from "@/lib/pricing/views"
 import { ensureCardDailyPriceHistory } from "@/lib/pricing/card-daily-price-history"
 import { ensureScrydexCardFresh } from "@/lib/scrydex/on-demand"
+import { createCatalogService } from "@/lib/scrydex/catalog-service"
 import { isScrydexConfigured } from "@/lib/scrydex/constants"
 import { loadCardBundle } from "@/lib/scrydex/db"
 import { upsertCatalogBundleDailyHistory } from "@/lib/scrydex/webhook-history"
@@ -92,6 +93,32 @@ function bundlePopulation(
     }))
     .filter((row) => row.company && row.grade && row.count > 0)
     .sort((a, b) => b.count - a.count)
+}
+
+function bundleHasPositiveRaw(bundle: NonNullable<Awaited<ReturnType<typeof loadCardBundle>>>): boolean {
+  return (bundle.raw as Array<{ market_price?: number | null }>).some((row) => Number(row.market_price) > 0)
+}
+
+function bundleGradedPrices(bundle: NonNullable<Awaited<ReturnType<typeof loadCardBundle>>>): ScrydexGradedPrice[] {
+  return gradedRowsFromScrydexBundle(bundle.graded as never[])
+}
+
+async function loadCardBundleWithGradedRefresh(catalogId: string): Promise<Awaited<ReturnType<typeof loadCardBundle>>> {
+  let bundle = await loadCardBundle(catalogId)
+  if (!bundle?.card || !isScrydexConfigured()) return bundle
+
+  const hasRaw = bundleHasPositiveRaw(bundle)
+  const hasGraded = bundleGradedPrices(bundle).some((row) => row.marketPrice > 0)
+  if (!hasRaw || hasGraded) return bundle
+
+  try {
+    await createCatalogService().forceRefreshCard(catalogId)
+    bundle = await loadCardBundle(catalogId)
+  } catch (error) {
+    console.warn("[tcg-research/card-full] forced graded refresh failed:", catalogId, error)
+  }
+
+  return bundle
 }
 
 function finalizeGradedPrices(
@@ -200,7 +227,7 @@ export async function resolveTcgResearchCardFull(input: {
   let resolvedGame = detail.game ?? splitCatalogId(catalogId ?? "")?.game ?? input.game ?? "pokemon"
 
   if (catalogId) {
-    const bundle = await loadCardBundle(catalogId)
+    const bundle = await loadCardBundleWithGradedRefresh(catalogId)
     if (bundle?.card) {
       resolvedScrydexId = bundle.card.scrydex_id ?? resolvedScrydexId
       resolvedGame = bundle.card.game ?? resolvedGame

@@ -9,7 +9,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { CompanyGradePriceGrid } from "@/components/grading/company-grade-price-grid"
+import { SelectedGradePrice } from "@/components/grading/selected-grade-price"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
 import {
   buildSlabQuotesForCompany,
@@ -17,6 +17,7 @@ import {
   pickGradedPrice,
   resolveGradedPricesForCard,
   resolvePsa10DisplayPrice,
+  resolveSelectedGradeDisplayPrice,
   type ScrydexGradedPrice,
 } from "@/lib/grading/quotes"
 import { useScrydexCardPricing } from "@/lib/grading/use-scrydex-card-pricing"
@@ -153,8 +154,9 @@ export function SlabDrawer({
     companyQuotes.find(
       (quote) => quote.company === slabGrade.company && quote.grade === slabGrade.grade,
     ) ?? getBestSlabQuote(companyQuotes)
+  const selectedGradePrice = resolveSelectedGradeDisplayPrice(mergedGradedPricesProp, selectedCard, slabGrade)
   const activeSlabPrice =
-    activeQuote?.slabPrice ?? pickGradedPrice(gradedPrices, slabGrade) ?? 0
+    activeQuote?.slabPrice ?? pickGradedPrice(gradedPrices, slabGrade) ?? selectedGradePrice.price ?? 0
 
   const labPsa10 = resolvePsa10DisplayPrice(mergedGradedPricesProp, selectedCard).price
   const labGross = labPsa10 - (selectedCard.rawPrice ?? 0)
@@ -333,11 +335,20 @@ export function SlabDrawer({
 
           <div className="mt-5 rounded-2xl border border-border bg-secondary/40 p-3">
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
-                <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
-                  {priced && selectedCard.rawPrice > 0 ? `$${selectedCard.rawPrice.toFixed(2)}` : "—"}
-                </span>
+              <div className="flex flex-wrap items-end gap-4">
+                <div>
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Raw NM</span>
+                  <span className="ml-2 font-mono text-lg font-semibold tabular-nums text-foreground">
+                    {priced && selectedCard.rawPrice > 0 ? `$${selectedCard.rawPrice.toFixed(2)}` : "—"}
+                  </span>
+                </div>
+                <SelectedGradePrice
+                  slabGrade={slabGrade}
+                  gradedPrices={gradedPrices}
+                  card={selectedCard}
+                  priced={priced && !pricingLoading}
+                  loading={pricingLoading}
+                />
               </div>
               <SlabGradeSelector
                 value={slabGrade}
@@ -346,13 +357,6 @@ export function SlabDrawer({
                 compact
               />
             </div>
-            <CompanyGradePriceGrid
-              company={slabGrade.company}
-              gradedPrices={gradedPrices}
-              rawPrice={selectedCard.rawPrice}
-              priced={priced && !pricingLoading}
-              selected={slabGrade}
-            />
             {priced ? (
               <div className="mt-3">
                 <PriceHistoryChart

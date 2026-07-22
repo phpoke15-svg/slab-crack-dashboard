@@ -9,6 +9,7 @@ import type {
   ScrydexVisionResult,
   TcgGame,
 } from "@/lib/scrydex/types"
+import { isScrydexGradedVariantPrice, resolveScrydexVariantMarket } from "@/lib/scrydex/variant-price"
 
 function pickFrontImage(images?: ScrydexCard["images"]) {
   const front = images?.find((img) => img.type === "front") ?? images?.[0]
@@ -91,12 +92,14 @@ export function extractRawPrices(catalogId: string, variants: ScrydexVariant[] |
     const variantName = variant.name ?? "normal"
     for (const price of variant.prices ?? []) {
       if (price.type && price.type !== "raw") continue
+      const marketPrice = resolveScrydexVariantMarket(price)
+      if (marketPrice == null) continue
       rows.push({
         catalog_id: catalogId,
         variant: variantName,
         condition: price.condition ?? "NM",
         currency: price.currency ?? "USD",
-        market_price: price.market ?? null,
+        market_price: marketPrice,
         low_price: price.low ?? null,
         mid_price: price.mid ?? null,
         source: "scrydex",
@@ -115,15 +118,16 @@ export function extractGradedPrices(catalogId: string, variants: ScrydexVariant[
   for (const variant of variants ?? []) {
     const variantName = variant.name ?? "normal"
     for (const price of variant.prices ?? []) {
-      if (price.type !== "graded" && !price.company) continue
-      if (!price.company || !price.grade) continue
+      if (!isScrydexGradedVariantPrice(price)) continue
+      const marketPrice = resolveScrydexVariantMarket(price)
+      if (marketPrice == null) continue
       rows.push({
         catalog_id: catalogId,
         variant: variantName,
         company: price.company,
         grade: String(price.grade),
         currency: price.currency ?? "USD",
-        market_price: price.market ?? null,
+        market_price: marketPrice,
         low_price: price.low ?? null,
         source: "scrydex",
         synced_at: now,
