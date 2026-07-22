@@ -4,7 +4,7 @@ import Link from "next/link"
 import { TabShellHeader } from "@/components/nav/tab-shell-header"
 import { TabToolCard } from "@/components/nav/tab-tool-card"
 import { useOptionalEntitlements } from "@/components/billing/entitlements-provider"
-import { hubToolsForUser } from "@/lib/collectools-tools"
+import { hubToolsForUser, LABS_TOOLS } from "@/lib/collectools-tools"
 import { SLABLABS_HREF } from "@/lib/slabs-labs-routes"
 import { SLABLABS_SUBTOOLS } from "@/lib/slabs-labs-tools"
 
@@ -14,10 +14,30 @@ export function LabsTabClient() {
   const tools = hubToolsForUser({ supreme })
   const slabLabs = tools.find((tool) => tool.id === "slablabs")
   const gradeCheck = tools.find((tool) => tool.id === "grade-check")
+  const aiPortfolio = LABS_TOOLS.find((tool) => tool.id === "portfolio")
 
   return (
     <div className="app-tab-shell mx-auto flex w-full max-w-lg flex-col gap-6 px-4 pt-5 pb-8 sm:px-5">
-      <TabShellHeader title="Labs" subtitle="SlabLabs · Grade Check" />
+      <TabShellHeader title="Labs" subtitle="SlabLabs · AI Portfolio · Grade Check" />
+
+      {aiPortfolio ? (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            AI portfolio
+          </h2>
+          <TabToolCard
+            href={aiPortfolio.href}
+            name={aiPortfolio.name}
+            blurb={
+              entitlements?.fullAiPortfolio
+                ? aiPortfolio.blurb
+                : "ROI over time preview · upgrade for weekly picks"
+            }
+            icon={aiPortfolio.icon}
+            featured
+          />
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">

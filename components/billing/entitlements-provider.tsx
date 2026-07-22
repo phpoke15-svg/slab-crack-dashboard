@@ -62,6 +62,10 @@ export function EntitlementsProvider({ children }: { children: ReactNode }) {
           data.fullSlabCrack ??
             (data.plan === "premium" || data.plan === "pro" || data.plan === "supreme"),
         ),
+        fullAiPortfolio: Boolean(
+          data.fullAiPortfolio ??
+            (data.plan === "premium" || data.plan === "pro" || data.plan === "supreme"),
+        ),
         customHubLayout: Boolean(
           data.customHubLayout ?? (data.plan === "pro" || data.plan === "supreme"),
         ),

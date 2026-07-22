@@ -24,13 +24,13 @@ export default function PortfolioPage() {
       <div className="relative mx-auto flex w-full max-w-6xl flex-col px-4 py-8 sm:px-6">
         <header className="mb-8 flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <CollecToolsBrand href="/" size="lg" subtitle="AI Portfolio Tracker" />
+            <CollecToolsBrand href="/labs" size="lg" subtitle="Labs · AI Portfolio Tracker" />
             <h1 className="mt-5 text-balance text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
               Top Weekly Purchase Opportunities
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-              Every Monday, Collectools scans Scrydex price history for momentum, supply velocity, and
-              PSA 10 spread signals, then ranks the five strongest opportunities with AI-written rationales.
+              Part of CollecTools Labs. Starter accounts track cumulative AI ROI over time; Premium,
+              Pro, and Supreme unlock weekly picks, win rate, and full performance analytics.
             </p>
           </div>
           <SiteAuthButton className="shrink-0" />

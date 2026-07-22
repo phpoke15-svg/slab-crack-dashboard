@@ -3,7 +3,8 @@ import { pageMetadata } from "@/lib/seo"
 
 export const metadata = pageMetadata({
   title: "Labs",
-  description: "SlabLabs graded slab toolkit and Grade Check submission prep in one dashboard.",
+  description:
+    "SlabLabs graded slab toolkit, AI Portfolio weekly picks, and Grade Check submission prep in one dashboard.",
   path: "/labs",
 })
 
