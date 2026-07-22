@@ -51,6 +51,21 @@ const ALL_COLLECTOOLS: CollecTool[] = [
     icon: Search,
   },
   {
+    id: "portfolio",
+    href: "/portfolio",
+    name: "AI Portfolio",
+    tagline: "Weekly picks · ROI tracker",
+    blurb: "AI weekly picks · ROI",
+    description:
+      "AI Portfolio Tracker surfaces five weekly purchase opportunities from Scrydex momentum, supply velocity, and PSA spread signals, then tracks cumulative ROI against a market baseline.",
+    highlights: [
+      "Monday cron ranks top 5 sub-$1000 opportunities",
+      "AI-written rationales with confidence scores",
+      "Historical win rate and cumulative ROI chart",
+    ],
+    icon: Activity,
+  },
+  {
     id: "slablabs",
     href: SLABLABS_HREF,
     name: "SlabLabs",
