@@ -1,3 +1,5 @@
+import { variantSortRank } from "@/lib/scrydex/variant-prices"
+
 type DailyHistoryRow = {
   snapshot_date?: string | null
   price_type?: string | null
@@ -32,8 +34,6 @@ const RECHARTS_GRADE_KEYS: Record<string, keyof RechartsHistoryRow> = {
 
 /** Map a price_history_daily row to a chart column key (raw, psa10, slab:BGS|9.5, …). */
 export function gradeTypeFromHistoryRow(row: DailyHistoryRow): string | null {
-  if ((row.variant ?? "normal") !== "normal") return null
-
   const price = Number(row.market_price ?? 0)
   if (price <= 0) return null
 
@@ -56,11 +56,30 @@ export function gradeTypeFromHistoryRow(row: DailyHistoryRow): string | null {
   return `slab:${company}|${grade}`
 }
 
+/** Prefer normal, then holo/foil, when multiple variants share the same date + grade bucket. */
+export function pickPreferredHistoryRowsForChart(rows: DailyHistoryRow[]): DailyHistoryRow[] {
+  const byKey = new Map<string, DailyHistoryRow>()
+
+  for (const row of rows) {
+    const gradeType = gradeTypeFromHistoryRow(row)
+    const recordedAt = String(row.snapshot_date ?? "").slice(0, 10)
+    if (!gradeType || !recordedAt) continue
+
+    const key = `${recordedAt}|${gradeType}`
+    const existing = byKey.get(key)
+    if (!existing || variantSortRank(row.variant) < variantSortRank(existing.variant)) {
+      byKey.set(key, row)
+    }
+  }
+
+  return [...byKey.values()]
+}
+
 /** Pivot daily rows into Recharts-friendly objects keyed by recorded_at. */
 export function pivotHistoryRowsForChart(rows: DailyHistoryRow[]): ScrydexHistoryChartRow[] {
   const chartDataMap = new Map<string, ScrydexHistoryChartRow>()
 
-  for (const row of rows) {
+  for (const row of pickPreferredHistoryRowsForChart(rows)) {
     const gradeType = gradeTypeFromHistoryRow(row)
     const recordedAt = String(row.snapshot_date ?? "").slice(0, 10)
     if (!gradeType || !recordedAt) continue

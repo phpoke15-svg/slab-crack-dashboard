@@ -3,6 +3,8 @@ import { parsePriceHistoryRange } from "@/lib/pricing/price-history-range"
 import { loadScrydexPriceHistoryChart } from "@/lib/scrydex/history-loader"
 import { parseTcgResearchGame } from "@/lib/tcg-research/search"
 
+/** Reads/writes `public.price_history_daily` (Scrydex daily snapshots keyed by catalog_id). */
+
 export const dynamic = "force-dynamic"
 export const maxDuration = 60
 

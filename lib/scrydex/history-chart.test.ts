@@ -57,6 +57,36 @@ describe("history-chart", () => {
     ])
   })
 
+  it("prefers holofoil PSA rows when normal variant is absent", () => {
+    const chart = pivotHistoryRowsForChart([
+      {
+        snapshot_date: "2026-07-01",
+        price_type: "raw",
+        variant: "holofoil",
+        condition: "NM",
+        market_price: 878.94,
+      },
+      {
+        snapshot_date: "2026-07-01",
+        price_type: "graded",
+        variant: "holofoil",
+        company: "PSA",
+        grade: "10",
+        market_price: 2400,
+      },
+      {
+        snapshot_date: "2026-07-01",
+        price_type: "graded",
+        variant: "normal",
+        company: "PSA",
+        grade: "10",
+        market_price: 100,
+      },
+    ])
+
+    expect(chart).toEqual([{ recorded_at: "2026-07-01", raw: 878.94, psa10: 100 }])
+  })
+
   it("maps pivot rows to Recharts series keys", () => {
     expect(
       toRechartsHistoryRows([
