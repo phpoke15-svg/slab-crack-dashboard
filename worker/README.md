@@ -37,8 +37,22 @@ Outside that window the worker logs a skip message and makes **no HTTP or proxy 
 4. Waits for DOM content + 5s so Imperva JavaScript challenges can render (avoids brittle `networkidle` timeouts)
 5. Marks queue **LIVE** on queue redirects, Queue-it HTML/title markers, or queue hostnames in the final URL
 6. Treats Imperva block/challenge pages as **blocked** (logged cleanly, no crash, no false alerts)
-7. Debounces alerts: **2 consecutive LIVE hits within 7 minutes** before sending FCM
+7. Debounces alerts: **2 consecutive LIVE hits within 7 minutes** before dispatching notifications
 8. Closes browser context after each probe to limit memory use
+
+## Notification dispatch
+
+When a queue is confirmed live, the worker **enqueues alerts asynchronously** so the Playwright loop never blocks on push APIs.
+
+`src/services/notificationService.ts` orchestrates:
+
+1. **Cooldown** — default 20 minutes (`NOTIFICATION_COOLDOWN_MS`), stored in memory or Upstash Redis (`UPSTASH_REDIS_REST_*`)
+2. **OneSignal** — `POST https://onesignal.com/api/v1/notifications` targeting subscribers tagged `membership_tier = pro` or `supreme` (`ONESIGNAL_APP_ID`, `ONESIGNAL_REST_API_KEY`)
+3. **FCM topic broadcast** — existing Firebase Admin topic send for native mobile subscribers
+4. **WebSocket** — instant `QUEUE_DETECTED` event to online clients at `ws://HOST:PORT/ws`
+5. **Redis pub/sub** — optional publish to `NOTIFICATION_REDIS_CHANNEL` (default `queue:detected`) for downstream consumers
+
+Push title: **🚨 Queue Live: Pokémon Center!** — opens `https://www.pokemoncenter.com` (or `QUEUE_DEEP_LINK`).
 
 ## Playwright setup (local)
 

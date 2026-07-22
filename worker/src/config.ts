@@ -24,6 +24,13 @@ export const config = {
   fcmTopic: optional("FCM_TOPIC", "pokemon_center_alerts"),
   firebaseServiceAccountJson: optional("FIREBASE_SERVICE_ACCOUNT_JSON"),
   firebaseServiceAccountPath: optional("FIREBASE_SERVICE_ACCOUNT_PATH", "./firebase-service-account.json"),
+  onesignalAppId: optional("ONESIGNAL_APP_ID"),
+  onesignalRestApiKey: optional("ONESIGNAL_REST_API_KEY"),
+  /** Cooldown between queue push dispatches (default 20 minutes). */
+  notificationCooldownMs: Number(optional("NOTIFICATION_COOLDOWN_MS", "1200000")),
+  upstashRedisRestUrl: optional("UPSTASH_REDIS_REST_URL"),
+  upstashRedisRestToken: optional("UPSTASH_REDIS_REST_TOKEN"),
+  notificationRedisChannel: optional("NOTIFICATION_REDIS_CHANNEL", "queue:detected"),
   subscribePort: Number(optional("PORT", optional("SUBSCRIBE_PORT", "8787"))),
   userAgent:
     optional(
