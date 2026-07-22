@@ -38,6 +38,50 @@ export async function getPushPermission(): Promise<NotificationPermission | "uns
   return Notification.permission
 }
 
+export function isPushPermissionDenied(): boolean {
+  return isWebPushSupported() && Notification.permission === "denied"
+}
+
+function pushPermissionBlockedMessage(): string {
+  const host =
+    typeof window !== "undefined" && window.location.hostname
+      ? window.location.hostname
+      : "collectools.app"
+
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : ""
+  const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua)
+  const isFirefox = /Firefox/i.test(ua)
+
+  if (isSafari) {
+    return `Notifications are blocked for this site. Safari → Settings for ${host} → Notifications → Allow, then reload and try again.`
+  }
+  if (isFirefox) {
+    return `Notifications are blocked for this site. Click the lock icon in the address bar → Permissions → Notifications → Allow, then reload and try again.`
+  }
+
+  return `Notifications are blocked for this site. Click the lock or tune icon left of the address bar → Site settings → Notifications → Allow, then reload and try again.`
+}
+
+async function postSubscription(
+  json: { endpoint: string; keys: { p256dh: string; auth: string } },
+  prefs: PushOptInPrefs,
+): Promise<Response> {
+  return fetch("/api/push/subscribe", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      endpoint: json.endpoint,
+      keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
+      queueLive: prefs.queueLive ?? false,
+      walmartWednesday: prefs.walmartWednesday ?? false,
+      socialAlerts: prefs.socialAlerts !== false,
+      priceAlerts: prefs.priceAlerts !== false,
+      giveawayReminders: prefs.giveawayReminders ?? false,
+    }),
+  })
+}
+
 export async function enableWebPush(prefs: PushOptInPrefs): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!isWebPushSupported()) {
     return {
@@ -49,7 +93,13 @@ export async function enableWebPush(prefs: PushOptInPrefs): Promise<{ ok: true }
 
   const permission = await Notification.requestPermission()
   if (permission !== "granted") {
-    return { ok: false, error: "Notification permission was blocked." }
+    return {
+      ok: false,
+      error:
+        permission === "denied" || Notification.permission === "denied"
+          ? pushPermissionBlockedMessage()
+          : "Notification permission was not granted. Try again and choose Allow when your browser asks.",
+    }
   }
 
   const keyRes = await fetch("/api/push/vapid-public-key", { cache: "no-store" })
@@ -75,19 +125,10 @@ export async function enableWebPush(prefs: PushOptInPrefs): Promise<{ ok: true }
     return { ok: false, error: "Could not create a push subscription." }
   }
 
-  const res = await fetch("/api/push/subscribe", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      endpoint: json.endpoint,
-      keys: { p256dh: json.keys.p256dh, auth: json.keys.auth },
-      queueLive: prefs.queueLive ?? false,
-      walmartWednesday: prefs.walmartWednesday ?? false,
-      socialAlerts: prefs.socialAlerts !== false,
-      priceAlerts: prefs.priceAlerts !== false,
-      giveawayReminders: prefs.giveawayReminders ?? false,
-    }),
-  })
+  const res = await postSubscription(
+    { endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth } },
+    prefs,
+  )
 
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as { error?: string } | null
@@ -115,6 +156,7 @@ export async function disableWebPush(): Promise<void> {
   if (endpoint) {
     await fetch("/api/push/subscribe", {
       method: "DELETE",
+      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ endpoint }),
     }).catch(() => null)
@@ -159,5 +201,65 @@ export async function hasActivePushSubscription(): Promise<boolean> {
     return active
   } catch {
     return false
+  }
+}
+
+/** Re-register an existing browser subscription with the server (fixes stale/missing DB rows). */
+export async function resyncWebPushSubscription(
+  prefs: PushOptInPrefs,
+): Promise<{ ok: true } | { ok: false; error: string } | { ok: true; skipped: true }> {
+  if (!isWebPushSupported()) return { ok: true, skipped: true }
+  if (Notification.permission !== "granted") return { ok: true, skipped: true }
+
+  try {
+    const registration = await getRegistration()
+    await navigator.serviceWorker.ready
+    const subscription = await registration.pushManager.getSubscription()
+    if (!subscription) return { ok: true, skipped: true }
+
+    const json = subscription.toJSON()
+    if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+      return { ok: true, skipped: true }
+    }
+
+    const res = await postSubscription(
+      { endpoint: json.endpoint, keys: { p256dh: json.keys.p256dh, auth: json.keys.auth } },
+      prefs,
+    )
+
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null
+      return { ok: false, error: body?.error || "Could not sync push subscription." }
+    }
+
+    try {
+      localStorage.setItem(VAPID_STORAGE_KEY, json.endpoint)
+      localStorage.setItem(PUSH_ENABLED_KEY, "1")
+    } catch {
+      // ignore
+    }
+
+    return { ok: true }
+  } catch {
+    return { ok: true, skipped: true }
+  }
+}
+
+export type ServerPushStatus = {
+  signedIn: boolean
+  queueLiveOnServer: boolean
+}
+
+/** Whether the signed-in account has queue alerts stored server-side. */
+export async function fetchServerPushStatus(): Promise<ServerPushStatus | null> {
+  try {
+    const res = await fetch("/api/push/subscribe/status", {
+      cache: "no-store",
+      credentials: "include",
+    })
+    if (!res.ok) return null
+    return (await res.json()) as ServerPushStatus
+  } catch {
+    return null
   }
 }

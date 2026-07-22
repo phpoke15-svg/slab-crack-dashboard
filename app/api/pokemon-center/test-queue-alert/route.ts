@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireCronAuth } from "@/lib/cron-auth"
+import { POKEMON_CENTER_HOME_URL } from "@/lib/pokemon-center/constants"
 import { sendTestQueueLiveWebPush } from "@/lib/pokemon-center/queue-alerts"
 import {
   isFcmAdminConfigured,
@@ -7,16 +8,13 @@ import {
   sendTestQueueLiveFcmTopicAlert,
 } from "@/lib/push/fcm-admin"
 import { countFcmDeviceTokens, listFcmDeviceTokens } from "@/lib/push/fcm-tokens"
-import { getSiteUrl } from "@/lib/site-url"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 30
 
 /**
  * POST /api/pokemon-center/test-queue-alert — send test queue-live alerts.
- * - Web Push: Pro/Supreme browser subscribers on /pokewatch
- * - FCM devices: registered native tokens (direct multicast — reliable)
- * - FCM topic: broadcast fallback (may reach zero devices)
+ * Tap opens https://www.pokemoncenter.com/ by default (?url= override allowed).
  */
 export async function POST(request: Request) {
   const denied = requireCronAuth(request)
@@ -26,14 +24,18 @@ export async function POST(request: Request) {
     new URL(request.url).searchParams.get("force") === "1" ||
     new URL(request.url).searchParams.get("force") === "true"
 
+  const urlParam = new URL(request.url).searchParams.get("url")?.trim()
+  const targetUrl =
+    urlParam && /^https:\/\/(www\.)?pokemoncenter\.com(\/|$)/i.test(urlParam)
+      ? urlParam
+      : POKEMON_CENTER_HOME_URL
+
   try {
-    const site = getSiteUrl()
-    const targetUrl = `${site}/pokewatch`
     const registeredTokens = await listFcmDeviceTokens()
     const tokenStrings = registeredTokens.map((row) => row.deviceToken)
 
     const [webPush, fcmDevices, fcmTopic, registeredDeviceCount] = await Promise.all([
-      sendTestQueueLiveWebPush({ force }),
+      sendTestQueueLiveWebPush({ force, targetUrl }),
       sendQueueLiveToDeviceTokens(tokenStrings, targetUrl, { test: true }),
       sendTestQueueLiveFcmTopicAlert(targetUrl),
       countFcmDeviceTokens(),
@@ -55,6 +57,7 @@ export async function POST(request: Request) {
       ok: true,
       test: true,
       force,
+      targetUrl,
       sent,
       reason: sent ? undefined : reason,
       sentCount: (webPush.sentCount ?? 0) + fcmDevices.sent,

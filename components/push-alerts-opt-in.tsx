@@ -13,9 +13,12 @@ import {
 import {
   disableWebPush,
   enableWebPush,
+  fetchServerPushStatus,
   getPushPermission,
   hasActivePushSubscription,
+  isPushPermissionDenied,
   isWebPushSupported,
+  resyncWebPushSubscription,
 } from "@/lib/push/client"
 import { cn } from "@/lib/utils"
 
@@ -53,6 +56,7 @@ export function PushAlertsOptIn({
   const [walmartWednesday, setWalmartWednesday] = useState(defaultWalmartWednesday)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
   const [nativeShell, setNativeShell] = useState(false)
+  const [permissionDenied, setPermissionDenied] = useState(false)
 
   const refresh = useCallback(async () => {
     const shell = isNativeAppShell()
@@ -66,10 +70,28 @@ export function PushAlertsOptIn({
     if (permission === "unsupported") {
       setSupported(false)
       setEnabled(false)
+      setPermissionDenied(false)
       return
     }
-    setEnabled(await hasActivePushSubscription())
-  }, [])
+    setPermissionDenied(permission === "denied" || isPushPermissionDenied())
+    const browserEnabled = await hasActivePushSubscription()
+    setEnabled(browserEnabled)
+
+    if (browserEnabled && user && hasPro) {
+      const server = await fetchServerPushStatus()
+      if (server?.signedIn && !server.queueLiveOnServer) {
+        const sync = await resyncWebPushSubscription({
+          queueLive: queueOnly ? true : queueLive,
+          walmartWednesday: queueOnly ? false : walmartWednesday,
+          socialAlerts: Boolean(user),
+          priceAlerts: Boolean(user),
+        })
+        if (!sync.ok) {
+          setError(sync.error)
+        }
+      }
+    }
+  }, [user, hasPro, queueLive, walmartWednesday, queueOnly])
 
   useEffect(() => {
     void refresh()
@@ -449,6 +471,14 @@ export function PushAlertsOptIn({
           Enabled on this device
         </p>
       )}
+      {permissionDenied && !enabled ? (
+        <p className={cn("mt-3 text-sm text-muted-foreground", isHero && "text-center")}>
+          Notifications are blocked in your browser for this site. Use the lock or tune icon in the
+          address bar, set Notifications to <strong className="font-medium text-foreground">Allow</strong>,
+          reload the page, then tap enable again.
+        </p>
+      ) : null}
+
       {error && (
         <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
