@@ -1,4 +1,5 @@
 import { persistHistoryPointsBatch } from "@/lib/scrydex/db"
+import { pickPreferredGradedRows, pickPreferredRawRow } from "@/lib/scrydex/variant-prices"
 import { toCatalogId } from "@/lib/scrydex/constants"
 import type { TcgGame } from "@/lib/scrydex/types"
 
@@ -82,10 +83,7 @@ export function catalogBundleToDailyHistoryRows(input: {
   const capturedAt = input.capturedAt ?? new Date().toISOString()
   const rows: Array<Record<string, unknown>> = []
 
-  const rawCandidates = (input.raw ?? []).filter((row) => (row.variant ?? "normal") === "normal")
-  const rawRow =
-    rawCandidates.find((row) => (row.condition ?? "NM") === "NM" && (row.market_price ?? 0) > 0) ??
-    rawCandidates.find((row) => (row.market_price ?? 0) > 0)
+  const rawRow = pickPreferredRawRow(input.raw ?? [])
   const raw = positivePrice(rawRow?.market_price)
   if (raw != null) {
     rows.push({
@@ -104,8 +102,7 @@ export function catalogBundleToDailyHistoryRows(input: {
     })
   }
 
-  for (const graded of input.graded ?? []) {
-    if ((graded.variant ?? "normal") !== "normal") continue
+  for (const graded of pickPreferredGradedRows(input.graded ?? [])) {
     if ((graded.company ?? "").toUpperCase() !== "PSA") continue
     const grade = String(graded.grade ?? "").trim()
     if (!["7", "8", "9", "10"].includes(grade)) continue

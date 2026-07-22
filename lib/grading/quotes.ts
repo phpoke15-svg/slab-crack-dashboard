@@ -1,3 +1,4 @@
+import { pickPreferredGradedRows } from "@/lib/scrydex/variant-prices"
 import {
   type GradingCompany,
   gradesForCompany,
@@ -162,8 +163,7 @@ export function resolveSelectedGradeDisplayPrice(
 export function gradedRowsFromScrydexBundle(
   graded: Array<{ company?: string | null; grade?: string | null; market_price?: number | null; variant?: string | null }>,
 ): ScrydexGradedPrice[] {
-  return graded
-    .filter((row) => (row.variant ?? "normal") === "normal")
+  return pickPreferredGradedRows(graded)
     .map((row) => ({
       company: String(row.company ?? ""),
       grade: String(row.grade ?? ""),

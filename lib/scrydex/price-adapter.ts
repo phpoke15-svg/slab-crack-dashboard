@@ -1,4 +1,5 @@
 import type { CardPriceRow } from "@/lib/pricing/types"
+import { pickPsaGradeFromRows, pickPreferredRawRow } from "@/lib/scrydex/variant-prices"
 import { catalogIdToLegacyPokeId, resolveCatalogId } from "@/lib/scrydex/constants"
 import type { CatalogCardRow } from "@/lib/scrydex/types"
 import { createAdminClient, isSupabaseConfigured } from "@/lib/supabase/server"
@@ -22,26 +23,16 @@ type GradedPriceRow = {
 }
 
 function pickBestRaw(raw: RawPriceRow[]): { price: number; syncedAt: string } | null {
-  const preferred = raw.find(
-    (row) => (row.variant ?? "normal") === "normal" && (row.condition ?? "NM") === "NM",
-  )
-  const row = preferred ?? raw.find((entry) => (entry.market_price ?? 0) > 0)
+  const row = pickPreferredRawRow(raw)
   if (!row || (row.market_price ?? 0) <= 0) return null
   return {
     price: Number(row.market_price),
-    syncedAt: String(row.synced_at ?? new Date().toISOString()),
+    syncedAt: String((row as RawPriceRow).synced_at ?? new Date().toISOString()),
   }
 }
 
 function pickPsaGrade(graded: GradedPriceRow[], grade: string): number | null {
-  const row = graded.find(
-    (entry) =>
-      (entry.company ?? "").toUpperCase() === "PSA" &&
-      String(entry.grade) === grade &&
-      (entry.variant ?? "normal") === "normal",
-  )
-  const price = row?.market_price
-  return price != null && price > 0 ? Number(price) : null
+  return pickPsaGradeFromRows(graded, grade)
 }
 
 function latestSyncedAt(raw: RawPriceRow[], graded: GradedPriceRow[]): string {
