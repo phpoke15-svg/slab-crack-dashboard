@@ -16,8 +16,10 @@ import {
   getBestSlabQuote,
   pickGradedPrice,
   resolveGradedPricesForCard,
+  resolvePsa10DisplayPrice,
   type ScrydexGradedPrice,
 } from "@/lib/grading/quotes"
+import { useScrydexCardPricing } from "@/lib/grading/use-scrydex-card-pricing"
 import {
   DEFAULT_SLAB_GRADE,
   formatSlabLabel,
@@ -32,7 +34,7 @@ import { PriceHistoryChart } from "@/components/price-history-chart"
 import { RecentSalesList } from "@/components/recent-sales-list"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
-import { resolvePsa10Price, type MockCardEntry, type RecentSale } from "@/lib/slab-data"
+import { type MockCardEntry, type RecentSale } from "@/lib/slab-data"
 
 interface SlabDrawerProps {
   selectedCard: MockCardEntry | null
@@ -71,9 +73,12 @@ export function SlabDrawer({
   const [salesLoading, setSalesLoading] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
 
+  const scrydexPricing = useScrydexCardPricing(selectedCard?.id, Boolean(selectedCard?.id))
+  const mergedGradedPricesProp = gradedPricesProp ?? scrydexPricing.gradedPrices
+
   const gradedPrices = useMemo(
-    () => (selectedCard ? resolveGradedPricesForCard(gradedPricesProp, selectedCard) : []),
-    [gradedPricesProp, selectedCard],
+    () => (selectedCard ? resolveGradedPricesForCard(mergedGradedPricesProp, selectedCard) : []),
+    [mergedGradedPricesProp, selectedCard],
   )
 
   useEffect(() => {
@@ -141,7 +146,8 @@ export function SlabDrawer({
   if (!selectedCard) return null
 
   const priced = selectedCard.hasPricing !== false
-  const pricingLoading = selectedCard.marketInsight === "Loading PSA 7–10 comps…"
+  const pricingLoading =
+    scrydexPricing.loading && gradedPrices.every((row) => row.marketPrice <= 0)
   const companyQuotes = buildSlabQuotesForCompany(selectedCard.rawPrice, gradedPrices, slabGrade.company)
   const activeQuote =
     companyQuotes.find(
@@ -150,7 +156,7 @@ export function SlabDrawer({
   const activeSlabPrice =
     activeQuote?.slabPrice ?? pickGradedPrice(gradedPrices, slabGrade) ?? 0
 
-  const labPsa10 = resolvePsa10Price(selectedCard).price
+  const labPsa10 = resolvePsa10DisplayPrice(mergedGradedPricesProp, selectedCard).price
   const labGross = labPsa10 - (selectedCard.rawPrice ?? 0)
   const labNet = labGross - DEFAULT_PSA_GRADING_FEE
   const labMult =
@@ -169,6 +175,13 @@ export function SlabDrawer({
   )
 
   const chartGradeProps = historyChartGradeProps(slabGrade)
+  const historyQuery = {
+    catalogId: scrydexPricing.catalogId ?? undefined,
+    scrydexId: scrydexPricing.scrydexId ?? undefined,
+    game: scrydexPricing.game,
+    company: slabGrade.company,
+    grade: slabGrade.grade,
+  }
 
   const formatSigned = (n: number) => {
     if (!Number.isFinite(n)) return "—"
@@ -343,10 +356,12 @@ export function SlabDrawer({
             {priced ? (
               <div className="mt-3">
                 <PriceHistoryChart
-                  cardId={selectedCard.id}
+                  cardId={scrydexPricing.catalogId ?? selectedCard.id}
                   {...chartGradeProps}
                   currentRaw={selectedCard.rawPrice}
                   currentSlab={activeSlabPrice}
+                  historyQuery={historyQuery}
+                  subtitle="Scrydex"
                 />
               </div>
             ) : null}

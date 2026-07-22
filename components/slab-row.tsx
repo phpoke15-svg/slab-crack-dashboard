@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Sparkles, ExternalLink } from "lucide-react"
 import { SaveForLaterButton } from "@/components/save-for-later/save-for-later-button"
 import { cn } from "@/lib/utils"
@@ -12,6 +12,7 @@ import {
   pickGradedPrice,
   resolveGradedPricesForCard,
 } from "@/lib/grading/quotes"
+import { useScrydexCardPricing } from "@/lib/grading/use-scrydex-card-pricing"
 import {
   DEFAULT_SLAB_GRADE,
   coerceSlabGradeRef,
@@ -36,7 +37,27 @@ interface SlabRowProps {
 
 export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }: SlabRowProps) {
   const priced = card.hasPricing !== false
-  const gradedPrices = useMemo(() => resolveGradedPricesForCard(undefined, card), [card])
+  const rowRef = useRef<HTMLDivElement>(null)
+  const [visible, setVisible] = useState(false)
+
+  useEffect(() => {
+    const el = rowRef.current
+    if (!el) return
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) setVisible(true)
+      },
+      { rootMargin: "160px" },
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const scrydexPricing = useScrydexCardPricing(card.id, visible)
+  const gradedPrices = useMemo(
+    () => resolveGradedPricesForCard(scrydexPricing.gradedPrices, card),
+    [scrydexPricing.gradedPrices, card],
+  )
   const [slabGrade, setSlabGrade] = useState<SlabGradeRef>(DEFAULT_SLAB_GRADE)
   const [selectedGrade, setSelectedGrade] = useState<SlabGradeRef | null>(null)
 
@@ -64,9 +85,18 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
   )
 
   const chartGradeProps = historyChartGradeProps(activeGrade)
+  const historyQuery = {
+    catalogId: scrydexPricing.catalogId ?? undefined,
+    scrydexId: scrydexPricing.scrydexId ?? undefined,
+    game: scrydexPricing.game,
+    company: activeGrade.company,
+    grade: activeGrade.grade,
+  }
+  const showPriceHistory = priced && (card.rawPrice > 0 || gradedPrices.some((row) => row.marketPrice > 0))
 
   return (
     <div
+      ref={rowRef}
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -187,13 +217,15 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
         highlightBest={selectedGrade == null}
       />
 
-      {priced && activeSlabPrice > 0 ? (
+      {showPriceHistory ? (
         <PriceHistoryChart
-          cardId={card.id}
+          cardId={scrydexPricing.catalogId ?? card.id}
           {...chartGradeProps}
           currentRaw={card.rawPrice}
           currentSlab={activeSlabPrice}
+          historyQuery={historyQuery}
           compact
+          subtitle="Scrydex"
         />
       ) : null}
     </div>
