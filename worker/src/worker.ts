@@ -168,7 +168,10 @@ async function main(): Promise<void> {
   })
 }
 
-const isMain = Boolean(process.argv[1] && fileURLToPath(import.meta.url) === fileURLToPath(process.argv[1]))
+const isMain = Boolean(
+  process.argv[1] &&
+    import.meta.url === new URL(`file://${process.argv[1]}`).href,
+)
 
 if (isMain) {
   main().catch((error) => {
