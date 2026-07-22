@@ -8,12 +8,19 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { SiteFooter } from "@/components/legal/site-footer"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
+import { ensureQueueWatchToken } from "@/lib/pokemon-center/queue-watch-token-client"
+import { useEffect } from "react"
 
 export function QueueWatchClient() {
   const { user, isLoading: authLoading } = useAuth()
   const entitlements = useEntitlements()
   const hasPro = entitlements.queueWatch
   const loading = authLoading || entitlements.isLoading
+
+  useEffect(() => {
+    if (loading || !user || !hasPro) return
+    void ensureQueueWatchToken()
+  }, [loading, user, hasPro])
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-4 py-8 sm:px-6">
@@ -95,10 +102,11 @@ export function QueueWatchClient() {
             After you enable alerts
           </p>
           <ul className="mt-3 list-disc space-y-2 pl-5">
-            <li>Keep notifications allowed for this site in your browser or phone settings.</li>
+            <li>Keep notifications allowed for CollecTools in your phone settings.</li>
             <li>
-              On iPhone, add CollecTools to your Home Screen first, then enable alerts from that icon.
+              In the CollecTools app, queue alerts use native push — not browser Web Push.
             </li>
+            <li>In Chrome or Safari (outside the app), Web Push works on the website directly.</li>
             <li>When you get a queue-live alert, open Pokemon Center right away to join the line.</li>
           </ul>
           <a

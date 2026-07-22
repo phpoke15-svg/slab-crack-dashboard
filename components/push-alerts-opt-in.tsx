@@ -6,6 +6,11 @@ import { Bell, BellOff, Loader2, Lock, Smartphone } from "lucide-react"
 import { useAuth } from "@/components/trade-binder/auth/auth-provider"
 import { useEntitlements } from "@/components/billing/entitlements-provider"
 import {
+  isNativeAppShell,
+  isNativePushEnabledInWebView,
+  requestNativePushRegistration,
+} from "@/lib/native-app"
+import {
   disableWebPush,
   enableWebPush,
   getPushPermission,
@@ -47,9 +52,16 @@ export function PushAlertsOptIn({
   const [queueLive, setQueueLive] = useState(defaultQueueLive)
   const [walmartWednesday, setWalmartWednesday] = useState(defaultWalmartWednesday)
   const [checkoutBusy, setCheckoutBusy] = useState(false)
+  const [nativeShell, setNativeShell] = useState(false)
 
   const refresh = useCallback(async () => {
+    const shell = isNativeAppShell()
+    setNativeShell(shell)
     setSupported(isWebPushSupported())
+    if (shell) {
+      setEnabled(isNativePushEnabledInWebView())
+      return
+    }
     const permission = await getPushPermission()
     if (permission === "unsupported") {
       setSupported(false)
@@ -64,6 +76,14 @@ export function PushAlertsOptIn({
   }, [refresh])
 
   useEffect(() => {
+    if (!nativeShell) return
+    const timer = setInterval(() => {
+      setEnabled(isNativePushEnabledInWebView())
+    }, 800)
+    return () => clearInterval(timer)
+  }, [nativeShell])
+
+  useEffect(() => {
     if (!authLoading && isSupreme) {
       setQueueLive(true)
       if (!queueOnly) setWalmartWednesday(true)
@@ -73,6 +93,20 @@ export function PushAlertsOptIn({
       setQueueLive(false)
     }
   }, [authLoading, user, hasPro, isSupreme, queueLive, queueOnly])
+
+  const onEnableNative = () => {
+    setBusy(true)
+    setError(null)
+    if (!requestNativePushRegistration()) {
+      setBusy(false)
+      setError("Could not reach the CollecTools app. Update to the latest app version.")
+      return
+    }
+    setTimeout(() => {
+      setBusy(false)
+      setEnabled(isNativePushEnabledInWebView())
+    }, 1200)
+  }
 
   const onEnable = async () => {
     setBusy(true)
@@ -126,6 +160,82 @@ export function PushAlertsOptIn({
     } finally {
       setCheckoutBusy(false)
     }
+  }
+
+  if (nativeShell) {
+    if (isHero && !hasPro) {
+      return (
+        <section
+          className={cn(
+            "rounded-2xl border border-primary/40 bg-primary/10 p-6 text-center",
+            className,
+          )}
+        >
+          <span className="mx-auto flex size-12 items-center justify-center rounded-xl border border-primary/40 bg-primary/15 text-primary">
+            <Lock className="size-6" />
+          </span>
+          <h2 className="mt-4 text-lg font-semibold text-foreground">Queue live push alerts</h2>
+          <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
+            Instant queue alerts through the CollecTools app. Included with Pro and Supreme.
+          </p>
+          <button
+            type="button"
+            disabled={checkoutBusy || (user && !entitlements.stripeConfigured)}
+            onClick={() => void upgradeToPro()}
+            className="mt-5 inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          >
+            Upgrade to Pro for access
+          </button>
+        </section>
+      )
+    }
+
+    const nativeTitle = enabled ? "Queue alerts enabled" : "Turn on queue alerts"
+    const nativeSubtitle = enabled
+      ? "You’ll get an instant push when the Pokemon Center queue goes live."
+      : "Allow notifications on this phone. Alerts are delivered by the CollecTools app, not the browser."
+
+    return (
+      <section
+        className={cn(
+          "rounded-2xl border bg-card/60 p-6 text-center",
+          isHero ? "border-primary/40 bg-primary/5" : "border-border p-5",
+          className,
+        )}
+      >
+        <p className="flex items-center justify-center gap-2 text-base font-semibold text-foreground">
+          {enabled ? <Bell className="size-4 text-primary" /> : <BellOff className="size-4" />}
+          {nativeTitle}
+        </p>
+        <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">{nativeSubtitle}</p>
+        {!enabled ? (
+          <button
+            type="button"
+            disabled={busy || authLoading || !user || !hasPro}
+            onClick={onEnableNative}
+            className="mt-5 inline-flex min-w-[220px] items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="size-4 animate-spin" /> : <Bell className="size-4" />}
+            Enable queue alerts
+          </button>
+        ) : (
+          <p className="mt-4 text-xs font-medium text-trade">Enabled on this device</p>
+        )}
+        {!user ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            <Link href={`/sign-in?next=${encodeURIComponent("/pokewatch")}`} className="text-primary hover:underline">
+              Sign in
+            </Link>{" "}
+            with Pro or Supreme first.
+          </p>
+        ) : null}
+        {error ? (
+          <p className="mt-3 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </section>
+    )
   }
 
   if (!supported) {

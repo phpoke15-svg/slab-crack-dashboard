@@ -23,6 +23,7 @@ import {
   type LiveDebounceState,
 } from "./queue-detector.js"
 import { sendFailureAlert } from "./services/failure-alert.js"
+import { handleTestQueueLive } from "./routes/test-queue-live.js"
 import { dispatchQueueNotificationAsync } from "./services/notificationService.js"
 import {
   attachWebSocketBroadcast,
@@ -42,7 +43,7 @@ export function startSubscribeServer(): Server {
   const server = createServer(async (request, response) => {
     response.setHeader("Access-Control-Allow-Origin", "*")
     response.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS")
-    response.setHeader("Access-Control-Allow-Headers", "Content-Type")
+    response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
     if (request.method === "OPTIONS") {
       response.writeHead(204)
@@ -50,7 +51,9 @@ export function startSubscribeServer(): Server {
       return
     }
 
-    if (request.method === "GET" && request.url === "/health") {
+    const parsedUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`)
+
+    if (request.method === "GET" && parsedUrl.pathname === "/health") {
       response.writeHead(200, { "Content-Type": "application/json" })
       response.end(
         JSON.stringify({
@@ -59,12 +62,18 @@ export function startSubscribeServer(): Server {
           websocketClients: getWebSocketClientCount(),
           oneSignalConfigured: Boolean(config.onesignalAppId && config.onesignalRestApiKey),
           notificationCooldownMs: config.notificationCooldownMs,
+          testEndpointConfigured: Boolean(config.workerTestSecret),
         }),
       )
       return
     }
 
-    if (request.method !== "POST" || request.url !== "/subscribe") {
+    if (request.method === "POST" && parsedUrl.pathname === "/test/queue-live") {
+      await handleTestQueueLive(request, response, parsedUrl)
+      return
+    }
+
+    if (request.method !== "POST" || parsedUrl.pathname !== "/subscribe") {
       response.writeHead(404, { "Content-Type": "application/json" })
       response.end(JSON.stringify({ error: "Not found" }))
       return
@@ -95,6 +104,9 @@ export function startSubscribeServer(): Server {
   server.listen(config.subscribePort, "0.0.0.0", () => {
     console.log(`[worker] FCM subscribe API listening on 0.0.0.0:${config.subscribePort}/subscribe`)
     console.log(`[worker] WebSocket broadcast available at ws://0.0.0.0:${config.subscribePort}/ws`)
+    if (config.workerTestSecret) {
+      console.log(`[worker] Test endpoint POST /test/queue-live (?force=1 skips cooldown)`)
+    }
   })
 
   return server

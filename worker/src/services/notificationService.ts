@@ -75,15 +75,23 @@ export async function sendOneSignalQueueNotification(
   return body?.id ?? null
 }
 
+export type QueueNotificationOptions = {
+  /** Bypass the queue-live cooldown (test endpoint only). */
+  skipCooldown?: boolean
+}
+
 export async function sendQueueNotification(
   details: QueueNotificationDetails,
+  options?: QueueNotificationOptions,
 ): Promise<QueueNotificationDispatchResult> {
   const detectedAt = details.detectedAt ?? new Date().toISOString()
   const targetUrl = details.url || config.queueDeepLink
 
-  const claimed = await claimNotificationCooldown("queue_live")
-  if (!claimed) {
-    return { skipped: true, reason: "cooldown_active" }
+  if (!options?.skipCooldown) {
+    const claimed = await claimNotificationCooldown("queue_live")
+    if (!claimed) {
+      return { skipped: true, reason: "cooldown_active" }
+    }
   }
 
   const payload = JSON.stringify({

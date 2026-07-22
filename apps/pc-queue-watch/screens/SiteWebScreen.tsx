@@ -12,6 +12,10 @@ import { colors } from "../lib/theme"
 import { useQueueWatch } from "../lib/queue-watch"
 import { NATIVE_APP_SHELL_INJECT } from "../lib/native-webview-shell"
 import { BRIDGE_INJECT, saveQueueWatchCredentials } from "../lib/queue-watch/report-to-server"
+import {
+  buildNativePushStatusInject,
+  isNativePushRegistered,
+} from "../lib/push/remote-alerts"
 import { useAppExitGuard } from "../lib/use-app-exit-guard"
 
 function isAllowedInApp(url: string) {
@@ -65,7 +69,7 @@ export default function SiteWebScreen() {
   const [reloadKey, setReloadKey] = useState(0)
   const [contentCanGoBack, setContentCanGoBack] = useState(false)
   const webRef = useRef<WebView>(null)
-  const { refreshProAccess } = useQueueWatch()
+  const { refreshProAccess, registerNativePush } = useQueueWatch()
 
   const webGoBack = useCallback(() => {
     webRef.current?.goBack()
@@ -81,6 +85,9 @@ export default function SiteWebScreen() {
 
   const injectHelpers = useCallback(() => {
     webRef.current?.injectJavaScript(BRIDGE_INJECT)
+    void isNativePushRegistered().then((enabled) => {
+      webRef.current?.injectJavaScript(buildNativePushStatusInject(enabled))
+    })
   }, [])
 
   const finishLoading = useCallback(() => {
@@ -131,6 +138,14 @@ export default function SiteWebScreen() {
           navigation.navigate("PokeWatch")
           return
         }
+        if (data?.type === "enable-native-push") {
+          void registerNativePush().then((result) => {
+            webRef.current?.injectJavaScript(
+              buildNativePushStatusInject(result.ok),
+            )
+          })
+          return
+        }
         if (data?.type === "collectools-qw-creds") {
           void saveQueueWatchCredentials({
             sessionId: data.sessionId,
@@ -143,7 +158,7 @@ export default function SiteWebScreen() {
         // ignore
       }
     },
-    [refreshProAccess],
+    [navigation, refreshProAccess, registerNativePush],
   )
 
   const retry = useCallback(() => {
