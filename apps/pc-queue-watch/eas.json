@@ -25,6 +25,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "install": {
+        "command": "npm ci"
+      },
       "env": {
         "EXPO_PUBLIC_COLLECTOOLS_URL": "https://www.collectools.app",
         "EAS_BUILD_NO_EXPO_GO_WARNING": "true"
