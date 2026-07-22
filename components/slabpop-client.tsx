@@ -68,11 +68,21 @@ export function SlabPopClient({ catalog }: SlabPopClientProps) {
                     "flex items-center gap-3 rounded-xl border border-border bg-card/60 p-3",
                   )}
                 >
-                  <CardImage
-                    src={card.image}
-                    alt=""
-                    className="size-14 shrink-0 rounded-lg object-cover"
-                  />
+                  <div className="relative size-14 shrink-0 overflow-hidden rounded-lg border border-border bg-muted/40">
+                    <CardImage
+                      card={{
+                        id: card.cardId,
+                        name: card.title.split(" · ")[0] ?? card.title,
+                        set: card.setName ?? "",
+                        image: card.image,
+                        cardNumber: card.cardNumber,
+                      }}
+                      alt=""
+                      sizes="56px"
+                      className="object-cover"
+                      upgrade={false}
+                    />
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold text-foreground">{card.title}</p>
                     <p className="text-xs text-muted-foreground">
