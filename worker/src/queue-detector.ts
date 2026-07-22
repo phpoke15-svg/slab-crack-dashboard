@@ -76,14 +76,64 @@ export type LiveDebounceState = {
   lastAlertAt: number | null
 }
 
-/** 6-field cron (sec min hour dom month dow): every 3 minutes, Mon–Fri 9 AM–5 PM ET. */
-export const CHECK_INTERVAL_MS = 180_000
-export const CRON_SCHEDULE = "0 */3 * 9-16 * * 1-5"
+/** Delay between completed checks (and between outside-window poll ticks). */
+export const CHECK_INTERVAL_MS = 90_000
+export const CHECK_INTERVAL_SECONDS = CHECK_INTERVAL_MS / 1000
 export const CRON_TIMEZONE = "America/New_York"
-/** Two consecutive LIVE checks must fall inside this window (fits 3-minute polling). */
+export const MONITORING_WINDOW_LABEL = "M-F 9:30am-4:00pm ET"
+export const MONITORING_START_MINUTES = 9 * 60 + 30
+export const MONITORING_END_MINUTES = 16 * 60
+/** Two consecutive LIVE checks must fall inside this window (fits 90-second polling). */
 export const DEBOUNCE_WINDOW_MS = 7 * 60 * 1000
 export const DEBOUNCE_REQUIRED_HITS = 2
 export const ALERT_COOLDOWN_MS = 5 * 60 * 1000
+
+type EasternClock = {
+  day: number
+  hour: number
+  minute: number
+}
+
+const WEEKDAY_TO_DAY: Record<string, number> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+}
+
+export function getEasternClock(now = new Date()): EasternClock {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: CRON_TIMEZONE,
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now)
+
+  const weekday = parts.find((part) => part.type === "weekday")?.value ?? "Sun"
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? "0")
+  const minute = Number(parts.find((part) => part.type === "minute")?.value ?? "0")
+
+  return { day: WEEKDAY_TO_DAY[weekday] ?? 0, hour, minute }
+}
+
+/** Mon–Fri 9:30 AM through 4:00 PM Eastern (4:00 PM exclusive). */
+export function isWithinMonitoringWindow(now = new Date()): boolean {
+  const { day, hour, minute } = getEasternClock(now)
+  if (day === 0 || day === 6) return false
+
+  const totalMinutes = hour * 60 + minute
+  return totalMinutes >= MONITORING_START_MINUTES && totalMinutes < MONITORING_END_MINUTES
+}
+
+export const OUTSIDE_MONITORING_WINDOW_MESSAGE =
+  `[worker] Outside operating window (${MONITORING_WINDOW_LABEL}). Skipping check...`
+
+export const CHECK_COMPLETE_WAIT_MESSAGE =
+  `[worker] Check complete. Waiting ${CHECK_INTERVAL_SECONDS}s until next cycle...`
 
 export function createDebounceState(): LiveDebounceState {
   return { consecutiveLive: 0, windowStartedAt: null, lastAlertAt: null }

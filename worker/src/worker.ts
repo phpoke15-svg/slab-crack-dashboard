@@ -1,6 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 import { fileURLToPath } from "node:url"
-import cron from "node-cron"
 import { config } from "./config.js"
 import { sendQueueLiveAlert, subscribeTokenToTopic } from "./fcm.js"
 import {
@@ -12,10 +11,13 @@ import {
 import { logProxyIpDiagnostic, runProxyIpDiagnostic } from "./proxy-diagnostic.js"
 import {
   canSendAlert,
+  CHECK_COMPLETE_WAIT_MESSAGE,
+  CHECK_INTERVAL_MS,
   createDebounceState,
-  CRON_SCHEDULE,
-  CRON_TIMEZONE,
+  isWithinMonitoringWindow,
   markAlertSent,
+  MONITORING_WINDOW_LABEL,
+  OUTSIDE_MONITORING_WINDOW_MESSAGE,
   registerLiveHit,
   resetLiveDebounce,
   type LiveDebounceState,
@@ -81,7 +83,11 @@ export function startSubscribeServer(): void {
 
 let probeInFlight = false
 
-/** Single queue GET probe — only invoked by the weekday cron schedule. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** Single queue probe — only called while inside the monitoring window. */
 export async function checkQueueOnce(debounce: LiveDebounceState): Promise<void> {
   if (probeInFlight) {
     console.log("[worker] Skipping scheduled check — previous probe still running")
@@ -113,14 +119,23 @@ export async function checkQueueOnce(debounce: LiveDebounceState): Promise<void>
   }
 }
 
-export function startQueueSchedule(debounce: LiveDebounceState = createDebounceState()): void {
-  cron.schedule(
-    CRON_SCHEDULE,
-    () => {
-      void checkQueueOnce(debounce)
-    },
-    { timezone: CRON_TIMEZONE },
-  )
+/** Poll loop: run checks every 90s inside the window; wait 90s between cycles outside it. */
+export async function runQueueLoop(debounce: LiveDebounceState): Promise<never> {
+  while (true) {
+    if (!isWithinMonitoringWindow()) {
+      console.log(OUTSIDE_MONITORING_WINDOW_MESSAGE)
+      await sleep(CHECK_INTERVAL_MS)
+      continue
+    }
+
+    await checkQueueOnce(debounce)
+    console.log(CHECK_COMPLETE_WAIT_MESSAGE)
+    await sleep(CHECK_INTERVAL_MS)
+  }
+}
+
+export function startQueueLoop(debounce: LiveDebounceState = createDebounceState()): void {
+  void runQueueLoop(debounce)
 }
 
 async function main(): Promise<void> {
@@ -128,9 +143,9 @@ async function main(): Promise<void> {
   console.log("[worker] Pokémon Center queue detector started")
   console.log("[worker] Queue probe transport=playwright-stealth profile=chromium-desktop-stealth")
   console.log(
-    `[worker] Queue checks scheduled Mon-Fri 9:00 AM - 5:00 PM ${CRON_TIMEZONE} every 3 minutes (cron: ${CRON_SCHEDULE})`,
+    `[worker] Queue checks scheduled ${MONITORING_WINDOW_LABEL} every ${CHECK_INTERVAL_MS / 1000}s`,
   )
-  console.log("[worker] Idle outside scheduled hours — no HTTP or proxy requests will be made")
+  console.log("[worker] Outside operating window — checks skipped until the next interval")
   console.log(`[worker] target=${config.targetUrl}`)
 
   startSubscribeServer()
@@ -138,11 +153,7 @@ async function main(): Promise<void> {
   const proxyDiagnostic = await runProxyIpDiagnostic()
   logProxyIpDiagnostic(proxyDiagnostic)
 
-  startQueueSchedule()
-
-  await new Promise<void>(() => {
-    // Keep process alive; cron handles all queue probes.
-  })
+  await runQueueLoop(createDebounceState())
 }
 
 const isMain = Boolean(

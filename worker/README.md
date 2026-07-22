@@ -25,17 +25,13 @@ See `env.example` for all variables. Required proxy (either naming scheme):
 
 ## Schedule
 
-Queue probes run **Monday through Friday, 9:00 AM – 5:00 PM Eastern** (`America/New_York`, DST-aware) via `node-cron` using a **6-field** expression (seconds first):
+Queue probes run **Monday through Friday, 9:30 AM – 4:00 PM Eastern** (`America/New_York`, DST-aware). `isWithinMonitoringWindow()` enforces the exact start/end times (including minutes — checks begin at 9:30 AM ET and stop at 4:00 PM ET). Inside that window the worker runs a **90-second loop** (`CHECK_INTERVAL_MS = 90_000`): each check completes, logs a wait message, then sleeps 90s before the next cycle.
 
-```
-0 */3 * 9-16 * * 1-5
-```
-
-Every **3 minutes** during business hours (`CHECK_INTERVAL_MS = 180_000`). Outside that window the worker stays idle and makes **no HTTP or proxy requests**. The FCM subscribe API remains available 24/7.
+Outside that window the worker logs a skip message and makes **no HTTP or proxy requests**, waiting 90s before polling the clock again. The FCM subscribe API remains available 24/7.
 
 ## Detection logic
 
-1. Opens **headless Chromium** (Playwright + stealth plugin) every 3 minutes on the cron schedule
+1. Opens **headless Chromium** (Playwright + stealth plugin) every 90 seconds during the operating window
 2. **Blocks images, fonts, CSS, and media** via route interception to minimize proxy bandwidth
 3. Routes browser traffic through IPRoyal (`IPROYAL_*` or legacy `PROXY_*` env vars)
 4. Waits for network idle + 5s so Imperva JavaScript challenges can render

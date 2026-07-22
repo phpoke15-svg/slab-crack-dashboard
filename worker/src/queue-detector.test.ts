@@ -2,9 +2,12 @@ import { describe, expect, it } from "vitest"
 import {
   analyzeHeadResponse,
   createDebounceState,
+  CHECK_COMPLETE_WAIT_MESSAGE,
   CHECK_INTERVAL_MS,
   DEBOUNCE_WINDOW_MS,
   isQueueRedirectLocation,
+  isWithinMonitoringWindow,
+  OUTSIDE_MONITORING_WINDOW_MESSAGE,
   registerLiveHit,
   resetLiveDebounce,
 } from "./queue-detector.js"
@@ -44,6 +47,41 @@ describe("queue-detector", () => {
     })
     expect(result.live).toBe(true)
     expect(result.blocked).toBe(false)
+  })
+
+  it("allows checks from 9:30 AM ET on weekdays", () => {
+    // Monday 2025-07-21, 9:30 AM EDT (UTC-4)
+    expect(isWithinMonitoringWindow(new Date("2025-07-21T13:30:00.000Z"))).toBe(true)
+  })
+
+  it("blocks checks before 9:30 AM ET on weekdays", () => {
+    expect(isWithinMonitoringWindow(new Date("2025-07-21T13:29:00.000Z"))).toBe(false)
+  })
+
+  it("allows checks through 3:59 PM ET on weekdays", () => {
+    expect(isWithinMonitoringWindow(new Date("2025-07-21T19:59:00.000Z"))).toBe(true)
+  })
+
+  it("blocks checks at 4:00 PM ET and later on weekdays", () => {
+    expect(isWithinMonitoringWindow(new Date("2025-07-21T20:00:00.000Z"))).toBe(false)
+  })
+
+  it("blocks checks on weekends regardless of time", () => {
+    // Saturday 2025-07-19, 10:00 AM EDT
+    expect(isWithinMonitoringWindow(new Date("2025-07-19T14:00:00.000Z"))).toBe(false)
+  })
+
+  it("uses the friendly outside-window log message", () => {
+    expect(OUTSIDE_MONITORING_WINDOW_MESSAGE).toBe(
+      "[worker] Outside operating window (M-F 9:30am-4:00pm ET). Skipping check...",
+    )
+  })
+
+  it("uses a 90-second check interval and completion log message", () => {
+    expect(CHECK_INTERVAL_MS).toBe(90_000)
+    expect(CHECK_COMPLETE_WAIT_MESSAGE).toBe(
+      "[worker] Check complete. Waiting 90s until next cycle...",
+    )
   })
 
   it("requires two consecutive LIVE hits within the debounce window", () => {
