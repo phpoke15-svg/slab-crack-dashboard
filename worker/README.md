@@ -34,7 +34,7 @@ Outside that window the worker logs a skip message and makes **no HTTP or proxy 
 1. Opens **headless Chromium** (Playwright + stealth plugin) every 90 seconds during the operating window
 2. **Blocks images, fonts, CSS, and media** via route interception to minimize proxy bandwidth
 3. Routes browser traffic through IPRoyal (`IPROYAL_*` or legacy `PROXY_*` env vars)
-4. Waits for network idle + 5s so Imperva JavaScript challenges can render
+4. Waits for DOM content + 5s so Imperva JavaScript challenges can render (avoids brittle `networkidle` timeouts)
 5. Marks queue **LIVE** on queue redirects, Queue-it HTML/title markers, or queue hostnames in the final URL
 6. Treats Imperva block/challenge pages as **blocked** (logged cleanly, no crash, no false alerts)
 7. Debounces alerts: **2 consecutive LIVE hits within 7 minutes** before sending FCM
