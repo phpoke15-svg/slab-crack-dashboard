@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
   analyzeHeadResponse,
   createDebounceState,
+  CHECK_INTERVAL_MS,
+  DEBOUNCE_WINDOW_MS,
   isQueueRedirectLocation,
   registerLiveHit,
   resetLiveDebounce,
@@ -44,14 +46,14 @@ describe("queue-detector", () => {
     expect(result.blocked).toBe(false)
   })
 
-  it("requires two consecutive LIVE hits within 15 seconds", () => {
+  it("requires two consecutive LIVE hits within the debounce window", () => {
     const state = createDebounceState()
     const now = Date.now()
 
     expect(registerLiveHit(state, now)).toBe(false)
-    expect(registerLiveHit(state, now + 5_000)).toBe(true)
+    expect(registerLiveHit(state, now + CHECK_INTERVAL_MS)).toBe(true)
 
     resetLiveDebounce(state)
-    expect(registerLiveHit(state, now + 20_000)).toBe(false)
+    expect(registerLiveHit(state, now + DEBOUNCE_WINDOW_MS + 1_000)).toBe(false)
   })
 })

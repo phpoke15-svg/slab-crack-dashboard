@@ -76,11 +76,12 @@ export type LiveDebounceState = {
   lastAlertAt: number | null
 }
 
-/** 6-field cron (sec min hour dom month dow): every 5 seconds, Mon–Fri 9 AM–5 PM ET. */
-export const CRON_SCHEDULE = "*/5 * 9-16 * * 1-5"
+/** 6-field cron (sec min hour dom month dow): every 3 minutes, Mon–Fri 9 AM–5 PM ET. */
+export const CHECK_INTERVAL_MS = 180_000
+export const CRON_SCHEDULE = "0 */3 * 9-16 * * 1-5"
 export const CRON_TIMEZONE = "America/New_York"
-/** Two consecutive 5-second LIVE checks must fall inside this window. */
-export const DEBOUNCE_WINDOW_MS = 15_000
+/** Two consecutive LIVE checks must fall inside this window (fits 3-minute polling). */
+export const DEBOUNCE_WINDOW_MS = 7 * 60 * 1000
 export const DEBOUNCE_REQUIRED_HITS = 2
 export const ALERT_COOLDOWN_MS = 5 * 60 * 1000
 

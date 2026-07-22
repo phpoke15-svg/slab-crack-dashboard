@@ -128,7 +128,7 @@ async function main(): Promise<void> {
   console.log("[worker] Pokémon Center queue detector started")
   console.log("[worker] Queue probe transport=playwright-stealth profile=chromium-desktop-stealth")
   console.log(
-    `[worker] Queue checks scheduled Mon-Fri 9:00 AM - 5:00 PM ${CRON_TIMEZONE} every 5s (cron: ${CRON_SCHEDULE})`,
+    `[worker] Queue checks scheduled Mon-Fri 9:00 AM - 5:00 PM ${CRON_TIMEZONE} every 3 minutes (cron: ${CRON_SCHEDULE})`,
   )
   console.log("[worker] Idle outside scheduled hours — no HTTP or proxy requests will be made")
   console.log(`[worker] target=${config.targetUrl}`)

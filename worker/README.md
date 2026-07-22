@@ -28,20 +28,21 @@ See `env.example` for all variables. Required proxy (either naming scheme):
 Queue probes run **Monday through Friday, 9:00 AM – 5:00 PM Eastern** (`America/New_York`, DST-aware) via `node-cron` using a **6-field** expression (seconds first):
 
 ```
-*/5 * 9-16 * * 1-5
+0 */3 * 9-16 * * 1-5
 ```
 
-Every **5 seconds** during business hours. Outside that window the worker stays idle and makes **no HTTP or proxy requests**. The FCM subscribe API remains available 24/7.
+Every **3 minutes** during business hours (`CHECK_INTERVAL_MS = 180_000`). Outside that window the worker stays idle and makes **no HTTP or proxy requests**. The FCM subscribe API remains available 24/7.
 
 ## Detection logic
 
-1. Opens **headless Chromium** (Playwright + stealth plugin) every 5 seconds on the cron schedule
-2. Routes browser traffic through IPRoyal (`IPROYAL_*` or legacy `PROXY_*` env vars)
-3. Waits for DOM + network idle so Imperva JavaScript challenges can render
-4. Marks queue **LIVE** on queue redirects, Queue-it HTML/title markers, or queue hostnames in the final URL
-5. Treats Imperva block/challenge pages as **blocked** (logged cleanly, no crash, no false alerts)
-6. Debounces alerts: **2 consecutive LIVE hits within 15 seconds** before sending FCM
-7. Closes browser context after each probe to limit memory use
+1. Opens **headless Chromium** (Playwright + stealth plugin) every 3 minutes on the cron schedule
+2. **Blocks images, fonts, CSS, and media** via route interception to minimize proxy bandwidth
+3. Routes browser traffic through IPRoyal (`IPROYAL_*` or legacy `PROXY_*` env vars)
+4. Waits for network idle + 5s so Imperva JavaScript challenges can render
+5. Marks queue **LIVE** on queue redirects, Queue-it HTML/title markers, or queue hostnames in the final URL
+6. Treats Imperva block/challenge pages as **blocked** (logged cleanly, no crash, no false alerts)
+7. Debounces alerts: **2 consecutive LIVE hits within 7 minutes** before sending FCM
+8. Closes browser context after each probe to limit memory use
 
 ## Playwright setup (local)
 
