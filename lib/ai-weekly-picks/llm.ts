@@ -10,6 +10,13 @@ import {
   type BucketTier,
   TIER_BUDGETS,
 } from "@/lib/ai-weekly-picks/tiers"
+import { isGeminiModelUnavailable } from "@/lib/slabcrack/gemini-models"
+import {
+  extractGeminiAnswerText,
+  extractJsonObject,
+  thinkingConfigForModel,
+  type GeminiGenerateResponse,
+} from "@/lib/slabcrack/identify-parse"
 
 type LlmTierPick = {
   scrydex_id?: string
@@ -27,6 +34,19 @@ type LlmMultiTierResponse = {
       picks?: LlmTierPick[]
     }
   >
+}
+
+export type WeeklyPicksLlmProvider = "gemini" | "fallback"
+
+const SYSTEM_PROMPT =
+  "You rank Pokémon TCG weekly purchase baskets by budget tier. Respond with valid JSON only."
+
+function weeklyPicksGeminiModels(): string[] {
+  const preferred = (process.env.AI_WEEKLY_PICKS_MODEL || "").trim()
+  const defaults = ["gemini-2.0-flash", "gemini-3.5-flash", "gemini-flash-latest"]
+  return [preferred, ...defaults].filter(
+    (model, index, models): model is string => Boolean(model) && models.indexOf(model) === index,
+  )
 }
 
 function normalizeGrade(value: string | undefined): AiWeeklyGradeType | null {
@@ -111,80 +131,124 @@ function parseTierPicks(
   return validateTierPicks(picks, tier) ? picks : []
 }
 
+export function mergeMultiTierLlmResponse(
+  parsed: LlmMultiTierResponse,
+  candidates: AiWeeklyPickCandidate[],
+): AiWeeklyPickDraft[] {
+  const merged: AiWeeklyPickDraft[] = []
+  const usedIds = new Set<string>()
+
+  for (const tier of BUCKET_TIERS) {
+    let tierPicks = parseTierPicks(tier, parsed.tiers?.[tier]?.picks, candidates)
+    if (tierPicks.length === 0) {
+      tierPicks = selectFallbackTierPicks(
+        candidates.filter((candidate) => !usedIds.has(candidate.scrydex_id)),
+        tier,
+      )
+    }
+    for (const pick of tierPicks) {
+      if (usedIds.has(pick.scrydex_id)) continue
+      usedIds.add(pick.scrydex_id)
+      merged.push(pick)
+    }
+  }
+
+  return merged
+}
+
+async function callGeminiWeeklyPicks(apiKey: string, model: string, prompt: string): Promise<string> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`
+  const thinking = thinkingConfigForModel(model)
+  const generationConfig: Record<string, unknown> = {
+    responseMimeType: "application/json",
+    maxOutputTokens: 8192,
+    temperature: 0.2,
+    ...(thinking ? { thinkingConfig: thinking } : {}),
+  }
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      systemInstruction: {
+        parts: [{ text: SYSTEM_PROMPT }],
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig,
+    }),
+  })
+
+  const bodyText = await response.text()
+  if (!response.ok) {
+    const err = new Error(
+      `Gemini ${model} HTTP ${response.status}: ${bodyText.slice(0, 280)}`,
+    ) as Error & { status?: number; body?: string }
+    err.status = response.status
+    err.body = bodyText
+    throw err
+  }
+
+  const json = JSON.parse(bodyText) as GeminiGenerateResponse
+  const { text, blockReason } = extractGeminiAnswerText(json)
+  if (blockReason) {
+    throw new Error(`Gemini blocked the weekly picks request (${blockReason}) on ${model}.`)
+  }
+  if (!text) {
+    throw new Error(`Gemini returned empty weekly picks content from ${model}.`)
+  }
+
+  return text
+}
+
 export async function selectMultiTierWeeklyPicksWithLlm(
   candidates: AiWeeklyPickCandidate[],
-): Promise<{ picks: AiWeeklyPickDraft[]; provider: "openai" | "fallback" }> {
+): Promise<{ picks: AiWeeklyPickDraft[]; provider: WeeklyPicksLlmProvider }> {
   if (candidates.length === 0) {
     return { picks: [], provider: "fallback" }
   }
 
-  const apiKey = process.env.OPENAI_API_KEY?.trim()
+  const apiKey = process.env.GEMINI_API_KEY?.trim()
   if (!apiKey) {
     return { picks: selectFallbackMultiTierPicks(candidates), provider: "fallback" }
   }
 
-  const model = process.env.AI_WEEKLY_PICKS_MODEL?.trim() || "gpt-4o-mini"
+  const prompt = buildPrompt(candidates)
+  const models = weeklyPicksGeminiModels()
+  let lastError = "Gemini weekly picks failed."
 
-  try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.2,
-        response_format: { type: "json_object" },
-        messages: [
-          {
-            role: "system",
-            content:
-              "You rank Pokémon TCG weekly purchase baskets by budget tier. Respond with valid JSON only.",
-          },
-          { role: "user", content: buildPrompt(candidates) },
-        ],
-      }),
-    })
+  for (const model of models) {
+    try {
+      const content = await callGeminiWeeklyPicks(apiKey, model, prompt)
+      const parsed = JSON.parse(extractJsonObject(content)) as LlmMultiTierResponse
+      const merged = mergeMultiTierLlmResponse(parsed, candidates)
 
-    const json = (await response.json().catch(() => null)) as {
-      choices?: Array<{ message?: { content?: string } }>
-      error?: { message?: string }
-    } | null
-
-    if (!response.ok) {
-      throw new Error(json?.error?.message ?? `OpenAI request failed (${response.status})`)
-    }
-
-    const content = json?.choices?.[0]?.message?.content
-    if (!content) throw new Error("OpenAI returned empty content")
-
-    const parsed = JSON.parse(content) as LlmMultiTierResponse
-    const merged: AiWeeklyPickDraft[] = []
-    const usedIds = new Set<string>()
-
-    for (const tier of BUCKET_TIERS) {
-      let tierPicks = parseTierPicks(tier, parsed.tiers?.[tier]?.picks, candidates)
-      if (tierPicks.length === 0) {
-        tierPicks = selectFallbackTierPicks(
-          candidates.filter((candidate) => !usedIds.has(candidate.scrydex_id)),
-          tier,
-        )
+      if (merged.length === 0) {
+        lastError = `Gemini ${model} returned no valid tier baskets.`
+        continue
       }
-      for (const pick of tierPicks) {
-        if (usedIds.has(pick.scrydex_id)) continue
-        usedIds.add(pick.scrydex_id)
-        merged.push(pick)
+
+      return { picks: merged, provider: "gemini" }
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : lastError
+      const status = (error as Error & { status?: number }).status
+      const body = (error as Error & { body?: string }).body ?? ""
+      if (status && isGeminiModelUnavailable(status, body)) {
+        continue
+      }
+      if (status === 429 || status === 503) {
+        break
       }
     }
-
-    if (merged.length === 0) {
-      return { picks: selectFallbackMultiTierPicks(candidates), provider: "fallback" }
-    }
-
-    return { picks: merged, provider: "openai" }
-  } catch (error) {
-    console.warn("[ai-weekly-picks/llm] falling back to deterministic tier picks:", error)
-    return { picks: selectFallbackMultiTierPicks(candidates), provider: "fallback" }
   }
+
+  console.warn("[ai-weekly-picks/llm] falling back to deterministic tier picks:", lastError)
+  return { picks: selectFallbackMultiTierPicks(candidates), provider: "fallback" }
 }

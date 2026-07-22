@@ -9,7 +9,7 @@ export type GenerateWeeklyPicksResult = {
   candidateCount: number
   pickCount: number
   tiersGenerated: number
-  provider: "openai" | "fallback"
+  provider: "gemini" | "fallback"
   skipped: boolean
   reason?: string
 }

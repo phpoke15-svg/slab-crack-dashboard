@@ -60,7 +60,7 @@ const ALL_COLLECTOOLS: CollecTool[] = [
       "AI Portfolio Tracker surfaces weekly budget-tiered purchase baskets ($100–$1,000/week) from Scrydex momentum, supply velocity, and PSA spread signals.",
     highlights: [
       "Four budget tiers: $100, $250, $500, and $1,000 per week",
-      "OpenAI-ranked card baskets with confidence scores and targets",
+      "Gemini-ranked card baskets with confidence scores and targets",
       "Tier-specific ROI, win rate, and cumulative performance charts",
     ],
     icon: Activity,
