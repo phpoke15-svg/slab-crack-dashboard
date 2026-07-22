@@ -15,17 +15,20 @@
     "postinstall": "playwright install chromium"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.0",
     "dotenv": "^16.4.7",
     "firebase-admin": "^13.2.0",
     "got-scraping": "^4.2.1",
     "node-cron": "^3.0.3",
     "playwright": "^1.61.1",
     "playwright-extra": "^4.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2"
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@types/node": "^22.13.10",
     "@types/node-cron": "^3.0.11",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
     "vitest": "^3.0.9"

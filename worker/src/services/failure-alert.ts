@@ -66,7 +66,7 @@ export async function sendFailureAlert(
 ): Promise<FailureAlertResult> {
   const message = formatFailureMessage(error, context)
 
-  if (!claimCooldown(FAILURE_COOLDOWN_KEY, config.failureAlertCooldownMs)) {
+  if (!(await claimCooldown(FAILURE_COOLDOWN_KEY, config.failureAlertCooldownMs))) {
     console.warn(`[worker] Failure alert suppressed (cooldown active): ${message}`)
     return { sent: false, skipped: true, reason: "cooldown_active" }
   }

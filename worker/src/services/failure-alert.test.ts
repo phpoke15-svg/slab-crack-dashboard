@@ -22,7 +22,7 @@ describe("failure-alert", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     const cooldown = await import("./notification-cooldown.js")
-    cooldown.resetCooldownForTests()
+    cooldown.resetNotificationCooldownForTests()
     const { sendFailureAlert } = await import("./failure-alert.js")
 
     const result = await sendFailureAlert(new Error("page.goto timeout"), "unexpected_probe_error")
@@ -47,7 +47,7 @@ describe("failure-alert", () => {
     vi.stubGlobal("fetch", fetchMock)
 
     const cooldown = await import("./notification-cooldown.js")
-    cooldown.resetCooldownForTests()
+    cooldown.resetNotificationCooldownForTests()
     const { sendFailureAlert } = await import("./failure-alert.js")
 
     const first = await sendFailureAlert(new Error("first failure"))
@@ -61,15 +61,23 @@ describe("failure-alert", () => {
 })
 
 describe("notification cooldown", () => {
+  const envBackup = { ...process.env }
+
   beforeEach(() => {
+    process.env.PROXY_HOST = "geo.iproyal.com"
+    process.env.PROXY_PORT = "12321"
     vi.resetModules()
+  })
+
+  afterEach(() => {
+    process.env = { ...envBackup }
   })
 
   it("allows the first claim and blocks duplicates within the cooldown window", async () => {
     const mod = await import("./notification-cooldown.js")
-    mod.resetCooldownForTests()
+    mod.resetNotificationCooldownForTests()
 
-    expect(mod.claimCooldown("test-key", 60_000)).toBe(true)
-    expect(mod.claimCooldown("test-key", 60_000)).toBe(false)
+    expect(await mod.claimCooldown("test-key", 60_000)).toBe(true)
+    expect(await mod.claimCooldown("test-key", 60_000)).toBe(false)
   })
 })

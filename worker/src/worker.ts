@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http"
 import { config } from "./config.js"
-import { sendQueueLiveAlert, subscribeTokenToTopic } from "./fcm.js"
+import { subscribeTokenToTopic } from "./fcm.js"
 import {
   ensureStealthChromium,
   formatProbeError,
@@ -23,6 +23,11 @@ import {
   type LiveDebounceState,
 } from "./queue-detector.js"
 import { sendFailureAlert } from "./services/failure-alert.js"
+import { dispatchQueueNotificationAsync } from "./services/notificationService.js"
+import {
+  attachWebSocketBroadcast,
+  getWebSocketClientCount,
+} from "./services/websocket-broadcast.js"
 
 async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = []
@@ -47,7 +52,15 @@ export function startSubscribeServer(): Server {
 
     if (request.method === "GET" && request.url === "/health") {
       response.writeHead(200, { "Content-Type": "application/json" })
-      response.end(JSON.stringify({ ok: true, service: "pokemon-center-queue-worker" }))
+      response.end(
+        JSON.stringify({
+          ok: true,
+          service: "pokemon-center-queue-worker",
+          websocketClients: getWebSocketClientCount(),
+          oneSignalConfigured: Boolean(config.onesignalAppId && config.onesignalRestApiKey),
+          notificationCooldownMs: config.notificationCooldownMs,
+        }),
+      )
       return
     }
 
@@ -77,8 +90,11 @@ export function startSubscribeServer(): Server {
     }
   })
 
+  attachWebSocketBroadcast(server, "/ws")
+
   server.listen(config.subscribePort, "0.0.0.0", () => {
     console.log(`[worker] FCM subscribe API listening on 0.0.0.0:${config.subscribePort}/subscribe`)
+    console.log(`[worker] WebSocket broadcast available at ws://0.0.0.0:${config.subscribePort}/ws`)
   })
 
   return server
@@ -133,9 +149,12 @@ export async function checkQueueOnce(debounce: LiveDebounceState): Promise<void>
       const confirmed = registerLiveHit(debounce)
       if (confirmed && canSendAlert(debounce)) {
         const queueUrl = probe.queueUrl ?? config.queueDeepLink
-        const messageId = await sendQueueLiveAlert(queueUrl)
+        dispatchQueueNotificationAsync({
+          url: queueUrl,
+          status: probe.status,
+        })
         markAlertSent(debounce)
-        console.log(`[worker] FCM alert sent (${messageId}) topic=${config.fcmTopic} url=${queueUrl}`)
+        console.log(`[worker] Queue alert queued for async dispatch url=${queueUrl}`)
       }
     } else {
       resetLiveDebounce(debounce)
