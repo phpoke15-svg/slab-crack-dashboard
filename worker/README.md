@@ -6,7 +6,7 @@ Standalone Node.js worker that polls Pokémon Center through a proxy, detects vi
 
 ```bash
 cd worker
-cp .env.example .env
+cp env.example .env
 # Add proxy credentials + firebase-service-account.json
 npm install
 npm run dev
@@ -14,7 +14,7 @@ npm run dev
 
 ## Environment
 
-See `.env.example` for all variables. Required:
+See `env.example` for all variables. Required:
 
 - `PROXY_HOST`, `PROXY_PORT` — proxy used by `HttpsProxyAgent`
 - `FIREBASE_SERVICE_ACCOUNT_PATH` — path to Firebase Admin JSON key
