@@ -10,7 +10,9 @@ import { SiteAuthButton } from "@/components/site-auth-button"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SelectedGradePrice } from "@/components/grading/selected-grade-price"
 import { SlabGradeSelector } from "@/components/grading/slab-grade-selector"
-import { PriceHistoryChart } from "@/components/price-history-chart"
+import { PriceHistoryChart } from "@/components/PriceHistoryChart"
+import { PriceHistoryChart as LegacyPriceHistoryChart } from "@/components/price-history-chart"
+import { useScrydexCardPricing } from "@/lib/grading/use-scrydex-card-pricing"
 import { resolveGradedPricesForCard, buildSlabQuotesForCompany, pickGradedPrice } from "@/lib/grading/quotes"
 import { DEFAULT_SLAB_GRADE, historyChartGradeProps, type SlabGradeRef } from "@/lib/grading/types"
 import { SlabDrawer } from "@/components/slab-drawer"
@@ -87,6 +89,7 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
   const [portfolioMessage, setPortfolioMessage] = useState<string | null>(null)
 
   const { user, runWithAuth, getSupabase } = useAuth()
+  const scrydexPricing = useScrydexCardPricing(card?.id, Boolean(card?.id))
 
   const enterManualHandoff = useCallback(
     (opts: {
@@ -510,14 +513,23 @@ export function SlabcrackScanClient({ tool = "slabcrack" }: { tool?: ScanTool })
                 </div>
                 {card.hasPricing !== false ? (
                   <div className="mt-2">
-                    <PriceHistoryChart
-                      cardId={card.id}
-                      {...chartGradeProps}
-                      currentRaw={card.rawPrice}
-                      currentSlab={selectedSlabPrice}
-                      compact
-                      className="border-white/10 bg-white/5"
-                    />
+                    {scrydexPricing.scrydexId ? (
+                      <PriceHistoryChart
+                        scrydexId={scrydexPricing.scrydexId}
+                        game={scrydexPricing.game}
+                        mode="graded"
+                        className="border-white/10 bg-white/5"
+                      />
+                    ) : (
+                      <LegacyPriceHistoryChart
+                        cardId={card.id}
+                        {...chartGradeProps}
+                        currentRaw={card.rawPrice}
+                        currentSlab={selectedSlabPrice}
+                        compact
+                        className="border-white/10 bg-white/5"
+                      />
+                    )}
                   </div>
                 ) : null}
               </div>

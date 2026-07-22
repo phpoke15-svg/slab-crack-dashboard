@@ -17,19 +17,26 @@ export type ScrydexHistoryChartRow = {
 
 export type RechartsHistoryRow = {
   recorded_at: string
-  RAW?: number
-  PSA_10?: number
-  PSA_9?: number
-  PSA_8?: number
-  PSA_7?: number
+  [priceKey: string]: string | number | undefined
 }
 
-const RECHARTS_GRADE_KEYS: Record<string, keyof RechartsHistoryRow> = {
-  raw: "RAW",
-  psa10: "PSA_10",
-  psa9: "PSA_9",
-  psa8: "PSA_8",
-  psa7: "PSA_7",
+/** Map internal grade bucket keys to Recharts dataKeys (RAW, PSA_10, BGS_9_5, …). */
+export function gradeTypeToRechartsKey(gradeType: string): string | null {
+  if (gradeType === "raw") return "RAW"
+
+  const psaMatch = /^psa(\d+(?:_\d+)?)$/.exec(gradeType)
+  if (psaMatch) {
+    return `PSA_${psaMatch[1].replace(/\./g, "_")}`
+  }
+
+  const slabMatch = /^slab:([A-Z]+)\|(.+)$/.exec(gradeType)
+  if (slabMatch) {
+    const company = slabMatch[1]
+    const grade = slabMatch[2].replace(/\./g, "_").replace(/ /g, "_")
+    return `${company}_${grade}`
+  }
+
+  return null
 }
 
 /** Map a price_history_daily row to a chart column key (raw, psa10, slab:BGS|9.5, …). */
@@ -97,17 +104,34 @@ export function pivotHistoryRowsForChart(rows: DailyHistoryRow[]): ScrydexHistor
   )
 }
 
-/** Map pivot rows to Recharts dataKeys (RAW, PSA_10, PSA_9, …). */
+/** Map pivot rows to Recharts dataKeys (RAW, PSA_10, PSA_9, BGS_9_5, …). */
 export function toRechartsHistoryRows(rows: ScrydexHistoryChartRow[]): RechartsHistoryRow[] {
   return rows.map((row) => {
     const mapped: RechartsHistoryRow = { recorded_at: String(row.recorded_at) }
     for (const [key, value] of Object.entries(row)) {
       if (key === "recorded_at") continue
-      const rechartsKey = RECHARTS_GRADE_KEYS[key]
+      const rechartsKey = gradeTypeToRechartsKey(key)
       if (rechartsKey && typeof value === "number" && value > 0) {
         mapped[rechartsKey] = value
       }
     }
     return mapped
+  })
+}
+
+export function filterRechartsRowsByType(
+  rows: RechartsHistoryRow[],
+  type: "raw" | "graded" | "both",
+): RechartsHistoryRow[] {
+  if (type === "both") return rows
+
+  return rows.map((row) => {
+    const filtered: RechartsHistoryRow = { recorded_at: row.recorded_at }
+    for (const [key, value] of Object.entries(row)) {
+      if (key === "recorded_at" || typeof value !== "number") continue
+      if (type === "raw" && key === "RAW") filtered[key] = value
+      if (type === "graded" && key !== "RAW") filtered[key] = value
+    }
+    return filtered
   })
 }

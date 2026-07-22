@@ -24,7 +24,8 @@ import {
 import { slabEbayGradedAffiliateCampaign, slabEbayGradedSearchKeyword } from "@/lib/grading/ebay-search"
 import { DeficitBadge } from "@/components/deficit-badge"
 import { SlabCardImage } from "@/components/slab-card-image"
-import { PriceHistoryChart } from "@/components/price-history-chart"
+import { PriceHistoryChart } from "@/components/PriceHistoryChart"
+import { PriceHistoryChart as LegacyPriceHistoryChart } from "@/components/price-history-chart"
 import { ebaySearchUrl } from "@/lib/ebay-affiliate"
 import type { MockCardEntry } from "@/lib/slab-data"
 
@@ -213,15 +214,24 @@ export function SlabRow({ card, onClick, watched, saved = false, onToggleSave }:
       </div>
 
       {showPriceHistory ? (
-        <PriceHistoryChart
-          cardId={scrydexPricing.catalogId ?? card.id}
-          {...chartGradeProps}
-          currentRaw={card.rawPrice}
-          currentSlab={activeSlabPrice}
-          historyQuery={historyQuery}
-          compact
-          subtitle="Scrydex"
-        />
+        scrydexPricing.scrydexId ? (
+          <PriceHistoryChart
+            scrydexId={scrydexPricing.scrydexId}
+            game={scrydexPricing.game}
+            mode="graded"
+            className="border-0 bg-transparent p-0 backdrop-blur-none"
+          />
+        ) : (
+          <LegacyPriceHistoryChart
+            cardId={scrydexPricing.catalogId ?? card.id}
+            {...chartGradeProps}
+            currentRaw={card.rawPrice}
+            currentSlab={activeSlabPrice}
+            historyQuery={historyQuery}
+            compact
+            subtitle="Scrydex"
+          />
+        )
       ) : null}
     </div>
   )

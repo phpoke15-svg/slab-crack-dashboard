@@ -113,6 +113,9 @@ export class ScrydexClient {
       days?: number
       startDate?: string
       endDate?: string
+      from?: string
+      to?: string
+      interval?: string
       company?: string
       grade?: string
       priceHistoryDuration?: ScrydexPriceHistoryDuration
@@ -123,9 +126,12 @@ export class ScrydexClient {
   ) {
     const path = scrydexApiPath(game, `/cards/${encodeURIComponent(scrydexId)}/price_history`)
     const query = buildQuery({
-      days: params.priceHistoryDuration ? undefined : params.days,
+      days: params.priceHistoryDuration || params.from || params.to ? undefined : params.days,
       start_date: params.startDate,
       end_date: params.endDate,
+      from: params.from,
+      to: params.to,
+      interval: params.interval,
       company: params.company,
       grade: params.grade,
       priceHistoryDuration: params.priceHistoryDuration,
@@ -133,7 +139,56 @@ export class ScrydexClient {
       page_size: params.pageSize,
       casing: "snake",
     })
-    return this.fetch<ScrydexHistoryResponse>(`${path}${query}`, SCRYDEX_CREDIT_COST.history, opts)
+    const requestPath = `${path}${query}`
+    if (requestPath.includes("/price_history")) {
+      console.log("[scrydex/client] price history request:", `${SCRYDEX_BASE_URL}${requestPath}`)
+    }
+    return this.fetch<ScrydexHistoryResponse>(requestPath, SCRYDEX_CREDIT_COST.history, opts)
+  }
+
+  /** Fetch all pages of Scrydex price history for an explicit date range. */
+  async getAllPriceHistoryInRange(
+    game: TcgGame,
+    scrydexId: string,
+    params: {
+      from: string
+      to: string
+      interval?: string
+      company?: string
+      grade?: string
+    },
+    opts?: RequestOptions,
+  ): Promise<ScrydexHistoryResponse["data"]> {
+    const merged: NonNullable<ScrydexHistoryResponse["data"]> = []
+    const pageSize = 100
+    let page = 1
+
+    while (page <= 50) {
+      const response = await this.getPriceHistory(
+        game,
+        scrydexId,
+        {
+          from: params.from,
+          to: params.to,
+          interval: params.interval ?? "daily",
+          company: params.company,
+          grade: params.grade,
+          page,
+          pageSize,
+        },
+        opts,
+      )
+
+      const batch = response.data ?? []
+      if (batch.length === 0) break
+      merged.push(...batch)
+
+      const total = response.total_count ?? response.totalCount ?? batch.length
+      if (page * pageSize >= total) break
+      page += 1
+    }
+
+    return merged
   }
 
   /** Fetch all pages of Scrydex price history for a duration window. */
