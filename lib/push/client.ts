@@ -38,6 +38,30 @@ export async function getPushPermission(): Promise<NotificationPermission | "uns
   return Notification.permission
 }
 
+export function isPushPermissionDenied(): boolean {
+  return isWebPushSupported() && Notification.permission === "denied"
+}
+
+function pushPermissionBlockedMessage(): string {
+  const host =
+    typeof window !== "undefined" && window.location.hostname
+      ? window.location.hostname
+      : "collectools.app"
+
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : ""
+  const isSafari = /Safari/i.test(ua) && !/Chrome|Chromium|Edg/i.test(ua)
+  const isFirefox = /Firefox/i.test(ua)
+
+  if (isSafari) {
+    return `Notifications are blocked for this site. Safari → Settings for ${host} → Notifications → Allow, then reload and try again.`
+  }
+  if (isFirefox) {
+    return `Notifications are blocked for this site. Click the lock icon in the address bar → Permissions → Notifications → Allow, then reload and try again.`
+  }
+
+  return `Notifications are blocked for this site. Click the lock or tune icon left of the address bar → Site settings → Notifications → Allow, then reload and try again.`
+}
+
 async function postSubscription(
   json: { endpoint: string; keys: { p256dh: string; auth: string } },
   prefs: PushOptInPrefs,
@@ -69,7 +93,13 @@ export async function enableWebPush(prefs: PushOptInPrefs): Promise<{ ok: true }
 
   const permission = await Notification.requestPermission()
   if (permission !== "granted") {
-    return { ok: false, error: "Notification permission was blocked." }
+    return {
+      ok: false,
+      error:
+        permission === "denied" || Notification.permission === "denied"
+          ? pushPermissionBlockedMessage()
+          : "Notification permission was not granted. Try again and choose Allow when your browser asks.",
+    }
   }
 
   const keyRes = await fetch("/api/push/vapid-public-key", { cache: "no-store" })
