@@ -11,13 +11,13 @@ export const maxDuration = 60
 
 export async function GET(
   request: Request,
-  context: { params: Promise<{ scrydex_id: string }> },
+  context: { params: Promise<{ id: string }> },
 ) {
-  const { scrydex_id: scrydexIdRaw } = await context.params
+  const { id: scrydexIdRaw } = await context.params
   const scrydexId = decodeURIComponent(scrydexIdRaw).trim()
 
   if (!scrydexId) {
-    return NextResponse.json({ error: "scrydex_id is required" }, { status: 400 })
+    return NextResponse.json({ error: "scrydex id is required" }, { status: 400 })
   }
 
   const { searchParams } = new URL(request.url)

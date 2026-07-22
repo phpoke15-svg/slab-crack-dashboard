@@ -6,8 +6,14 @@ This worker is a **long-running process** (not serverless). Railway is the right
 
 1. In [Railway](https://railway.app), open your project linked to this repo.
 2. **New → GitHub Repo** (or add a service to the existing project).
-3. Set **Root Directory** to `worker` (important — the repo root is the Next.js app on Vercel).
-4. Railway reads `worker/railway.toml` automatically.
+3. Set **Root Directory** to `worker` (important — repo root `npm start` runs **Next.js**, not the worker).
+4. Railway reads `worker/railway.toml` automatically (`startCommand = npm run start:worker`).
+
+If you must deploy from the repo root instead, set Railway **Start Command** to:
+
+```bash
+npm run start:worker
+```
 
 ## 2. Required environment variables
 
