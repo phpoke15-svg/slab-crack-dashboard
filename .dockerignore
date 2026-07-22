@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+*.md
+apps
+components
+lib
+app
+mobile-app
+live-binder-hud
+scripts
+supabase
+public
+coverage
+.env*
