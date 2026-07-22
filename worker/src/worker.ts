@@ -15,7 +15,10 @@ import {
   createDebounceState,
   CRON_SCHEDULE,
   CRON_TIMEZONE,
+  isWithinMonitoringWindow,
   markAlertSent,
+  MONITORING_WINDOW_LABEL,
+  OUTSIDE_MONITORING_WINDOW_MESSAGE,
   registerLiveHit,
   resetLiveDebounce,
   type LiveDebounceState,
@@ -81,8 +84,13 @@ export function startSubscribeServer(): void {
 
 let probeInFlight = false
 
-/** Single queue GET probe — only invoked by the weekday cron schedule. */
+/** Single queue probe — invoked on the weekday cron schedule (window guarded in code). */
 export async function checkQueueOnce(debounce: LiveDebounceState): Promise<void> {
+  if (!isWithinMonitoringWindow()) {
+    console.log(OUTSIDE_MONITORING_WINDOW_MESSAGE)
+    return
+  }
+
   if (probeInFlight) {
     console.log("[worker] Skipping scheduled check — previous probe still running")
     return
@@ -128,9 +136,9 @@ async function main(): Promise<void> {
   console.log("[worker] Pokémon Center queue detector started")
   console.log("[worker] Queue probe transport=playwright-stealth profile=chromium-desktop-stealth")
   console.log(
-    `[worker] Queue checks scheduled Mon-Fri 9:00 AM - 5:00 PM ${CRON_TIMEZONE} every 3 minutes (cron: ${CRON_SCHEDULE})`,
+    `[worker] Queue checks scheduled ${MONITORING_WINDOW_LABEL} every 3 minutes (cron: ${CRON_SCHEDULE})`,
   )
-  console.log("[worker] Idle outside scheduled hours — no HTTP or proxy requests will be made")
+  console.log("[worker] Outside operating window — checks skipped until the next interval")
   console.log(`[worker] target=${config.targetUrl}`)
 
   startSubscribeServer()

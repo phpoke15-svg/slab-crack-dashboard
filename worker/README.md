@@ -25,13 +25,13 @@ See `env.example` for all variables. Required proxy (either naming scheme):
 
 ## Schedule
 
-Queue probes run **Monday through Friday, 9:00 AM – 5:00 PM Eastern** (`America/New_York`, DST-aware) via `node-cron` using a **6-field** expression (seconds first):
+Queue probes run **Monday through Friday, 9:30 AM – 4:00 PM Eastern** (`America/New_York`, DST-aware). A cron job fires every **3 minutes** on weekdays (`CHECK_INTERVAL_MS = 180_000`); `isWithinMonitoringWindow()` enforces the exact start/end times (including minutes — checks begin at 9:30 AM ET and stop at 4:00 PM ET):
 
 ```
-0 */3 * 9-16 * * 1-5
+0 */3 * * * 1-5
 ```
 
-Every **3 minutes** during business hours (`CHECK_INTERVAL_MS = 180_000`). Outside that window the worker stays idle and makes **no HTTP or proxy requests**. The FCM subscribe API remains available 24/7.
+Outside that window the worker logs a skip message and makes **no HTTP or proxy requests** until the next interval. The FCM subscribe API remains available 24/7.
 
 ## Detection logic
 
