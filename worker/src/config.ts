@@ -33,6 +33,8 @@ export const config = {
   upstashRedisRestUrl: optional("UPSTASH_REDIS_REST_URL"),
   upstashRedisRestToken: optional("UPSTASH_REDIS_REST_TOKEN"),
   notificationRedisChannel: optional("NOTIFICATION_REDIS_CHANNEL", "queue:detected"),
+  /** Bearer token for POST /test/queue-live (falls back to CRON_SECRET). */
+  workerTestSecret: optional("WORKER_TEST_SECRET") || optional("CRON_SECRET"),
   subscribePort: Number(optional("PORT", optional("SUBSCRIBE_PORT", "8787"))),
   userAgent:
     optional(

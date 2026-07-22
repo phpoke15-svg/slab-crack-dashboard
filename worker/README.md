@@ -84,3 +84,31 @@ The worker exposes `POST /subscribe` on `SUBSCRIBE_PORT` (default `8787`):
 ```
 
 Mobile apps should register for push, obtain a native device token (`expo-notifications` → `getDevicePushTokenAsync`), and POST it here so Firebase Admin can subscribe the device to `pokemon_center_alerts`.
+
+## Test queue-live alerts
+
+Use these endpoints to verify push delivery without waiting for a real queue drop.
+
+### Railway worker (OneSignal pro/supreme + FCM topic + WebSocket)
+
+Set `WORKER_TEST_SECRET` on Railway (or reuse the same value as Vercel `CRON_SECRET`).
+
+```bash
+curl -sS -X POST "https://<your-railway-domain>/test/queue-live?force=1" \
+  -H "Authorization: Bearer $WORKER_TEST_SECRET" \
+  -H "Content-Type: application/json" \
+  -d '{"status":302}'
+```
+
+- Omit `?force=1` to exercise the normal 20-minute cooldown (`NOTIFICATION_COOLDOWN_MS`).
+- Response includes `oneSignalId`, `fcmMessageId`, and `websocketClients`.
+
+### Vercel web push (Pro/Supreme on `/pokewatch`)
+
+```bash
+curl -sS -X POST "https://collectools.app/api/pokemon-center/test-queue-alert?force=1" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+- Sends a labeled **(TEST)** queue-live push to subscribers who opted in on `/pokewatch`.
+- Without `?force=1`, respects the 5-minute web-push dedupe window.

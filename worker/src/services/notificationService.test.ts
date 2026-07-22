@@ -129,6 +129,34 @@ describe("notificationService", () => {
     expect(second.reason).toBe("cooldown_active")
     expect(fetchMock).toHaveBeenCalledOnce()
   })
+
+  it("bypasses cooldown when skipCooldown is true", async () => {
+    const fetchMock = vi.fn(async () =>
+      Response.json({ id: "notification-force" }, { status: 200 }),
+    )
+    vi.stubGlobal("fetch", fetchMock)
+
+    const service = await import("./notificationService.js")
+    service.resetNotificationQueueForTests()
+    const cooldown = await import("./notification-cooldown.js")
+    cooldown.resetNotificationCooldownForTests()
+
+    const first = await service.sendQueueNotification({
+      url: "https://www.pokemoncenter.com",
+      status: 200,
+    })
+    const forced = await service.sendQueueNotification(
+      {
+        url: "https://www.pokemoncenter.com",
+        status: 200,
+      },
+      { skipCooldown: true },
+    )
+
+    expect(first.skipped).toBe(false)
+    expect(forced.skipped).toBe(false)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe("websocket broadcast", () => {

@@ -294,6 +294,37 @@ async function maybeSendQueueLiveWebPush(
   return { sent: true }
 }
 
+/** Manual test hook for Pro/Supreme web push on /pokewatch (CRON_SECRET). */
+export async function sendTestQueueLiveWebPush(options?: {
+  force?: boolean
+}): Promise<{ sent: boolean; reason?: string; sentCount?: number }> {
+  if (!options?.force) {
+    const claimed = await claimPushAlertDedupe("queue_live_global", PUSH_COOLDOWN_MS)
+    if (!claimed) return { sent: false, reason: "deduped" }
+  }
+
+  const site = getSiteUrl()
+  const result = await sendWebPushToTopic("queue_live", {
+    title: "🚨 Pokémon Center Queue is LIVE! (TEST)",
+    body: "This is a test queue-live alert from CollecTools PokeWatch.",
+    url: `${site}/pokewatch`,
+    tag: "pc-queue-live-test",
+  })
+
+  if (result.sent === 0) {
+    if (!options?.force) {
+      await releasePushAlertDedupe("queue_live_global")
+    }
+    return { sent: false, reason: result.reason || "send_failed", sentCount: 0 }
+  }
+
+  if (!options?.force) {
+    await recordPushAlertDedupe("queue_live_global")
+  }
+
+  return { sent: true, sentCount: result.sent }
+}
+
 export async function maybeSendMobileAlerts(
   report: QueueWatchReport,
   previous: QueueWatchReport | null,
