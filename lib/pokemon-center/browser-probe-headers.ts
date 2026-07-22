@@ -11,7 +11,7 @@ export type BrowserProbeProfile = {
 }
 
 /** Rotate client fingerprints — Imperva flags static bot headers. */
-const ROTATING_PROFILES: BrowserProbeProfile[] = [
+export const BROWSER_PROBE_PROFILES: BrowserProbeProfile[] = [
   {
     id: "chrome-desktop-us",
     userAgent:
@@ -55,12 +55,13 @@ const ROTATING_PROFILES: BrowserProbeProfile[] = [
   },
 ]
 
-export function pickProbeProfile(now = Date.now()): BrowserProbeProfile {
-  const slot = Math.floor(now / (5 * 60 * 1000)) % ROTATING_PROFILES.length
-  return ROTATING_PROFILES[slot]!
+export function pickBrowserProbeProfile(now = Date.now()): BrowserProbeProfile {
+  const slot = Math.floor(now / (5 * 60 * 1000)) % BROWSER_PROBE_PROFILES.length
+  return BROWSER_PROBE_PROFILES[slot]!
 }
 
-export function buildProbeHeaders(profile: BrowserProbeProfile): Record<string, string> {
+/** Headers aligned with a real modern browser navigation to pokemoncenter.com. */
+export function buildBrowserProbeHeaders(profile: BrowserProbeProfile): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: profile.accept,
     "Accept-Language": profile.acceptLanguage,
